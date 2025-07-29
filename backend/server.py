@@ -87,23 +87,38 @@ async def get_dashboard_stats():
         def compute_stats():
             today = datetime.now().strftime('%Y-%m-%d')
             
-            stats = {
-                "total_articles": articles_collection.count_documents({}),
-                "today_articles": articles_collection.count_documents({"date": today}),
-                "total_transcriptions": transcriptions_collection.count_documents({}),
-                "today_transcriptions": transcriptions_collection.count_documents({"date": today}),
-                "total_digests": digests_collection.count_documents({}),
-                "scheduler_jobs": len(veille_scheduler.get_job_status()),
-                "last_update": datetime.now().isoformat(),
-                "date": today
-            }
+            try:
+                stats = {
+                    "total_articles": articles_collection.count_documents({}),
+                    "today_articles": articles_collection.count_documents({"date": today}),
+                    "total_transcriptions": transcriptions_collection.count_documents({}),
+                    "today_transcriptions": transcriptions_collection.count_documents({"date": today}),
+                    "total_digests": digests_collection.count_documents({}),
+                    "scheduler_jobs": len(veille_scheduler.get_job_status()) if veille_scheduler else 0,
+                    "last_update": datetime.now().isoformat(),
+                    "date": today
+                }
+            except Exception as db_error:
+                # Fallback avec valeurs par défaut si erreur DB
+                logger.warning(f"Erreur accès DB: {db_error}")
+                stats = {
+                    "total_articles": 0,
+                    "today_articles": 0,
+                    "total_transcriptions": 0,
+                    "today_transcriptions": 0,
+                    "total_digests": 0,
+                    "scheduler_jobs": 0,
+                    "last_update": datetime.now().isoformat(),
+                    "date": today,
+                    "db_error": str(db_error)
+                }
             
             # Ajouter les stats du cache si disponible
             if CACHE_ENABLED:
                 try:
                     stats["cache_stats"] = intelligent_cache.get_cache_stats()
                 except Exception as e:
-                    print(f"Erreur stats cache: {e}")
+                    logger.warning(f"Erreur stats cache: {e}")
                     stats["cache_stats"] = {"error": str(e)}
             
             return stats
