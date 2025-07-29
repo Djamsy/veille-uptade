@@ -20,11 +20,11 @@ class IntelligentCache:
         self.cache_timestamps = {}
         self.cache_locks = {}
         self.cache_expiry = {
-            'dashboard_stats': 60,  # 1 minute
-            'articles_today': 300,  # 5 minutes
-            'transcriptions_today': 300,  # 5 minutes
-            'digest_today': 900,  # 15 minutes
-            'scheduler_status': 120,  # 2 minutes
+            'dashboard_stats': 86400,  # 24 heures
+            'articles_today': 86400,  # 24 heures
+            'transcriptions_today': 86400,  # 24 heures
+            'digest_today': 86400,  # 24 heures
+            'scheduler_status': 86400,  # 24 heures
         }
         
         # MongoDB connection pour le cache persistant
