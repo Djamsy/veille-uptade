@@ -160,8 +160,8 @@ class GuadeloupeScraper:
             # Pour La 1ère, accepter les URLs avec /guadeloupe/
             return '/guadeloupe/' in url and url.count('/') >= 4
         elif 'karibinfo.com' in base_domain:
-            # Pour KaribInfo, accepter les URLs avec actualités, politique, société
-            return any(cat in url for cat in ['/actualites/', '/politique/', '/societe/', '/economie/'])
+            # Pour KaribInfo, accepter les URLs avec news, actualite, politique, société
+            return any(cat in url for cat in ['/news/', '/actualite/', '/politique/', '/societe/', '/economie/'])
         
         return True
 
