@@ -402,7 +402,7 @@ class GuadeloupeScraper:
             # Utiliser le cache intelligent
             return get_or_compute('articles_today', fetch_articles)
             
-        except ImportError:
+        except (ImportError, Exception):
             # Fallback sans cache
             today = datetime.now().strftime('%Y-%m-%d')
             articles = list(self.articles_collection.find(
@@ -426,7 +426,7 @@ class GuadeloupeScraper:
             # Utiliser le cache intelligent
             return get_or_compute('articles_by_date', fetch_articles, {'date': date_str})
             
-        except ImportError:
+        except (ImportError, Exception):
             # Fallback sans cache
             articles = list(self.articles_collection.find(
                 {'date': date_str}, 
