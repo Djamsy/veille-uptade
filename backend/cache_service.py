@@ -90,7 +90,7 @@ class IntelligentCache:
         self.cache_timestamps[cache_key] = current_time
         
         # Cache persistant
-        if self.cache_collection:
+        if self.cache_collection is not None:
             try:
                 cache_item = {
                     'cache_key': cache_key,
