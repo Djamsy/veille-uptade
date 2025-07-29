@@ -11,6 +11,7 @@ import asyncio
 from typing import List, Dict, Any
 import tempfile
 import shutil
+import logging
 
 # Import des services (avec gestion d'erreur pour le cache)
 from scraper_service import guadeloupe_scraper
