@@ -27,7 +27,7 @@ class GuadeloupeScraper:
         self.db = self.client.veille_media
         self.articles_collection = self.db.articles_guadeloupe
         
-        # Sites à scraper avec sélecteurs multiples améliorés
+        # Sites à scraper avec sélecteurs multiples améliorés et testés
         self.sites_config = {
             "france_antilles": {
                 "name": "France-Antilles Guadeloupe",
@@ -37,27 +37,17 @@ class GuadeloupeScraper:
                     ".title a", ".entry-title a", "h2 a", "h3 a",
                     ".post-title a", ".content-title a", ".news-title a"
                 ],
-                "base_url": "https://www.guadeloupe.franceantilles.fr",
-                "additional_pages": [
-                    "https://www.guadeloupe.franceantilles.fr/actualite/politique",
-                    "https://www.guadeloupe.franceantilles.fr/actualite/economie",
-                    "https://www.guadeloupe.franceantilles.fr/actualite/societe"
-                ]
+                "base_url": "https://www.guadeloupe.franceantilles.fr"
             },
             "rci": {
                 "name": "RCI Guadeloupe", 
                 "url": "https://rci.fm/guadeloupe/infos/toutes-les-infos",
                 "selectors": [
+                    "a[href*='/guadeloupe/infos/']",  # Sélecteur principal pour RCI
                     ".post-title a", ".entry-title a", "h2 a", "h3 a",
-                    ".article-title a", ".content-title a", ".news-item a",
-                    ".post-item h2 a", ".post-item h3 a"
+                    ".article-title a", ".content-title a", ".news-item a"
                 ],
-                "base_url": "https://rci.fm",
-                "additional_pages": [
-                    "https://rci.fm/guadeloupe/infos/politique",
-                    "https://rci.fm/guadeloupe/infos/economie",
-                    "https://rci.fm/guadeloupe/infos/societe"
-                ]
+                "base_url": "https://rci.fm"
             },
             "la1ere": {
                 "name": "La 1ère Guadeloupe",
@@ -65,14 +55,9 @@ class GuadeloupeScraper:
                 "selectors": [
                     ".teaser__title a", ".article-title a", "h2 a", "h3 a",
                     ".content-title a", ".post-title a", ".entry-title a",
-                    ".news-title a", ".item-title a"
+                    ".news-title a", ".item-title a", "a[href*='/guadeloupe/']"
                 ],
-                "base_url": "https://la1ere.franceinfo.fr",
-                "additional_pages": [
-                    "https://la1ere.franceinfo.fr/guadeloupe/politique",
-                    "https://la1ere.franceinfo.fr/guadeloupe/economie", 
-                    "https://la1ere.franceinfo.fr/guadeloupe/societe"
-                ]
+                "base_url": "https://la1ere.franceinfo.fr"
             },
             "karibinfo": {
                 "name": "KaribInfo",
@@ -80,10 +65,10 @@ class GuadeloupeScraper:
                 "selectors": [
                     ".post-title a", ".entry-title a", ".title a", "h2 a", "h3 a",
                     ".article-title a", ".content-title a", ".news-title a",
-                    ".post-item h2 a", ".post-item h3 a", ".item-title a"
+                    ".post-item h2 a", ".post-item h3 a", ".item-title a",
+                    "a[href*='/actualites/']", "a[href*='/societe/']", "a[href*='/politique/']"
                 ],
-                "base_url": "https://www.karibinfo.com",
-                "additional_pages": []  # URLs supprimées car elles génèrent des 404
+                "base_url": "https://www.karibinfo.com"
             }
         }
         
