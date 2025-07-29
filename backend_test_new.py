@@ -30,18 +30,23 @@ class GuadeloupeVeilleAPITester:
         return success
 
     def test_root_endpoint(self):
-        """Test root endpoint"""
+        """Test root endpoint (should return HTML for React app)"""
         try:
             response = self.session.get(f"{self.base_url}/")
             success = response.status_code == 200
             if success:
-                data = response.json()
-                details = f"- Message: {data.get('message', 'No message')}"
+                # Root endpoint returns HTML, not JSON
+                content = response.text
+                if "Emergent" in content and "root" in content:
+                    details = f"- React app loaded successfully (HTML length: {len(content)} chars)"
+                else:
+                    success = False
+                    details = "- Unexpected HTML content"
             else:
                 details = f"- Status: {response.status_code}"
-            return self.log_test("Root Endpoint", success, details)
+            return self.log_test("Root Endpoint (React App)", success, details)
         except Exception as e:
-            return self.log_test("Root Endpoint", False, f"- Error: {str(e)}")
+            return self.log_test("Root Endpoint (React App)", False, f"- Error: {str(e)}")
 
     def test_dashboard_stats(self):
         """Test dashboard statistics endpoint"""
