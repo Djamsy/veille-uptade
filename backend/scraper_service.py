@@ -222,6 +222,64 @@ class GuadeloupeScraper:
             logger.error(f"❌ Erreur scraping RCI: {e}")
             return []
 
+    def scrape_karibinfo_articles(self, url: str) -> List[Dict[str, Any]]:
+        """Scraper spécialisé pour KaribInfo"""
+        articles = []
+        
+        try:
+            session = requests.Session()
+            session.headers.update(self.get_next_headers())
+            
+            response = session.get(url, timeout=20)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Trouver tous les liens
+            all_links = soup.find_all('a', href=True)
+            
+            for link in all_links:
+                href = link.get('href', '')
+                text = link.get_text(strip=True)
+                
+                # Filtrer spécifiquement pour KaribInfo
+                if (('/news/' in href or '/actualite/' in href) and 
+                    len(text) > 15 and 
+                    href.startswith('http') and
+                    'karibinfo.com' in href and
+                    not any(x in href.lower() for x in ['author/', 'category/', 'tag/'])):
+                    
+                    full_url = href
+                    title = self.clean_title(text)
+                    
+                    if len(title) > 10:  # Titre minimum
+                        article = {
+                            'id': f"karibinfo_{hash(full_url)}",
+                            'title': title,
+                            'url': full_url,
+                            'source': 'KaribInfo',
+                            'site_key': 'karibinfo',
+                            'scraped_at': datetime.now().isoformat(),
+                            'date': datetime.now().strftime('%Y-%m-%d'),
+                            'scraped_from_page': url
+                        }
+                        articles.append(article)
+            
+            # Supprimer les doublons
+            seen_urls = set()
+            unique_articles = []
+            for article in articles:
+                if article['url'] not in seen_urls:
+                    seen_urls.add(article['url'])
+                    unique_articles.append(article)
+            
+            logger.info(f"✅ KaribInfo: {len(unique_articles)} articles trouvés")
+            return unique_articles[:15]  # Limiter à 15 articles
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur scraping KaribInfo: {e}")
+            return []
+
     def scrape_page(self, url: str, site_key: str, max_retries: int = 3) -> List[Dict[str, Any]]:
         """Scraper une page spécifique"""
         
