@@ -13,6 +13,9 @@ import tempfile
 import shutil
 import logging
 
+# Configure logging
+logger = logging.getLogger(__name__)
+
 # Import des services (avec gestion d'erreur pour le cache)
 from scraper_service import guadeloupe_scraper
 from radio_service import radio_service  
