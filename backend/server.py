@@ -25,8 +25,8 @@ from scheduler_service import veille_scheduler, start_scheduler
 # Import du cache avec fallback - Réactivé avec cache 24H
 try:
     from cache_service import intelligent_cache, get_or_compute, cache_invalidate, start_cache_service
-    CACHE_ENABLED = True
-    print("✅ Cache service réactivé avec cache 24H")
+    CACHE_ENABLED = False
+    print("⚠️ Cache temporairement désactivé pour debug")
 except ImportError as e:
     print(f"⚠️ Cache service non disponible: {e}")
     CACHE_ENABLED = False
