@@ -67,7 +67,8 @@ except Exception as e:
 
 # Démarrer les services
 start_scheduler()
-start_cache_service()
+if CACHE_ENABLED:
+    start_cache_service()
 
 @app.get("/")
 async def root():
