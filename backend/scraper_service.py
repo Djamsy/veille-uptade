@@ -63,10 +63,10 @@ class GuadeloupeScraper:
                 "name": "KaribInfo",
                 "url": "https://www.karibinfo.com/",
                 "selectors": [
-                    ".post-title a", ".entry-title a", ".title a", "h2 a", "h3 a",
+                    "h1 a", "h2 a", "h3 a", "article a", ".post a",
+                    ".post-title a", ".entry-title a", ".title a", 
                     ".article-title a", ".content-title a", ".news-title a",
-                    ".post-item h2 a", ".post-item h3 a", ".item-title a",
-                    "a[href*='/actualites/']", "a[href*='/societe/']", "a[href*='/politique/']"
+                    "a[href*='/news/']", "a[href*='/actualite/']", "a[href*='/societe/']"
                 ],
                 "base_url": "https://www.karibinfo.com"
             }
