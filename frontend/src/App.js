@@ -11,68 +11,113 @@ function App() {
   const [digest, setDigest] = useState(null);
   const [schedulerStatus, setSchedulerStatus] = useState({});
   const [loading, setLoading] = useState(false);
+  const [backgroundTasks, setBackgroundTasks] = useState({});
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [error, setError] = useState(null);
 
-  // Charger les statistiques du dashboard
+  // Fonction utilitaire pour les appels API avec timeout et gestion d'erreur
+  const apiCall = async (url, options = {}) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 secondes timeout
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers
+        }
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        throw new Error('Délai d\'attente dépassé (30s)');
+      }
+      throw error;
+    }
+  };
+
+  // Charger les statistiques du dashboard avec cache
   const loadDashboardStats = async () => {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/dashboard-stats`);
-      const data = await response.json();
+      const data = await apiCall(`${BACKEND_URL}/api/dashboard-stats`);
       if (data.success) {
         setDashboardStats(data.stats);
       }
     } catch (error) {
       console.error('Erreur chargement stats:', error);
+      setError('Erreur chargement des statistiques');
     }
   };
 
-  // Charger les données selon l'onglet actif
-  const loadTabData = async (tab, date = null) => {
+  // Charger les données selon l'onglet actif avec cache intelligent
+  const loadTabData = async (tab, date = null, force = false) => {
+    if (loading) return; // Éviter les appels multiples
+    
     setLoading(true);
+    setError(null);
+    
     try {
       const targetDate = date || selectedDate;
       
       switch (tab) {
         case 'articles':
-          let articlesUrl = `${BACKEND_URL}/api/articles`;
-          if (targetDate !== new Date().toISOString().split('T')[0]) {
-            articlesUrl = `${BACKEND_URL}/api/articles/${targetDate}`;
+          const articlesUrl = targetDate !== new Date().toISOString().split('T')[0] 
+            ? `${BACKEND_URL}/api/articles/${targetDate}`
+            : `${BACKEND_URL}/api/articles`;
+          
+          const articlesData = await apiCall(articlesUrl);
+          if (articlesData.success) {
+            setArticles(articlesData.articles);
           }
-          const articlesRes = await fetch(articlesUrl);
-          const articlesData = await articlesRes.json();
-          if (articlesData.success) setArticles(articlesData.articles);
           break;
           
         case 'transcription':
-          let transcriptionsUrl = `${BACKEND_URL}/api/transcriptions`;
-          if (targetDate !== new Date().toISOString().split('T')[0]) {
-            transcriptionsUrl = `${BACKEND_URL}/api/transcriptions/${targetDate}`;
+          const transcriptionsUrl = targetDate !== new Date().toISOString().split('T')[0]
+            ? `${BACKEND_URL}/api/transcriptions/${targetDate}`
+            : `${BACKEND_URL}/api/transcriptions`;
+          
+          const transcriptionsData = await apiCall(transcriptionsUrl);
+          if (transcriptionsData.success) {
+            setTranscriptions(transcriptionsData.transcriptions);
           }
-          const transcriptionsRes = await fetch(transcriptionsUrl);
-          const transcriptionsData = await transcriptionsRes.json();
-          if (transcriptionsData.success) setTranscriptions(transcriptionsData.transcriptions);
           break;
           
         case 'digest':
-          let digestUrl = `${BACKEND_URL}/api/digest`;
-          if (targetDate !== new Date().toISOString().split('T')[0]) {
-            digestUrl = `${BACKEND_URL}/api/digest/${targetDate}`;
+          const digestUrl = targetDate !== new Date().toISOString().split('T')[0]
+            ? `${BACKEND_URL}/api/digest/${targetDate}`
+            : `${BACKEND_URL}/api/digest`;
+          
+          const digestData = await apiCall(digestUrl);
+          if (digestData.success) {
+            setDigest(digestData.digest);
+          } else {
+            setDigest(null);
           }
-          const digestRes = await fetch(digestUrl);
-          const digestData = await digestRes.json();
-          if (digestData.success) setDigest(digestData.digest);
           break;
           
         case 'scheduler':
-          const schedulerRes = await fetch(`${BACKEND_URL}/api/scheduler/status`);
-          const schedulerData = await schedulerRes.json();
-          if (schedulerData.success) setSchedulerStatus(schedulerData);
+          const schedulerData = await apiCall(`${BACKEND_URL}/api/scheduler/status`);
+          if (schedulerData.success) {
+            setSchedulerStatus(schedulerData);
+          }
           break;
       }
     } catch (error) {
-      console.error('Erreur chargement données:', error);
+      console.error(`Erreur chargement ${tab}:`, error);
+      setError(`Erreur chargement ${tab}: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -82,51 +127,111 @@ function App() {
     }
   }, [activeTab, selectedDate]);
 
-  // Actions manuelles
+  // Actions optimisées avec traitement en arrière-plan
   const scrapeArticlesNow = async () => {
-    setLoading(true);
+    if (backgroundTasks.scraping) return;
+    
+    setBackgroundTasks(prev => ({ ...prev, scraping: true }));
+    
     try {
-      const response = await fetch(`${BACKEND_URL}/api/articles/scrape-now`, { method: 'POST' });
-      const data = await response.json();
-      if (data.success) {
-        alert(`✅ Scraping réussi ! ${data.result.total_articles} articles récupérés`);
-        loadTabData('articles');
-        loadDashboardStats();
+      // Démarrer le scraping en arrière-plan
+      const response = await apiCall(`${BACKEND_URL}/api/articles/scrape-now`, { method: 'POST' });
+      
+      if (response.success) {
+        alert(`✅ ${response.message}`);
+        
+        // Vérifier le statut périodiquement
+        const checkStatus = async () => {
+          try {
+            const statusData = await apiCall(`${BACKEND_URL}/api/articles/scrape-status`);
+            if (statusData.success && statusData.result) {
+              const result = statusData.result;
+              if (result.success !== undefined) {
+                // Scraping terminé
+                setBackgroundTasks(prev => ({ ...prev, scraping: false }));
+                if (result.success) {
+                  alert(`🎉 Scraping terminé ! ${result.total_articles} articles récupérés`);
+                  loadTabData('articles', null, true);
+                  loadDashboardStats();
+                } else {
+                  alert(`⚠️ Scraping terminé avec erreurs: ${result.error}`);
+                }
+                return;
+              }
+            }
+            // Continuer à vérifier
+            setTimeout(checkStatus, 10000); // Vérifier toutes les 10 secondes
+          } catch (error) {
+            console.error('Erreur vérification statut scraping:', error);
+            setBackgroundTasks(prev => ({ ...prev, scraping: false }));
+          }
+        };
+        
+        setTimeout(checkStatus, 10000); // Première vérification après 10s
       }
     } catch (error) {
-      alert('❌ Erreur lors du scraping');
+      alert(`❌ Erreur scraping: ${error.message}`);
+      setBackgroundTasks(prev => ({ ...prev, scraping: false }));
     }
-    setLoading(false);
   };
 
   const captureRadioNow = async () => {
-    setLoading(true);
+    if (backgroundTasks.capturing) return;
+    
+    setBackgroundTasks(prev => ({ ...prev, capturing: true }));
+    
     try {
-      const response = await fetch(`${BACKEND_URL}/api/transcriptions/capture-now`, { method: 'POST' });
-      const data = await response.json();
-      if (data.success) {
-        alert(`✅ Capture réussie ! ${data.result.streams_success} flux capturés`);
-        loadTabData('transcription');
-        loadDashboardStats();
+      const response = await apiCall(`${BACKEND_URL}/api/transcriptions/capture-now`, { method: 'POST' });
+      
+      if (response.success) {
+        alert(`✅ ${response.message}`);
+        
+        // Vérifier le statut périodiquement
+        const checkStatus = async () => {
+          try {
+            const statusData = await apiCall(`${BACKEND_URL}/api/transcriptions/capture-status`);
+            if (statusData.success && statusData.result) {
+              const result = statusData.result;
+              if (result.success !== undefined) {
+                // Capture terminée
+                setBackgroundTasks(prev => ({ ...prev, capturing: false }));
+                if (result.success) {
+                  alert(`🎉 Capture terminée ! ${result.streams_success} flux traités`);
+                  loadTabData('transcription', null, true);
+                  loadDashboardStats();
+                } else {
+                  alert(`⚠️ Capture terminée avec erreurs: ${result.error}`);
+                }
+                return;
+              }
+            }
+            // Continuer à vérifier
+            setTimeout(checkStatus, 15000); // Vérifier toutes les 15 secondes
+          } catch (error) {
+            console.error('Erreur vérification statut capture:', error);
+            setBackgroundTasks(prev => ({ ...prev, capturing: false }));
+          }
+        };
+        
+        setTimeout(checkStatus, 15000); // Première vérification après 15s
       }
     } catch (error) {
-      alert('❌ Erreur lors de la capture');
+      alert(`❌ Erreur capture: ${error.message}`);
+      setBackgroundTasks(prev => ({ ...prev, capturing: false }));
     }
-    setLoading(false);
   };
 
   const createDigestNow = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${BACKEND_URL}/api/digest/create-now`, { method: 'POST' });
-      const data = await response.json();
-      if (data.success) {
+      const response = await apiCall(`${BACKEND_URL}/api/digest/create-now`, { method: 'POST' });
+      if (response.success) {
         alert('✅ Digest créé avec succès !');
-        loadTabData('digest');
+        loadTabData('digest', null, true);
         loadDashboardStats();
       }
     } catch (error) {
-      alert('❌ Erreur lors de la création du digest');
+      alert(`❌ Erreur création digest: ${error.message}`);
     }
     setLoading(false);
   };
@@ -134,17 +239,16 @@ function App() {
   const runSchedulerJob = async (jobId) => {
     setLoading(true);
     try {
-      const response = await fetch(`${BACKEND_URL}/api/scheduler/run-job/${jobId}`, { method: 'POST' });
-      const data = await response.json();
-      if (data.success) {
+      const response = await apiCall(`${BACKEND_URL}/api/scheduler/run-job/${jobId}`, { method: 'POST' });
+      if (response.success) {
         alert(`✅ Job ${jobId} exécuté avec succès !`);
         loadTabData('scheduler');
         loadDashboardStats();
       } else {
-        alert(`❌ Erreur job ${jobId}: ${data.message}`);
+        alert(`❌ Erreur job ${jobId}: ${response.message}`);
       }
     } catch (error) {
-      alert('❌ Erreur lors de l\'exécution du job');
+      alert(`❌ Erreur exécution job: ${error.message}`);
     }
     setLoading(false);
   };
@@ -162,16 +266,33 @@ function App() {
         method: 'POST',
         body: formData
       });
+      
       const data = await response.json();
       if (data.success) {
         alert('✅ Transcription réussie !');
-        loadTabData('transcription');
+        loadTabData('transcription', null, true);
         loadDashboardStats();
+      } else {
+        throw new Error(data.detail || 'Erreur transcription');
       }
     } catch (error) {
-      alert('❌ Erreur lors de la transcription');
+      alert(`❌ Erreur transcription: ${error.message}`);
     }
     setLoading(false);
+  };
+
+  const invalidateCache = async () => {
+    try {
+      await apiCall(`${BACKEND_URL}/api/cache/invalidate`, { method: 'POST' });
+      alert('✅ Cache vidé avec succès !');
+      // Recharger les données
+      loadDashboardStats();
+      if (activeTab !== 'dashboard') {
+        loadTabData(activeTab, null, true);
+      }
+    } catch (error) {
+      alert(`❌ Erreur vidage cache: ${error.message}`);
+    }
   };
 
   return (
@@ -182,6 +303,7 @@ function App() {
           <div className="flex items-center justify-between">
             <h1 className="text-3xl font-bold text-gray-800 flex items-center">
               🏝️ <span className="ml-2">Veille Média Guadeloupe</span>
+              <span className="ml-2 text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full">Cache v2.1</span>
             </h1>
             <div className="flex items-center gap-4">
               <input
@@ -190,13 +312,40 @@ function App() {
                 onChange={(e) => setSelectedDate(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
               />
+              <button
+                onClick={invalidateCache}
+                className="px-3 py-2 bg-gray-500 text-white rounded-lg text-sm hover:bg-gray-600"
+                title="Vider le cache"
+              >
+                🗑️ Cache
+              </button>
               <div className="text-sm text-gray-600">
-                Dernière mise à jour: {new Date().toLocaleString('fr-FR')}
+                {new Date().toLocaleString('fr-FR')}
               </div>
             </div>
           </div>
         </div>
       </header>
+
+      {/* Barre de statut des tâches en arrière-plan */}
+      {(backgroundTasks.scraping || backgroundTasks.capturing) && (
+        <div className="bg-yellow-100 border-b border-yellow-200 px-6 py-2">
+          <div className="flex items-center gap-4 text-sm text-yellow-800">
+            {backgroundTasks.scraping && (
+              <div className="flex items-center gap-2">
+                <div className="animate-spin h-4 w-4 border-2 border-yellow-600 border-t-transparent rounded-full"></div>
+                <span>Scraping en cours... (2-3 min)</span>
+              </div>
+            )}
+            {backgroundTasks.capturing && (
+              <div className="flex items-center gap-2">
+                <div className="animate-spin h-4 w-4 border-2 border-yellow-600 border-t-transparent rounded-full"></div>
+                <span>Capture radio en cours... (3-5 min)</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Navigation */}
       <nav className="bg-indigo-600 shadow-md">
@@ -227,6 +376,17 @@ function App() {
 
       {/* Main Content */}
       <main className="container mx-auto px-6 py-8">
+        {/* Affichage des erreurs */}
+        {error && (
+          <div className="mb-6 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg">
+            <div className="flex justify-between items-center">
+              <span>{error}</span>
+              <button onClick={() => setError(null)} className="text-red-700 hover:text-red-900">✕</button>
+            </div>
+          </div>
+        )}
+
+        {/* Loading overlay */}
         {loading && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white p-6 rounded-lg shadow-xl">
@@ -278,11 +438,15 @@ function App() {
               <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-orange-500">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-orange-600 text-sm font-semibold uppercase tracking-wide">Jobs Programmés</p>
-                    <p className="text-3xl font-bold text-gray-900">{dashboardStats.scheduler_jobs || 0}</p>
-                    <p className="text-xs text-gray-500">Tâches automatiques</p>
+                    <p className="text-orange-600 text-sm font-semibold uppercase tracking-wide">Cache Hit Ratio</p>
+                    <p className="text-3xl font-bold text-gray-900">
+                      {dashboardStats.cache_stats?.cache_hit_ratio?.toFixed(1) || 0}%
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {dashboardStats.cache_stats?.valid_cached_keys || 0} clés actives
+                    </p>
                   </div>
-                  <div className="text-orange-500 text-4xl">⏰</div>
+                  <div className="text-orange-500 text-4xl">⚡</div>
                 </div>
               </div>
             </div>
@@ -292,15 +456,25 @@ function App() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <button
                   onClick={scrapeArticlesNow}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-lg font-semibold transition-colors"
+                  disabled={backgroundTasks.scraping}
+                  className={`px-4 py-3 rounded-lg font-semibold transition-colors ${
+                    backgroundTasks.scraping 
+                      ? 'bg-gray-400 text-gray-700 cursor-not-allowed'
+                      : 'bg-blue-500 hover:bg-blue-600 text-white'
+                  }`}
                 >
-                  📰 Scraper Articles
+                  {backgroundTasks.scraping ? '⏳ Scraping...' : '📰 Scraper Articles'}
                 </button>
                 <button
                   onClick={captureRadioNow}
-                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-3 rounded-lg font-semibold transition-colors"
+                  disabled={backgroundTasks.capturing}
+                  className={`px-4 py-3 rounded-lg font-semibold transition-colors ${
+                    backgroundTasks.capturing
+                      ? 'bg-gray-400 text-gray-700 cursor-not-allowed'
+                      : 'bg-green-500 hover:bg-green-600 text-white'
+                  }`}
                 >
-                  📻 Capturer Radio
+                  {backgroundTasks.capturing ? '⏳ Capture...' : '📻 Capturer Radio'}
                 </button>
                 <button
                   onClick={createDigestNow}
@@ -324,16 +498,22 @@ function App() {
               <h2 className="text-2xl font-bold text-gray-800">📰 Articles de Guadeloupe</h2>
               <button
                 onClick={scrapeArticlesNow}
-                className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+                disabled={backgroundTasks.scraping}
+                className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
+                  backgroundTasks.scraping
+                    ? 'bg-gray-400 text-gray-700 cursor-not-allowed'
+                    : 'bg-blue-500 hover:bg-blue-600 text-white'
+                }`}
               >
-                🔄 Scraper Maintenant
+                {backgroundTasks.scraping ? '⏳ Scraping...' : '🔄 Scraper Maintenant'}
               </button>
             </div>
 
             <div className="bg-white p-4 rounded-lg shadow-md">
               <p className="text-sm text-gray-600">
                 <strong>Sources automatiques :</strong> France-Antilles, RCI.fm, La 1ère, KaribInfo | 
-                <strong> Programmé :</strong> Tous les jours à 10H00
+                <strong> Programmé :</strong> Tous les jours à 10H00 |
+                <strong> Cache :</strong> 5 minutes
               </p>
             </div>
 
@@ -363,11 +543,18 @@ function App() {
                   </div>
                 </div>
               ))}
-              {articles.length === 0 && (
+              {articles.length === 0 && !loading && (
                 <div className="text-center py-12 text-gray-500">
                   <div className="text-6xl mb-4">📰</div>
                   <p className="text-xl">Aucun article pour cette date</p>
                   <p>Le scraping automatique a lieu tous les jours à 10H</p>
+                  <button
+                    onClick={scrapeArticlesNow}
+                    disabled={backgroundTasks.scraping}
+                    className="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+                  >
+                    {backgroundTasks.scraping ? '⏳ Scraping...' : '🔄 Lancer le scraping'}
+                  </button>
                 </div>
               )}
             </div>
@@ -382,9 +569,14 @@ function App() {
               <div className="flex gap-2">
                 <button
                   onClick={captureRadioNow}
-                  className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+                  disabled={backgroundTasks.capturing}
+                  className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
+                    backgroundTasks.capturing
+                      ? 'bg-gray-400 text-gray-700 cursor-not-allowed'
+                      : 'bg-green-500 hover:bg-green-600 text-white'
+                  }`}
                 >
-                  📻 Capturer Maintenant
+                  {backgroundTasks.capturing ? '⏳ Capture...' : '📻 Capturer Maintenant'}
                 </button>
                 <label className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors cursor-pointer">
                   📤 Upload Audio
@@ -396,7 +588,8 @@ function App() {
             <div className="bg-white p-4 rounded-lg shadow-md">
               <p className="text-sm text-gray-600">
                 <strong>Flux automatiques :</strong> 2 radios guadeloupéennes | 
-                <strong> Programmé :</strong> Tous les jours à 7H00 (7H00-7H20 et 7H00-7H30)
+                <strong> Programmé :</strong> Tous les jours à 7H00 (7H00-7H20 et 7H00-7H30) |
+                <strong> Cache :</strong> 5 minutes
               </p>
             </div>
 
@@ -427,11 +620,18 @@ function App() {
                   </div>
                 </div>
               ))}
-              {transcriptions.length === 0 && (
+              {transcriptions.length === 0 && !loading && (
                 <div className="text-center py-12 text-gray-500">
                   <div className="text-6xl mb-4">📻</div>
                   <p className="text-xl">Aucune transcription pour cette date</p>
                   <p>La capture automatique a lieu tous les jours à 7H</p>
+                  <button
+                    onClick={captureRadioNow}
+                    disabled={backgroundTasks.capturing}
+                    className="mt-4 bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+                  >
+                    {backgroundTasks.capturing ? '⏳ Capture...' : '📻 Lancer la capture'}
+                  </button>
                 </div>
               )}
             </div>
@@ -466,7 +666,8 @@ function App() {
             <div className="bg-white p-4 rounded-lg shadow-md">
               <p className="text-sm text-gray-600">
                 <strong>Résumé automatique :</strong> Articles + Transcriptions radio formatés | 
-                <strong> Programmé :</strong> Tous les jours à 12H00
+                <strong> Programmé :</strong> Tous les jours à 12H00 |
+                <strong> Cache :</strong> 15 minutes
               </p>
             </div>
 
