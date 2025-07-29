@@ -222,6 +222,66 @@ class GuadeloupeScraper:
             logger.error(f"❌ Erreur scraping RCI: {e}")
             return []
 
+    def scrape_france_antilles_articles(self, url: str) -> List[Dict[str, Any]]:
+        """Scraper spécialisé pour France-Antilles Guadeloupe"""
+        articles = []
+        
+        try:
+            session = requests.Session()
+            session.headers.update(self.get_next_headers())
+            
+            response = session.get(url, timeout=20)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Trouver tous les liens dans des éléments article et h2/h3
+            article_selectors = ['article h2 a', 'article h3 a', 'h2 a', 'h3 a']
+            
+            for selector in article_selectors:
+                elements = soup.select(selector)
+                for link in elements:
+                    href = link.get('href', '')
+                    text = link.get_text(strip=True)
+                    
+                    # Filtrer spécifiquement pour France-Antilles
+                    if (href.startswith('/actualite/') and 
+                        len(text) > 15 and 
+                        '.' in text and  # Articles ont généralement des points
+                        not any(x in href.lower() for x in ['hub-economie', 'sports/tour-de-la-guadeloupe', 'environnement/saison-cyclonique'])):
+                        
+                        # Construire l'URL complète
+                        full_url = 'https://www.guadeloupe.franceantilles.fr' + href
+                        title = self.clean_title(text)
+                        
+                        if len(title) > 10 and len(title) < 200:  # Titre raisonnable
+                            article = {
+                                'id': f"france_antilles_{hash(full_url)}",
+                                'title': title,
+                                'url': full_url,
+                                'source': 'France-Antilles Guadeloupe',
+                                'site_key': 'france_antilles',
+                                'scraped_at': datetime.now().isoformat(),
+                                'date': datetime.now().strftime('%Y-%m-%d'),
+                                'scraped_from_page': url
+                            }
+                            articles.append(article)
+            
+            # Supprimer les doublons
+            seen_urls = set()
+            unique_articles = []
+            for article in articles:
+                if article['url'] not in seen_urls:
+                    seen_urls.add(article['url'])
+                    unique_articles.append(article)
+            
+            logger.info(f"✅ France-Antilles Guadeloupe: {len(unique_articles)} articles trouvés")
+            return unique_articles[:15]  # Limiter à 15 articles
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur scraping France-Antilles: {e}")
+            return []
+
     def scrape_karibinfo_articles(self, url: str) -> List[Dict[str, Any]]:
         """Scraper spécialisé pour KaribInfo"""
         articles = []
