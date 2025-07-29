@@ -22,40 +22,40 @@ from radio_service import radio_service
 from summary_service import summary_service
 from scheduler_service import veille_scheduler, start_scheduler
 
-# Import du cache avec fallback (temporairement désactivé)
+# Import du cache avec fallback - Réactivé avec cache 24H
 try:
-    # from cache_service import intelligent_cache, get_or_compute, cache_invalidate, start_cache_service
-    CACHE_ENABLED = False
-    print("⚠️ Cache service temporairement désactivé")
+    from cache_service import intelligent_cache, get_or_compute, cache_invalidate, start_cache_service
+    CACHE_ENABLED = True
+    print("✅ Cache service réactivé avec cache 24H")
 except ImportError as e:
     print(f"⚠️ Cache service non disponible: {e}")
     CACHE_ENABLED = False
-
-# Fonctions fallback sans cache
-def get_or_compute(key, compute_func, params=None, force_refresh=False):
-    return compute_func()
-
-def cache_invalidate(pattern=None):
-    pass
-
-def start_cache_service():
-    pass
-
-# Fallback intelligent_cache object
-class IntelligentCacheFallback:
-    def get_cache_stats(self):
-        return {"status": "disabled", "message": "Cache temporairement désactivé"}
     
-    def set_cached_data(self, key, data):
+    # Fonctions fallback sans cache
+    def get_or_compute(key, compute_func, params=None, force_refresh=False):
+        return compute_func()
+    
+    def cache_invalidate(pattern=None):
         pass
     
-    def get_cached_data(self, key):
-        return None
-    
-    def warm_cache(self):
+    def start_cache_service():
         pass
+    
+    # Fallback intelligent_cache object
+    class IntelligentCacheFallback:
+        def get_cache_stats(self):
+            return {"status": "disabled", "message": "Cache non disponible"}
+        
+        def set_cached_data(self, key, data):
+            pass
+        
+        def get_cached_data(self, key):
+            return None
+        
+        def warm_cache(self):
+            pass
 
-intelligent_cache = IntelligentCacheFallback()
+    intelligent_cache = IntelligentCacheFallback()
 
 # Initialize FastAPI
 app = FastAPI(title="Veille Média Guadeloupe API", version="2.1.0")
