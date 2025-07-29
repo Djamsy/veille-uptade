@@ -167,7 +167,8 @@ async def scrape_articles_now():
     """Lancer le scraping d'articles immédiatement avec timeout optimisé"""
     try:
         # Invalider le cache des articles
-        cache_invalidate('articles')
+        if CACHE_ENABLED:
+            cache_invalidate('articles')
         
         # Lancer le scraping en arrière-plan pour éviter les timeouts
         import threading
@@ -175,14 +176,22 @@ async def scrape_articles_now():
         def scrape_async():
             try:
                 result = guadeloupe_scraper.scrape_all_sites()
-                # Sauvegarder le résultat dans le cache
-                intelligent_cache.set_cached_data('last_scraping_result', result)
+                # Sauvegarder le résultat dans le cache si disponible
+                if CACHE_ENABLED:
+                    intelligent_cache.set_cached_data('last_scraping_result', result)
+                else:
+                    # Stocker temporairement le résultat
+                    setattr(app.state, 'last_scraping_result', result)
             except Exception as e:
-                intelligent_cache.set_cached_data('last_scraping_result', {
+                error_result = {
                     'success': False,
                     'error': str(e),
                     'scraped_at': datetime.now().isoformat()
-                })
+                }
+                if CACHE_ENABLED:
+                    intelligent_cache.set_cached_data('last_scraping_result', error_result)
+                else:
+                    setattr(app.state, 'last_scraping_result', error_result)
         
         # Démarrer le scraping en arrière-plan
         scraping_thread = threading.Thread(target=scrape_async)
@@ -196,7 +205,8 @@ async def scrape_articles_now():
         }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur lancement scraping: {str(e)}")
+        print(f"Erreur scraping: {e}")
+        return {"success": False, "error": str(e)}
 
 @app.get("/api/articles/scrape-status")
 async def get_scrape_status():
