@@ -378,7 +378,7 @@ class GuadeloupeScraper:
             from cache_service import cache_invalidate
             cache_invalidate('articles')
             logger.info("🗑️ Cache articles invalidé")
-        except Exception as e:
+        except (ImportError, Exception) as e:
             logger.warning(f"Erreur invalidation cache: {e}")
         
         # Statistiques finales
