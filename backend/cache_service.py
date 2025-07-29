@@ -65,7 +65,7 @@ class IntelligentCache:
             return self.cache_data[cache_key]
         
         # Vérifier le cache persistant
-        if self.cache_collection:
+        if self.cache_collection is not None:
             try:
                 cached_item = self.cache_collection.find_one({'cache_key': cache_key})
                 if cached_item and self._is_persistent_cache_valid(cached_item):
