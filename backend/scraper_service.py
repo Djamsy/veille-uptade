@@ -139,7 +139,8 @@ class GuadeloupeScraper:
         ignore_patterns = [
             '/tag/', '/category/', '/author/', '/page/',
             '/search/', '/archives/', '/contact/', '/about/',
-            'javascript:', 'mailto:', '#', 'tel:'
+            'javascript:', 'mailto:', '#', 'tel:', '/vakans-opeyi',
+            '/tour-cycliste', '/informations-pratiques'
         ]
         
         for pattern in ignore_patterns:
@@ -150,6 +151,17 @@ class GuadeloupeScraper:
         parsed_url = urlparse(url)
         if parsed_url.netloc and base_domain not in parsed_url.netloc:
             return False
+        
+        # Vérifications spécifiques par site
+        if 'rci.fm' in base_domain:
+            # Pour RCI, accepter seulement les URLs avec /infos/ et une longueur minimum
+            return '/infos/' in url and len(url.split('/')[-1]) > 10
+        elif 'la1ere.franceinfo.fr' in base_domain:
+            # Pour La 1ère, accepter les URLs avec /guadeloupe/
+            return '/guadeloupe/' in url and url.count('/') >= 4
+        elif 'karibinfo.com' in base_domain:
+            # Pour KaribInfo, accepter les URLs avec actualités, politique, société
+            return any(cat in url for cat in ['/actualites/', '/politique/', '/societe/', '/economie/'])
         
         return True
 
