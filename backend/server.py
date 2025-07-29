@@ -136,12 +136,17 @@ async def get_articles():
         def fetch_articles():
             return guadeloupe_scraper.get_todays_articles()
         
-        # Cache de 5 minutes pour les articles
-        articles = get_or_compute('articles_today', fetch_articles)
+        # Cache de 5 minutes pour les articles si disponible
+        if CACHE_ENABLED:
+            articles = get_or_compute('articles_today', fetch_articles)
+        else:
+            articles = fetch_articles()
+            
         return {"success": True, "articles": articles, "count": len(articles)}
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur récupération articles: {str(e)}")
+        print(f"Erreur articles: {e}")
+        return {"success": False, "error": str(e), "articles": [], "count": 0}
 
 @app.get("/api/articles/{date}")
 async def get_articles_by_date(date: str):
