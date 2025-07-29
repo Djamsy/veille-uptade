@@ -238,7 +238,7 @@ class IntelligentCache:
             del self.cache_timestamps[key]
         
         # Nettoyer le cache persistant
-        if self.cache_collection:
+        if self.cache_collection is not None:
             try:
                 self.cache_collection.delete_many({
                     'expires_at': {'$lt': datetime.now().isoformat()}
