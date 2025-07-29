@@ -310,8 +310,8 @@ class GuadeloupeScraper:
             return []
 
     def scrape_all_sites(self) -> Dict[str, Any]:
-        """Scraper tous les sites de Guadeloupe avec performance optimisée"""
-        logger.info("🚀 Début du scraping COMPLET des sites guadeloupéens...")
+        """Scraper tous les sites de Guadeloupe - Version simplifiée et robuste"""
+        logger.info("🚀 Début du scraping des sites guadeloupéens...")
         
         start_time = time.time()
         all_articles = []
@@ -325,48 +325,46 @@ class GuadeloupeScraper:
             'execution_time_seconds': 0
         }
         
-        # Scraper les sites en parallèle
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            future_to_site = {
-                executor.submit(self.scrape_site, site_key): site_key
-                for site_key in self.sites_config.keys()
-            }
-            
-            for future in concurrent.futures.as_completed(future_to_site):
-                site_key = future_to_site[future]
-                try:
-                    articles = future.result(timeout=120)  # 2 minutes max par site
+        # Scraper les sites un par un (plus stable qu'en parallèle)
+        for site_key in self.sites_config.keys():
+            try:
+                logger.info(f"🔍 Scraping {self.sites_config[site_key]['name']}...")
+                
+                # Scraper seulement la page principale pour éviter les erreurs 404
+                config = self.sites_config[site_key]
+                articles = self.scrape_page(config['url'], site_key, max_retries=2)
+                
+                if articles:
+                    # Sauvegarder en base de données
+                    saved_count = 0
+                    for article in articles:
+                        try:
+                            self.articles_collection.update_one(
+                                {'id': article['id']},
+                                {'$set': article},
+                                upsert=True
+                            )
+                            saved_count += 1
+                        except Exception as e:
+                            logger.warning(f"Erreur sauvegarde article: {e}")
                     
-                    if articles:
-                        # Sauvegarder en base de données
-                        for article in articles:
-                            try:
-                                self.articles_collection.update_one(
-                                    {'id': article['id']},
-                                    {'$set': article},
-                                    upsert=True
-                                )
-                            except Exception as e:
-                                logger.warning(f"Erreur sauvegarde article: {e}")
-                        
-                        all_articles.extend(articles)
-                        results['articles_by_site'][site_key] = len(articles)
-                        results['sites_scraped'] += 1
-                        
-                        logger.info(f"✅ {self.sites_config[site_key]['name']}: {len(articles)} articles sauvegardés")
-                    else:
-                        error_msg = f"Aucun article trouvé sur {self.sites_config[site_key]['name']}"
-                        results['errors'].append(error_msg)
-                        logger.warning(error_msg)
+                    all_articles.extend(articles)
+                    results['articles_by_site'][site_key] = saved_count
+                    results['sites_scraped'] += 1
                     
-                except concurrent.futures.TimeoutError:
-                    error_msg = f"Timeout pour {self.sites_config[site_key]['name']}"
+                    logger.info(f"✅ {config['name']}: {saved_count} articles sauvegardés")
+                else:
+                    error_msg = f"Aucun article trouvé sur {config['name']}"
                     results['errors'].append(error_msg)
-                    logger.error(error_msg)
-                except Exception as e:
-                    error_msg = f"Erreur {self.sites_config[site_key]['name']}: {str(e)}"
-                    results['errors'].append(error_msg)
-                    logger.error(error_msg)
+                    logger.warning(error_msg)
+                
+                # Pause entre les sites pour éviter la surcharge
+                time.sleep(3)
+                
+            except Exception as e:
+                error_msg = f"Erreur {self.sites_config[site_key]['name']}: {str(e)}"
+                results['errors'].append(error_msg)
+                logger.error(error_msg)
         
         # Finaliser les résultats
         results['total_articles'] = len(all_articles)
