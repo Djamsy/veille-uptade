@@ -247,8 +247,8 @@ class GuadeloupeScraper:
                     # Filtrer spécifiquement pour France-Antilles
                     if (href.startswith('/actualite/') and 
                         len(text) > 15 and 
-                        '.' in text and  # Articles ont généralement des points
-                        not any(x in href.lower() for x in ['hub-economie', 'sports/tour-de-la-guadeloupe', 'environnement/saison-cyclonique'])):
+                        not any(x in href.lower() for x in ['hub-economie/', 'sports/tour-de-la-guadeloupe/', 'environnement/saison-cyclonique/']) and
+                        not any(x in text.lower() for x in ['hub éco', 'tour de guadeloupe', 'saison cyclonique'])):
                         
                         # Construire l'URL complète
                         full_url = 'https://www.guadeloupe.franceantilles.fr' + href
