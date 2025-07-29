@@ -288,6 +288,8 @@ class GuadeloupeScraper:
             return self.scrape_rci_articles(url)
         elif site_key == 'la1ere':
             return self.scrape_la1ere_articles(url)
+        elif site_key == 'karibinfo':
+            return self.scrape_karibinfo_articles(url)
         
         config = self.sites_config[site_key]
         articles = []
