@@ -138,7 +138,7 @@ class IntelligentCache:
             # Invalider tout le cache
             self.cache_data.clear()
             self.cache_timestamps.clear()
-            if self.cache_collection:
+            if self.cache_collection is not None:
                 try:
                     self.cache_collection.delete_many({})
                 except Exception as e:
