@@ -90,17 +90,41 @@ async def get_dashboard_stats():
                 "total_digests": digests_collection.count_documents({}),
                 "scheduler_jobs": len(veille_scheduler.get_job_status()),
                 "last_update": datetime.now().isoformat(),
-                "date": today,
-                "cache_stats": intelligent_cache.get_cache_stats()
+                "date": today
             }
+            
+            # Ajouter les stats du cache si disponible
+            if CACHE_ENABLED:
+                try:
+                    stats["cache_stats"] = intelligent_cache.get_cache_stats()
+                except Exception as e:
+                    print(f"Erreur stats cache: {e}")
+                    stats["cache_stats"] = {"error": str(e)}
+            
             return stats
         
-        # Utiliser le cache intelligent (1 minute de cache)
-        stats = get_or_compute('dashboard_stats', compute_stats)
+        # Utiliser le cache intelligent si disponible
+        if CACHE_ENABLED:
+            stats = get_or_compute('dashboard_stats', compute_stats)
+        else:
+            stats = compute_stats()
+            
         return {"success": True, "stats": stats}
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur stats dashboard: {str(e)}")
+        print(f"Erreur dashboard stats: {e}")
+        # Retourner des stats basiques en cas d'erreur
+        return {"success": True, "stats": {
+            "total_articles": 0,
+            "today_articles": 0,
+            "total_transcriptions": 0,
+            "today_transcriptions": 0,
+            "total_digests": 0,
+            "scheduler_jobs": 0,
+            "last_update": datetime.now().isoformat(),
+            "date": datetime.now().strftime('%Y-%m-%d'),
+            "error": str(e)
+        }}
 
 # ==================== ARTICLES ENDPOINTS ====================
 
