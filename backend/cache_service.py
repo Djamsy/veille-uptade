@@ -127,7 +127,7 @@ class IntelligentCache:
                 del self.cache_timestamps[key]
                 
             # Invalider dans le cache persistant
-            if self.cache_collection:
+            if self.cache_collection is not None:
                 try:
                     self.cache_collection.delete_many({'cache_key': {'$regex': pattern}})
                 except Exception as e:
