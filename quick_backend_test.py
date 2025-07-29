@@ -33,7 +33,7 @@ def test_api_endpoint(url, name, timeout=10):
         return False
 
 def main():
-    base_url = "https://d3cec9e9-0d5a-4ba9-bb6f-a7f5097e672d.preview.emergentagent.com"
+    base_url = "https://dd85e1a4-0c6d-492c-a846-7540ed473817.preview.emergentagent.com"
     
     print("🏝️ Quick Guadeloupe Veille Média API Test")
     print(f"📡 Testing: {base_url}")

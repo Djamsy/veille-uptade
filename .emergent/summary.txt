@@ -1,0 +1,67 @@
+<analysis>
+The AI engineer successfully initiated a media monitoring application from scratch, iteratively building upon user requirements. Initially, the project focused on general media monitoring, but quickly pivoted to a highly specialized solution for Guadeloupe-specific news and radio streams, demonstrating adaptability. The engineer prioritized free and local solutions, leading to the adoption of Whisper for speech-to-text and spaCy for summarization. Key challenges involved setting up streaming audio capture with ffmpeg, implementing robust web scraping for multiple, varied news sites, and resolving persistent issues with MongoDB collection access and an intelligent caching mechanism. The development workflow involved large initial rewrites, followed by targeted edits and extensive debugging based on user feedback and internal testing. The engineer consistently communicated progress and sought user preferences for technology choices.
+</analysis>
+
+<product_requirements>
+The user initially requested a media monitoring interface to track online feeds, perform speech-to-text transcription of audio, list online articles, and conduct social media sentiment analysis. The application must feature a React frontend, FastAPI backend, and MongoDB database.
+
+Subsequently, the requirements evolved to a highly specialized system for Guadeloupe:
+-   **Automated Article Listing:** Daily scraping at 10 AM from four specific Guadeloupean news sites: , , , and . Articles should be listed as Title with direct hyperlinks, with an emphasis on ensuring all sources are scraped.
+-   **Automated Radio Transcription:** Capture and transcription of two specific radio streams:  (7:00 AM - 7:20 AM) and  (7:00 AM - 7:30 AM). Transcription to be done locally using Whisper.
+-   **Intelligent Summarization:** Each article/transcription point must be summarized in the format .
+-   **Intelligent Caching:** Implement a cache mechanism to update every 24 hours to prevent infinite loading and improve performance for article listings.
+-   All solutions must use free/local technologies wherever possible.
+</product_requirements>
+
+<key_technical_concepts>
+-   **Full-Stack Development:** React (frontend), FastAPI (backend), MongoDB (database).
+-   **Speech-to-Text:** Local  library.
+-   **Sentiment Analysis:** VADER + TextBlob (Python libraries).
+-   **Web Scraping:** BeautifulSoup4, requests.
+-   **Audio Streaming Capture:**  (system tool), .
+-   **Text Summarization:**  (), NLTK (local extractive).
+-   **Task Scheduling:** APScheduler.
+-   **Caching:** Custom Python cache service.
+</key_technical_concepts>
+
+<code_architecture>
+The application follows a standard full-stack architecture with a React frontend and a FastAPI backend, interacting with a MongoDB database.
+
+
+
+-   ****:
+    -   **Summary**: This is the main FastAPI application file, serving as the central hub for all backend logic. It defines API endpoints for articles, social media monitoring, sentiment analysis, transcription, dashboard statistics, and cache management. It integrates with  and , and houses the APScheduler for task automation.
+    -   **Changes**: Initial setup of all primary endpoints. Numerous modifications for bug fixes related to MongoDB collection access, dashboard statistics calculation, import errors for , and service startup logic. It was adapted to integrate and then temporarily disable/re-enable the caching mechanism. It also manages the scheduler for automated scraping and radio capture.
+-   ****:
+    -   **Summary**: A new file dedicated to handling web scraping logic for the specified Guadeloupean news sites. It contains functions to fetch HTML, parse it using BeautifulSoup, extract article titles and URLs, and store them.
+    -   **Changes**: Initially created for general scraping. Heavily modified to include site-specific scraping logic and robust error handling. Specialised  and  functions were introduced due to unique site structures. Selector issues for France-Antilles, RCI, La 1ère, and KaribInfo were identified and addressed iteratively. An  function was updated for better filtering.
+-   ****:
+    -   **Summary**: A new file designed to implement an intelligent caching layer for frequently accessed data, primarily articles, to reduce database load and improve frontend responsiveness.
+    -   **Changes**: Created to provide caching functionality. It was integrated into  and . The cache duration was set to 24 hours. Faced persistent Collection objects do not implement truth value errors, leading to temporary deactivation and then re-activation with ongoing debugging.
+-   ****:
+    -   **Summary**: The main React component that renders the user interface. It manages the application's layout, navigation (dashboard, articles, transcription, social media, sentiment), and makes API calls to the backend to fetch and display data.
+    -   **Changes**: Initial setup for a multi-section dashboard. Modified to display statistics, articles from the backend, and to integrate with the caching mechanism (though the backend cache faced issues). UI was updated to be responsive and professional for the Guadeloupe-specific context.
+-   ****:
+    -   **Summary**: Lists all Python dependencies required for the backend.
+    -   **Changes**: Updated to include , , , , , , and , reflecting the chosen free/local tech stack.
+</code_architecture>
+
+<pending_tasks>
+-   **KaribInfo Scraping**: The scraping for  is still failing and needs to be debugged and implemented.
+-   **Cache Stability**: The intelligent caching system (cache_service.py) continues to cause MongoDB truth value errors and needs to be fully stabilized and re-enabled reliably.
+-   **Full Radio Transcription Integration**: While  and  are installed, the full automation and display of summarized radio transcriptions in the UI needs verification.
+</pending_tasks>
+
+<current_work>
+Immediately before this summary request, the AI engineer was actively debugging and fixing the web scraping functionality, particularly for the Guadeloupean news sources. The  was repeatedly modified to adapt to specific website structures and improve article extraction.
+
+The  and  scrapers are now confirmed to be working, retrieving 10 and 20 articles respectively. However, the  scraper was still yielding 0 articles, and  was consistently failing to find any articles. The AI engineer has just identified a working selector for  and is in the process of creating a specialized scraper function for it, similar to the one implemented for RCI.
+
+Simultaneously, the persistent issues with the  were a major hurdle. The cache was temporarily disabled due to MongoDB collection errors, then re-enabled for 24 hours, but the errors resurfaced. The dashboard statistics, however, were confirmed to be working correctly after several fixes to .
+
+The current state is that the core system is operational for some sources, but the scraping of all specified sources is not yet complete, and the intelligent caching system remains unstable, requiring further attention.
+</current_work>
+
+<optional_next_step>
+The next step is to implement the specialized scraper for  to ensure it successfully retrieves articles, and then address the  scraping.
+</optional_next_step>
