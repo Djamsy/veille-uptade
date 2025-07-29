@@ -83,11 +83,7 @@ class GuadeloupeScraper:
                     ".post-item h2 a", ".post-item h3 a", ".item-title a"
                 ],
                 "base_url": "https://www.karibinfo.com",
-                "additional_pages": [
-                    "https://www.karibinfo.com/category/actualites",
-                    "https://www.karibinfo.com/category/politique",
-                    "https://www.karibinfo.com/category/economie"
-                ]
+                "additional_pages": []  # URLs supprimées car elles génèrent des 404
             }
         }
         
