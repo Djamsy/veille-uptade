@@ -235,35 +235,37 @@ class GuadeloupeScraper:
             
             soup = BeautifulSoup(response.content, 'html.parser')
             
-            # Trouver tous les liens
-            all_links = soup.find_all('a', href=True)
+            # Trouver tous les liens dans des éléments h1, h2, h3, article
+            article_selectors = ['h1 a', 'h2 a', 'h3 a', 'article a']
             
-            for link in all_links:
-                href = link.get('href', '')
-                text = link.get_text(strip=True)
-                
-                # Filtrer spécifiquement pour KaribInfo
-                if (('/news/' in href or '/actualite/' in href) and 
-                    len(text) > 15 and 
-                    href.startswith('http') and
-                    'karibinfo.com' in href and
-                    not any(x in href.lower() for x in ['author/', 'category/', 'tag/'])):
+            for selector in article_selectors:
+                elements = soup.select(selector)
+                for link in elements:
+                    href = link.get('href', '')
+                    text = link.get_text(strip=True)
                     
-                    full_url = href
-                    title = self.clean_title(text)
-                    
-                    if len(title) > 10:  # Titre minimum
-                        article = {
-                            'id': f"karibinfo_{hash(full_url)}",
-                            'title': title,
-                            'url': full_url,
-                            'source': 'KaribInfo',
-                            'site_key': 'karibinfo',
-                            'scraped_at': datetime.now().isoformat(),
-                            'date': datetime.now().strftime('%Y-%m-%d'),
-                            'scraped_from_page': url
-                        }
-                        articles.append(article)
+                    # Filtrer spécifiquement pour KaribInfo - cibler les vraies nouvelles
+                    if (href.startswith('https://www.karibinfo.com/news/') and 
+                        len(text) > 15 and 
+                        '.' in text and  # Articles ont généralement des points
+                        not any(x in href.lower() for x in ['author/', 'category/', 'tag/', 'page/']) and
+                        not any(x in text.lower() for x in ['karibinfo.com', 'actualité', 'newsletter'])):
+                        
+                        full_url = href
+                        title = self.clean_title(text)
+                        
+                        if len(title) > 10 and len(title) < 200:  # Titre raisonnable
+                            article = {
+                                'id': f"karibinfo_{hash(full_url)}",
+                                'title': title,
+                                'url': full_url,
+                                'source': 'KaribInfo',
+                                'site_key': 'karibinfo',
+                                'scraped_at': datetime.now().isoformat(),
+                                'date': datetime.now().strftime('%Y-%m-%d'),
+                                'scraped_from_page': url
+                            }
+                            articles.append(article)
             
             # Supprimer les doublons
             seen_urls = set()
