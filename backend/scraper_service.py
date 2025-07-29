@@ -165,98 +165,62 @@ class GuadeloupeScraper:
         
         return True
 
-    def scrape_page(self, url: str, site_key: str, max_retries: int = 3) -> List[Dict[str, Any]]:
-        """Scraper une page spécifique"""
-        config = self.sites_config[site_key]
+    def scrape_rci_articles(self, url: str) -> List[Dict[str, Any]]:
+        """Scraper spécialisé pour RCI Guadeloupe"""
         articles = []
         
-        for attempt in range(max_retries):
-            try:
-                logger.info(f"🔍 Scraping {url} (tentative {attempt + 1})")
+        try:
+            session = requests.Session()
+            session.headers.update(self.get_next_headers())
+            
+            response = session.get(url, timeout=20)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Trouver tous les liens
+            all_links = soup.find_all('a', href=True)
+            
+            for link in all_links:
+                href = link.get('href', '')
+                text = link.get_text(strip=True)
                 
-                # Session avec headers rotatifs
-                session = requests.Session()
-                session.headers.update(self.get_next_headers())
-                
-                response = session.get(url, timeout=20)
-                response.raise_for_status()
-                
-                # Parser le HTML
-                soup = BeautifulSoup(response.content, 'html.parser')
-                
-                # Essayer tous les sélecteurs
-                all_links = []
-                for selector in config['selectors']:
-                    try:
-                        links = soup.select(selector)
-                        all_links.extend(links)
-                    except Exception as e:
-                        logger.debug(f"Sélecteur {selector} échoué: {e}")
-                        continue
-                
-                # Dédupliquer les liens
-                seen_urls = set()
-                unique_links = []
-                for link in all_links:
-                    href = link.get('href')
-                    if href and href not in seen_urls:
-                        seen_urls.add(href)
-                        unique_links.append(link)
-                
-                logger.info(f"📝 {len(unique_links)} liens trouvés sur {url}")
-                
-                # Traiter chaque lien
-                for link in unique_links:
-                    try:
-                        title = self.clean_title(link.get_text())
-                        href = link.get('href')
-                        
-                        if not title or not href or len(title) < 10:
-                            continue
-                        
-                        # Construire l'URL complète
-                        if href.startswith('http'):
-                            full_url = href
-                        else:
-                            full_url = urljoin(config['base_url'], href)
-                        
-                        # Vérifier la validité de l'URL
-                        if not self.is_valid_article_url(full_url, config['base_url']):
-                            continue
-                        
-                        # Créer l'article
+                # Filtrer spécifiquement pour RCI
+                if (href.startswith('/guadeloupe/infos/') and 
+                    len(text) > 15 and 
+                    not any(x in href.lower() for x in ['informations-pratiques', 'toutes-les-infos', 'vakans-opeyi', 'tour-cycliste'])):
+                    
+                    # Construire l'URL complète
+                    full_url = 'https://rci.fm' + href
+                    title = self.clean_title(text)
+                    
+                    if len(title) > 10:  # Titre minimum
                         article = {
-                            'id': f"{site_key}_{hash(full_url)}",
+                            'id': f"rci_{hash(full_url)}",
                             'title': title,
                             'url': full_url,
-                            'source': config['name'],
-                            'site_key': site_key,
+                            'source': 'RCI Guadeloupe',
+                            'site_key': 'rci',
                             'scraped_at': datetime.now().isoformat(),
                             'date': datetime.now().strftime('%Y-%m-%d'),
                             'scraped_from_page': url
                         }
-                        
                         articles.append(article)
-                        
-                    except Exception as e:
-                        logger.warning(f"Erreur traitement lien: {e}")
-                        continue
-                
-                logger.info(f"✅ {len(articles)} articles valides trouvés sur {url}")
-                return articles
-                
-            except requests.exceptions.Timeout:
-                logger.warning(f"⏰ Timeout pour {url} (tentative {attempt + 1})")
-                time.sleep(2 ** attempt)  # Backoff exponentiel
-            except requests.exceptions.RequestException as e:
-                logger.warning(f"🌐 Erreur réseau pour {url}: {e}")
-                time.sleep(2 ** attempt)
-            except Exception as e:
-                logger.error(f"❌ Erreur inattendue pour {url}: {e}")
-                break
-        
-        logger.error(f"❌ Échec scraping {url} après {max_retries} tentatives")
-        return []
+            
+            # Supprimer les doublons
+            seen_urls = set()
+            unique_articles = []
+            for article in articles:
+                if article['url'] not in seen_urls:
+                    seen_urls.add(article['url'])
+                    unique_articles.append(article)
+            
+            logger.info(f"✅ RCI Guadeloupe: {len(unique_articles)} articles trouvés")
+            return unique_articles[:20]  # Limiter à 20 articles
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur scraping RCI: {e}")
+            return []
 
     def scrape_site(self, site_key: str) -> List[Dict[str, Any]]:
         """Scraper un site complet avec toutes ses pages"""
