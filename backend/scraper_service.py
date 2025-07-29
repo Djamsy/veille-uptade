@@ -225,9 +225,11 @@ class GuadeloupeScraper:
     def scrape_page(self, url: str, site_key: str, max_retries: int = 3) -> List[Dict[str, Any]]:
         """Scraper une page spécifique"""
         
-        # Utiliser le scraper spécialisé pour RCI
+        # Utilisers des scrapers spécialisés pour certains sites
         if site_key == 'rci':
             return self.scrape_rci_articles(url)
+        elif site_key == 'la1ere':
+            return self.scrape_la1ere_articles(url)
         
         config = self.sites_config[site_key]
         articles = []
@@ -319,6 +321,68 @@ class GuadeloupeScraper:
         
         logger.error(f"❌ Échec scraping {url} après {max_retries} tentatives")
         return []
+
+    def scrape_la1ere_articles(self, url: str) -> List[Dict[str, Any]]:
+        """Scraper spécialisé pour La 1ère Guadeloupe"""
+        articles = []
+        
+        try:
+            session = requests.Session()
+            session.headers.update(self.get_next_headers())
+            
+            response = session.get(url, timeout=20)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Trouver tous les liens
+            all_links = soup.find_all('a', href=True)
+            
+            for link in all_links:
+                href = link.get('href', '')
+                text = link.get_text(strip=True)
+                
+                # Filtrer spécifiquement pour La 1ère
+                if ('/guadeloupe/' in href and 
+                    len(text) > 15 and 
+                    href.count('/') >= 4 and
+                    not any(x in href.lower() for x in ['direct-tv', 'programme-audio', 'replay'])):
+                    
+                    # Construire l'URL complète si nécessaire
+                    if href.startswith('http'):
+                        full_url = href
+                    else:
+                        full_url = 'https://la1ere.franceinfo.fr' + href
+                    
+                    title = self.clean_title(text)
+                    
+                    if len(title) > 10:  # Titre minimum
+                        article = {
+                            'id': f"la1ere_{hash(full_url)}",
+                            'title': title,
+                            'url': full_url,
+                            'source': 'La 1ère Guadeloupe',
+                            'site_key': 'la1ere',
+                            'scraped_at': datetime.now().isoformat(),
+                            'date': datetime.now().strftime('%Y-%m-%d'),
+                            'scraped_from_page': url
+                        }
+                        articles.append(article)
+            
+            # Supprimer les doublons
+            seen_urls = set()
+            unique_articles = []
+            for article in articles:
+                if article['url'] not in seen_urls:
+                    seen_urls.add(article['url'])
+                    unique_articles.append(article)
+            
+            logger.info(f"✅ La 1ère Guadeloupe: {len(unique_articles)} articles trouvés")
+            return unique_articles[:15]  # Limiter à 15 articles
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur scraping La 1ère: {e}")
+            return []
 
     def scrape_site(self, site_key: str) -> List[Dict[str, Any]]:
         """Scraper un site complet avec toutes ses pages"""
