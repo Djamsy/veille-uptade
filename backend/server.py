@@ -359,6 +359,18 @@ async def get_transcriptions():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur récupération transcriptions: {str(e)}")
 
+@app.get("/api/transcriptions/capture-status")
+async def get_capture_status():
+    """Récupérer le statut de la dernière capture"""
+    try:
+        last_result = intelligent_cache.get_cached_data('last_capture_result')
+        if last_result:
+            return {"success": True, "result": last_result}
+        else:
+            return {"success": False, "message": "Aucune capture récente"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur statut capture: {str(e)}")
+
 @app.get("/api/transcriptions/{date}")
 async def get_transcriptions_by_date(date: str):
     """Récupérer les transcriptions d'une date spécifique avec cache"""
