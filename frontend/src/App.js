@@ -1247,57 +1247,57 @@ function App() {
                 </div>
               </div>
             </div>
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {t.ai_keywords.slice(0, 4).map((keyword, idx) => (
-                              <span key={idx} className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
-                                {keyword}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        
-                        {/* Score de pertinence */}
-                        {t.ai_relevance_score && (
-                          <div className="flex items-center gap-2 mt-2">
-                            <div className="flex">
-                              {[1,2,3,4,5].map(star => (
-                                <span key={star} className={`text-xs ${
-                                  star <= (t.ai_relevance_score * 5) ? 'text-yellow-400' : 'text-gray-300'
-                                }`}>⭐</span>
-                              ))}
-                            </div>
-                            <span className="text-xs text-gray-500">
-                              Pertinence: {Math.round(t.ai_relevance_score * 100)}%
-                            </span>
-                          </div>
-                        )}
-                        
-                        <p className="text-xs text-gray-500 mt-2">
-                          {new Date(t.captured_at || t.uploaded_at).toLocaleString('fr-FR')}
-                        </p>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-6 text-gray-500">
-                      <div className="text-2xl mb-2">📻</div>
-                      <p className="text-sm">Aucune transcription aujourd'hui</p>
-                    </div>
-                  )}
-                </div>
-              </div>
 
-              {/* Section 7H Guadeloupe Première */}
-              <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-green-500">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-800">🌴 7H Guadeloupe Première</h3>
-                    <p className="text-sm text-gray-600">Guadeloupe Première - Actualités matinales</p>
-                    <p className="text-xs text-gray-500">07:00 - 07:30 (30 min)</p>
+            {/* Toutes les transcriptions du jour */}
+            <div className="glass-card" style={{ padding: '2rem' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1.5rem', color: '#1a1a1a' }}>
+                📋 Toutes les transcriptions du jour
+              </h3>
+              
+              <div className="transcription-list">
+                {Object.entries(transcriptionSections).map(([sectionName, transcriptions]) => 
+                  transcriptions?.map(t => (
+                    <div key={t.id} className="transcription-item">
+                      {/* Information */}
+                      <div className="transcription-information">
+                        📻 {t.stream_name || sectionName} - {new Date(t.captured_at || t.uploaded_at).toLocaleDateString('fr-FR')}
+                      </div>
+                      
+                      {/* Explication */}
+                      <div className="transcription-explication">
+                        {t.gpt_analysis || t.ai_summary || `"${t.transcription_text?.substring(0, 200)}..."`}
+                      </div>
+
+                      {/* Métadonnées */}
+                      <div className="transcription-meta">
+                        <span className="article-source">{sectionName}</span>
+                        <span>{new Date(t.captured_at || t.uploaded_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                        {t.segments_count && (
+                          <span style={{ color: '#f59e0b', fontWeight: '500' }}>🎬 {t.segments_count} segments</span>
+                        )}
+                        {t.ai_relevance_score && (
+                          <span style={{ color: '#10b981', fontWeight: '500' }}>
+                            ⭐ {Math.round(t.ai_relevance_score * 100)}%
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+                
+                {Object.values(transcriptionSections).every(section => !section || section.length === 0) && (
+                  <div className="glass-card" style={{ padding: '3rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📻</div>
+                    <p style={{ color: '#6b7280', fontSize: '1.1rem' }}>Aucune transcription disponible</p>
+                    <p style={{ color: '#9ca3af', fontSize: '0.9rem', marginTop: '0.5rem' }}>
+                      Capturez ou uploadez des fichiers audio pour commencer
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {transcriptionStatus.sections?.guadeloupe_premiere_7h?.in_progress && (
-                      <div className="flex items-center gap-1 text-green-600">
-                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
                         <span className="text-xs">En cours...</span>
                       </div>
                     )}
