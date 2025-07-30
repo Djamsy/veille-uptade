@@ -82,6 +82,9 @@ class RadioTranscriptionService:
                 "cache_expires_at": None
             }
         }
+        
+        # Nettoyer les statuts bloqués au démarrage
+        self.cleanup_stale_status()
 
     def update_transcription_step(self, stream_key: str, step: str, details: str = "", progress: int = 0):
         """Mettre à jour l'étape actuelle de transcription"""
