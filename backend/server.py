@@ -1808,6 +1808,43 @@ async def test_gpt_analysis(text: str = None):
             "timestamp": datetime.now().isoformat()
         }
 
+@app.post("/api/test-capture-and-save")
+async def test_capture_and_save(admin_key: str = None):
+    """Test capture rapide 10s + sauvegarde en DB - ADMIN UNIQUEMENT"""
+    try:
+        # Vérification admin
+        if admin_key != "radio_capture_admin_2025":
+            return {
+                "success": False,
+                "error": "Test réservé à l'administration"
+            }
+        
+        # Modifier temporairement la durée pour le test
+        original_duration = radio_service.radio_streams["rci_7h"]["duration_minutes"]  
+        radio_service.radio_streams["rci_7h"]["duration_minutes"] = 0.17  # 10 secondes
+        
+        try:
+            # Lancer une vraie capture qui sauvegarde en DB
+            result = radio_service.capture_and_transcribe_stream("rci_7h")
+            
+            return {
+                "success": result.get('success', False),
+                "message": "Test capture 10s avec sauvegarde DB",
+                "result": result,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        finally:
+            # Restaurer la durée originale
+            radio_service.radio_streams["rci_7h"]["duration_minutes"] = original_duration
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Erreur test capture: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+
 @app.post("/api/test-capture-1min")
 async def test_radio_capture_1min(admin_key: str = None):
     """Tester la capture radio avec échantillon de 30s et analyse GPT - ADMIN UNIQUEMENT"""
