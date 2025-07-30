@@ -272,10 +272,11 @@ backend:
       - working: true
         agent: "main"
         comment: "IMPLEMENTED: Created PDF digest export functionality with ReportLab. Added endpoints /api/digest/today/pdf and /api/digest/{date}/pdf. Successfully tested - generates valid PDF files (2KB+) with proper Content-Type headers. French date formatting and clean HTML-to-PDF conversion implemented."
+  - task: "Radio transcription system"
     implemented: true
-    working: false
+    working: false  
     file: "server.py"
-    stuck_count: 2
+    stuck_count: 3
     priority: "high"
     needs_retesting: true
     status_history:
@@ -288,6 +289,9 @@ backend:
       - working: false
         agent: "main"
         comment: "DIAGNOSED: Root cause is MongoDB ObjectId serialization error in /api/transcribe endpoint. insert_one() adds _id field with ObjectId, but FastAPI cannot serialize ObjectId to JSON, causing 500 errors. Also cache warming hanging on articles_today calculation. Whisper works correctly."
+      - working: false
+        agent: "main"
+        comment: "STATUS: Backend restored after critical deadlock fix. Core /api/health works, PDF export functional, but transcription endpoints still timing out during requests. ObjectId fixes applied but need verification. Cache warming disabled to prevent system lockup."
 
 frontend:
   - task: "Article display interface"
