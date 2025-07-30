@@ -1,18 +1,26 @@
 """
 Service de résumé gratuit utilisant TextRank et LexRank
-Version allégée sans dépendances lourdes
+Version production sans aucune dépendance lourde
+IMPORTANT: Aucun import de spaCy, torch, transformers ou modèles lourds
 """
 import logging
 import re
 from typing import List, Dict, Any, Optional
-from sumy.parsers.plaintext import PlaintextParser
-from sumy.nlp.tokenizers import Tokenizer
-from sumy.summarizers.text_rank import TextRankSummarizer
-from sumy.summarizers.lex_rank import LexRankSummarizer
-from sumy.nlp.stemmers import Stemmer
 from datetime import datetime
 from pymongo import MongoClient
 import os
+
+# Imports conditionnels pour éviter les erreurs de déploiement
+try:
+    from sumy.parsers.plaintext import PlaintextParser
+    from sumy.nlp.tokenizers import Tokenizer
+    from sumy.summarizers.text_rank import TextRankSummarizer  
+    from sumy.summarizers.lex_rank import LexRankSummarizer
+    from sumy.nlp.stemmers import Stemmer
+    SUMY_AVAILABLE = True
+except ImportError as e:
+    logging.warning(f"Sumy not available: {e}. Using basic summarization.")
+    SUMY_AVAILABLE = False
 
 # Configuration logging
 logging.basicConfig(level=logging.INFO)
@@ -20,34 +28,61 @@ logger = logging.getLogger(__name__)
 
 class FreeSummaryService:
     def __init__(self):
-        # Service de résumé sans dépendances lourdes (spaCy supprimé)
+        """Initialiser le service de résumé en mode production sécurisé"""
+        # Aucune dépendance lourde - Mode production
         self.nlp = None
-        logger.info("✅ Service de résumé initialisé (mode allégé)")
+        logger.info("✅ Service de résumé initialisé (mode production allégé)")
         
-        # Initialiser les summarizers
-        self.textrank_summarizer = TextRankSummarizer()
-        self.lexrank_summarizer = LexRankSummarizer()
+        # Initialiser les summarizers seulement si sumy est disponible
+        if SUMY_AVAILABLE:
+            try:
+                self.textrank_summarizer = TextRankSummarizer()
+                self.lexrank_summarizer = LexRankSummarizer()
+                logger.info("✅ Sumy summarizers loaded")
+            except Exception as e:
+                logger.warning(f"Could not load sumy summarizers: {e}")
+                self.textrank_summarizer = None
+                self.lexrank_summarizer = None
+        else:
+            self.textrank_summarizer = None
+            self.lexrank_summarizer = None
 
     def extract_key_sentences(self, text: str, max_sentences: int = 3) -> List[str]:
-        """Extraire les phrases clés d'un texte avec méthodes basiques (sans spaCy)"""
+        """Extraire les phrases clés d'un texte avec méthodes basiques uniquement"""
         if not text.strip():
             return []
         
         try:
-            # Utiliser uniquement la méthode basique (spaCy supprimé)
+            # Utiliser uniquement la méthode basique (PRODUCTION SAFE)
             return self._extract_sentences_basic(text, max_sentences)
         except Exception as e:
             logger.warning(f"Erreur extraction phrases clés: {e}")
             return []
-    
 
     def _extract_sentences_basic(self, text: str, max_sentences: int) -> List[str]:
-        """Extraction basique sans spaCy"""
+        """Extraction basique sans aucune dépendance lourde - PRODUCTION SAFE"""
         import re
         
         # Diviser en phrases avec regex
         sentences = re.split(r'[.!?]+', text)
         sentences = [s.strip() for s in sentences if len(s.strip()) > 20]
+        
+        if not sentences:
+            return []
+        
+        # Scoring simple basé sur la longueur et la position
+        scored_sentences = []
+        for i, sentence in enumerate(sentences[:20]):  # Limiter à 20 phrases
+            # Score basé sur position (début = mieux) et longueur
+            position_score = 1.0 - (i / len(sentences))
+            length_score = min(len(sentence) / 100, 1.0)  # Normalisé à 100 chars
+            
+            total_score = (position_score * 0.6) + (length_score * 0.4)
+            scored_sentences.append((sentence, total_score))
+        
+        # Trier par score et retourner les meilleures
+        scored_sentences.sort(key=lambda x: x[1], reverse=True)
+        return [s[0] for s in scored_sentences[:max_sentences]]
         
         if len(sentences) <= max_sentences:
             return sentences
