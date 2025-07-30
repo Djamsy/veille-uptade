@@ -1039,42 +1039,6 @@ function App() {
             </div>
           </div>
         )}
-                      </a>
-                    </h3>
-                    <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium ml-4">
-                      {article.source}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center text-sm text-gray-500">
-                    <span>Scrapé le {new Date(article.scraped_at).toLocaleString('fr-FR')}</span>
-                    <a
-                      href={article.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-500 hover:text-blue-600 font-medium"
-                    >
-                      🔗 Lire l'article
-                    </a>
-                  </div>
-                </div>
-              ))}
-              {articles.length === 0 && !loading && (
-                <div className="text-center py-12 text-gray-500">
-                  <div className="text-6xl mb-4">📰</div>
-                  <p className="text-xl">Aucun article pour cette date</p>
-                  <p>Le scraping automatique a lieu tous les jours à 10H</p>
-                  <button
-                    onClick={scrapeArticlesNow}
-                    disabled={backgroundTasks.scraping}
-                    className="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
-                  >
-                    {backgroundTasks.scraping ? '⏳ Scraping...' : '🔄 Lancer le scraping'}
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Transcriptions Radio */}
         {activeTab === 'transcription' && (
