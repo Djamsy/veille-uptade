@@ -709,15 +709,18 @@ function App() {
             <h2 className="text-3xl font-bold mb-6" style={{ color: '#2c3e50' }}>📊 Vue d'ensemble - Guadeloupe</h2>
             
             <div className="stats-grid">
-              <div className="stat-card">
-                <div className="stat-label">Articles Aujourd'hui</div>
-                <div className="stat-value">{dashboardStats.today_articles || 0}</div>
-                <div className="stat-sublabel">Total: {dashboardStats.total_articles || 0}</div>
+              <div className="stat-card priority-card">
+                <div className="stat-label">🎙️ Radio Locale - Priorité</div>
+                <div className="stat-value">{dashboardStats.today_transcriptions || 0}</div>
+                <div className="stat-sublabel">Total: {dashboardStats.total_transcriptions || 0}</div>
+                <div className="stat-badge">PRIORITÉ</div>
               </div>
 
               <div className="stat-card">
-                <div className="stat-label">Radio Aujourd'hui</div>
-                <div className="stat-value">{dashboardStats.today_transcriptions || 0}</div>
+                <div className="stat-label">📰 Articles Presse</div>
+                <div className="stat-value">{dashboardStats.today_articles || 0}</div>
+                <div className="stat-sublabel">Total: {dashboardStats.total_articles || 0}</div>
+              </div>
                 <div className="stat-sublabel">Total: {dashboardStats.total_transcriptions || 0}</div>
               </div>
 
