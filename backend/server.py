@@ -704,6 +704,260 @@ async def warm_cache():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur préchauffage cache: {str(e)}")
 
+@app.get("/api/search")
+async def search_content(q: str, source: str = "all", limit: int = 50):
+    """Rechercher dans les articles et posts des réseaux sociaux"""
+    try:
+        if not q or len(q.strip()) < 2:
+            return {"success": False, "error": "Requête de recherche trop courte (minimum 2 caractères)"}
+        
+        search_query = q.strip().lower()
+        results = {
+            'query': q,
+            'articles': [],
+            'social_posts': [],
+            'total_results': 0,
+            'searched_in': []
+        }
+        
+        # Rechercher dans les articles si demandé
+        if source in ['all', 'articles']:
+            try:
+                # Recherche MongoDB avec regex insensible à la casse
+                article_query = {
+                    '$or': [
+                        {'title': {'$regex': search_query, '$options': 'i'}},
+                        {'source': {'$regex': search_query, '$options': 'i'}}
+                    ]
+                }
+                
+                articles = list(articles_collection.find(
+                    article_query,
+                    {'_id': 0}
+                ).sort('scraped_at', -1).limit(limit))
+                
+                results['articles'] = articles
+                results['searched_in'].append('articles')
+                
+            except Exception as e:
+                logger.warning(f"Erreur recherche articles: {e}")
+        
+        # Rechercher dans les posts des réseaux sociaux si demandé
+        if source in ['all', 'social']:
+            try:
+                if SOCIAL_MEDIA_ENABLED:
+                    # Recherche dans les posts sociaux
+                    social_query = {
+                        '$or': [
+                            {'content': {'$regex': search_query, '$options': 'i'}},
+                            {'author': {'$regex': search_query, '$options': 'i'}},
+                            {'keyword_searched': {'$regex': search_query, '$options': 'i'}}
+                        ]
+                    }
+                    
+                    social_posts = list(social_scraper.social_collection.find(
+                        social_query,
+                        {'_id': 0}
+                    ).sort('scraped_at', -1).limit(limit))
+                    
+                    results['social_posts'] = social_posts
+                    results['searched_in'].append('social_posts')
+                    
+            except Exception as e:
+                logger.warning(f"Erreur recherche réseaux sociaux: {e}")
+        
+        # Calculer le total
+        results['total_results'] = len(results['articles']) + len(results['social_posts'])
+        
+        # Ajouter des suggestions si pas de résultats
+        if results['total_results'] == 0:
+            suggestions = [
+                "Guy Losbar", "Conseil Départemental", "CD971", "Guadeloupe",
+                "budget", "education", "route", "social", "politique"
+            ]
+            results['suggestions'] = [s for s in suggestions if search_query not in s.lower()][:5]
+        
+        return {"success": True, **results}
+        
+    except Exception as e:
+        logger.error(f"Erreur recherche: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/search/suggestions")
+async def get_search_suggestions(q: str = ""):
+    """Obtenir des suggestions de recherche basées sur les données existantes"""
+    try:
+        suggestions = []
+        
+        if len(q) >= 2:
+            search_query = q.strip().lower()
+            
+            # Suggestions basées sur les sources d'articles
+            try:
+                sources_pipeline = [
+                    {'$group': {'_id': '$source', 'count': {'$sum': 1}}},
+                    {'$match': {'_id': {'$regex': search_query, '$options': 'i'}}},
+                    {'$sort': {'count': -1}},
+                    {'$limit': 3}
+                ]
+                sources = list(articles_collection.aggregate(sources_pipeline))
+                suggestions.extend([s['_id'] for s in sources])
+                
+            except Exception as e:
+                logger.warning(f"Erreur suggestions sources: {e}")
+            
+            # Suggestions basées sur les mots-clés des réseaux sociaux
+            try:
+                if SOCIAL_MEDIA_ENABLED:
+                    keywords_pipeline = [
+                        {'$group': {'_id': '$keyword_searched', 'count': {'$sum': 1}}},
+                        {'$match': {'_id': {'$regex': search_query, '$options': 'i'}}},
+                        {'$sort': {'count': -1}},
+                        {'$limit': 3}
+                    ]
+                    keywords = list(social_scraper.social_collection.aggregate(keywords_pipeline))
+                    suggestions.extend([k['_id'] for k in keywords])
+                    
+            except Exception as e:
+                logger.warning(f"Erreur suggestions keywords: {e}")
+        
+        # Suggestions par défaut si pas de query ou pas de résultats
+        if not suggestions:
+            default_suggestions = [
+                "Guy Losbar", "Conseil Départemental Guadeloupe", "CD971",
+                "Budget départemental", "Education Guadeloupe", "Routes Guadeloupe",
+                "Aide sociale", "Collèges", "Assemblée départementale"
+            ]
+            suggestions = default_suggestions[:5]
+        
+        return {"success": True, "suggestions": list(set(suggestions))[:8]}
+        
+    except Exception as e:
+        logger.error(f"Erreur suggestions recherche: {e}")
+        return {"success": False, "error": str(e), "suggestions": []}
+
+# ==================== COMMENTS ENDPOINTS ====================
+
+@app.get("/api/comments")
+async def get_comments(article_id: str = None, limit: int = 100):
+    """Récupérer les commentaires (posts des réseaux sociaux liés aux articles)"""
+    try:
+        if SOCIAL_MEDIA_ENABLED:
+            query = {}
+            if article_id:
+                # Si un article spécifique est demandé, chercher les posts liés
+                query = {'related_article_id': article_id}
+            
+            # Récupérer les posts des réseaux sociaux comme "commentaires"
+            comments = list(social_scraper.social_collection.find(
+                query,
+                {'_id': 0}
+            ).sort('scraped_at', -1).limit(limit))
+            
+            # Ajouter l'analyse de sentiment si pas déjà présente
+            if SENTIMENT_ENABLED:
+                for comment in comments:
+                    if 'sentiment_summary' not in comment:
+                        sentiment = local_sentiment_analyzer.analyze_sentiment(comment.get('content', ''))
+                        comment['sentiment_summary'] = {
+                            'polarity': sentiment['polarity'],
+                            'score': sentiment['score'],
+                            'intensity': sentiment['intensity']
+                        }
+            
+            return {"success": True, "comments": comments, "count": len(comments)}
+        else:
+            return {"success": False, "error": "Service réseaux sociaux non disponible"}
+            
+    except Exception as e:
+        logger.error(f"Erreur récupération commentaires: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/comments/analyze")
+async def analyze_comments_sentiment():
+    """Analyser le sentiment des commentaires par entité (Guy Losbar, CD971, etc.)"""
+    try:
+        if not SOCIAL_MEDIA_ENABLED:
+            return {"success": False, "error": "Service réseaux sociaux non disponible"}
+        
+        if not SENTIMENT_ENABLED:
+            return {"success": False, "error": "Service d'analyse de sentiment non disponible"}
+        
+        # Récupérer tous les posts récents
+        posts = social_scraper.get_recent_posts(days=7)
+        
+        if not posts:
+            return {"success": True, "analysis": {"total_comments": 0, "by_entity": {}, "overall": {}}}
+        
+        # Analyser par entité cible
+        entities_analysis = {
+            'Guy Losbar': {'posts': [], 'sentiments': []},
+            'Conseil Départemental': {'posts': [], 'sentiments': []},
+            'CD971': {'posts': [], 'sentiments': []},
+            'Budget': {'posts': [], 'sentiments': []},
+            'Education': {'posts': [], 'sentiments': []}
+        }
+        
+        # Classifier les posts par entité mentionnée
+        for post in posts:
+            content = post.get('content', '').lower()
+            sentiment = local_sentiment_analyzer.analyze_sentiment(post.get('content', ''))
+            
+            post_with_sentiment = {
+                **post,
+                'sentiment': sentiment
+            }
+            
+            # Détecter les entités mentionnées
+            if any(keyword in content for keyword in ['guy losbar', 'losbar']):
+                entities_analysis['Guy Losbar']['posts'].append(post_with_sentiment)
+                entities_analysis['Guy Losbar']['sentiments'].append(sentiment['score'])
+            
+            if any(keyword in content for keyword in ['conseil départemental', 'cd971', 'département']):
+                entities_analysis['Conseil Départemental']['posts'].append(post_with_sentiment)
+                entities_analysis['Conseil Départemental']['sentiments'].append(sentiment['score'])
+            
+            if 'budget' in content:
+                entities_analysis['Budget']['posts'].append(post_with_sentiment)
+                entities_analysis['Budget']['sentiments'].append(sentiment['score'])
+            
+            if any(keyword in content for keyword in ['école', 'collège', 'education', 'élève']):
+                entities_analysis['Education']['posts'].append(post_with_sentiment)
+                entities_analysis['Education']['sentiments'].append(sentiment['score'])
+        
+        # Calculer les statistiques par entité
+        analysis_result = {
+            'total_comments': len(posts),
+            'by_entity': {},
+            'overall': {
+                'average_sentiment': sum([s['score'] for s in [local_sentiment_analyzer.analyze_sentiment(p.get('content', '')) for p in posts]]) / len(posts) if posts else 0,
+                'total_analyzed': len(posts)
+            },
+            'analysis_date': datetime.now().isoformat()
+        }
+        
+        for entity, data in entities_analysis.items():
+            if data['posts']:
+                avg_sentiment = sum(data['sentiments']) / len(data['sentiments'])
+                sentiment_counts = {
+                    'positive': len([s for s in data['sentiments'] if s > 0.1]),
+                    'negative': len([s for s in data['sentiments'] if s < -0.1]),
+                    'neutral': len([s for s in data['sentiments'] if -0.1 <= s <= 0.1])
+                }
+                
+                analysis_result['by_entity'][entity] = {
+                    'total_mentions': len(data['posts']),
+                    'average_sentiment': round(avg_sentiment, 3),
+                    'sentiment_distribution': sentiment_counts,
+                    'recent_posts': data['posts'][:3]  # 3 posts les plus récents
+                }
+        
+        return {"success": True, "analysis": analysis_result}
+        
+    except Exception as e:
+        logger.error(f"Erreur analyse commentaires: {e}")
+        return {"success": False, "error": str(e)}
+
 # ==================== SOCIAL MEDIA ENDPOINTS ====================
 
 @app.get("/api/social/stats")
