@@ -46,7 +46,7 @@ class PDFDigestService:
         
         # Style pour le contenu
         self.styles.add(ParagraphStyle(
-            name='BodyText',
+            name='CustomBodyText',
             parent=self.styles['Normal'],
             fontSize=11,
             spaceAfter=6,
