@@ -644,6 +644,66 @@ async def create_digest_now():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur création digest: {str(e)}")
 
+@app.get("/api/digest/{date}/pdf")
+async def get_digest_pdf(date: str):
+    """Télécharger le digest en format PDF"""
+    try:
+        digest_id = f"digest_{date.replace('-', '')}"
+        
+        # Récupérer le digest depuis la base
+        digest = digests_collection.find_one({"id": digest_id}, {"_id": 0})
+        
+        if not digest:
+            # Créer le digest s'il n'existe pas
+            today = date
+            articles = list(articles_collection.find(
+                {'date': today}, 
+                {'_id': 0}
+            ).sort('scraped_at', -1))
+            
+            transcriptions = list(transcriptions_collection.find(
+                {'date': today}, 
+                {'_id': 0}
+            ).sort('captured_at', -1))
+            
+            digest_html = summary_service.create_daily_digest(articles, transcriptions)
+            
+            digest = {
+                'id': digest_id,
+                'date': today,
+                'digest_html': digest_html,
+                'articles_count': len(articles),
+                'transcriptions_count': len(transcriptions),
+                'created_at': datetime.now().isoformat()
+            }
+            
+            # Sauvegarder le digest
+            digests_collection.insert_one(digest.copy())
+        
+        # Générer le PDF
+        pdf_path = pdf_digest_service.create_pdf_digest(digest)
+        
+        # Nom du fichier pour le téléchargement
+        filename = f"digest_guadeloupe_{date}.pdf"
+        
+        # Retourner le fichier PDF
+        return FileResponse(
+            path=pdf_path,
+            media_type='application/pdf',
+            filename=filename,
+            background=True  # Nettoie automatiquement le fichier temporaire
+        )
+        
+    except Exception as e:
+        logger.error(f"Erreur génération PDF digest: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur génération PDF: {str(e)}")
+
+@app.get("/api/digest/today/pdf")
+async def get_today_digest_pdf():
+    """Télécharger le digest d'aujourd'hui en format PDF"""
+    today = datetime.now().strftime('%Y-%m-%d')
+    return await get_digest_pdf(today)
+
 # ==================== SCHEDULER ENDPOINTS ====================
 
 @app.get("/api/scheduler/status")
