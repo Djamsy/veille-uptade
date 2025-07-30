@@ -1116,21 +1116,21 @@ function App() {
 
             <div className="article-list">
               {articles.map(article => (
-                <div key={article.id} className="article-item">
-                  {/* Information */}
-                  <div className="article-information">
-                    <a href={article.url} target="_blank" rel="noopener noreferrer" style={{ color: '#1a1a1a', textDecoration: 'none' }}>
+                <article key={article.id} className="article-item">
+                  {/* Titre de l'article */}
+                  <header className="article-information">
+                    <a href={article.url} target="_blank" rel="noopener noreferrer">
                       {article.title}
                     </a>
-                  </div>
+                  </header>
                   
-                  {/* Explication */}
+                  {/* Résumé de l'article */}
                   <div className="article-explication">
                     {article.summary || article.ai_summary || "Résumé non disponible"}
                   </div>
 
-                  {/* Métadonnées */}
-                  <div className="article-meta">
+                  {/* Métadonnées et actions */}
+                  <footer className="article-meta">
                     <span className="article-source">{article.source}</span>
                     <span className="article-date">
                       {new Date(article.published_at || article.scraped_at).toLocaleDateString('fr-FR', {
@@ -1141,15 +1141,30 @@ function App() {
                       })}
                     </span>
                     {article.sentiment_score && (
-                      <span style={{ 
-                        color: article.sentiment_score > 0.1 ? '#059669' : article.sentiment_score < -0.1 ? '#dc2626' : '#6b7280',
-                        fontWeight: '500'
-                      }}>
+                      <span className={`article-sentiment ${
+                        article.sentiment_score > 0.1 
+                          ? 'positive' 
+                          : article.sentiment_score < -0.1 
+                            ? 'negative' 
+                            : 'neutral'
+                      }`}>
                         {article.sentiment_score > 0.1 ? '😊 Positif' : article.sentiment_score < -0.1 ? '😞 Négatif' : '😐 Neutre'}
                       </span>
                     )}
+                  </footer>
+
+                  {/* Actions sur l'article */}
+                  <div className="article-actions">
+                    <a href={article.url} target="_blank" rel="noopener noreferrer" className="article-action-btn">
+                      🔗 Lire l'article
+                    </a>
+                    {article.ai_summary && (
+                      <button className="article-action-btn">
+                        🤖 Résumé IA
+                      </button>
+                    )}
                   </div>
-                </div>
+                </article>
               ))}
               
               {articles.length === 0 && (
