@@ -751,7 +751,8 @@ async def search_content(q: str, source: str = "all", limit: int = 50, social_on
                         '$or': [
                             {'content': {'$regex': search_query, '$options': 'i'}},
                             {'author': {'$regex': search_query, '$options': 'i'}},
-                            {'keyword_searched': {'$regex': search_query, '$options': 'i'}}
+                            {'keyword_searched': {'$regex': search_query, '$options': 'i'}},
+                            {'search_keyword': {'$regex': search_query, '$options': 'i'}}
                         ]
                     }
                     
