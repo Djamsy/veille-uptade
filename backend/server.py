@@ -72,6 +72,15 @@ except ImportError as e:
     print(f"⚠️ Service d'analyse de sentiment asynchrone non disponible: {e}")
     ASYNC_SENTIMENT_ENABLED = False
 
+# Import du service de prédiction des réactions de la population
+try:
+    from population_reaction_service import population_reaction_predictor, predict_population_reaction
+    POPULATION_REACTION_ENABLED = True
+    print("✅ Service de prédiction des réactions de la population activé")
+except ImportError as e:
+    print(f"⚠️ Service de prédiction des réactions non disponible: {e}")
+    POPULATION_REACTION_ENABLED = False
+
 # Import du service d'alertes Telegram
 try:
     from telegram_alerts_service import telegram_alerts
