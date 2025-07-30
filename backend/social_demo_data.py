@@ -6,93 +6,93 @@ from datetime import datetime, timedelta
 import random
 
 def generate_realistic_social_posts():
-    """Générer des posts simulés réalistes sur la Guadeloupe"""
+    """Générer des posts simulés réalistes sur le Conseil Départemental et Guy Losbar"""
     
-    # Posts positifs
+    # Posts positifs sur le Conseil Départemental et Guy Losbar
     positive_posts = [
         {
-            'content': "Magnifique coucher de soleil sur la plage de la Datcha à Le Gosier ! 🌅 La Guadeloupe nous offre encore un spectacle incroyable #Guadeloupe #Paradise",
+            'content': "Guy Losbar annonce 15 millions d'euros pour la rénovation des collèges de Guadeloupe ! Excellent investissement dans l'éducation de nos jeunes 👏 #CD971 #Education",
             'platform': 'twitter',
-            'author': 'GuadaloupeLife',
-            'engagement': {'likes': 45, 'retweets': 12, 'replies': 8, 'total': 65},
-            'expected_sentiment': 'positive'
-        },
-        {
-            'content': "Excellent festival de musique créole ce weekend à Pointe-à-Pitre ! Ambiance incroyable, artistes talentueux, public au rendez-vous 🎵 Fier de notre culture antillaise",
-            'platform': 'facebook',
-            'author': 'CultureGuadeloupe',
-            'engagement': {'likes': 123, 'comments': 25, 'shares': 18, 'total': 166},
-            'expected_sentiment': 'positive'
-        },
-        {
-            'content': "Nouvelle école inaugurée à Basse-Terre ! 500 élèves vont pouvoir étudier dans de meilleures conditions. Bravo pour cet investissement dans notre jeunesse 👏",
-            'platform': 'twitter',
-            'author': 'EducationGwada',
+            'author': 'EducationGwada971',
             'engagement': {'likes': 89, 'retweets': 34, 'replies': 16, 'total': 139},
             'expected_sentiment': 'positive'
         },
         {
-            'content': "Les papangues sont de retour dans le parc national ! Excellente nouvelle pour la biodiversité de notre archipel 🦅 #ConservationGuadeloupe",
-            'platform': 'instagram',
-            'author': 'NatureAntilles',
-            'engagement': {'likes': 67, 'comments': 12, 'total': 79},
+            'content': "Le Conseil Départemental lance un nouveau programme d'aide aux familles monoparentales. Bravo Guy Losbar pour cette initiative sociale ! 500 familles vont être aidées",
+            'platform': 'facebook',
+            'author': 'SocialGuadeloupe',
+            'engagement': {'likes': 156, 'comments': 43, 'shares': 28, 'total': 227},
+            'expected_sentiment': 'positive'
+        },
+        {
+            'content': "Inauguration de la nouvelle route départementale à Sainte-Rose par Guy Losbar. Enfin ! Les habitants pourront circuler en sécurité 🚗 #InfrastructuresGwada",
+            'platform': 'twitter',
+            'author': 'RoutesGuadeloupe',
+            'engagement': {'likes': 67, 'retweets': 23, 'replies': 12, 'total': 102},
+            'expected_sentiment': 'positive'
+        },
+        {
+            'content': "Guy Losbar présente le budget départemental 2025 : +8% pour le social, +12% pour les routes. Belle progression pour la Guadeloupe ! #Budget2025 #CD971",
+            'platform': 'facebook',
+            'author': 'PolitiqueGwada',
+            'engagement': {'likes': 78, 'comments': 34, 'shares': 19, 'total': 131},
             'expected_sentiment': 'positive'
         }
     ]
     
-    # Posts négatifs
+    # Posts négatifs sur la gestion départementale
     negative_posts = [
         {
-            'content': "Encore des coupures d'eau à Saint-François... Ça devient vraiment insupportable pour les familles. Quand est-ce que ça va s'arrêter ? 😤 #PenurieEau",
+            'content': "Encore des retards dans les travaux promis par le Conseil Départemental... Guy Losbar avait annoncé la livraison pour septembre. On est en décembre ! 😤 #PromessesNonTenues",
             'platform': 'twitter',
-            'author': 'CitoyenGwada',
-            'engagement': {'likes': 78, 'retweets': 56, 'replies': 43, 'total': 177},
+            'author': 'CitoyenVigilant971',
+            'engagement': {'likes': 123, 'retweets': 78, 'replies': 56, 'total': 257},
             'expected_sentiment': 'negative'
         },
         {
-            'content': "Grave accident sur la route de Gosier ce matin. Plusieurs blessés évacués vers le CHU. Attention sur les routes, conduisez prudemment !",
+            'content': "Grave problème d'assainissement dans plusieurs collèges du département. Les parents s'inquiètent. Quand le CD971 va-t-il réagir ? #CollègesInsalubres",
             'platform': 'facebook',
-            'author': 'InfosGuadeloupe',
-            'engagement': {'likes': 23, 'comments': 67, 'shares': 89, 'total': 179},
+            'author': 'ParentsGuadeloupe',
+            'engagement': {'likes': 89, 'comments': 67, 'shares': 45, 'total': 201},
             'expected_sentiment': 'negative'
         },
         {
-            'content': "Manifestation des agriculteurs devant la préfecture. La situation économique devient très difficile avec la sécheresse et les problèmes d'irrigation 😟",
+            'content': "Manifestation devant le Conseil Départemental : les agents réclament des augmentations salariales. Guy Losbar reste sourd aux revendications depuis 6 mois",
             'platform': 'twitter',
-            'author': 'AgricultureGwada',
-            'engagement': {'likes': 34, 'retweets': 28, 'replies': 19, 'total': 81},
+            'author': 'SyndicatCD971',
+            'engagement': {'likes': 45, 'retweets': 67, 'replies': 23, 'total': 135},
             'expected_sentiment': 'negative'
         },
         {
-            'content': "Alerte méteo : risque de cyclone pour les prochains jours. Préparez-vous et restez vigilants ! Pensez à faire vos provisions 🌪️ #AlerteCyclone",
-            'platform': 'facebook', 
-            'author': 'MeteoAntilles',
-            'engagement': {'likes': 156, 'comments': 89, 'shares': 234, 'total': 479},
+            'content': "Budget départemental : polémique sur les dépenses de communication. 2 millions d'euros pour promouvoir Guy Losbar ? Les priorités sont ailleurs ! #GaspillagePublic",
+            'platform': 'facebook',
+            'author': 'TransparenceGwada',
+            'engagement': {'likes': 134, 'comments': 89, 'shares': 67, 'total': 290},
             'expected_sentiment': 'negative'
         }
     ]
     
-    # Posts neutres
+    # Posts neutres sur l'actualité départementale
     neutral_posts = [
         {
-            'content': "Nouveau supermarché qui ouvre à Baie-Mahault la semaine prochaine. Ouverture prévue lundi 8h. Horaires : 8h-20h du lundi au samedi.",
+            'content': "Conseil départemental : séance plénière reportée au jeudi 15 janvier. Ordre du jour disponible sur le site cd971.fr",
             'platform': 'twitter',
-            'author': 'CommerceLocal',
+            'author': 'CD971Officiel',
             'engagement': {'likes': 12, 'retweets': 8, 'replies': 3, 'total': 23},
             'expected_sentiment': 'neutral'
         },
         {
-            'content': "Réunion du conseil municipal de Deshaies reportée à mercredi prochain. Ordre du jour disponible sur le site de la mairie.",
+            'content': "Guy Losbar reçoit une délégation de maires demain à 14h au siège du Conseil Départemental de Basse-Terre pour discuter intercommunalité",
             'platform': 'facebook',
-            'author': 'MairieDeshaies',
-            'engagement': {'likes': 5, 'comments': 2, 'shares': 1, 'total': 8},
+            'author': 'InfosInstitutionnelles',
+            'engagement': {'likes': 18, 'comments': 5, 'shares': 3, 'total': 26},
             'expected_sentiment': 'neutral'
         },
         {
-            'content': "Fermeture temporaire de la bibliothèque de Sainte-Anne pour travaux de rénovation du 15 au 30 janvier. Réouverture prévue début février.",
+            'content': "Fermeture exceptionnelle des services du Conseil Départemental le 15 août. Réouverture lundi 18 août à 8h. Numéro d'urgence : 0590 99 XX XX",
             'platform': 'instagram',
-            'author': 'BibliothequeSainteAnne',
-            'engagement': {'likes': 18, 'comments': 7, 'total': 25},
+            'author': 'ServicesPublicsGwada',
+            'engagement': {'likes': 25, 'comments': 7, 'total': 32},
             'expected_sentiment': 'neutral'
         }
     ]
@@ -102,12 +102,12 @@ def generate_realistic_social_posts():
     
     # Ajouter les métadonnées communes
     current_time = datetime.now()
-    keywords = ['Guadeloupe', 'Pointe-à-Pitre', 'Basse-Terre', 'Antilles', 'Gwada']
+    keywords = ['Guy Losbar', 'Conseil Départemental Guadeloupe', 'CD971', 'Losbar', 'Département Guadeloupe']
     
     processed_posts = []
     for i, post in enumerate(all_posts):
         # Dates réparties sur les derniers jours
-        post_time = current_time - timedelta(hours=random.randint(1, 48))
+        post_time = current_time - timedelta(hours=random.randint(1, 72))
         
         processed_post = {
             'id': f"{post['platform']}_{hash(post['content'] + str(i))}",
@@ -115,7 +115,7 @@ def generate_realistic_social_posts():
             'keyword_searched': random.choice(keywords),
             'content': post['content'],
             'author': post['author'],
-            'author_followers': random.randint(50, 5000),
+            'author_followers': random.randint(100, 8000),
             'created_at': post_time.isoformat(),
             'engagement': post['engagement'],
             'url': f"https://{post['platform']}.com/post/{i}",
@@ -123,29 +123,40 @@ def generate_realistic_social_posts():
             'date': current_time.strftime('%Y-%m-%d'),
             'is_reply': random.choice([False, False, False, True]),  # 25% de chance d'être une réponse
             'language': 'fr',
-            'expected_sentiment': post['expected_sentiment'],  # Pour validation
-            'demo_data': True  # Marquer comme données de démonstration
+            'expected_sentiment': post['expected_sentiment'],
+            'demo_data': True,
+            'target_entity': 'Conseil Départemental Guadeloupe',  # Nouvelle métadonnée
+            'political_figure': 'Guy Losbar' if 'guy losbar' in post['content'].lower() else None
         }
         processed_posts.append(processed_post)
     
     return processed_posts
 
 def get_demo_social_stats():
-    """Générer des statistiques de démonstration"""
+    """Générer des statistiques de démonstration pour le ciblage CD971/Guy Losbar"""
     return {
-        'message': 'Données de démonstration - Twitter/X limits contournées',
-        'data_source': 'Simulation réaliste pour tester l\'analyse de sentiment',
+        'message': 'Données de démonstration - Focus Conseil Départemental Guadeloupe & Guy Losbar',
+        'data_source': 'Simulation réaliste pour surveillance politique locale',
         'total_demo_posts': 11,
+        'target_entities': ['Conseil Départemental Guadeloupe', 'Guy Losbar', 'CD971'],
         'by_platform': {
             'twitter': 5,
             'facebook': 4, 
-            'instagram': 2
+            'instagram': 1
         },
         'expected_sentiment_distribution': {
             'positive': 4,
             'negative': 4,
             'neutral': 3
-        }
+        },
+        'topics_covered': [
+            'Budget départemental',
+            'Education (collèges)',
+            'Routes et infrastructures', 
+            'Aide sociale',
+            'Gestion politique',
+            'Communication institutionnelle'
+        ]
     }
 
 if __name__ == "__main__":
