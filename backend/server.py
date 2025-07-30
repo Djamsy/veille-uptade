@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
 from pymongo import MongoClient
 import os
 from datetime import datetime
@@ -21,6 +21,7 @@ from scraper_service import guadeloupe_scraper
 from radio_service import radio_service  
 from summary_service import summary_service
 from scheduler_service import veille_scheduler, start_scheduler
+from pdf_service import pdf_digest_service
 
 # Import du cache avec fallback - Réactivé avec cache 24H
 
