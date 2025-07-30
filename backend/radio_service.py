@@ -228,12 +228,16 @@ class RadioTranscriptionService:
             'success': False,
             'stream_key': stream_key,
             'stream_name': config['name'],
+            'section': config['section'],
             'timestamp': datetime.now().isoformat(),
             'error': None,
             'transcription': None
         }
         
         try:
+            # Marquer comme en cours
+            self.set_transcription_status(stream_key, True, config['duration_minutes'] + 5)
+            
             # 1. Capturer le flux
             audio_path = self.capture_radio_stream(stream_key, duration_seconds)
             if not audio_path:
@@ -247,11 +251,13 @@ class RadioTranscriptionService:
                     result['error'] = "Échec de la transcription"
                     return result
                 
-                # 3. Sauvegarder en base de données
+                # 3. Sauvegarder en base de données avec section
                 transcription_record = {
                     'id': f"{stream_key}_{int(time.time())}",
                     'stream_key': stream_key,
                     'stream_name': config['name'],
+                    'section': config['section'],
+                    'description': config['description'],
                     'stream_url': config['url'],
                     'transcription_text': transcription['text'],
                     'language': transcription['language'],
@@ -259,7 +265,9 @@ class RadioTranscriptionService:
                     'segments': transcription['segments'],
                     'captured_at': datetime.now().isoformat(),
                     'date': datetime.now().strftime('%Y-%m-%d'),
-                    'audio_size_bytes': os.path.getsize(audio_path) if os.path.exists(audio_path) else 0
+                    'audio_size_bytes': os.path.getsize(audio_path) if os.path.exists(audio_path) else 0,
+                    'priority': config['priority'],
+                    'start_time': f"{config['start_hour']:02d}:{config['start_minute']:02d}"
                 }
                 
                 # Insérer en base
@@ -270,7 +278,7 @@ class RadioTranscriptionService:
                 result['success'] = True
                 result['transcription'] = transcription_record
                 
-                logger.info(f"✅ Transcription sauvegardée pour {config['name']}")
+                logger.info(f"✅ Transcription sauvegardée pour {config['section']}")
                 
             finally:
                 # Nettoyer le fichier temporaire
@@ -279,7 +287,10 @@ class RadioTranscriptionService:
                     
         except Exception as e:
             result['error'] = str(e)
-            logger.error(f"❌ Erreur globale pour {config['name']}: {e}")
+            logger.error(f"❌ Erreur globale pour {config['section']}: {e}")
+        finally:
+            # Marquer comme terminé
+            self.set_transcription_status(stream_key, False)
         
         return result
 
