@@ -204,10 +204,10 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: Radio service GPT integration working correctly. OpenAI Whisper API method confirmed in transcription responses. Security controls operational: captures rejected without admin key (hour=14, authorized=[7]) with explicit OpenAI cost control message. Cost transparency implemented with estimates (~$0.006/min Whisper, ~$0.001-0.003 GPT)."
 
-  - task: "GPT Sentiment Analysis - Format enrichi"
+  - task: "GPT Sentiment Analysis - Format enrichi + Système Asynchrone"
     implemented: true
     working: true
-    file: "gpt_sentiment_service.py, server.py"
+    file: "gpt_sentiment_service.py, server.py, async_sentiment_service.py"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
@@ -218,6 +218,9 @@ backend:
       - working: true
         agent: "main"
         comment: "✅ SERVICE GPT SENTIMENT OPÉRATIONNEL: Tests manuels réussis avec format enrichi. POST /api/sentiment/analyze fonctionne parfaitement (score: 0.8 positif pour Guy Losbar, -0.8 négatif pour accident avec urgence élevée). POST /api/sentiment/analyze/quick opérationnel. Détection automatique personnalités (Guy Losbar), institutions (CD971, Conseil Départemental), contexte Guadeloupe, recommandations et alertes. Format JSON structuré avec 8 sections d'analyse contextuelle."
+      - working: true
+        agent: "main"
+        comment: "🚀 SYSTÈME ASYNCHRONE COMPLET: Problème de lenteur résolu avec async_sentiment_service.py. Cache MongoDB 24H, traitement en arrière-plan, réponses instantanées si déjà analysé. Endpoints: POST /api/sentiment/analyze (param async:true), GET /api/sentiment/status/{hash}, GET /api/sentiment/async/stats. Interface de démonstration créée (sentiment_demo.html). Tests réussis: analyse async avec hash unique, puis récupération instantané depuis cache avec format enrichi complet. Performance: ~0.1s (cache) vs 3-8s (GPT)."
 
 backend:
   - task: "France-Antilles scraper"
