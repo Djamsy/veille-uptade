@@ -47,22 +47,27 @@ class SocialMediaScraper:
         self.rate_limit_delay = 2  # secondes entre les requêtes
 
     def install_dependencies(self):
-        """Installer les dépendances nécessaires"""
-        try:
-            import subprocess
-            import sys
-            
-            # Installer snscrape
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "snscrape"])
-            logger.info("✅ snscrape installé")
-            
-            # Installer playwright pour Facebook/Instagram
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "playwright"])
-            subprocess.check_call([sys.executable, "-m", "playwright", "install", "chromium"])
-            logger.info("✅ Playwright installé")
-            
-        except Exception as e:
-            logger.error(f"❌ Erreur installation: {e}")
+        """Installer les dépendances nécessaires (désactivé en production)"""
+        logger.warning("⚠️ Installation automatique des dépendances désactivée en production")
+        logger.info("Les dépendances doivent être installées via requirements.txt")
+        return
+        
+        # Code d'installation commenté pour éviter les problèmes en production
+        # try:
+        #     import subprocess
+        #     import sys
+        #     
+        #     # Installer snscrape
+        #     subprocess.check_call([sys.executable, "-m", "pip", "install", "snscrape"])
+        #     logger.info("✅ snscrape installé")
+        #     
+        #     # Installer playwright pour Facebook/Instagram (désactivé)
+        #     # subprocess.check_call([sys.executable, "-m", "pip", "install", "playwright"])
+        #     # subprocess.check_call([sys.executable, "-m", "playwright", "install", "chromium"])
+        #     # logger.info("✅ Playwright installé")
+        #     
+        # except Exception as e:
+        #     logger.error(f"❌ Erreur installation: {e}")
 
     def scrape_twitter_keyword(self, keyword: str, max_posts: int = 20) -> List[Dict[str, Any]]:
         """Scraper X/Twitter pour un mot-clé avec snscrape - Version améliorée"""
