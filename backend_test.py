@@ -677,6 +677,24 @@ class GuadeloupeMediaAPITester:
         self.test_sentiment_analyze_text()
         self.test_sentiment_trends()
 
+        # Test SOCIAL MEDIA WITHOUT DEMO DATA (as requested)
+        print("\n📱 SOCIAL MEDIA REAL DATA TESTS (NO DEMO)")
+        self.test_social_clean_demo_data()
+        self.test_social_scrape_real_data()
+        self.test_comments_no_demo_data()
+        self.test_search_guy_losbar_real_data()
+        self.test_social_stats_real_data()
+        self.test_social_scrape_status_check()
+
+        # Test search and comments integration
+        print("\n🔍 SEARCH & COMMENTS INTEGRATION")
+        self.test_search_endpoint()
+        self.test_comments_endpoint()
+        self.test_search_suggestions()
+        self.test_comments_analyze()
+        self.test_social_scrape_now()
+        self.test_social_stats()
+
         # Test existing features
         print("\n📰 EXISTING FEATURES VERIFICATION")
         self.test_scrapers_working()
