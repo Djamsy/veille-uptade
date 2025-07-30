@@ -184,6 +184,11 @@ function App() {
           await loadComments();
           await loadSocialStats();
           break;
+          
+        case 'analytics':
+          // Charger les données d'analytics
+          await loadAnalyticsData();
+          break;
       }
     } catch (error) {
       console.error(`Erreur chargement ${tab}:`, error);
