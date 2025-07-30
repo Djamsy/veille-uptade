@@ -476,7 +476,7 @@ async def transcribe_audio(file: UploadFile = File(...)):
         try:
             # Utiliser le service de transcription
             logger.info("🎤 Début transcription avec Whisper...")
-            transcription_data = radio_service.transcribe_audio_file(temp_path, "uploaded_file")
+            transcription_data = radio_service.transcribe_audio_file(temp_path)
             logger.info(f"✅ Transcription terminée, résultat: {transcription_data is not None}")
             
             if transcription_data:
