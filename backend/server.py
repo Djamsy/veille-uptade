@@ -1757,8 +1757,8 @@ async def test_radio_capture_1min():
         # Marquer le début du test
         radio_service.update_transcription_step("rci_7h", "audio_capture", "Test 1 minute", 10)
         
-        # Capturer 1 minute (60 secondes)
-        audio_path = radio_service.capture_radio_stream("rci_7h", 60)
+        # Capturer 30 secondes (test rapide)
+        audio_path = radio_service.capture_radio_stream("rci_7h", 30)
         
         if not audio_path:
             return {
