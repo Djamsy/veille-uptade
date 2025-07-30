@@ -108,7 +108,7 @@ class PDFDigestService:
             <b>Généré le:</b> {self._format_datetime_french(created_at)}<br/>
             <b>Source:</b> Veille Média Guadeloupe
             """
-            story.append(Paragraph(info_text, self.styles['BodyText']))
+            story.append(Paragraph(info_text, self.styles['CustomBodyText']))
             story.append(Spacer(1, 20))
             
             # Contenu principal du digest
