@@ -409,30 +409,74 @@ function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Header */}
-      <header className="bg-white shadow-lg border-b-4 border-indigo-500">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-gray-800 flex items-center">
-              🏝️ <span className="ml-2">Veille Média Guadeloupe</span>
-              <span className="ml-2 text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full">Cache v2.1</span>
-            </h1>
-            <div className="flex items-center gap-4">
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              />
-              <button
-                onClick={invalidateCache}
-                className="px-3 py-2 bg-gray-500 text-white rounded-lg text-sm hover:bg-gray-600"
-                title="Vider le cache"
-              >
-                🗑️ Cache
-              </button>
-              <div className="text-sm text-gray-600">
-                {new Date().toLocaleString('fr-FR')}
+      <header className="bg-white shadow-lg border-b-2 border-blue-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <div className="flex items-center space-x-4">
+              <h1 className="text-2xl font-bold text-gray-900">
+                🏝️ Veille Média Guadeloupe
+              </h1>
+              <span className="text-sm text-gray-500 bg-blue-100 px-2 py-1 rounded">
+                Focus: Conseil Départemental & Guy Losbar
+              </span>
+            </div>
+
+            {/* Barre de recherche */}
+            <div className="flex-1 max-w-md mx-8">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Rechercher Guy Losbar, CD971, articles..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    if (e.target.value.length >= 2) {
+                      loadSearchSuggestions(e.target.value);
+                    }
+                  }}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSearch(searchQuery);
+                      setActiveTab('search');
+                    }
+                  }}
+                  className="w-full px-4 py-2 pl-10 pr-4 text-gray-700 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500"
+                />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                  </svg>
+                </div>
+                
+                {/* Suggestions de recherche */}
+                {searchSuggestions.length > 0 && searchQuery.length >= 2 && (
+                  <div className="absolute top-full left-0 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50">
+                    {searchSuggestions.map((suggestion, index) => (
+                      <button
+                        key={index}
+                        onClick={() => {
+                          setSearchQuery(suggestion);
+                          handleSearch(suggestion);
+                          setActiveTab('search');
+                          setSearchSuggestions([]);
+                        }}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-100 text-gray-700 first:rounded-t-lg last:rounded-b-lg"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
+            </div>
+
+            <div className="text-sm text-gray-600">
+              Dernière MAJ: {new Date().toLocaleDateString('fr-FR', { 
+                day: 'numeric', 
+                month: 'short', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              })}
             </div>
           </div>
         </div>
