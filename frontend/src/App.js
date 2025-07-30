@@ -1227,22 +1227,131 @@ function App() {
         {activeTab === 'comments' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-gray-800">💬 Réseaux Sociaux</h2>
+              <h2 className="text-2xl font-bold" style={{ color: '#2c3e50' }}>💬 Réseaux Sociaux</h2>
               <div className="flex gap-2">
                 <button
                   onClick={startSocialScraping}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+                  className="glass-button primary"
                 >
                   📱 Scraper Réseaux
                 </button>
                 <button
                   onClick={analyzeComments}
-                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+                  className="glass-button success"
                 >
                   📊 Analyser Sentiment
                 </button>
               </div>
             </div>
+
+            {/* Barre de recherche spécifique aux réseaux sociaux */}
+            <div className="glass-card">
+              <h3 className="text-lg font-bold mb-4" style={{ color: '#2c3e50' }}>🔍 Recherche sur les Réseaux Sociaux</h3>
+              
+              {/* Erreur de recherche sociale */}
+              {socialSearchError && (
+                <div className="alert error mb-4">
+                  <span>{socialSearchError}</span>
+                  <button onClick={() => setSocialSearchError(null)} className="hover:opacity-75" style={{ color: '#e74c3c' }}>✕</button>
+                </div>
+              )}
+
+              <div className="flex gap-4 flex-col md:flex-row">
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    placeholder="Rechercher un sujet spécifique sur les réseaux sociaux..."
+                    value={socialSearchQuery}
+                    onChange={(e) => setSocialSearchQuery(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSocialSearch(socialSearchQuery);
+                      }
+                    }}
+                    className="glass-input"
+                    disabled={socialSearchLoading}
+                  />
+                </div>
+                <button
+                  onClick={() => handleSocialSearch(socialSearchQuery)}
+                  disabled={socialSearchLoading || socialSearchQuery.trim().length < 2}
+                  className="glass-button primary"
+                >
+                  {socialSearchLoading ? '⏳ Recherche...' : '🔍 Rechercher & Scraper'}
+                </button>
+              </div>
+              
+              {/* Suggestions de recherche sociale */}
+              <div className="mt-4">
+                <p className="text-sm mb-2" style={{ color: '#7f8c8d' }}>Suggestions de recherche :</p>
+                <div className="flex flex-wrap gap-2">
+                  {['Politique Guadeloupe', 'Éducation 971', 'Santé départementale', 'Transports publics', 'Environnement Antilles'].map((term) => (
+                    <button
+                      key={term}
+                      onClick={() => {
+                        setSocialSearchQuery(term);
+                        handleSocialSearch(term);
+                      }}
+                      className="glass-button"
+                      style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}
+                      disabled={socialSearchLoading}
+                    >
+                      {term}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Résultats de recherche sociale */}
+            {socialSearchResults && (
+              <div className="glass-card">
+                <h3 className="text-lg font-bold mb-4" style={{ color: '#2c3e50' }}>
+                  📊 Résultats pour "{socialSearchResults.query}" ({socialSearchResults.total_results})
+                </h3>
+                
+                {socialSearchResults.social_posts && socialSearchResults.social_posts.length > 0 ? (
+                  <div className="space-y-4">
+                    {socialSearchResults.social_posts.map((post, index) => (
+                      <div key={index} className="article-card">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="article-source">
+                              {post.platform === 'twitter' ? '🐦 Twitter' : 
+                               post.platform === 'facebook' ? '👥 Facebook' : 
+                               post.platform === 'instagram' ? '📸 Instagram' : '📱 Social'}
+                            </span>
+                            <span className="text-sm" style={{ color: '#7f8c8d' }}>
+                              @{post.author || 'Anonyme'}
+                            </span>
+                          </div>
+                          <span className="text-xs" style={{ color: '#7f8c8d' }}>
+                            {new Date(post.created_at).toLocaleDateString('fr-FR')}
+                          </span>
+                        </div>
+                        
+                        <p className="mb-3" style={{ color: '#2c3e50' }}>
+                          {post.content}
+                        </p>
+                        
+                        {post.engagement && (
+                          <div className="flex gap-4 text-sm" style={{ color: '#7f8c8d' }}>
+                            <span>❤️ {post.engagement.likes || 0}</span>
+                            <span>🔄 {post.engagement.retweets || 0}</span>
+                            <span>💬 {post.engagement.replies || 0}</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="text-4xl mb-2">🔍</div>
+                    <p style={{ color: '#7f8c8d' }}>Aucun résultat trouvé pour cette recherche</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Statistiques des réseaux sociaux */}
             {socialStats && Object.keys(socialStats).length > 0 && (
