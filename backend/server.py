@@ -2540,6 +2540,128 @@ async def test_gpt_sentiment():
         logger.error(f"Erreur test sentiment GPT: {e}")
         return {"success": False, "error": str(e)}
 
+@app.post("/api/sentiment/predict-reaction")
+async def predict_population_reaction_endpoint(request: Request):
+    """Prédire la réaction de la population avec analyse croisée articles/réseaux sociaux"""
+    try:
+        if not POPULATION_REACTION_ENABLED:
+            return {"success": False, "error": "Service de prédiction des réactions non disponible"}
+        
+        body = await request.json()
+        text = body.get('text', '').strip()
+        context = body.get('context', {})
+        
+        if not text:
+            return {"success": False, "error": "Texte requis pour la prédiction"}
+        
+        if len(text) < 10:
+            return {"success": False, "error": "Texte trop court pour une prédiction fiable"}
+        
+        logger.info(f"🔮 Prédiction réaction population pour texte de {len(text)} caractères")
+        
+        # Générer la prédiction complète
+        prediction = predict_population_reaction(text, context)
+        
+        if 'error' in prediction:
+            return {"success": False, "error": prediction['error']}
+        
+        # Formater la réponse
+        response = {
+            "success": True,
+            "prediction": {
+                "text_analyzed": prediction['text_analyzed'],
+                "sentiment_analysis": {
+                    "polarity": prediction['main_sentiment']['polarity'],
+                    "score": prediction['main_sentiment']['score'],
+                    "intensity": prediction['main_sentiment']['intensity'],
+                    "urgency": prediction['main_sentiment']['analysis_details'].get('urgency_level', 'faible'),
+                    "guadeloupe_context": prediction['main_sentiment']['analysis_details']['guadeloupe_context']
+                },
+                "population_reaction": prediction['population_reaction_forecast'],
+                "data_sources": {
+                    "similar_articles": prediction['supporting_data']['similar_articles'],
+                    "similar_social_posts": prediction['supporting_data']['similar_social_posts'],
+                    "sample_articles": prediction['supporting_data']['articles_sample'],
+                    "sample_social": prediction['supporting_data']['social_sample']
+                },
+                "influence_analysis": prediction['influence_factors'],
+                "strategic_recommendations": prediction['strategic_recommendations'],
+                "confidence": prediction['confidence_level']
+            },
+            "metadata": {
+                "analysis_timestamp": prediction['analysis_timestamp'],
+                "method": "gpt-population-prediction",
+                "data_sources": "articles + social_media + historical_trends"
+            }
+        }
+        
+        logger.info(f"✅ Prédiction terminée: {prediction['population_reaction_forecast']['overall']} (confiance: {prediction['confidence_level']})")
+        
+        return response
+    
+    except Exception as e:
+        logger.error(f"Erreur prédiction réaction: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/sentiment/reaction-trends")
+async def get_reaction_trends():
+    """Obtenir les tendances de réactions de la population"""
+    try:
+        if not POPULATION_REACTION_ENABLED:
+            return {"success": False, "error": "Service de prédiction des réactions non disponible"}
+        
+        # Obtenir les statistiques de prédictions récentes
+        stats = population_reaction_predictor.get_processing_stats() if hasattr(population_reaction_predictor, 'get_processing_stats') else {}
+        
+        # Analyser les tendances des 30 derniers jours
+        from datetime import datetime, timedelta
+        cutoff_date = datetime.now() - timedelta(days=30)
+        
+        try:
+            recent_predictions = list(population_reaction_predictor.reaction_predictions.find({
+                'analysis_timestamp': {'$gte': cutoff_date.isoformat()}
+            }).sort('analysis_timestamp', -1).limit(50))
+            
+            if recent_predictions:
+                # Calculer les tendances
+                avg_polarization = sum([
+                    1 if p['population_reaction_forecast']['polarization_risk'] == 'élevé' else
+                    0.5 if p['population_reaction_forecast']['polarization_risk'] == 'modéré' else 0
+                    for p in recent_predictions
+                ]) / len(recent_predictions)
+                
+                most_common_reactions = {}
+                for pred in recent_predictions:
+                    reaction = pred['population_reaction_forecast']['overall']
+                    most_common_reactions[reaction] = most_common_reactions.get(reaction, 0) + 1
+                
+                trends_data = {
+                    'total_predictions': len(recent_predictions),
+                    'average_polarization_risk': round(avg_polarization, 2),
+                    'most_common_reactions': dict(sorted(most_common_reactions.items(), key=lambda x: x[1], reverse=True)),
+                    'recent_predictions': recent_predictions[:10]  # 10 plus récentes
+                }
+            else:
+                trends_data = {
+                    'total_predictions': 0,
+                    'message': 'Pas assez de données pour calculer les tendances'
+                }
+                
+        except Exception as e:
+            logger.warning(f"Erreur calcul tendances: {e}")
+            trends_data = {'error': 'Erreur calcul tendances'}
+        
+        return {
+            "success": True,
+            "trends": trends_data,
+            "service_stats": stats,
+            "period": "30 derniers jours"
+        }
+        
+    except Exception as e:
+        logger.error(f"Erreur tendances réactions: {e}")
+        return {"success": False, "error": str(e)}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)
