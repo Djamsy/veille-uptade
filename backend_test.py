@@ -1600,10 +1600,10 @@ class GuadeloupeMediaAPITester:
             return 1
 
 def main():
-    """Main test runner - Focus on emergency recovery testing"""
+    """Main test runner - Focus on GPT + OpenAI Whisper security testing"""
     tester = GuadeloupeMediaAPITester()
-    # Run emergency recovery tests as requested
-    return tester.run_emergency_recovery_tests()
+    # Run GPT + OpenAI Whisper security tests as requested
+    return tester.run_gpt_whisper_security_tests()
 
 if __name__ == "__main__":
     sys.exit(main())
