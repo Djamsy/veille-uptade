@@ -189,11 +189,14 @@ backend:
     file: "server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Modified dashboard stats and articles endpoints to show only today's articles, with date filtering and descriptive messages"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Dashboard shows 192 today articles with message 'Articles du 2025-07-30 uniquement'. Articles endpoint returns 100 articles all from today. Today-only filtering working perfectly."
 
   - task: "Local sentiment analysis service"
     implemented: true
