@@ -318,6 +318,8 @@ test_plan:
     - "Sentiment analysis API endpoints"
     - "API endpoints for articles"
     - "Dashboard statistics API"
+    - "Search bar integration and search page"
+    - "Comments page with social media data"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
