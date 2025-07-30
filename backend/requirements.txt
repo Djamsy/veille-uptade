@@ -46,4 +46,3 @@ python-dateutil==2.8.2
 # Pour le scraping et l'automatisation
 snscrape
 playwright
-asyncio-compat
