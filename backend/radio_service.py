@@ -611,8 +611,8 @@ class RadioTranscriptionService:
         }
         
         try:
-            # Marquer comme en cours
-            self.set_transcription_status(stream_key, True, config['duration_minutes'] + 5)
+            # Marquer comme en cours avec la nouvelle méthode
+            self.update_transcription_step(stream_key, "audio_capture", "Initialisation...", 5)
             
             # 1. Capturer le flux
             audio_path = self.capture_radio_stream(stream_key, duration_seconds)
