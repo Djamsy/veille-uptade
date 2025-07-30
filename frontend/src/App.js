@@ -378,12 +378,12 @@ function App() {
   // Fonction de recherche sociale spécifique
   const handleSocialSearch = async (query) => {
     if (!query || query.trim().length < 2) {
-      setSearchError('Veuillez saisir au moins 2 caractères');
+      setSocialSearchError('Veuillez saisir au moins 2 caractères');
       return;
     }
     
     setSocialSearchLoading(true);
-    setSearchError(null);
+    setSocialSearchError(null);
     
     try {
       console.log(`🔍 Recherche sociale pour: "${query}"`);
@@ -410,14 +410,14 @@ function App() {
             scraped_at: new Date().toISOString()
           });
         } else {
-          setSearchError(searchResponse.error || 'Erreur lors de la recherche');
+          setSocialSearchError(searchResponse.error || 'Erreur lors de la recherche');
         }
       } else {
-        setSearchError(scrapingResponse.error || 'Erreur lors du scraping');
+        setSocialSearchError(scrapingResponse.error || 'Erreur lors du scraping');
       }
     } catch (error) {
       console.error('Erreur recherche sociale:', error);
-      setSearchError(`Erreur: ${error.message}`);
+      setSocialSearchError(`Erreur: ${error.message}`);
     } finally {
       setSocialSearchLoading(false);
     }
