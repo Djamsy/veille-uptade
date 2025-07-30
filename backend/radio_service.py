@@ -656,13 +656,18 @@ class RadioTranscriptionService:
                     'duration_seconds': transcription['duration'],
                     'segments': transcription['segments'],
                     
-                    # Analyse intelligente
-                    'ai_summary': gpt_analysis.get('summary', transcription['text']),
+                    # Analyse GPT
+                    'gpt_analysis': gpt_analysis.get('gpt_analysis', gpt_analysis.get('summary', '')),
+                    'ai_summary': gpt_analysis.get('gpt_analysis', gpt_analysis.get('summary', '')),
+                    'analysis_method': gpt_analysis.get('analysis_method', 'gpt-4o-mini'),
+                    'analysis_status': gpt_analysis.get('status', 'success'),
+                    'ai_analysis_metadata': gpt_analysis.get('analysis_metadata', {}),
+                    
+                    # Compatibilité avec ancien format
                     'ai_key_sentences': gpt_analysis.get('key_sentences', []),
                     'ai_main_topics': gpt_analysis.get('main_topics', []),
                     'ai_keywords': gpt_analysis.get('keywords', []),
-                    'ai_relevance_score': gpt_analysis.get('relevance_score', 0.5),
-                    'ai_analysis_metadata': gpt_analysis.get('analysis_metadata', {}),
+                    'ai_relevance_score': gpt_analysis.get('relevance_score', 0.8),
                     
                     # Métadonnées
                     'captured_at': datetime.now().isoformat(),
