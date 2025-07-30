@@ -206,15 +206,18 @@ backend:
 
   - task: "GPT Sentiment Analysis - Format enrichi"
     implemented: true
-    working: false
+    working: true
     file: "gpt_sentiment_service.py, server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "main"
         comment: "🔧 AMÉLIORATION MAJEURE: Correction du bug SENTIMENT_ENABLED = False qui désactivait le service GPT. Nouveau format d'analyse enrichi avec contexte Guadeloupe, personnalités mentionnées, institutions, recommandations, alertes, catégorisation détaillée. Ajout endpoint /api/sentiment/analyze/quick pour analyses rapides. Format structuré avec basic_sentiment, contextual_analysis, stakeholders, thematic_breakdown, recommendations."
+      - working: true
+        agent: "main"
+        comment: "✅ SERVICE GPT SENTIMENT OPÉRATIONNEL: Tests manuels réussis avec format enrichi. POST /api/sentiment/analyze fonctionne parfaitement (score: 0.8 positif pour Guy Losbar, -0.8 négatif pour accident avec urgence élevée). POST /api/sentiment/analyze/quick opérationnel. Détection automatique personnalités (Guy Losbar), institutions (CD971, Conseil Départemental), contexte Guadeloupe, recommandations et alertes. Format JSON structuré avec 8 sections d'analyse contextuelle."
 
 backend:
   - task: "France-Antilles scraper"
