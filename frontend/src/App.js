@@ -53,6 +53,25 @@ function App() {
   const [predictionLoading, setPredictionLoading] = useState(false);
   const [sentimentMode, setSentimentMode] = useState('sync'); // 'sync' ou 'async'
 
+  // États pour les filtres et analytics
+  const [filters, setFilters] = useState({
+    dateStart: '',
+    dateEnd: '',
+    source: 'all',
+    searchText: '',
+    sortBy: 'date_desc'
+  });
+  const [availableSources, setAvailableSources] = useState([]);
+  const [filteredArticles, setFilteredArticles] = useState([]);
+  const [pagination, setPagination] = useState({ total: 0, offset: 0, hasMore: false });
+  const [analyticsData, setAnalyticsData] = useState({
+    sourceChart: null,
+    timelineChart: null,
+    sentimentChart: null,
+    dashboardMetrics: null
+  });
+  const [showAnalytics, setShowAnalytics] = useState(false);
+
   // Fonction utilitaire pour les appels API avec timeout et gestion d'erreur
   const apiCall = async (url, options = {}) => {
     const controller = new AbortController();
