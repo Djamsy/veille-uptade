@@ -468,7 +468,7 @@ test_plan:
   test_priority: "high_first"
   testing_completed: true
   last_test_date: "2025-07-30"
-  test_summary: "EMERGENCY RECOVERY TESTING COMPLETED: System successfully recovered after critical deadlock fix. All core functionality restored: health check (✅), PDF export (✅), articles/dashboard (✅), radio transcription (✅). Only minor issue: root endpoint returns HTML instead of JSON (non-critical). System is fully operational."
+  test_summary: "GPT + OPENAI WHISPER SECURITY TESTING COMPLETED: All 10/10 tests passed (100% success rate). System fully operational with cost controls and admin restrictions working correctly. Main endpoints validated: POST /api/test-gpt (GPT analysis with journalistic prompt and emojis), POST /api/test-capture-1min (complete pipeline with admin key), security controls (rejection without admin/outside 7h hours), detailed tracking system, and OpenAI Whisper API integration confirmed."
 
 agent_communication:
   - agent: "main"
