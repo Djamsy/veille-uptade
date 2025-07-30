@@ -24,6 +24,11 @@ function App() {
   const [commentsAnalysis, setCommentsAnalysis] = useState(null);
   const [socialStats, setSocialStats] = useState({});
   
+  // États pour la recherche sociale
+  const [socialSearchQuery, setSocialSearchQuery] = useState('');
+  const [socialSearchResults, setSocialSearchResults] = useState(null);
+  const [socialSearchLoading, setSocialSearchLoading] = useState(false);
+  
   // États pour la recherche automatique
   const [autoSearchCompleted, setAutoSearchCompleted] = useState(false);
   const [autoSearchResults, setAutoSearchResults] = useState({});
