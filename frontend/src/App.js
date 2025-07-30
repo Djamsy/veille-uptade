@@ -150,6 +150,13 @@ function App() {
     if (activeTab !== 'dashboard') {
       loadTabData(activeTab);
     }
+    
+    // Charger des données spécifiques pour certains onglets
+    if (activeTab === 'search') {
+      loadSearchSuggestions();
+    } else if (activeTab === 'comments') {
+      loadSocialStats();
+    }
   }, [activeTab, selectedDate]);
 
   // Actions optimisées avec traitement en arrière-plan
