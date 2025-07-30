@@ -513,40 +513,7 @@ class FreeSummaryService:
                     
                     digest_html += "</section>"
             
-            # Transcriptions si disponibles
-            if transcriptions and len(transcriptions) > 0:
-                digest_html += f"""
-                <section style="margin-bottom: 35px;">
-                    <h2 style="color: #1e40af; border-bottom: 2px solid #e5e7eb; padding-bottom: 12px; margin-bottom: 20px; font-size: 22px;">
-                        📻 Transcriptions Radio <span style="color: #6b7280; font-size: 16px;">({len(transcriptions)})</span>
-                    </h2>
-                """
-                
-                for i, transcription in enumerate(transcriptions[:5]):  # Limiter à 5 transcriptions
-                    source = transcription.get('source', 'Radio')
-                    text = transcription.get('transcription_text', '')
-                    captured_at = transcription.get('captured_at', '')
-                    
-                    # Créer un résumé court
-                    summary = text[:200] + "..." if len(text) > 200 else text
-                    
-                    # Alternating background colors
-                    bg_color = "#fef3c7" if i % 2 == 0 else "#fef7e1"
-                    
-                    digest_html += f"""
-                    <div style="margin-bottom: 15px; padding: 18px; background: {bg_color}; border-radius: 10px; border-left: 3px solid #f59e0b; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                        <h4 style="margin: 0 0 10px 0; color: #92400e; font-size: 16px;">📻 {source}</h4>
-                        <p style="color: #451a03; margin: 0 0 10px 0; font-style: italic; line-height: 1.4;">
-                            {summary}
-                        </p>
-                        <p style="color: #78716c; font-size: 13px; margin: 0;">
-                            📅 {captured_at[:16].replace('T', ' à ') if captured_at else 'Date inconnue'}
-                        </p>
-                    </div>
-                    """
-                
-                digest_html += "</section>"
-            
+
             # Footer avec informations détaillées
             digest_html += f"""
                 <footer style="margin-top: 50px; padding-top: 25px; border-top: 2px solid #e5e7eb; text-align: center; background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%); border-radius: 10px; padding: 25px;">
