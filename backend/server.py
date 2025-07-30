@@ -712,6 +712,8 @@ async def search_content(q: str, source: str = "all", limit: int = 50, social_on
             return {"success": False, "error": "Requête de recherche trop courte (minimum 2 caractères)"}
         
         search_query = q.strip().lower()
+        logger.info(f"🔍 Recherche {'sociale uniquement' if social_only else 'globale'}: {q}")
+        
         results = {
             'query': q,
             'articles': [],
