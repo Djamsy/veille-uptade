@@ -2232,7 +2232,7 @@ async def get_telegram_alerts_history(limit: int = 50):
 
 @app.post("/api/sentiment/analyze")
 async def analyze_text_sentiment_endpoint(request: Request):
-    """Analyser le sentiment d'un texte avec GPT"""
+    """Analyser le sentiment d'un texte avec GPT - Format enrichi pour la Guadeloupe"""
     try:
         if not SENTIMENT_ENABLED:
             return {"success": False, "error": "Service d'analyse de sentiment non disponible"}
@@ -2243,16 +2243,57 @@ async def analyze_text_sentiment_endpoint(request: Request):
         if not text:
             return {"success": False, "error": "Texte requis pour l'analyse"}
         
+        if len(text) < 5:
+            return {"success": False, "error": "Texte trop court pour une analyse fiable"}
+        
         # Analyser avec GPT
+        logger.info(f"🤖 Analyse GPT sentiment enrichie pour texte de {len(text)} caractères")
         sentiment_result = gpt_sentiment_analyzer.analyze_sentiment(text)
         
-        return {
+        # Créer une réponse enrichie structurée
+        response = {
             "success": True,
-            "sentiment": sentiment_result,
-            "text_length": len(text),
-            "analyzed_at": sentiment_result.get('analyzed_at'),
-            "method": sentiment_result['analysis_details'].get('method', 'gpt-4o-mini')
+            "analysis": {
+                "basic_sentiment": {
+                    "polarity": sentiment_result['polarity'],
+                    "score": sentiment_result['score'],
+                    "intensity": sentiment_result['intensity'],
+                    "confidence": sentiment_result['analysis_details']['confidence']
+                },
+                "contextual_analysis": {
+                    "guadeloupe_relevance": sentiment_result['analysis_details']['guadeloupe_context'],
+                    "local_impact": sentiment_result['analysis_details'].get('impact_potential', ''),
+                    "urgency_level": sentiment_result['analysis_details'].get('urgency_level', 'faible'),
+                    "main_domain": sentiment_result['analysis_details'].get('main_domain', 'général')
+                },
+                "stakeholders": {
+                    "personalities": sentiment_result['analysis_details'].get('personalities_mentioned', []),
+                    "institutions": sentiment_result['analysis_details'].get('institutions_mentioned', [])
+                },
+                "thematic_breakdown": {
+                    "themes": sentiment_result['analysis_details']['themes'],
+                    "emotions": sentiment_result['analysis_details']['emotions'],
+                    "keywords": sentiment_result['analysis_details']['keywords']
+                },
+                "recommendations": {
+                    "suggested_actions": sentiment_result['analysis_details'].get('recommendations', []),
+                    "alerts": sentiment_result['analysis_details'].get('alerts', []),
+                    "follow_up_needed": sentiment_result.get('enhanced_analysis', {}).get('actionable_insights', {}).get('follow_up_needed', False)
+                }
+            },
+            "metadata": {
+                "text_length": len(text),
+                "word_count": sentiment_result['word_count'],
+                "analyzed_at": sentiment_result.get('analyzed_at'),
+                "method": sentiment_result['analysis_details'].get('method', 'gpt-4o-mini-contextuel'),
+                "processing_time": "~3-8 secondes"
+            },
+            "raw_sentiment": sentiment_result  # Données complètes pour debug/développement
         }
+        
+        logger.info(f"✅ Analyse GPT terminée: {sentiment_result['polarity']} (score: {sentiment_result['score']}, urgence: {sentiment_result['analysis_details'].get('urgency_level', 'faible')})")
+        
+        return response
     
     except Exception as e:
         logger.error(f"Erreur analyse sentiment: {e}")
