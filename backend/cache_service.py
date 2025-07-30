@@ -39,9 +39,10 @@ class IntelligentCache:
             self.cache_collection = None
 
     def _get_cache_key(self, key: str, params: Dict = None) -> str:
-        """Générer une clé de cache unique"""
+        """Générer une clé de cache unique en évitant les doublons"""
         if params:
-            param_str = "_".join([f"{k}:{v}" for k, v in sorted(params.items())])
+            # Créer la chaîne de paramètres
+            param_str = "_".join([f"{k}_{v}" for k, v in sorted(params.items())])
             return f"{key}_{param_str}"
         return key
 
