@@ -582,15 +582,24 @@ async def create_digest_now():
         # Invalider le cache du digest
         cache_invalidate('digest')
         
-        articles = guadeloupe_scraper.get_todays_articles()
-        transcriptions = radio_service.get_todays_transcriptions()
+        # Récupérer les articles et transcriptions d'aujourd'hui directement
+        today = datetime.now().strftime('%Y-%m-%d')
+        articles = list(articles_collection.find(
+            {'date': today}, 
+            {'_id': 0}
+        ).sort('scraped_at', -1))
+        
+        transcriptions = list(transcriptions_collection.find(
+            {'date': today}, 
+            {'_id': 0}
+        ).sort('captured_at', -1))
         
         digest_html = summary_service.create_daily_digest(articles, transcriptions)
         
         digest_id = f"digest_{datetime.now().strftime('%Y%m%d')}"
         digest_record = {
             'id': digest_id,
-            'date': datetime.now().strftime('%Y-%m-%d'),
+            'date': today,
             'digest_html': digest_html,
             'articles_count': len(articles),
             'transcriptions_count': len(transcriptions),
@@ -603,7 +612,7 @@ async def create_digest_now():
             upsert=True
         )
         
-        return {"success": True, "message": "Digest créé", "digest": digest_record}
+        return {"success": True, "message": "Digest créé avec analyse de sentiment", "digest": digest_record}
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur création digest: {str(e)}")
