@@ -918,6 +918,305 @@ function App() {
             )}
           </div>
         )}
+
+        {/* Page de Recherche */}
+        {activeTab === 'search' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-800">🔍 Recherche</h2>
+              <div className="text-sm text-gray-600">
+                Focus: Conseil Départemental Guadeloupe & Guy Losbar
+              </div>
+            </div>
+
+            {/* Barre de recherche étendue */}
+            <div className="bg-white p-6 rounded-xl shadow-lg">
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    placeholder="Rechercher dans les articles et réseaux sociaux..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSearch(searchQuery)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <button
+                  onClick={() => handleSearch(searchQuery)}
+                  disabled={searchLoading}
+                  className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
+                >
+                  {searchLoading ? '⏳' : '🔍'} Rechercher
+                </button>
+              </div>
+              
+              {/* Suggestions populaires */}
+              <div className="mt-4">
+                <p className="text-sm text-gray-600 mb-2">Recherches populaires :</p>
+                <div className="flex flex-wrap gap-2">
+                  {['Guy Losbar', 'Conseil Départemental', 'CD971', 'Budget départemental', 'Education'].map((term) => (
+                    <button
+                      key={term}
+                      onClick={() => {
+                        setSearchQuery(term);
+                        handleSearch(term);
+                      }}
+                      className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full text-sm transition-colors"
+                    >
+                      {term}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Résultats de recherche */}
+            {searchResults && (
+              <div className="space-y-6">
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h3 className="font-semibold text-blue-800">
+                    {searchResults.total_results} résultats pour "{searchResults.query}"
+                  </h3>
+                  <p className="text-sm text-blue-600 mt-1">
+                    Recherché dans : {searchResults.searched_in.join(', ')}
+                  </p>
+                </div>
+
+                {/* Articles trouvés */}
+                {searchResults.articles && searchResults.articles.length > 0 && (
+                  <div className="bg-white rounded-xl shadow-lg">
+                    <div className="p-6 border-b border-gray-200">
+                      <h3 className="text-lg font-bold text-gray-800">
+                        📰 Articles ({searchResults.articles.length})
+                      </h3>
+                    </div>
+                    <div className="p-6 space-y-4">
+                      {searchResults.articles.map((article, index) => (
+                        <div key={index} className="border-l-4 border-blue-500 pl-4">
+                          <h4 className="font-semibold text-gray-800">
+                            <a 
+                              href={article.url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="hover:text-blue-600 transition-colors"
+                            >
+                              {article.title}
+                            </a>
+                          </h4>
+                          <p className="text-sm text-gray-600 mt-1">
+                            {article.source} • {new Date(article.scraped_at).toLocaleDateString('fr-FR')}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Posts réseaux sociaux trouvés */}
+                {searchResults.social_posts && searchResults.social_posts.length > 0 && (
+                  <div className="bg-white rounded-xl shadow-lg">
+                    <div className="p-6 border-b border-gray-200">
+                      <h3 className="text-lg font-bold text-gray-800">
+                        📱 Réseaux Sociaux ({searchResults.social_posts.length})
+                      </h3>
+                    </div>
+                    <div className="p-6 space-y-4">
+                      {searchResults.social_posts.map((post, index) => (
+                        <div key={index} className="border border-gray-200 rounded-lg p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-sm font-medium text-gray-800">@{post.author}</span>
+                            <span className="text-xs text-gray-500">• {post.platform}</span>
+                            <span className="text-xs text-gray-500">
+                              • {new Date(post.created_at).toLocaleDateString('fr-FR')}
+                            </span>
+                          </div>
+                          <p className="text-gray-700">{post.content}</p>
+                          <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                            <span>❤️ {post.engagement?.total || 0}</span>
+                            {post.demo_data && <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded">DEMO</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Suggestions si aucun résultat */}
+                {searchResults.total_results === 0 && searchResults.suggestions && (
+                  <div className="bg-gray-50 p-6 rounded-lg text-center">
+                    <p className="text-gray-600 mb-4">Aucun résultat trouvé.</p>
+                    <div>
+                      <p className="text-sm text-gray-600 mb-2">Essayez ces suggestions :</p>
+                      <div className="flex flex-wrap justify-center gap-2">
+                        {searchResults.suggestions.map((suggestion, index) => (
+                          <button
+                            key={index}
+                            onClick={() => {
+                              setSearchQuery(suggestion);
+                              handleSearch(suggestion);
+                            }}
+                            className="px-3 py-1 bg-white border border-gray-300 rounded-full text-sm hover:bg-gray-100 transition-colors"
+                          >
+                            {suggestion}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Page Commentaires */}
+        {activeTab === 'comments' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-800">💬 Commentaires & Réseaux Sociaux</h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={startSocialScraping}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+                >
+                  📱 Scraper Réseaux
+                </button>
+                <button
+                  onClick={analyzeComments}
+                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+                >
+                  📊 Analyser Sentiment
+                </button>
+              </div>
+            </div>
+
+            {/* Statistiques des réseaux sociaux */}
+            {socialStats && Object.keys(socialStats).length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="bg-white p-4 rounded-lg shadow">
+                  <h3 className="text-lg font-semibold text-gray-800">Total Posts</h3>
+                  <p className="text-2xl font-bold text-blue-600">{socialStats.total_today || 0}</p>
+                </div>
+                <div className="bg-white p-4 rounded-lg shadow">
+                  <h3 className="text-lg font-semibold text-gray-800">Twitter</h3>
+                  <p className="text-2xl font-bold text-blue-400">{socialStats.by_platform?.twitter || 0}</p>
+                </div>
+                <div className="bg-white p-4 rounded-lg shadow">
+                  <h3 className="text-lg font-semibold text-gray-800">Facebook</h3>
+                  <p className="text-2xl font-bold text-blue-800">{socialStats.by_platform?.facebook || 0}</p>
+                </div>
+                <div className="bg-white p-4 rounded-lg shadow">
+                  <h3 className="text-lg font-semibold text-gray-800">Instagram</h3>
+                  <p className="text-2xl font-bold text-pink-500">{socialStats.by_platform?.instagram || 0}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Analyse de sentiment par entité */}
+            {commentsAnalysis && (
+              <div className="bg-white rounded-xl shadow-lg">
+                <div className="p-6 border-b border-gray-200">
+                  <h3 className="text-lg font-bold text-gray-800">
+                    📊 Analyse Sentiment par Entité ({commentsAnalysis.total_comments} commentaires analysés)
+                  </h3>
+                </div>
+                <div className="p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {Object.entries(commentsAnalysis.by_entity || {}).map(([entity, data]) => (
+                      <div key={entity} className="border border-gray-200 rounded-lg p-4">
+                        <h4 className="font-semibold text-gray-800 mb-2">{entity}</h4>
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Mentions:</span>
+                            <span className="font-medium">{data.total_mentions}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>Sentiment moyen:</span>
+                            <span className={`font-medium ${
+                              data.average_sentiment > 0.1 ? 'text-green-600' : 
+                              data.average_sentiment < -0.1 ? 'text-red-600' : 'text-gray-600'
+                            }`}>
+                              {data.average_sentiment > 0.1 ? '😊' : data.average_sentiment < -0.1 ? '😟' : '😐'} 
+                              {data.average_sentiment.toFixed(3)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-xs">
+                            <span className="text-green-600">+{data.sentiment_distribution.positive}</span>
+                            <span className="text-red-600">-{data.sentiment_distribution.negative}</span>
+                            <span className="text-gray-600">={data.sentiment_distribution.neutral}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Liste des commentaires */}
+            <div className="bg-white rounded-xl shadow-lg">
+              <div className="p-6 border-b border-gray-200">
+                <h3 className="text-lg font-bold text-gray-800">
+                  💬 Commentaires Récents ({comments.length})
+                </h3>
+              </div>
+              <div className="p-6">
+                {comments.length > 0 ? (
+                  <div className="space-y-4 max-h-96 overflow-y-auto">
+                    {comments.map((comment, index) => (
+                      <div key={index} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-800">@{comment.author}</span>
+                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                              {comment.platform}
+                            </span>
+                            {comment.demo_data && (
+                              <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
+                                DEMO
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                            <span>{new Date(comment.created_at).toLocaleDateString('fr-FR')}</span>
+                            {comment.sentiment_summary && (
+                              <span className={`px-2 py-1 rounded ${
+                                comment.sentiment_summary.polarity === 'positive' ? 'bg-green-100 text-green-800' :
+                                comment.sentiment_summary.polarity === 'negative' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {comment.sentiment_summary.polarity === 'positive' ? '😊' : 
+                                 comment.sentiment_summary.polarity === 'negative' ? '😟' : '😐'}
+                                {comment.sentiment_summary.score?.toFixed(2)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-gray-700 mb-2">{comment.content}</p>
+                        <div className="flex items-center gap-4 text-xs text-gray-500">
+                          <span>❤️ {comment.engagement?.total || 0}</span>
+                          <span>🔑 {comment.keyword_searched}</span>
+                          {comment.political_figure && (
+                            <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                              👤 {comment.political_figure}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-gray-500">
+                    <div className="text-6xl mb-4">💬</div>
+                    <p className="text-xl">Aucun commentaire disponible</p>
+                    <p>Lancez le scraping des réseaux sociaux pour récupérer des données</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
