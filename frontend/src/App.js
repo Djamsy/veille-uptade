@@ -177,9 +177,18 @@ function App() {
       loadSearchSuggestions();
     } else if (activeTab === 'comments') {
       loadSocialStats();
-    } else if (activeTab === 'transcriptions') {
+    } else if (activeTab === 'transcription') {
       loadTranscriptionSections();
       loadTranscriptionStatus();
+      
+      // Auto-actualisation des transcriptions toutes les 30 secondes
+      const transcriptionInterval = setInterval(() => {
+        loadTranscriptionSections();
+        loadTranscriptionStatus();
+      }, 30000); // 30 secondes
+      
+      // Nettoyer l'interval quand on quitte l'onglet
+      return () => clearInterval(transcriptionInterval);
     }
     
     // Lancer la recherche automatique au premier chargement
