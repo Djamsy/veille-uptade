@@ -148,6 +148,213 @@ class RadioTranscriptionService:
                     logger.error(f"Erreur nettoyage statut {stream_key}: {e}")
                     self.update_transcription_step(stream_key, "idle", "Statut réinitialisé", 0)
 
+    def capture_radio_stream_segmented(self, stream_key: str, total_duration_seconds: int, segment_duration: int = 300) -> List[str]:
+        """Capturer un flux radio par segments pour plus de fiabilité (300s = 5min par segment)"""
+        config = self.radio_streams[stream_key]
+        segments_paths = []
+        
+        # Calculer le nombre de segments nécessaires
+        num_segments = (total_duration_seconds + segment_duration - 1) // segment_duration  # Arrondi supérieur
+        
+        logger.info(f"🎬 Capture segmentée de {config['name']}: {total_duration_seconds}s en {num_segments} segments de {segment_duration}s")
+        
+        for segment_num in range(num_segments):
+            # Calculer la durée du segment actuel
+            remaining_time = total_duration_seconds - (segment_num * segment_duration)
+            current_segment_duration = min(segment_duration, remaining_time)
+            
+            # Mettre à jour le statut
+            progress = int(10 + (segment_num / num_segments) * 30)  # 10% à 40%
+            self.update_transcription_step(
+                stream_key, 
+                "audio_capture", 
+                f"Segment {segment_num + 1}/{num_segments} ({current_segment_duration}s)", 
+                progress
+            )
+            
+            try:
+                # Créer un fichier temporaire pour ce segment
+                with tempfile.NamedTemporaryFile(suffix=f'_seg{segment_num}.mp3', delete=False) as temp_file:
+                    segment_path = temp_file.name
+                
+                logger.info(f"🎵 Capture segment {segment_num + 1}/{num_segments}: {current_segment_duration}s...")
+                
+                # Commande FFmpeg pour ce segment avec timeout robuste
+                cmd = [
+                    '/usr/bin/ffmpeg',
+                    '-i', config['url'],
+                    '-t', str(current_segment_duration),
+                    '-acodec', 'mp3',
+                    '-ar', '16000',
+                    '-ac', '1',
+                    '-y',
+                    segment_path
+                ]
+                
+                # Exécuter avec timeout de sécurité + buffer
+                timeout = current_segment_duration + 60  # Buffer de 60s
+                process = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    timeout=timeout,
+                    check=True
+                )
+                
+                # Vérifier que le segment est valide
+                if os.path.exists(segment_path) and os.path.getsize(segment_path) > 1000:
+                    segments_paths.append(segment_path)
+                    file_size = os.path.getsize(segment_path)
+                    logger.info(f"✅ Segment {segment_num + 1} capturé: {file_size} bytes")
+                else:
+                    logger.warning(f"⚠️ Segment {segment_num + 1} vide ou invalide")
+                    if os.path.exists(segment_path):
+                        os.unlink(segment_path)
+                    
+            except subprocess.TimeoutExpired:
+                logger.error(f"❌ Timeout segment {segment_num + 1} après {timeout}s")
+                if os.path.exists(segment_path):
+                    os.unlink(segment_path)
+                    
+            except subprocess.CalledProcessError as e:
+                logger.error(f"❌ Erreur FFmpeg segment {segment_num + 1}: {e}")
+                if os.path.exists(segment_path):
+                    os.unlink(segment_path)
+                    
+            except Exception as e:
+                logger.error(f"❌ Erreur capture segment {segment_num + 1}: {e}")
+                if os.path.exists(segment_path):
+                    os.unlink(segment_path)
+        
+        if segments_paths:
+            logger.info(f"🎬 Capture segmentée terminée: {len(segments_paths)}/{num_segments} segments réussis")
+        else:
+            logger.error("❌ Aucun segment capturé avec succès")
+            
+        return segments_paths
+
+    def concatenate_audio_segments(self, segments_paths: List[str], stream_key: str) -> Optional[str]:
+        """Concaténer les segments audio en un seul fichier"""
+        if not segments_paths:
+            return None
+            
+        try:
+            self.update_transcription_step(stream_key, "audio_capture", "Assemblage des segments...", 45)
+            
+            # Créer le fichier de sortie concaténé
+            with tempfile.NamedTemporaryFile(suffix='_full.mp3', delete=False) as output_file:
+                output_path = output_file.name
+            
+            # Créer un fichier de liste pour ffmpeg
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as list_file:
+                list_path = list_file.name
+                for segment_path in segments_paths:
+                    list_file.write(f"file '{segment_path}'\n")
+            
+            try:
+                # Commande ffmpeg pour concaténer
+                cmd = [
+                    '/usr/bin/ffmpeg',
+                    '-f', 'concat',
+                    '-safe', '0',
+                    '-i', list_path,
+                    '-c', 'copy',
+                    '-y',
+                    output_path
+                ]
+                
+                process = subprocess.run(cmd, capture_output=True, timeout=120, check=True)
+                
+                if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
+                    total_size = os.path.getsize(output_path)
+                    logger.info(f"✅ Segments assemblés: {total_size} bytes")
+                    return output_path
+                else:
+                    logger.error("❌ Fichier assemblé vide ou invalide")
+                    return None
+                    
+            finally:
+                # Nettoyer le fichier de liste
+                if os.path.exists(list_path):
+                    os.unlink(list_path)
+                    
+        except Exception as e:
+            logger.error(f"❌ Erreur assemblage segments: {e}")
+            return None
+
+    def transcribe_segments_individually(self, segments_paths: List[str], stream_key: str) -> List[Dict[str, Any]]:
+        """Transcrire chaque segment individuellement (plus fiable pour de longs contenus)"""
+        transcriptions = []
+        
+        for i, segment_path in enumerate(segments_paths):
+            try:
+                progress = int(50 + (i / len(segments_paths)) * 30)  # 50% à 80%
+                self.update_transcription_step(
+                    stream_key, 
+                    "transcription", 
+                    f"Transcription segment {i+1}/{len(segments_paths)}...", 
+                    progress
+                )
+                
+                # Transcrire ce segment
+                segment_transcription = self.transcribe_audio_file(segment_path, "segment")
+                
+                if segment_transcription:
+                    segment_transcription['segment_number'] = i + 1
+                    segment_transcription['segment_path'] = os.path.basename(segment_path)
+                    transcriptions.append(segment_transcription)
+                    logger.info(f"✅ Segment {i+1} transcrit: {len(segment_transcription['text'])} chars")
+                else:
+                    logger.warning(f"⚠️ Échec transcription segment {i+1}")
+                    
+            except Exception as e:
+                logger.error(f"❌ Erreur transcription segment {i+1}: {e}")
+        
+        return transcriptions
+
+    def merge_transcriptions(self, transcriptions: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Fusionner plusieurs transcriptions en une seule"""
+        if not transcriptions:
+            return None
+            
+        # Combiner les textes
+        full_text = " ".join([t['text'] for t in transcriptions if t.get('text')])
+        
+        # Combiner les segments si disponibles
+        all_segments = []
+        time_offset = 0
+        
+        for transcription in transcriptions:
+            if transcription.get('segments'):
+                for segment in transcription['segments']:
+                    segment_copy = segment.copy()
+                    segment_copy['start'] += time_offset
+                    segment_copy['end'] += time_offset
+                    all_segments.append(segment_copy)
+                time_offset = all_segments[-1]['end'] if all_segments else time_offset + 300
+        
+        # Calculer la durée totale
+        total_duration = sum([t.get('duration', 0) for t in transcriptions])
+        
+        merged = {
+            'text': full_text,
+            'language': transcriptions[0].get('language', 'fr'),
+            'segments': all_segments,
+            'duration': total_duration,
+            'method': 'segmented_openai_whisper_api',
+            'segments_count': len(transcriptions),
+            'segments_info': [
+                {
+                    'segment': i+1, 
+                    'chars': len(t['text']), 
+                    'duration': t.get('duration', 0)
+                } 
+                for i, t in enumerate(transcriptions)
+            ]
+        }
+        
+        logger.info(f"✅ Transcriptions fusionnées: {len(full_text)} chars total de {len(transcriptions)} segments")
+        return merged
+
     def capture_radio_stream(self, stream_key: str, duration_seconds: int) -> Optional[str]:
         """Capturer un flux radio pendant une durée donnée"""
         config = self.radio_streams[stream_key]
