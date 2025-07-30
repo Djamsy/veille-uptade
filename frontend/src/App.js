@@ -14,6 +14,15 @@ function App() {
   const [backgroundTasks, setBackgroundTasks] = useState({});
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [error, setError] = useState(null);
+  
+  // Nouveaux états pour la recherche et les commentaires
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchSuggestions, setSearchSuggestions] = useState([]);
+  const [comments, setComments] = useState([]);
+  const [commentsAnalysis, setCommentsAnalysis] = useState(null);
+  const [socialStats, setSocialStats] = useState({});
 
   // Fonction utilitaire pour les appels API avec timeout et gestion d'erreur
   const apiCall = async (url, options = {}) => {
