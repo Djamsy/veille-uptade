@@ -447,43 +447,6 @@ class RadioTranscriptionService:
             logger.error(f"❌ Erreur capture {config['name']}: {e}")
             return None
 
-    def transcribe_audio_file(self, audio_path: str) -> Optional[Dict[str, Any]]:
-        """Transcrire un fichier audio avec Whisper"""
-        if not self.whisper_model:
-            logger.error("❌ Modèle Whisper non disponible")
-            return None
-        
-        try:
-            logger.info(f"🎤 Début transcription de {os.path.basename(audio_path)}...")
-            
-            # Transcription avec Whisper
-            result = self.whisper_model.transcribe(
-                audio_path,
-                language='fr',  # Français
-                verbose=False
-            )
-            
-            transcription_data = {
-                'text': result['text'].strip(),
-                'language': result['language'],
-                'segments': [
-                    {
-                        'start': segment['start'],
-                        'end': segment['end'], 
-                        'text': segment['text'].strip()
-                    }
-                    for segment in result.get('segments', [])
-                ],
-                'duration': result.get('duration', 0)
-            }
-            
-            logger.info(f"✅ Transcription terminée: {len(transcription_data['text'])} caractères")
-            return transcription_data
-            
-        except Exception as e:
-            logger.error(f"❌ Erreur transcription: {e}")
-            return None
-
     def set_transcription_status(self, stream_key: str, in_progress: bool, estimated_minutes: int = None):
         """Mettre à jour le statut de transcription"""
         if stream_key in self.transcription_status:
