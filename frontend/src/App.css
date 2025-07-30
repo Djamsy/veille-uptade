@@ -343,48 +343,287 @@ html {
   100% { transform: translateX(100%); }
 }
 
-/* =========================== RESPONSIVE DESIGN =========================== */
-@media (max-width: 768px) {
-  .content-section {
-    padding: 1rem;
-  }
-  
+/* =========================== SECTIONS SPÉCIALISÉES =========================== */
+/* Section Radio avec design premium */
+.radio-section-card {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+.radio-section-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #f59e0b, #fbbf24, #f59e0b);
+}
+
+.radio-capture-button {
+  background: linear-gradient(135deg, #f59e0b, #fbbf24);
+  color: #0f172a;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.radio-capture-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(245, 158, 11, 0.4);
+}
+
+.radio-capture-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Cards transcription avec animations */
+.transcription-card {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(30, 41, 59, 0.5);
+  border-radius: 12px;
+  padding: 1.5rem;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.transcription-card:hover {
+  background: rgba(15, 23, 42, 0.8);
+  border-color: rgba(59, 130, 246, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+}
+
+.transcription-title {
+  color: #f8fafc;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  font-size: 1.125rem;
+}
+
+.transcription-content {
+  color: #cbd5e1;
+  line-height: 1.6;
+  margin-bottom: 1rem;
+}
+
+.transcription-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.meta-badge {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  padding: 0.25rem 0.75rem;
+  border-radius: 16px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.relevance-stars {
+  display: flex;
+  gap: 0.125rem;
+}
+
+.relevance-star {
+  color: #fbbf24;
+  font-size: 0.875rem;
+}
+
+.relevance-star.inactive {
+  color: #374151;
+}
+
+/* =========================== FORMS ET INPUTS =========================== */
+.form-input {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(30, 41, 59, 0.5);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  color: #f8fafc;
+  font-size: 0.875rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  background: rgba(15, 23, 42, 0.9);
+}
+
+.form-input::placeholder {
+  color: #64748b;
+}
+
+/* Search suggestions */
+.search-suggestions {
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(30, 41, 59, 0.5);
+  border-radius: 12px;
+  margin-top: 0.5rem;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.search-suggestion {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  border-bottom: 1px solid rgba(30, 41, 59, 0.3);
+  color: #e2e8f0;
+}
+
+.search-suggestion:hover {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.search-suggestion:last-child {
+  border-bottom: none;
+}
+
+/* =========================== TABLES ET LISTES =========================== */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.data-table th {
+  background: rgba(30, 41, 59, 0.8);
+  color: #f8fafc;
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.data-table td {
+  padding: 1rem;
+  border-bottom: 1px solid rgba(30, 41, 59, 0.3);
+  color: #cbd5e1;
+}
+
+.data-table tr:hover {
+  background: rgba(59, 130, 246, 0.05);
+}
+
+/* =========================== UTILITAIRES APPLE =========================== */
+.text-gradient {
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gradient-gold {
+  background: linear-gradient(135deg, #f59e0b, #fbbf24);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.shadow-glow {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+.shadow-glow-gold {
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+}
+
+/* Dividers élégants */
+.divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(30, 41, 59, 0.5), transparent);
+  margin: 2rem 0;
+}
+
+.divider-gold {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.3), transparent);
+  margin: 2rem 0;
+}
+
+/* =========================== MEDIA QUERIES AVANCÉES =========================== */
+@media (max-width: 1024px) {
   .header-content {
-    padding: 1rem;
-    flex-direction: column;
-    gap: 1rem;
+    padding: 1rem 1.5rem;
   }
   
-  .tab-navigation {
-    flex-wrap: wrap;
-    max-width: 100%;
+  .content-section {
+    padding: 1.5rem;
   }
   
-  .glass-card:hover {
-    transform: translateY(-2px) scale(1.01);
+  .transcription-card {
+    padding: 1.25rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .header-title {
+    font-size: 1.25rem;
   }
   
   .section-title {
-    font-size: 1.5rem;
+    font-size: 1.75rem;
+  }
+  
+  .transcription-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .tab-navigation {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  
+  .tab-button {
+    width: 100%;
+    text-align: center;
   }
 }
 
-/* =========================== SCROLLBAR STYLING =========================== */
-::-webkit-scrollbar {
-  width: 8px;
+/* =========================== DARK MODE OPTIMIZATIONS =========================== */
+@media (prefers-color-scheme: dark) {
+  .app {
+    color-scheme: dark;
+  }
 }
 
-::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.5);
+/* =========================== PERFORMANCE OPTIMIZATIONS =========================== */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-::-webkit-scrollbar-thumb {
-  background: rgba(59, 130, 246, 0.5);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(59, 130, 246, 0.7);
+.glass-card,
+.transcription-card,
+.btn-primary,
+.btn-secondary {
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 /* Navigation responsive */
