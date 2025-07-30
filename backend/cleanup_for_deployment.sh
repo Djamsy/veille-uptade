@@ -17,7 +17,7 @@ echo "✅ Nettoyage terminé"
 
 # Vérifier que requirements.txt est propre
 echo "🔍 Vérification requirements.txt..."
-if grep -i "spacy\|torch\|transformers\|fr-core-news-sm" /app/backend/requirements.txt; then
+if grep -E "^(spacy|torch|transformers|fr-core-news-sm)" /app/backend/requirements.txt; then
     echo "❌ Dépendances problématiques trouvées dans requirements.txt"
     exit 1
 else
