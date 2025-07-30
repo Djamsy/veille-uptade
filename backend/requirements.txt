@@ -41,7 +41,7 @@ numpy==1.25.2
 python-dateutil==2.8.2
 
 # Pour le scraping (versions spécifiques pour stabilité production)
-snscrape==0.7.3.20240106
+snscrape==0.7.0.20230622
 
 # Pour la génération de PDF
 reportlab==4.4.3
