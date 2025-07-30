@@ -612,18 +612,18 @@ function App() {
             {/* Résultats de recherche automatique */}
             {autoSearchCompleted && Object.keys(autoSearchResults).length > 0 && (
               <div className="glass-card">
-                <h3 className="text-xl font-bold text-white mb-4">📈 Veille Automatique - Sujets Prioritaires</h3>
+                <h3 className="text-xl font-bold mb-4" style={{ color: '#2c3e50' }}>📈 Veille Automatique - Sujets Prioritaires</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
                   {Object.entries(autoSearchResults).map(([subject, result]) => (
                     <div key={subject} className="glass-card" style={{ padding: '1rem' }}>
-                      <h4 className="font-semibold text-white mb-2">{subject}</h4>
+                      <h4 className="font-semibold mb-2" style={{ color: '#2c3e50' }}>{subject}</h4>
                       {result.error ? (
-                        <p className="text-sm text-red-300">Erreur</p>
+                        <p className="text-sm" style={{ color: '#e74c3c' }}>Erreur</p>
                       ) : (
-                        <div className="text-sm text-white opacity-75">
+                        <div className="text-sm" style={{ color: '#34495e' }}>
                           <p>📰 {result.articles_count || 0} articles</p>
                           <p>💬 {result.social_posts_count || 0} posts</p>
-                          <p className="font-medium text-white">Total: {result.total_results || 0}</p>
+                          <p className="font-medium" style={{ color: '#2c3e50' }}>Total: {result.total_results || 0}</p>
                         </div>
                       )}
                       <button
@@ -645,7 +645,7 @@ function App() {
 
             {/* Barre de recherche */}
             <div className="glass-card">
-              <h3 className="text-xl font-bold text-white mb-4">🔍 Recherche Rapide</h3>
+              <h3 className="text-xl font-bold mb-4" style={{ color: '#2c3e50' }}>🔍 Recherche Rapide</h3>
               <div className="flex gap-4 flex-col md:flex-row">
                 <div className="flex-1">
                   <div className="relative">
