@@ -143,6 +143,22 @@ class VeilleScheduler:
             details = f"Digest créé: {len(articles)} articles, {len(transcriptions)} transcriptions"
             self.log_job_execution("create_digest", True, details)
             
+            # Envoyer alerte Telegram pour le digest
+            try:
+                from telegram_alerts_service import telegram_alerts
+                if telegram_alerts.bot:
+                    digest_message = f"""📊 *DIGEST QUOTIDIEN CRÉÉ*
+
+📰 Articles: {len(articles)}
+📻 Transcriptions: {len(transcriptions)}
+📄 Digest généré avec succès
+
+🕛 Créé le {datetime.now().strftime('%d/%m/%Y à %H:%M')}"""
+                    
+                    telegram_alerts.send_alert_sync(digest_message)
+            except:
+                pass  # Ignore si Telegram non disponible
+            
         except Exception as e:
             self.log_job_execution("create_digest", False, str(e))
 
