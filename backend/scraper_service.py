@@ -21,11 +21,36 @@ logger = logging.getLogger(__name__)
 
 class GuadeloupeScraper:
     def __init__(self):
-        # MongoDB connection
+        # MongoDB connection - Compatible Atlas et local
         MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-        self.client = MongoClient(MONGO_URL)
-        self.db = self.client.veille_media
-        self.articles_collection = self.db.articles_guadeloupe
+        
+        try:
+            if 'mongodb+srv://' in MONGO_URL or 'atlas' in MONGO_URL.lower():
+                # Configuration optimisée pour MongoDB Atlas
+                self.client = MongoClient(
+                    MONGO_URL,
+                    serverSelectionTimeoutMS=5000,
+                    connectTimeoutMS=5000,
+                    maxPoolSize=10,
+                    retryWrites=True
+                )
+            else:
+                # Configuration pour MongoDB local
+                self.client = MongoClient(MONGO_URL)
+                
+            self.db = self.client.veille_media
+            self.articles_collection = self.db.articles_guadeloupe
+            
+            # Test de connection
+            self.client.admin.command('ping')
+            logger.info("✅ Scraper connecté à MongoDB")
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur connection MongoDB pour scraper: {e}")
+            # En cas d'erreur, utiliser une configuration par défaut
+            self.client = MongoClient('mongodb://localhost:27017')
+            self.db = self.client.veille_media
+            self.articles_collection = self.db.articles_guadeloupe
         
         # Sites à scraper avec sélecteurs multiples améliorés et testés
         self.sites_config = {
