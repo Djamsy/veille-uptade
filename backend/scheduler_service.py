@@ -111,6 +111,8 @@ class VeilleScheduler:
                 
         except Exception as e:
             self.log_job_execution("clean_cache_24h", False, str(e))
+
+    def job_create_daily_digest(self):
         """Job de création du digest quotidien à 12H"""
         try:
             logger.info("🚀 Début du job de création du digest...")
