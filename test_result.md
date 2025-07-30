@@ -102,7 +102,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Guadeloupe media monitoring application with automated article scraping from 4 news sites (France-Antilles, RCI, La 1ère, KaribInfo), radio transcription, and intelligent caching system. All scrapers must work and cache must be stable."
+user_problem_statement: "Guadeloupe media monitoring application with automated article scraping from 4 news sites (France-Antilles, RCI, La 1ère, KaribInfo), radio transcription, intelligent caching system, and local sentiment analysis. Requirements: 1) Show only today's articles in stats/dashboard, 2) Clear cache on each scraping update, 3) Local sentiment analysis without external APIs."
 
 backend:
   - task: "France-Antilles scraper"
@@ -171,6 +171,54 @@ backend:
         agent: "main"
         comment: "Fixed all MongoDB Collection truth value errors by replacing 'if self.cache_collection:' with 'if self.cache_collection is not None:' in 5 locations"
 
+  - task: "Cache clearing on updates"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Modified scrape-now endpoint to clear cache completely before and after scraping, ensuring fresh data display"
+
+  - task: "Today-only articles display"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Modified dashboard stats and articles endpoints to show only today's articles, with date filtering and descriptive messages"
+
+  - task: "Local sentiment analysis service"
+    implemented: true
+    working: true
+    file: "sentiment_analysis_service.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Created comprehensive local sentiment analysis using French dictionaries, Guadeloupe-specific patterns, negation handling, and contextual analysis - no external APIs required"
+
+  - task: "Sentiment analysis API endpoints"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added 4 sentiment analysis endpoints: /api/sentiment/articles, /api/sentiment/analyze, /api/sentiment/trends, /api/sentiment/stats"
+
   - task: "API endpoints for articles"
     implemented: true
     working: "NA"
@@ -181,7 +229,7 @@ backend:
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Endpoints exist but need testing after scraper and cache fixes"
+        comment: "Updated to show today-only articles with cache clearing - needs retesting"
 
   - task: "Dashboard statistics API"
     implemented: true
@@ -193,7 +241,7 @@ backend:
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Previously working but needs retesting after cache fixes"
+        comment: "Updated to show today-only stats with better error handling - needs retesting"
 
   - task: "Radio transcription system"
     implemented: true
@@ -218,7 +266,7 @@ frontend:
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Frontend exists but depends on backend API functionality"
+        comment: "Frontend exists but depends on backend API functionality - may need updates for sentiment display"
 
   - task: "Dashboard statistics display"
     implemented: true
@@ -230,26 +278,26 @@ frontend:
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Frontend dashboard exists but depends on backend API"
+        comment: "Frontend dashboard exists but depends on updated backend API"
 
 metadata:
   created_by: "main_agent"
-  version: "1.1"
-  test_sequence: 1
+  version: "1.2"
+  test_sequence: 2
   run_ui: false
 
 test_plan:
   current_focus:
-    - "France-Antilles scraper"
-    - "RCI Guadeloupe scraper"
-    - "La 1ère Guadeloupe scraper"
-    - "KaribInfo scraper"
-    - "Intelligent caching system"
+    - "Today-only articles display"
+    - "Cache clearing on updates"
+    - "Local sentiment analysis service"
+    - "Sentiment analysis API endpoints"
     - "API endpoints for articles"
+    - "Dashboard statistics API"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
-    message: "Completed Phase 1: All 4 news scrapers now working (64 total articles). Fixed Phase 2: Resolved MongoDB Collection truth value errors in cache service. Ready for backend testing of scraping APIs and cache functionality."
+    message: "Completed user requirements: 1) Modified dashboard/articles to show today-only data, 2) Implemented cache clearing on each scraping update, 3) Created comprehensive local sentiment analysis service with French dictionaries and Guadeloupe-specific patterns. Added 4 new sentiment analysis endpoints. Ready for comprehensive backend testing of all updated features."
