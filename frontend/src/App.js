@@ -374,6 +374,54 @@ function App() {
     console.log('✅ Recherche automatique terminée:', results);
   };
 
+  // Fonction de recherche sociale spécifique
+  const handleSocialSearch = async (query) => {
+    if (!query || query.trim().length < 2) {
+      setSearchError('Veuillez saisir au moins 2 caractères');
+      return;
+    }
+    
+    setSocialSearchLoading(true);
+    setSearchError(null);
+    
+    try {
+      console.log(`🔍 Recherche sociale pour: "${query}"`);
+      
+      // Lancer le scraping pour ce sujet spécifique
+      const scrapingResponse = await apiCall(`${BACKEND_URL}/api/social/scrape-keyword`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyword: query })
+      });
+      
+      if (scrapingResponse.success) {
+        // Attendre un peu pour que le scraping se termine
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        // Rechercher les résultats
+        const searchResponse = await apiCall(`${BACKEND_URL}/api/search?q=${encodeURIComponent(query)}&social_only=true`);
+        
+        if (searchResponse.success) {
+          setSocialSearchResults({
+            query: query,
+            social_posts: searchResponse.social_posts || [],
+            total_results: searchResponse.total_results || 0,
+            scraped_at: new Date().toISOString()
+          });
+        } else {
+          setSearchError(searchResponse.error || 'Erreur lors de la recherche');
+        }
+      } else {
+        setSearchError(scrapingResponse.error || 'Erreur lors du scraping');
+      }
+    } catch (error) {
+      console.error('Erreur recherche sociale:', error);
+      setSearchError(`Erreur: ${error.message}`);
+    } finally {
+      setSocialSearchLoading(false);
+    }
+  };
+
   // Fonction de recherche
   const handleSearch = async (query) => {
     if (!query || query.trim().length < 2) {
