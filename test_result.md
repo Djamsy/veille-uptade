@@ -204,6 +204,18 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: Radio service GPT integration working correctly. OpenAI Whisper API method confirmed in transcription responses. Security controls operational: captures rejected without admin key (hour=14, authorized=[7]) with explicit OpenAI cost control message. Cost transparency implemented with estimates (~$0.006/min Whisper, ~$0.001-0.003 GPT)."
 
+  - task: "GPT Sentiment Analysis - Format enrichi"
+    implemented: true
+    working: false
+    file: "gpt_sentiment_service.py, server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "🔧 AMÉLIORATION MAJEURE: Correction du bug SENTIMENT_ENABLED = False qui désactivait le service GPT. Nouveau format d'analyse enrichi avec contexte Guadeloupe, personnalités mentionnées, institutions, recommandations, alertes, catégorisation détaillée. Ajout endpoint /api/sentiment/analyze/quick pour analyses rapides. Format structuré avec basic_sentiment, contextual_analysis, stakeholders, thematic_breakdown, recommendations."
+
 backend:
   - task: "France-Antilles scraper"
     implemented: true
