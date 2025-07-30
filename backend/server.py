@@ -357,6 +357,24 @@ async def get_transcriptions():
         print(f"Erreur transcriptions: {e}")
         return {"success": False, "error": str(e), "transcriptions": [], "count": 0}
 
+@app.get("/api/transcriptions/status")
+async def get_transcription_status():
+    """Récupérer le statut détaillé des transcriptions par section"""
+    try:
+        status = radio_service.get_transcription_status()
+        return {"success": True, "status": status}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur statut transcriptions: {str(e)}")
+
+@app.get("/api/transcriptions/sections")
+async def get_transcriptions_by_sections():
+    """Récupérer les transcriptions d'aujourd'hui organisées par sections"""
+    try:
+        sections = radio_service.get_todays_transcriptions_by_section()
+        return {"success": True, "sections": sections}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur transcriptions par sections: {str(e)}")
+
 @app.get("/api/transcriptions/capture-status")
 async def get_capture_status():
     """Récupérer le statut de la dernière capture"""
