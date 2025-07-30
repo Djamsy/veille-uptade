@@ -477,18 +477,18 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      {/* Header */}
-      <header className="bg-white shadow-lg border-b-2 border-blue-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="app">
+      {/* Header avec effet glass */}
+      <header className="glass-header">
+        <div className="main-container">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-4">
-              <h1 className="text-2xl font-bold text-gray-900">
+              <h1 className="text-2xl font-bold text-white">
                 🏝️ Veille Média Guadeloupe
               </h1>
             </div>
 
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-white opacity-75">
               Dernière MAJ: {new Date().toLocaleDateString('fr-FR', { 
                 day: 'numeric', 
                 month: 'short', 
@@ -502,28 +502,30 @@ function App() {
 
       {/* Barre de statut des tâches en arrière-plan */}
       {(backgroundTasks.scraping || backgroundTasks.capturing) && (
-        <div className="bg-yellow-100 border-b border-yellow-200 px-6 py-2">
-          <div className="flex items-center gap-4 text-sm text-yellow-800">
-            {backgroundTasks.scraping && (
-              <div className="flex items-center gap-2">
-                <div className="animate-spin h-4 w-4 border-2 border-yellow-600 border-t-transparent rounded-full"></div>
-                <span>Scraping en cours... (2-3 min)</span>
-              </div>
-            )}
-            {backgroundTasks.capturing && (
-              <div className="flex items-center gap-2">
-                <div className="animate-spin h-4 w-4 border-2 border-yellow-600 border-t-transparent rounded-full"></div>
-                <span>Capture radio en cours... (3-5 min)</span>
-              </div>
-            )}
+        <div className="glass-card" style={{ margin: '1rem', padding: '1rem' }}>
+          <div className="main-container">
+            <div className="flex items-center gap-4 text-sm text-white">
+              {backgroundTasks.scraping && (
+                <div className="flex items-center gap-2">
+                  <div className="loading-spinner" style={{ width: '20px', height: '20px' }}></div>
+                  <span>Scraping en cours... (2-3 min)</span>
+                </div>
+              )}
+              {backgroundTasks.capturing && (
+                <div className="flex items-center gap-2">
+                  <div className="loading-spinner" style={{ width: '20px', height: '20px' }}></div>
+                  <span>Capture radio en cours... (3-5 min)</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
 
-      {/* Navigation */}
-      <nav className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex space-x-8">
+      {/* Navigation avec effet glass */}
+      <nav className="glass-header">
+        <div className="main-container">
+          <div className="nav-container">
             {[
               { id: 'dashboard', name: '📊 Dashboard', icon: '📊' },
               { id: 'search', name: '🔍 Recherche', icon: '🔍' },
@@ -543,11 +545,7 @@ function App() {
                     loadSocialStats();
                   }
                 }}
-                className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors duration-200 ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
+                className={`nav-tab ${activeTab === tab.id ? 'active' : ''}`}
               >
                 {tab.name}
               </button>
@@ -557,23 +555,21 @@ function App() {
       </nav>
 
       {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
+      <main className="main-container">
         {/* Affichage des erreurs */}
         {error && (
-          <div className="mb-6 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg">
-            <div className="flex justify-between items-center">
-              <span>{error}</span>
-              <button onClick={() => setError(null)} className="text-red-700 hover:text-red-900">✕</button>
-            </div>
+          <div className="alert error">
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="text-white hover:opacity-75">✕</button>
           </div>
         )}
 
         {/* Loading overlay */}
         {loading && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-xl">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-              <p className="mt-4 text-center text-gray-600">Traitement en cours...</p>
+          <div className="loading-overlay">
+            <div className="loading-content">
+              <div className="loading-spinner"></div>
+              <p>Traitement en cours...</p>
             </div>
           </div>
         )}
