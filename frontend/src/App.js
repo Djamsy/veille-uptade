@@ -177,6 +177,9 @@ function App() {
       loadSearchSuggestions();
     } else if (activeTab === 'comments') {
       loadSocialStats();
+    } else if (activeTab === 'transcriptions') {
+      loadTranscriptionSections();
+      loadTranscriptionStatus();
     }
     
     // Lancer la recherche automatique au premier chargement
