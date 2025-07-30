@@ -340,13 +340,13 @@ metadata:
   backend_test_status: "completed"
 
 test_plan:
-  current_focus: []
-  stuck_tasks: []
+  current_focus: ["Radio transcription system"]
+  stuck_tasks: ["Radio transcription system"]
   test_all: false
   test_priority: "high_first"
-  testing_completed: true
+  testing_completed: false
   last_test_date: "2025-07-30"
-  test_summary: "All high-priority backend features tested and working. Social media endpoints verified without demo data. 24/25 tests passed."
+  test_summary: "Radio transcription system has critical issues preventing testing. Backend hangs during startup cache warming phase. ffmpeg dependency was missing but now installed."
 
 agent_communication:
   - agent: "main"
