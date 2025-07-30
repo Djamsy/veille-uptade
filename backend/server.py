@@ -22,7 +22,14 @@ from radio_service import radio_service
 from summary_service import summary_service
 from scheduler_service import veille_scheduler, start_scheduler
 
-# Import du cache avec fallback - Réactivé avec cache 24H
+# Import du service d'analyse de sentiment local
+try:
+    from sentiment_analysis_service import local_sentiment_analyzer, analyze_articles_sentiment
+    SENTIMENT_ENABLED = True
+    print("✅ Service d'analyse de sentiment local activé")
+except ImportError as e:
+    print(f"⚠️ Service d'analyse de sentiment non disponible: {e}")
+    SENTIMENT_ENABLED = False
 try:
     from cache_service import intelligent_cache, get_or_compute, cache_invalidate, start_cache_service
     CACHE_ENABLED = True
