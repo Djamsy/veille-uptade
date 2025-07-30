@@ -22,30 +22,39 @@ class LocalSentimentAnalyzer:
             # Mots très positifs
             'excellent', 'fantastique', 'merveilleux', 'génial', 'parfait', 'superbe', 
             'formidable', 'exceptionnel', 'remarquable', 'magnifique', 'splendide',
+            'incroyable', 'extraordinaire', 'fabuleux', 'sublime', 'éblouissant',
             
             # Mots modérément positifs  
             'bon', 'bien', 'mieux', 'beau', 'belle', 'réussi', 'succès', 'progrès',
             'amélioration', 'avancée', 'développement', 'croissance', 'victoire',
-            'gagner', 'réussir', 'accomplir', 'célébrer', 'féliciter',
+            'gagner', 'réussir', 'accomplir', 'célébrer', 'féliciter', 'bravo',
+            'content', 'heureux', 'joie', 'sourire', 'rire', 'plaisir', 'fier',
+            'nouveau', 'nouvelle', 'innovation', 'créer', 'construire', 'ouvrir',
             
-            # Contexte Guadeloupe
+            # Contexte Guadeloupe et réseaux sociaux
             'festival', 'culture', 'patrimoine', 'tradition', 'créole', 'carnaval',
-            'tourisme', 'plage', 'soleil', 'innovation', 'investissement'
+            'tourisme', 'plage', 'soleil', 'investissement', 'école', 'éducation',
+            'spectacle', 'ambiance', 'talent', 'artiste', 'musique', 'paradis',
+            'coucher', 'lever', 'paysage', 'nature', 'biodiversité', 'retour'
         }
         
         self.negative_words = {
             # Mots très négatifs
             'terrible', 'horrible', 'catastrophe', 'désastre', 'tragique', 'grave',
             'dangereux', 'inquiétant', 'alarme', 'crise', 'scandale', 'corruption',
+            'insupportable', 'inacceptable', 'révoltant', 'choquant', 'dramatique',
             
             # Mots modérément négatifs
             'problème', 'difficulté', 'échec', 'perte', 'baisse', 'diminution',
             'fermeture', 'licenciement', 'grève', 'manifestation', 'protestation',
             'accident', 'blessé', 'mort', 'décès', 'maladie', 'pollution',
+            'panne', 'coupure', 'manque', 'pénurie', 'retard', 'annulation',
+            'difficile', 'dur', 'compliqué', 'impossible', 'échec', 'erreur',
             
             # Contexte Guadeloupe/Antilles
             'cyclone', 'ouragan', 'séisme', 'sargasse', 'chlordécane', 'violence',
-            'délinquance', 'drogue', 'sécheresse', 'pénurie', 'conflit'
+            'délinquance', 'drogue', 'sécheresse', 'pénurie', 'conflit', 'évacuation',
+            'alerte', 'risque', 'danger', 'vigilant', 'préparation', 'provisions'
         }
         
         # Mots neutres importants (pour pondération)
