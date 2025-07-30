@@ -969,6 +969,10 @@ function App() {
                       : 'Aucune transcription en cours'
                     }
                   </span>
+                  <div className="flex items-center gap-1 ml-4">
+                    <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                    <span className="text-xs text-blue-600">Auto-actualisation (30s)</span>
+                  </div>
                 </div>
               </div>
               <div className="flex gap-2">
