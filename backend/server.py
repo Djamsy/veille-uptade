@@ -1295,9 +1295,10 @@ async def scrape_social_media_now():
         
         return {
             "success": True,
-            "message": "Scraping des réseaux sociaux démarré en arrière-plan",
-            "estimated_completion": "3-5 minutes",
-            "note": "Utilise snscrape (Twitter) et Playwright (Facebook) sans API"
+            "message": "Scraping moderne des réseaux sociaux démarré en arrière-plan",
+            "estimated_completion": "2-3 minutes",
+            "methods": "Twitter API v2 + Nitter (fallback) + RSS feeds officiels",
+            "note": "Service moderne 2025 - Plus fiable que snscrape/Playwright"
         }
         
     except Exception as e:
