@@ -261,7 +261,17 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: Dashboard stats API working correctly. Shows 192 today articles with proper today-only filtering. Cache stats active, services healthy. Message confirms 'Articles du 2025-07-30 uniquement'."
 
-  - task: "Radio transcription system"
+  - task: "PDF Digest Export"
+    implemented: true
+    working: true
+    file: "server.py, pdf_service.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "IMPLEMENTED: Created PDF digest export functionality with ReportLab. Added endpoints /api/digest/today/pdf and /api/digest/{date}/pdf. Successfully tested - generates valid PDF files (2KB+) with proper Content-Type headers. French date formatting and clean HTML-to-PDF conversion implemented."
     implemented: true
     working: false
     file: "server.py"
