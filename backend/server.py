@@ -356,6 +356,199 @@ def _compute_articles_today_only():
         logger.error(f"Erreur récupération articles aujourd'hui: {e}")
         return {'articles': [], 'count': 0, 'error': str(e)}
 
+@app.get("/api/articles/filtered")
+async def get_filtered_articles(
+    date_start: str = None,
+    date_end: str = None,
+    source: str = None,
+    search_text: str = None,
+    sort_by: str = "date_desc",
+    limit: int = 100,
+    offset: int = 0
+):
+    """Récupérer les articles avec filtres avancés et tri"""
+    try:
+        # Construire la requête MongoDB
+        query = {}
+        
+        # Filtre par date
+        if date_start or date_end:
+            date_filter = {}
+            if date_start:
+                date_filter['$gte'] = date_start
+            if date_end:
+                date_filter['$lte'] = date_end
+            query['date'] = date_filter
+        
+        # Filtre par source
+        if source and source != "all":
+            query['source'] = {'$regex': source, '$options': 'i'}
+        
+        # Filtre par texte de recherche
+        if search_text and len(search_text.strip()) >= 2:
+            search_regex = {'$regex': search_text.strip(), '$options': 'i'}
+            query['$or'] = [
+                {'title': search_regex},
+                {'source': search_regex}
+            ]
+        
+        # Définir l'ordre de tri
+        sort_options = {
+            "date_desc": [("scraped_at", -1)],
+            "date_asc": [("scraped_at", 1)],
+            "source_asc": [("source", 1), ("scraped_at", -1)],
+            "source_desc": [("source", -1), ("scraped_at", -1)],
+            "title_asc": [("title", 1)],
+            "title_desc": [("title", -1)]
+        }
+        
+        sort_query = sort_options.get(sort_by, [("scraped_at", -1)])
+        
+        # Exécuter la requête avec pagination
+        articles_cursor = articles_collection.find(
+            query,
+            {'_id': 0}
+        ).sort(sort_query).skip(offset).limit(limit)
+        
+        articles = list(articles_cursor)
+        
+        # Compter le total pour la pagination
+        total_count = articles_collection.count_documents(query)
+        
+        # Calculer les métadonnées de pagination
+        has_more = (offset + len(articles)) < total_count
+        
+        return {
+            "success": True,
+            "articles": articles,
+            "pagination": {
+                "total": total_count,
+                "limit": limit,
+                "offset": offset,
+                "has_more": has_more,
+                "returned": len(articles)
+            },
+            "filters_applied": {
+                "date_start": date_start,
+                "date_end": date_end,
+                "source": source,
+                "search_text": search_text,
+                "sort_by": sort_by
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Erreur filtrage articles: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur filtrage articles: {str(e)}")
+
+@app.get("/api/articles/sources")
+async def get_available_sources():
+    """Récupérer la liste des sources disponibles pour les filtres"""
+    try:
+        # Pipeline d'agrégation pour obtenir les sources avec leur nombre d'articles
+        pipeline = [
+            {'$group': {
+                '_id': '$source',
+                'count': {'$sum': 1},
+                'latest_article': {'$max': '$scraped_at'}
+            }},
+            {'$sort': {'count': -1}}
+        ]
+        
+        sources = list(articles_collection.aggregate(pipeline))
+        
+        # Formater les résultats
+        formatted_sources = [
+            {
+                'name': source['_id'],
+                'count': source['count'],
+                'latest_article': source['latest_article']
+            }
+            for source in sources if source['_id']  # Exclure les sources nulles
+        ]
+        
+        return {
+            "success": True,
+            "sources": formatted_sources,
+            "total_sources": len(formatted_sources)
+        }
+        
+    except Exception as e:
+        logger.error(f"Erreur récupération sources: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur récupération sources: {str(e)}")
+
+@app.post("/api/articles/scrape-now")
+async def scrape_articles_now():
+    """Lancer le scraping d'articles immédiatement avec vidage du cache"""
+    try:
+        # 1. VIDER COMPLÈTEMENT LE CACHE avant scraping
+        if CACHE_ENABLED:
+            logger.info("🗑️ Vidage complet du cache avant scraping...")
+            cache_invalidate()  # Vider tout le cache
+            intelligent_cache.cleanup_expired_cache()
+        
+        # 2. Lancer le scraping en arrière-plan pour éviter les timeouts
+        import threading
+        
+        def scrape_async():
+            try:
+                logger.info("🚀 Démarrage du scraping avec cache vidé...")
+                result = guadeloupe_scraper.scrape_all_sites()
+                
+                # 3. VIDER À NOUVEAU LE CACHE après scraping pour forcer refresh
+                if CACHE_ENABLED:
+                    logger.info("🗑️ Vidage du cache après scraping pour forcer refresh...")
+                    cache_invalidate('articles')  # Vider cache articles
+                    cache_invalidate('dashboard')  # Vider cache dashboard
+                    
+                    # Sauvegarder le résultat dans le cache
+                    intelligent_cache.set_cached_data('last_scraping_result', result)
+                    
+                    logger.info("✅ Cache vidé et résultat scraping sauvegardé")
+                else:
+                    # Stocker temporairement le résultat
+                    setattr(app.state, 'last_scraping_result', result)
+                    
+            except Exception as e:
+                error_result = {
+                    'success': False,
+                    'error': str(e),
+                    'scraped_at': datetime.now().isoformat()
+                }
+                if CACHE_ENABLED:
+                    intelligent_cache.set_cached_data('last_scraping_result', error_result)
+                else:
+                    setattr(app.state, 'last_scraping_result', error_result)
+                logger.error(f"❌ Erreur lors du scraping: {e}")
+        
+        # Démarrer le scraping en arrière-plan
+        scraping_thread = threading.Thread(target=scrape_async)
+        scraping_thread.daemon = True
+        scraping_thread.start()
+        
+        return {
+            "success": True, 
+            "message": "Scraping démarré avec vidage du cache. Articles du jour disponibles dans quelques minutes.",
+            "estimated_completion": "2-3 minutes",
+            "cache_cleared": True
+        }
+        
+    except Exception as e:
+        print(f"Erreur scraping: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/articles/scrape-status")
+async def get_scrape_status():
+    """Récupérer le statut du dernier scraping"""
+    try:
+        last_result = intelligent_cache.get_cached_data('last_scraping_result')
+        if last_result:
+            return {"success": True, "result": last_result}
+        else:
+            return {"success": False, "message": "Aucun scraping récent"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur statut scraping: {str(e)}")
+
 @app.get("/api/articles/{date}")
 async def get_articles_by_date(date: str):
     """Récupérer les articles d'une date spécifique avec cache"""
