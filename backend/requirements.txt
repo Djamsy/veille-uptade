@@ -10,6 +10,9 @@ openai-whisper==20231117
 torch==2.1.1
 torchaudio==2.1.1
 
+# Pour OpenAI GPT
+openai==1.58.0
+
 # Pour l'analyse de sentiment
 vaderSentiment==3.3.2
 textblob==0.17.1
