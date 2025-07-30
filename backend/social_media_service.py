@@ -266,12 +266,11 @@ class SocialMediaScraper:
             logger.error(f"❌ Erreur scraping Instagram {keyword}: {e}")
             return []
 
-    def scrape_all_keywords_with_demo(self, keywords: List[str] = None) -> Dict[str, List[Dict]]:
-        """Scraper avec fallback vers données de démonstration si APIs indisponibles"""
+    def scrape_all_keywords(self, keywords: List[str] = None) -> Dict[str, List[Dict]]:
+        """Scraper les réseaux sociaux pour récupérer de vrais commentaires - SANS données de démonstration"""
         if not keywords:
             keywords = self.keywords_guadeloupe[:3]
         
-        # Essayer d'abord le scraping réel
         results = {
             'twitter': [],
             'facebook': [],
@@ -280,67 +279,51 @@ class SocialMediaScraper:
             'keywords_searched': keywords,
             'scraped_at': datetime.now().isoformat(),
             'demo_mode': False,
-            'note': ''
+            'note': 'Scraping réel uniquement'
         }
         
-        logger.info(f"🚀 Tentative de scraping pour {len(keywords)} mots-clés")
+        logger.info(f"🚀 Scraping réel pour {len(keywords)} mots-clés (sans données de démo)")
         
-        # Test Twitter avec un seul mot-clé pour vérifier la disponibilité
-        try:
-            test_posts = self.scrape_twitter_keyword(keywords[0], max_posts=1)
-            if test_posts:
-                # API disponible, procéder normalement
-                for keyword in keywords:
-                    twitter_posts = self.scrape_twitter_keyword(keyword, self.max_posts_per_keyword)
-                    results['twitter'].extend(twitter_posts)
-                    
-                    # Facebook et Instagram (limités)
-                    try:
-                        facebook_posts = asyncio.run(self.scrape_facebook_keyword(keyword, 5))
-                        results['facebook'].extend(facebook_posts)
-                    except:
-                        pass
-                    
-                    instagram_posts = self.scrape_instagram_basic(keyword, 3)
-                    results['instagram'].extend(instagram_posts)
-                    
-                    time.sleep(self.rate_limit_delay)
-            else:
-                raise Exception("Pas de données Twitter disponibles")
-                
-        except Exception as e:
-            logger.warning(f"APIs réseaux sociaux indisponibles: {e}")
-            logger.info("🔄 Basculement vers données de démonstration")
-            
-            # Utiliser les données de démonstration
+        # Scraper chaque plateforme
+        for keyword in keywords:
             try:
-                from social_demo_data import generate_realistic_social_posts, get_demo_social_stats
+                # Twitter
+                twitter_posts = self.scrape_twitter_keyword(keyword, self.max_posts_per_keyword)
+                results['twitter'].extend(twitter_posts)
+                logger.info(f"Twitter {keyword}: {len(twitter_posts)} posts")
                 
-                demo_posts = generate_realistic_social_posts()
-                demo_stats = get_demo_social_stats()
+                # Facebook (avec timeout plus court)
+                try:
+                    facebook_posts = asyncio.run(self.scrape_facebook_keyword(keyword, 10))
+                    results['facebook'].extend(facebook_posts)
+                    logger.info(f"Facebook {keyword}: {len(facebook_posts)} posts")
+                except Exception as fb_error:
+                    logger.warning(f"Facebook scraping échoué pour {keyword}: {fb_error}")
                 
-                # Répartir les posts par plateforme
-                for post in demo_posts:
-                    platform = post['platform']
-                    if platform in results:
-                        results[platform].append(post)
+                # Instagram (basique)
+                try:
+                    instagram_posts = self.scrape_instagram_basic(keyword, 5)
+                    results['instagram'].extend(instagram_posts)
+                    logger.info(f"Instagram {keyword}: {len(instagram_posts)} posts")
+                except Exception as ig_error:
+                    logger.warning(f"Instagram scraping échoué pour {keyword}: {ig_error}")
                 
-                results['demo_mode'] = True
-                results['note'] = "Données de démonstration utilisées - APIs Twitter/Facebook indisponibles"
-                results['demo_stats'] = demo_stats
+                # Délai entre les mots-clés
+                time.sleep(self.rate_limit_delay)
                 
-                logger.info(f"✅ Mode démonstration: {len(demo_posts)} posts générés")
-                
-            except Exception as demo_error:
-                logger.error(f"❌ Erreur mode démonstration: {demo_error}")
+            except Exception as e:
+                logger.error(f"Erreur scraping pour {keyword}: {e}")
+                continue
         
         # Calculer totaux
         results['total_posts'] = len(results['twitter']) + len(results['facebook']) + len(results['instagram'])
         
-        if results['demo_mode']:
-            logger.info(f"✅ Mode démonstration terminé: {results['total_posts']} posts")
-        else:
-            logger.info(f"✅ Scraping réel terminé: {results['total_posts']} posts")
+        logger.info(f"✅ Scraping terminé: {results['total_posts']} posts réels récupérés")
+        
+        # Si aucun résultat, indiquer pourquoi
+        if results['total_posts'] == 0:
+            results['note'] = 'Aucun post trouvé - vérifier la disponibilité des plateformes et les mots-clés'
+            logger.warning("⚠️ Aucun post récupéré. APIs peut-être limitées ou mots-clés inadéquats.")
         
         return results
 
