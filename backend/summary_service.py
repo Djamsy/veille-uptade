@@ -328,6 +328,29 @@ class FreeSummaryService:
                 </header>
             """
             
+            # 🎯 PRIORITÉ ABSOLUE : TRANSCRIPTIONS RADIO EN PREMIER
+            if transcriptions:
+                digest_html += f"""
+                <section style="margin-bottom: 40px; padding: 25px; background: linear-gradient(135deg, #fef3c7 0%, #fef7e1 100%); border-radius: 15px; border: 2px solid #f59e0b; box-shadow: 0 6px 12px rgba(245, 158, 11, 0.2);">
+                    <h2 style="color: #92400e; margin-top: 0; font-size: 26px; display: flex; align-items: center; margin-bottom: 25px;">
+                        🎙️ ACTUALITÉ RADIO LOCALE - PRIORITÉ ABSOLUE
+                        <span style="background: #f59e0b; color: white; font-size: 12px; padding: 4px 8px; border-radius: 20px; margin-left: 15px;">
+                            {len(transcriptions)} transcription{'s' if len(transcriptions) > 1 else ''}
+                        </span>
+                    </h2>
+                    <div style="background: rgba(245, 158, 11, 0.1); padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+                        <p style="color: #92400e; margin: 0; font-weight: 500; text-align: center;">
+                            📻 Informations directes des radios guadeloupéennes • PRIORITÉ MAXIMALE • Contenu analysé par IA
+                        </p>
+                    </div>
+                """
+                
+                # Utiliser la nouvelle méthode avec format HTML amélioré
+                transcriptions_content = self.summarize_transcriptions(transcriptions)
+                digest_html += transcriptions_content
+                
+                digest_html += "</section>"
+            
             # Section analyse de sentiment
             if sentiment_analysis and sentiment_analysis.get('total_articles', 0) > 0:
                 distribution = sentiment_analysis.get('sentiment_distribution', {})
