@@ -476,6 +476,183 @@ class GuadeloupeMediaAPITester:
         except Exception as e:
             return self.log_test("Comments Sentiment Analysis", False, f"- Error: {str(e)}")
 
+    def test_social_clean_demo_data(self):
+        """Test cleaning demo data from social media database"""
+        try:
+            response = self.session.post(f"{self.base_url}/api/social/clean-demo-data")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    cleaned_count = data.get('cleaned_count', 0)
+                    message = data.get('message', '')
+                    
+                    if cleaned_count >= 0 and 'démonstration' in message.lower():
+                        details = f"- Cleaned {cleaned_count} demo posts, Message: '{message}'"
+                    else:
+                        success = False
+                        details = f"- Demo data cleaning failed: count={cleaned_count}, message='{message}'"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Social Clean Demo Data", success, details)
+        except Exception as e:
+            return self.log_test("Social Clean Demo Data", False, f"- Error: {str(e)}")
+
+    def test_social_scrape_real_data(self):
+        """Test social media scraping for real data (no demo fallback)"""
+        try:
+            response = self.session.post(f"{self.base_url}/api/social/scrape-now")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    message = data.get('message', '')
+                    estimated_completion = data.get('estimated_completion', '')
+                    note = data.get('note', '')
+                    
+                    # Check that it's attempting real scraping, not demo mode
+                    if 'scraping' in message.lower() and 'démonstration' not in message.lower():
+                        details = f"- Real scraping initiated: '{message}', ETA: {estimated_completion}"
+                    else:
+                        success = False
+                        details = f"- May be using demo mode: message='{message}'"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Social Real Data Scraping", success, details)
+        except Exception as e:
+            return self.log_test("Social Real Data Scraping", False, f"- Error: {str(e)}")
+
+    def test_comments_no_demo_data(self):
+        """Test that comments endpoint returns only real data (no demo_data: true)"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/comments")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    comments = data.get('comments', [])
+                    count = data.get('count', 0)
+                    
+                    # Check if any comments have demo_data flag
+                    demo_data_found = False
+                    for comment in comments[:10]:  # Check first 10 comments
+                        if comment.get('demo_data') is True:
+                            demo_data_found = True
+                            break
+                    
+                    if not demo_data_found:
+                        details = f"- Found {count} real comments (no demo data detected)"
+                    else:
+                        success = False
+                        details = f"- Demo data still present in comments: count={count}"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Comments No Demo Data", success, details)
+        except Exception as e:
+            return self.log_test("Comments No Demo Data", False, f"- Error: {str(e)}")
+
+    def test_search_guy_losbar_real_data(self):
+        """Test search for 'Guy Losbar' returns only real data"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/search", params={'q': 'Guy Losbar'})
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    articles = data.get('articles', [])
+                    social_posts = data.get('social_posts', [])
+                    total_results = data.get('total_results', 0)
+                    
+                    # Check if any results have demo_data flag
+                    demo_data_found = False
+                    all_results = articles + social_posts
+                    for result in all_results[:5]:  # Check first 5 results
+                        if result.get('demo_data') is True:
+                            demo_data_found = True
+                            break
+                    
+                    if not demo_data_found:
+                        details = f"- Found {total_results} real results for 'Guy Losbar' (no demo data)"
+                    else:
+                        success = False
+                        details = f"- Demo data still present in search results: total={total_results}"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Search Guy Losbar Real Data", success, details)
+        except Exception as e:
+            return self.log_test("Search Guy Losbar Real Data", False, f"- Error: {str(e)}")
+
+    def test_social_stats_real_data(self):
+        """Test social media stats show real data only"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/social/stats")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    stats = data.get('stats', {})
+                    
+                    # Check if stats indicate real data (not demo mode)
+                    demo_mode = stats.get('demo_mode', False)
+                    total_posts = stats.get('total_posts', 0)
+                    
+                    if not demo_mode and total_posts >= 0:
+                        details = f"- Real social stats: {total_posts} posts, demo_mode: {demo_mode}"
+                    else:
+                        success = False
+                        details = f"- May be in demo mode: demo_mode={demo_mode}, posts={total_posts}"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Social Stats Real Data", success, details)
+        except Exception as e:
+            return self.log_test("Social Stats Real Data", False, f"- Error: {str(e)}")
+
+    def test_social_scrape_status_check(self):
+        """Test social scrape status to verify real data processing"""
+        try:
+            # Wait a moment for scraping to potentially start
+            import time
+            time.sleep(2)
+            
+            response = self.session.get(f"{self.base_url}/api/social/scrape-status")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    result = data.get('result', {})
+                    demo_mode = result.get('demo_mode', False)
+                    total_posts = result.get('total_posts', 0)
+                    note = result.get('note', '')
+                    
+                    if not demo_mode:
+                        details = f"- Real scraping status: {total_posts} posts, demo_mode: {demo_mode}, note: '{note}'"
+                    else:
+                        success = False
+                        details = f"- Still in demo mode: demo_mode={demo_mode}, note='{note}'"
+                else:
+                    # No recent scraping is also acceptable
+                    details = f"- No recent scraping result (acceptable): {data.get('message', '')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Social Scrape Status Check", success, details)
+        except Exception as e:
+            return self.log_test("Social Scrape Status Check", False, f"- Error: {str(e)}")
+
     def run_all_tests(self):
         """Run all API tests focusing on new features"""
         print("🚀 Starting Guadeloupe Media Monitoring API Tests")
