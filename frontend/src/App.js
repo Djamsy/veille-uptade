@@ -1156,11 +1156,11 @@ function App() {
                   {/* Actions sur l'article */}
                   <div className="article-actions">
                     <a href={article.url} target="_blank" rel="noopener noreferrer" className="article-action-btn">
-                      🔗 Lire l'article
+                      Lire l'article
                     </a>
                     {article.ai_summary && (
                       <button className="article-action-btn">
-                        🤖 Résumé IA
+                        Résumé IA
                       </button>
                     )}
                   </div>
