@@ -668,37 +668,35 @@ function App() {
         </div>
       )}
 
-      {/* Navigation avec effet glass */}
-      <nav className="glass-header">
-        <div className="main-container">
-          <div className="nav-container">
-            {[
-              { id: 'dashboard', name: '📊 Dashboard', icon: '📊' },
-              { id: 'search', name: '🔍 Recherche', icon: '🔍' },
-              { id: 'articles', name: '📰 Articles', icon: '📰' },
-              { id: 'comments', name: '💬 Réseaux Sociaux', icon: '💬' },
-              { id: 'transcription', name: '📻 Radio', icon: '📻' },
-              { id: 'digest', name: '📋 Digest', icon: '📋' }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  if (tab.id === 'search') {
-                    loadSearchSuggestions();
-                  } else if (tab.id === 'comments') {
-                    loadComments();
-                    loadSocialStats();
-                  }
-                }}
-                className={`nav-tab ${activeTab === tab.id ? 'active' : ''}`}
-              >
-                {tab.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      </nav>
+      {/* Navigation style Apple moderne */}
+      <div className="content-section">
+        <nav className="tab-navigation">
+          {[
+            { id: 'dashboard', name: '📊 Dashboard', icon: '📊' },
+            { id: 'search', name: '🔍 Recherche', icon: '🔍' },
+            { id: 'articles', name: '📰 Articles', icon: '📰' },
+            { id: 'comments', name: '💬 Réseaux Sociaux', icon: '💬' },
+            { id: 'transcription', name: '📻 Radio', icon: '📻' },
+            { id: 'digest', name: '📋 Digest', icon: '📋' }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setActiveTab(tab.id);
+                if (tab.id === 'search') {
+                  loadSearchSuggestions();
+                } else if (tab.id === 'comments') {
+                  loadComments();
+                  loadSocialStats();
+                }
+              }}
+              className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}
+            >
+              {tab.name}
+            </button>
+          ))}
+        </nav>
+      </div>
 
       {/* Main Content */}
       <main className="main-container">
