@@ -8,7 +8,7 @@ import json
 import time
 
 def test_backend():
-    base_url = "https://938e5f4b-4f11-496e-9c1b-9acf492d425b.preview.emergentagent.com"
+    base_url = "https://2b90a2f6-8c6b-4335-a643-12cd029b2682.preview.emergentagent.com"
     
     print("🚀 Quick Backend Test for Guadeloupe Media Monitoring")
     print(f"📡 Testing: {base_url}")
