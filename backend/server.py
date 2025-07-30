@@ -705,7 +705,7 @@ async def warm_cache():
         raise HTTPException(status_code=500, detail=f"Erreur préchauffage cache: {str(e)}")
 
 @app.get("/api/search")
-async def search_content(q: str, source: str = "all", limit: int = 50):
+async def search_content(q: str, source: str = "all", limit: int = 50, social_only: bool = False):
     """Rechercher dans les articles et posts des réseaux sociaux"""
     try:
         if not q or len(q.strip()) < 2:
