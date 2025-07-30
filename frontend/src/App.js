@@ -607,24 +607,21 @@ function App() {
 
   return (
     <div className="app">
-      {/* Header avec effet glass */}
+      {/* Header style Apple moderne */}
       <header className="glass-header">
-        <div className="main-container">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-4">
-              <h1 className="text-3xl font-bold" style={{ color: '#2c3e50' }}>
-                🏝️ Veille Média Guadeloupe
-              </h1>
-            </div>
-
-            <div className="text-sm" style={{ color: '#34495e' }}>
-              Dernière MAJ: {new Date().toLocaleDateString('fr-FR', { 
-                day: 'numeric', 
-                month: 'short', 
-                hour: '2-digit', 
-                minute: '2-digit' 
-              })}
-            </div>
+        <div className="header-content">
+          <div>
+            <h1 className="header-title">
+              🏝️ Veille Média Guadeloupe
+            </h1>
+          </div>
+          <div className="header-subtitle">
+            Dernière MAJ: {new Date().toLocaleDateString('fr-FR', { 
+              day: 'numeric', 
+              month: 'short', 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            })}
           </div>
         </div>
       </header>
