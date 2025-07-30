@@ -1001,7 +1001,7 @@ async def scrape_social_media_now():
         def scrape_async():
             try:
                 logger.info("🚀 Début scraping réseaux sociaux...")
-                results = social_scraper.scrape_all_keywords_with_demo()
+                results = social_scraper.scrape_all_keywords()
                 
                 # Sauvegarder tous les posts
                 all_posts = results['twitter'] + results['facebook'] + results['instagram']
@@ -1020,8 +1020,7 @@ async def scrape_social_media_now():
                     'keywords': results['keywords_searched'],
                     'scraped_at': results['scraped_at'],
                     'demo_mode': results.get('demo_mode', False),
-                    'note': results.get('note', ''),
-                    'demo_stats': results.get('demo_stats', {})
+                    'note': results.get('note', '')
                 }
                 
                 if CACHE_ENABLED:
