@@ -265,8 +265,8 @@ backend:
     implemented: true
     working: false
     file: "server.py"
-    stuck_count: 1
-    priority: "medium"
+    stuck_count: 2
+    priority: "high"
     needs_retesting: true
     status_history:
       - working: "NA"
@@ -275,6 +275,9 @@ backend:
       - working: false
         agent: "testing"
         comment: "❌ CRITICAL ISSUE: ffmpeg was missing from system. Installed ffmpeg successfully. Whisper model loads correctly but transcription endpoints return 500 errors. Backend startup appears to hang during cache warming phase, causing 502 errors. Radio capture endpoints exist but cannot be tested due to backend connectivity issues."
+      - working: false
+        agent: "main"
+        comment: "DIAGNOSED: Root cause is MongoDB ObjectId serialization error in /api/transcribe endpoint. insert_one() adds _id field with ObjectId, but FastAPI cannot serialize ObjectId to JSON, causing 500 errors. Also cache warming hanging on articles_today calculation. Whisper works correctly."
 
 frontend:
   - task: "Article display interface"
