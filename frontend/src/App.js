@@ -22,6 +22,8 @@ function App() {
   const [searchSuggestions, setSearchSuggestions] = useState([]);
   const [comments, setComments] = useState([]);
   const [commentsAnalysis, setCommentsAnalysis] = useState(null);
+  const [socialStats, setSocialStats] = useState({});
+  
   // États pour la recherche automatique
   const [autoSearchCompleted, setAutoSearchCompleted] = useState(false);
   const [autoSearchResults, setAutoSearchResults] = useState({});
