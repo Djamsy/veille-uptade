@@ -1697,28 +1697,7 @@ def _compute_sentiment_articles_today():
             }
         }
 
-@app.post("/api/sentiment/analyze")
-async def analyze_text_sentiment_endpoint(text: str = Form(...)):
-    """Analyser le sentiment d'un texte donné"""
-    try:
-        if not SENTIMENT_ENABLED:
-            return {"success": False, "error": "Service d'analyse de sentiment non disponible"}
-        
-        if not text:
-            return {"success": False, "error": "Texte requis"}
-        
-        # Analyser le sentiment du texte
-        sentiment_result = local_sentiment_analyzer.analyze_sentiment(text)
-        
-        return {
-            "success": True,
-            "text": text[:200] + "..." if len(text) > 200 else text,
-            "sentiment": sentiment_result
-        }
-        
-    except Exception as e:
-        logger.error(f"Erreur analyse sentiment texte: {e}")
-        return {"success": False, "error": str(e)}
+# Ancien endpoint supprimé - utiliser le nouveau endpoint GPT ci-dessous
 
 @app.get("/api/sentiment/trends")
 async def get_sentiment_trends():
