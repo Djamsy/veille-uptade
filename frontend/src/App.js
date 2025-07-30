@@ -330,8 +330,6 @@ function App() {
     }
   };
 
-  const loadTranscriptions = async () => {
-
   const createDigestNow = async () => {
     setLoading(true);
     try {
