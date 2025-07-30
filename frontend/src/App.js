@@ -161,7 +161,12 @@ function App() {
     } else if (activeTab === 'comments') {
       loadSocialStats();
     }
-  }, [activeTab, selectedDate]);
+    
+    // Lancer la recherche automatique au premier chargement
+    if (!autoSearchCompleted) {
+      performAutoSearch();
+    }
+  }, [activeTab, selectedDate, autoSearchCompleted]);
 
   // Actions optimisées avec traitement en arrière-plan
   const scrapeArticlesNow = async () => {
