@@ -222,7 +222,8 @@ class RadioTranscriptionService:
     def capture_and_transcribe_stream(self, stream_key: str) -> Dict[str, Any]:
         """Capturer et transcrire un flux radio"""
         config = self.radio_streams[stream_key]
-        duration_seconds = config['duration_minutes'] * 60
+        # Durée de test réduite pour debug
+        duration_seconds = 30  # config['duration_minutes'] * 60
         
         result = {
             'success': False,
@@ -236,7 +237,7 @@ class RadioTranscriptionService:
         
         try:
             # Marquer comme en cours
-            self.set_transcription_status(stream_key, True, config['duration_minutes'] + 5)
+            self.set_transcription_status(stream_key, True, 2)  # 2 minutes estimées pour test
             
             # 1. Capturer le flux
             audio_path = self.capture_radio_stream(stream_key, duration_seconds)
