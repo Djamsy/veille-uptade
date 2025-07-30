@@ -449,12 +449,7 @@ class RadioTranscriptionService:
                 self.update_transcription_step(stream_key, "error", f"Erreur transcription: {e}", 0)
             return None
 
-    def _transcribe_local_fallback(self, audio_path: str, stream_key: str = "unknown") -> Optional[Dict[str, Any]]:
-        """Fallback vers Whisper local si OpenAI API échoue - DISABLED"""
-        logger.error("❌ Whisper local non disponible - import supprimé")
-        if stream_key != "unknown":
-            self.update_transcription_step(stream_key, "error", "Whisper local non disponible", 0)
-        return None
+
 
     def set_transcription_status(self, stream_key: str, in_progress: bool, estimated_minutes: int = None):
         """Mettre à jour le statut de transcription (méthode legacy pour compatibilité)"""
