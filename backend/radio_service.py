@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import asyncio
 import logging
 from pymongo import MongoClient
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import threading
 import time
 
