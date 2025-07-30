@@ -156,84 +156,89 @@ class SocialMediaScraper:
             return []
 
     async def scrape_facebook_keyword(self, keyword: str, max_posts: int = 15) -> List[Dict[str, Any]]:
-        """Scraper Facebook pour posts publics avec Playwright"""
+        """Scraper Facebook pour posts publics avec Playwright (désactivé en production)"""
         try:
-            from playwright.async_api import async_playwright
+            # Playwright désactivé en production pour réduire les dépendances
+            logger.warning("⚠️ Facebook scraping désactivé en production - utilisez les flux RSS officiels")
+            return []
             
-            posts = []
-            
-            async with async_playwright() as p:
-                # Lancer navigateur en mode headless
-                browser = await p.chromium.launch(headless=True)
-                context = await browser.new_context(
-                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                )
-                page = await context.new_page()
-                
-                # Aller sur Facebook (sans connexion)
-                search_url = f"https://www.facebook.com/public?query={keyword}"
-                
-                try:
-                    await page.goto(search_url, wait_until='networkidle')
-                    await page.wait_for_timeout(3000)  # Attendre le chargement
-                    
-                    # Récupérer les posts publics visibles
-                    posts_elements = await page.query_selector_all('[data-pagelet^="FeedUnit"]')
-                    
-                    for i, element in enumerate(posts_elements[:max_posts]):
-                        try:
-                            # Extraire le texte du post
-                            text_elem = await element.query_selector('[data-ad-preview="message"]')
-                            if not text_elem:
-                                text_elem = await element.query_selector('[data-testid="post_message"]')
-                            
-                            content = await text_elem.inner_text() if text_elem else ""
-                            
-                            if not content or len(content.strip()) < 10:
-                                continue
-                            
-                            # Extraire l'auteur si possible
-                            author_elem = await element.query_selector('strong a')
-                            author = await author_elem.inner_text() if author_elem else "Utilisateur Facebook"
-                            
-                            # Extraire la date approximative
-                            time_elem = await element.query_selector('abbr')
-                            time_str = await time_elem.get_attribute('title') if time_elem else ""
-                            
-                            post_data = {
-                                'id': f'facebook_{hash(content + author)}',
-                                'platform': 'facebook',
-                                'keyword_searched': keyword,
-                                'content': content.strip(),
-                                'author': author,
-                                'author_followers': 0,  # Non accessible sans API
-                                'created_at': time_str or datetime.now().isoformat(),
-                                'engagement': {
-                                    'likes': 0,  # Non accessible facilement
-                                    'comments': 0,
-                                    'shares': 0,
-                                    'total': 0
-                                },
-                                'url': search_url,  # URL de recherche
-                                'scraped_at': datetime.now().isoformat(),
-                                'date': datetime.now().strftime('%Y-%m-%d'),
-                                'is_reply': False,
-                                'language': 'fr'
-                            }
-                            
-                            posts.append(post_data)
-                            
-                        except Exception as e:
-                            logger.warning(f"Erreur extraction post Facebook: {e}")
-                            continue
-                    
-                except Exception as e:
-                    logger.warning(f"Erreur navigation Facebook: {e}")
-                
-                await browser.close()
-            
-            logger.info(f"✅ Facebook {keyword}: {len(posts)} posts récupérés")
-            return posts
+            # Code commenté pour éviter les erreurs de dépendances
+            # from playwright.async_api import async_playwright
+            # 
+            # posts = []
+            # 
+            # async with async_playwright() as p:
+            #     # Lancer navigateur en mode headless
+            #     browser = await p.chromium.launch(headless=True)
+            #     context = await browser.new_context(
+            #         user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            #     )
+            #     page = await context.new_page()
+            #     
+            #     # Aller sur Facebook (sans connexion)
+            #     search_url = f"https://www.facebook.com/public?query={keyword}"
+            #     
+            #     try:
+            #         await page.goto(search_url, wait_until='networkidle')
+            #         await page.wait_for_timeout(3000)  # Attendre le chargement
+            #         
+            #         # Récupérer les posts publics visibles
+            #         posts_elements = await page.query_selector_all('[data-pagelet^="FeedUnit"]')
+            #         
+            #         for i, element in enumerate(posts_elements[:max_posts]):
+            #             try:
+            #                 # Extraire le texte du post
+            #                 text_elem = await element.query_selector('[data-ad-preview="message"]')
+            #                 if not text_elem:
+            #                     text_elem = await element.query_selector('[data-testid="post_message"]')
+            #                 
+            #                 content = await text_elem.inner_text() if text_elem else ""
+            #                 
+            #                 if not content or len(content.strip()) < 10:
+            #                     continue
+            #                 
+            #                 # Extraire l'auteur si possible
+            #                 author_elem = await element.query_selector('strong a')
+            #                 author = await author_elem.inner_text() if author_elem else "Utilisateur Facebook"
+            #                 
+            #                 # Extraire la date approximative
+            #                 time_elem = await element.query_selector('abbr')
+            #                 time_str = await time_elem.get_attribute('title') if time_elem else ""
+            #                 
+            #                 post_data = {
+            #                     'id': f'facebook_{hash(content + author)}',
+            #                     'platform': 'facebook',
+            #                     'keyword_searched': keyword,
+            #                     'content': content.strip(),
+            #                     'author': author,
+            #                     'author_followers': 0,  # Non accessible sans API
+            #                     'created_at': time_str or datetime.now().isoformat(),
+            #                     'engagement': {
+            #                         'likes': 0,  # Non accessible facilement
+            #                         'comments': 0,
+            #                         'shares': 0,
+            #                         'total': 0
+            #                     },
+            #                     'url': search_url,  # URL de recherche
+            #                     'scraped_at': datetime.now().isoformat(),
+            #                     'date': datetime.now().strftime('%Y-%m-%d'),
+            #                     'is_reply': False,
+            #                     'language': 'fr'
+            #                 }
+            #                 
+            #                 posts.append(post_data)
+            #                 
+            #             except Exception as e:
+            #                 logger.warning(f"Erreur extraction post Facebook: {e}")
+            #                 continue
+            #         
+            #     except Exception as e:
+            #         logger.warning(f"Erreur navigation Facebook: {e}")
+            #     
+            #     await browser.close()
+            # 
+            # logger.info(f"✅ Facebook {keyword}: {len(posts)} posts récupérés")
+            # return posts
             
         except ImportError:
             logger.error("❌ Playwright non installé. Lancez install_dependencies()")
