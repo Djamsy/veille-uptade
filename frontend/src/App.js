@@ -799,6 +799,7 @@ function App() {
             { id: 'dashboard', name: '📊 Dashboard', icon: '📊' },
             { id: 'search', name: '🔍 Recherche', icon: '🔍' },
             { id: 'articles', name: '📰 Articles', icon: '📰' },
+            { id: 'sentiment', name: '🧠 Analyse Sentiment', icon: '🧠' },
             { id: 'comments', name: '💬 Réseaux Sociaux', icon: '💬' },
             { id: 'transcription', name: '📻 Radio', icon: '📻' },
             { id: 'digest', name: '📋 Digest', icon: '📋' }
