@@ -720,8 +720,8 @@ async def search_content(q: str, source: str = "all", limit: int = 50, social_on
             'searched_in': []
         }
         
-        # Rechercher dans les articles si demandé
-        if source in ['all', 'articles']:
+        # Rechercher dans les articles si demandé et pas social_only
+        if source in ['all', 'articles'] and not social_only:
             try:
                 # Recherche MongoDB avec regex insensible à la casse
                 article_query = {
