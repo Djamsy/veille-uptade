@@ -233,6 +233,23 @@ function App() {
     dashboardMetrics: null
   });
   const [showAnalytics, setShowAnalytics] = useState(false);
+  
+  // États pour le mobile
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Fermer le menu mobile quand on change d'onglet
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    setMobileMenuOpen(false);
+    
+    // Logique spécifique selon l'onglet
+    if (tabId === 'search') {
+      loadSearchSuggestions();
+    } else if (tabId === 'comments') {
+      loadComments();
+      loadSocialStats();
+    }
+  };
 
   // Fonction utilitaire pour les appels API avec timeout et gestion d'erreur
   const apiCall = async (url, options = {}) => {
