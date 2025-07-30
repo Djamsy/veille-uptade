@@ -5,7 +5,6 @@ Capture automatique 7H00-7H20 et 7H00-7H30 avec analyse GPT-4.1-mini
 import os
 import subprocess
 import tempfile
-import whisper
 from datetime import datetime, timedelta
 import asyncio
 import logging
