@@ -1764,16 +1764,24 @@ async def test_gpt_analysis(text: str = None):
         }
 
 @app.post("/api/test-capture-1min")
-async def test_radio_capture_1min():
-    """Tester la capture radio avec échantillon de 1 minute et analyse GPT"""
+async def test_radio_capture_1min(admin_key: str = None):
+    """Tester la capture radio avec échantillon de 30s et analyse GPT - ADMIN UNIQUEMENT"""
     try:
-        # Capture de test 1 minute pour RCI
+        # Vérification admin obligatoire pour les tests
+        if admin_key != "radio_capture_admin_2025":
+            return {
+                "success": False,
+                "error": "Test de capture réservé à l'administration - coûts OpenAI contrôlés",
+                "note": "Utilisation API OpenAI Whisper + GPT"
+            }
+        
+        # Capture de test 30 secondes pour RCI
         config = radio_service.radio_streams["rci_7h"]
         
-        logger.info("🧪 Test capture 1 minute avec analyse GPT")
+        logger.info("🧪 Test admin - capture 30s avec OpenAI Whisper + GPT")
         
         # Marquer le début du test
-        radio_service.update_transcription_step("rci_7h", "audio_capture", "Test 1 minute", 10)
+        radio_service.update_transcription_step("rci_7h", "audio_capture", "Test admin 30s", 10)
         
         # Capturer 30 secondes (test rapide)
         audio_path = radio_service.capture_radio_stream("rci_7h", 30)
@@ -1781,47 +1789,53 @@ async def test_radio_capture_1min():
         if not audio_path:
             return {
                 "success": False,
-                "error": "Échec capture audio 1 minute",
+                "error": "Échec capture audio 30 secondes",
                 "timestamp": datetime.now().isoformat()
             }
         
         try:
-            # Transcrire
+            # Transcrire avec OpenAI Whisper API
             transcription = radio_service.transcribe_audio_file(audio_path, "rci_7h")
             
             if not transcription:
                 return {
                     "success": False,
-                    "error": "Échec transcription 1 minute",
+                    "error": "Échec transcription OpenAI Whisper",
                     "timestamp": datetime.now().isoformat()
                 }
             
             # Analyser avec GPT
             from gpt_analysis_service import analyze_transcription_with_gpt
             start_gpt = datetime.now()
-            gpt_analysis = analyze_transcription_with_gpt(transcription['text'], "Test 1min RCI")
+            gpt_analysis = analyze_transcription_with_gpt(transcription['text'], "Test 30s RCI")
             end_gpt = datetime.now()
             
             gpt_processing_time = (end_gpt - start_gpt).total_seconds()
             
             # Marquer le test comme terminé
-            radio_service.update_transcription_step("rci_7h", "completed", "Test terminé", 100)
+            radio_service.update_transcription_step("rci_7h", "completed", "Test admin terminé", 100)
             
             return {
                 "success": True,
-                "test_type": "1_minute_sample",
-                "audio_duration": 60,
+                "test_type": "admin_30s_sample",
+                "audio_duration": 30,
                 "transcription": {
                     "text": transcription['text'],
                     "language": transcription.get('language', 'fr'),
                     "character_count": len(transcription['text']),
-                    "word_count": len(transcription['text'].split())
+                    "word_count": len(transcription['text'].split()),
+                    "method": transcription.get('method', 'openai_whisper_api')
                 },
                 "gpt_analysis": gpt_analysis,
                 "performance": {
                     "gpt_processing_time": gpt_processing_time,
                     "transcription_length": len(transcription['text']),
                     "audio_file_size": os.path.getsize(audio_path) if os.path.exists(audio_path) else 0
+                },
+                "costs": {
+                    "whisper_api": "~$0.006 pour 1 minute",
+                    "gpt_analysis": f"~$0.001-0.003",
+                    "note": "Coûts estimés OpenAI API"
                 },
                 "timestamp": datetime.now().isoformat()
             }
@@ -1832,10 +1846,10 @@ async def test_radio_capture_1min():
                 os.unlink(audio_path)
                 
     except Exception as e:
-        radio_service.update_transcription_step("rci_7h", "error", f"Erreur test: {str(e)}", 0)
+        radio_service.update_transcription_step("rci_7h", "error", f"Erreur test admin: {str(e)}", 0)
         return {
             "success": False,
-            "error": f"Erreur test capture 1min: {str(e)}",
+            "error": f"Erreur test capture admin: {str(e)}",
             "timestamp": datetime.now().isoformat()
         }
 
