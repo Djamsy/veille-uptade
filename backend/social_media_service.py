@@ -29,11 +29,18 @@ class SocialMediaScraper:
         except Exception as e:
             logger.error(f"❌ Erreur MongoDB: {e}")
         
-        # Configuration par défaut
+        # Configuration par défaut - Focus Conseil Départemental et Guy Losbar
         self.keywords_guadeloupe = [
-            "Guadeloupe", "Pointe-à-Pitre", "Basse-Terre", "Marie-Galante",
-            "Antilles", "Gwada", "971", "Archipel guadeloupéen",
-            "Saint-François", "Le Gosier", "Sainte-Anne", "Deshaies"
+            "Conseil Départemental Guadeloupe", "CD971", "Département Guadeloupe",
+            "Guy Losbar", "Losbar", "Président conseil départemental",
+            "Collectivité Guadeloupe", "Basse-Terre politique", "CD Guadeloupe"
+        ]
+        
+        # Mots-clés secondaires pour contexte
+        self.keywords_context = [
+            "Guadeloupe politique", "Assemblée départementale", "Budget départemental",
+            "Routes Guadeloupe", "Collèges Guadeloupe", "Social Guadeloupe",
+            "Aide sociale 971", "Transport scolaire Guadeloupe"
         ]
         
         self.max_posts_per_keyword = 20
