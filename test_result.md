@@ -256,7 +256,7 @@ backend:
     file: "scraper_service.py"
     stuck_count: 1
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "main"
@@ -264,6 +264,9 @@ backend:
       - working: true
         agent: "main"
         comment: "Fixed - implemented specialized scraper targeting /news/ URLs with h1/h2/h3 selectors, retrieving 15 articles successfully"
+      - working: true
+        agent: "testing"
+        comment: "✅ RETESTED: KaribInfo scraper fully operational. Found 30 articles with proper structure. Working correctly after retesting."
 
   - task: "Intelligent caching system"
     implemented: true
