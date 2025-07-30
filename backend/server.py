@@ -2252,6 +2252,123 @@ async def get_telegram_alerts_history(limit: int = 50):
         logger.error(f"Erreur historique alertes: {e}")
         return {"success": False, "error": str(e)}
 
+# ==================== SENTIMENT ANALYSIS GPT ENDPOINTS ====================
+
+@app.post("/api/sentiment/analyze")
+async def analyze_text_sentiment_endpoint(request: Request):
+    """Analyser le sentiment d'un texte avec GPT"""
+    try:
+        if not SENTIMENT_ENABLED:
+            return {"success": False, "error": "Service d'analyse de sentiment non disponible"}
+        
+        body = await request.json()
+        text = body.get('text', '').strip()
+        
+        if not text:
+            return {"success": False, "error": "Texte requis pour l'analyse"}
+        
+        # Analyser avec GPT
+        sentiment_result = gpt_sentiment_analyzer.analyze_sentiment(text)
+        
+        return {
+            "success": True,
+            "sentiment": sentiment_result,
+            "text_length": len(text),
+            "analyzed_at": sentiment_result.get('analyzed_at'),
+            "method": sentiment_result['analysis_details'].get('method', 'gpt-4o-mini')
+        }
+    
+    except Exception as e:
+        logger.error(f"Erreur analyse sentiment: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/sentiment/articles")
+async def get_articles_with_sentiment():
+    """Récupérer les articles avec analyse de sentiment GPT"""
+    try:
+        if not SENTIMENT_ENABLED:
+            return {"success": False, "error": "Service d'analyse de sentiment non disponible"}
+        
+        # Récupérer les articles du jour
+        articles = guadeloupe_scraper.get_todays_articles()
+        
+        if not articles:
+            return {
+                "success": True,
+                "articles": [],
+                "count": 0,
+                "message": "Aucun article trouvé pour aujourd'hui"
+            }
+        
+        # Analyser le sentiment (limité aux 20 premiers pour éviter les coûts)
+        articles_to_analyze = articles[:20]
+        logger.info(f"🤖 Analyse GPT sentiment de {len(articles_to_analyze)} articles")
+        
+        analyzed_result = gpt_sentiment_analyzer.analyze_articles_batch(articles_to_analyze)
+        
+        return {
+            "success": True,
+            "articles": analyzed_result['articles'],
+            "count": len(analyzed_result['articles']),
+            "summary": analyzed_result['summary'],
+            "note": f"Analysé {len(articles_to_analyze)}/{len(articles)} articles avec GPT"
+        }
+    
+    except Exception as e:
+        logger.error(f"Erreur analyse articles sentiment: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/sentiment/test")
+async def test_gpt_sentiment():
+    """Tester le service d'analyse de sentiment GPT"""
+    try:
+        if not SENTIMENT_ENABLED:
+            return {"success": False, "error": "Service d'analyse de sentiment non disponible"}
+        
+        # Textes de test pour la Guadeloupe
+        test_texts = [
+            "Excellente nouvelle pour la Guadeloupe ! Guy Losbar annonce de nouveaux investissements dans l'éducation.",
+            "Grave accident sur la route de Basse-Terre, plusieurs blessés transportés au CHU.",
+            "Le Conseil Départemental vote le budget 2025 pour soutenir les familles en difficulté.",
+            "Festival de musique créole à Pointe-à-Pitre : une ambiance formidable !",
+            "Alerte cyclone en Guadeloupe, les autorités appellent à la prudence."
+        ]
+        
+        results = []
+        for i, text in enumerate(test_texts):
+            try:
+                sentiment = gpt_sentiment_analyzer.analyze_sentiment(text)
+                results.append({
+                    'test_id': i + 1,
+                    'text': text,
+                    'sentiment': sentiment['polarity'],
+                    'score': sentiment['score'],
+                    'intensity': sentiment['intensity'],
+                    'emotions': sentiment['analysis_details']['emotions'],
+                    'themes': sentiment['analysis_details']['themes'],
+                    'guadeloupe_context': sentiment['analysis_details']['guadeloupe_context'],
+                    'confidence': sentiment['analysis_details']['confidence']
+                })
+            except Exception as e:
+                results.append({
+                    'test_id': i + 1,
+                    'text': text,
+                    'error': str(e)
+                })
+        
+        return {
+            "success": True,
+            "test_results": results,
+            "tests_count": len(test_texts),
+            "successful_tests": len([r for r in results if 'error' not in r]),
+            'service_method': 'gpt-4o-mini',
+            "tested_at": datetime.now().isoformat()
+        }
+    
+    except Exception as e:
+        logger.error(f"Erreur test sentiment GPT: {e}")
+        return {"success": False, "error": str(e)}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)
