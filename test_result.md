@@ -204,7 +204,53 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: Radio service GPT integration working correctly. OpenAI Whisper API method confirmed in transcription responses. Security controls operational: captures rejected without admin key (hour=14, authorized=[7]) with explicit OpenAI cost control message. Cost transparency implemented with estimates (~$0.006/min Whisper, ~$0.001-0.003 GPT)."
 
-  - task: "GPT Sentiment Analysis - Format enrichi + Système Asynchrone"
+  - task: "Endpoints de filtrage avancé des articles"
+    implemented: true
+    working: false
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "🚀 NOUVEAUX ENDPOINTS CRÉÉS: /api/articles/filtered (filtrage par date, source, texte, tri, pagination), /api/articles/sources (sources disponibles), /api/analytics/articles-by-source, /api/analytics/articles-timeline, /api/analytics/sentiment-by-source, /api/analytics/dashboard-metrics. Système de filtrage MongoDB avec requêtes optimisées et agrégations pour analytics. À tester."
+
+  - task: "Frontend - Filtres et tri articles"
+    implemented: true
+    working: false
+    file: "App.js, App.css"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "🎨 INTERFACE FILTRES CRÉÉE: Nouveau composant filtres avec sélecteurs date, source, recherche, tri. États React pour filtres, pagination, articles filtrés. Intégration avec nouveaux endpoints backend. Interface responsive avec boutons d'action et métadonnées de résultats. À tester."
+
+  - task: "Frontend - Graphiques Analytics Chart.js"
+    implemented: true
+    working: false
+    file: "App.js, App.css"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "📊 GRAPHIQUES IMPLÉMENTÉS: Chart.js installé, composants SourceChart (camembert), TimelineChart (courbes), SentimentChart (barres empilées). Nouvel onglet Analytics avec dashboard métrique enrichi. Styles CSS pour conteneurs graphiques. À tester."
+
+  - task: "Mobile UX - Menu hamburger et navigation tactile"
+    implemented: true
+    working: false
+    file: "App.js, App.css"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "📱 MOBILE UX OPTIMISÉ: Menu hamburger animé, navigation slide latérale, overlay mobile, breakpoints responsive, optimisations tactiles (min-height 44px), animations slide, styles touch-friendly. Header modifié avec bouton menu. À tester."
     implemented: true
     working: true
     file: "gpt_sentiment_service.py, server.py, async_sentiment_service.py"
