@@ -349,15 +349,13 @@ async def get_scrape_status():
 async def get_transcriptions():
     """Récupérer les transcriptions du jour avec cache"""
     try:
-        def fetch_transcriptions():
-            return radio_service.get_todays_transcriptions()
-        
-        # Cache de 5 minutes pour les transcriptions
-        transcriptions = get_or_compute('transcriptions_today', fetch_transcriptions)
-        return {"success": True, "transcriptions": transcriptions, "count": len(transcriptions)}
+        # TEMPORAIRE: désactiver le cache pour éviter les timeouts
+        transcriptions_data = radio_service.get_todays_transcriptions()
+        return {"success": True, "transcriptions": transcriptions_data, "count": len(transcriptions_data)}
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur récupération transcriptions: {str(e)}")
+        print(f"Erreur transcriptions: {e}")
+        return {"success": False, "error": str(e), "transcriptions": [], "count": 0}
 
 @app.get("/api/transcriptions/capture-status")
 async def get_capture_status():
