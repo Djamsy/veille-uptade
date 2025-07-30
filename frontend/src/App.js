@@ -1148,7 +1148,7 @@ function App() {
                             ? 'negative' 
                             : 'neutral'
                       }`}>
-                        {article.sentiment_score > 0.1 ? '😊 Positif' : article.sentiment_score < -0.1 ? '😞 Négatif' : '😐 Neutre'}
+                        {article.sentiment_score > 0.1 ? 'Positif' : article.sentiment_score < -0.1 ? 'Négatif' : 'Neutre'}
                       </span>
                     )}
                   </footer>
