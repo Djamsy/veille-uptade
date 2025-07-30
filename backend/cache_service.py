@@ -149,43 +149,71 @@ class IntelligentCache:
         """Récupérer du cache ou calculer si nécessaire"""
         cache_key = self._get_cache_key(key, params)
         
-        # Vérifier le lock pour éviter les calculs simultanés
-        if cache_key in self.cache_locks:
-            logger.info(f"⏳ Attente du calcul en cours: {cache_key}")
-            self.cache_locks[cache_key].wait()
-        
         # Essayer le cache d'abord (sauf si force_refresh)
         if not force_refresh:
             cached_data = self.get_cached_data(key, params)
             if cached_data is not None:
                 return cached_data
         
-        # Créer un lock pour ce calcul
-        self.cache_locks[cache_key] = threading.Event()
+        logger.info(f"❌ Cache MISS: {cache_key}")
+        
+        # Éviter les calculs multiples avec un système de lock robuste
+        if cache_key not in self.cache_locks:
+            self.cache_locks[cache_key] = threading.Event()
+        
+        lock_event = self.cache_locks[cache_key]
+        
+        # Si un autre thread calcule déjà, attendre
+        if not lock_event.is_set() and cache_key in self.cache_locks:
+            logger.info(f"⏳ Attente du calcul en cours: {cache_key}")
+            # Attendre avec timeout pour éviter les deadlocks
+            if lock_event.wait(timeout=60):  # Maximum 60 secondes d'attente
+                # Vérifier si le calcul a réussi
+                cached_data = self.get_cached_data(key, params)
+                if cached_data is not None:
+                    logger.info(f"✅ Calcul terminé par autre thread: {cache_key}")
+                    return cached_data
+            
+            # Si timeout ou échec, nettoyer et refaire le calcul
+            logger.warning(f"⚠️ Timeout ou échec du calcul par autre thread: {cache_key}")
+            self._cleanup_cache_locks(cache_key)
+        
+        logger.info(f"🔄 Calcul en cours: {cache_key}")
         
         try:
-            logger.info(f"🔄 Calcul en cours: {cache_key}")
             start_time = time.time()
-            
-            # Exécuter la fonction de calcul
             result = compute_func()
             
             # Sauvegarder en cache
             self.set_cached_data(key, result, params)
             
-            calculation_time = time.time() - start_time
-            logger.info(f"✅ Calcul terminé: {cache_key} ({calculation_time:.2f}s)")
+            # Signaler la fin du calcul
+            lock_event.set()
+            
+            duration = time.time() - start_time
+            logger.info(f"✅ Calcul terminé: {cache_key} ({duration:.2f}s)")
             
             return result
             
         except Exception as e:
-            logger.error(f"❌ Erreur calcul: {cache_key} - {e}")
-            raise e
+            logger.error(f"❌ Erreur calcul cache {cache_key}: {e}")
+            # En cas d'erreur, signaler quand même pour débloquer les autres threads
+            lock_event.set()
+            raise
         finally:
-            # Libérer le lock
+            # Nettoyer l'état de calcul
+            self._cleanup_cache_locks(cache_key)
+    
+    def _cleanup_cache_locks(self, cache_key: str):
+        """Nettoyer les locks et états de calcul pour éviter les deadlocks"""
+        try:
             if cache_key in self.cache_locks:
+                # S'assurer que l'event est set avant de le supprimer
                 self.cache_locks[cache_key].set()
                 del self.cache_locks[cache_key]
+                
+        except Exception as e:
+            logger.warning(f"Erreur nettoyage locks pour {cache_key}: {e}")
 
     def warm_cache(self):
         """Préchauffer le cache avec les données essentielles"""
