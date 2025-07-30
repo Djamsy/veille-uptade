@@ -419,18 +419,6 @@ async def capture_radio_now():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur lancement capture: {str(e)}")
 
-@app.get("/api/transcriptions/capture-status")
-async def get_capture_status():
-    """Récupérer le statut de la dernière capture"""
-    try:
-        last_result = intelligent_cache.get_cached_data('last_capture_result')
-        if last_result:
-            return {"success": True, "result": last_result}
-        else:
-            return {"success": False, "message": "Aucune capture récente"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur statut capture: {str(e)}")
-
 @app.post("/api/transcribe")
 async def transcribe_audio(file: UploadFile = File(...)):
     """Transcrire un fichier audio uploadé avec Whisper"""
