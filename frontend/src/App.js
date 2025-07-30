@@ -120,6 +120,22 @@ function App() {
             setSchedulerStatus(schedulerData);
           }
           break;
+          
+        case 'search':
+          // Charger les suggestions de recherche si pas de query spécifique
+          if (!searchQuery || searchQuery.trim().length < 2) {
+            await loadSearchSuggestions();
+          } else {
+            // Effectuer une recherche si une query existe
+            await handleSearch(searchQuery);
+          }
+          break;
+          
+        case 'comments':
+          // Charger les commentaires et les stats sociales
+          await loadComments();
+          await loadSocialStats();
+          break;
       }
     } catch (error) {
       console.error(`Erreur chargement ${tab}:`, error);
