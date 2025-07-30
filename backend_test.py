@@ -199,14 +199,15 @@ class GuadeloupeMediaAPITester:
                 response_data = response.json()
                 if response_data.get('success'):
                     sentiment = response_data.get('sentiment', {})
-                    sentiment_label = sentiment.get('sentiment_label', '')
-                    sentiment_score = sentiment.get('sentiment_score', 0)
+                    polarity = sentiment.get('polarity', '')
+                    score = sentiment.get('score', 0)
+                    intensity = sentiment.get('intensity', '')
                     
-                    if sentiment_label and sentiment_score is not None:
-                        details = f"- Text sentiment: {sentiment_label} (Score: {sentiment_score:.2f})"
+                    if polarity and score is not None:
+                        details = f"- Text sentiment: {polarity} (Score: {score:.3f}, Intensity: {intensity})"
                     else:
                         success = False
-                        details = f"- Sentiment analysis incomplete: label={sentiment_label}, score={sentiment_score}"
+                        details = f"- Sentiment analysis incomplete: polarity={polarity}, score={score}"
                 else:
                     success = False
                     details = f"- API returned success=False: {response_data.get('error', 'Unknown error')}"
