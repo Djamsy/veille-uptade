@@ -63,9 +63,15 @@ except ImportError as e:
     except ImportError:
         print("❌ Aucun service d'analyse de sentiment disponible")
 
-# Fallback pour compatibilité avec les endpoints Telegram existants
-TELEGRAM_ALERTS_ENABLED = False
-telegram_alerts = None
+# Import du service d'alertes Telegram
+try:
+    from telegram_alerts_service import telegram_alerts
+    TELEGRAM_ALERTS_ENABLED = True
+    print("✅ Service d'alertes Telegram activé")
+except ImportError as e:
+    print(f"⚠️ Service d'alertes Telegram non disponible: {e}")
+    TELEGRAM_ALERTS_ENABLED = False
+    telegram_alerts = None
 
 # Fallback pour compatibilité avec le code existant utilisant l'analyse de sentiment
 SENTIMENT_ENABLED = False
