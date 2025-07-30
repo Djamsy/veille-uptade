@@ -165,22 +165,64 @@ class RadioTranscriptionService:
             return None
 
     def transcribe_audio_file(self, audio_path: str, stream_key: str = "unknown") -> Optional[Dict[str, Any]]:
-        """Transcrire un fichier audio avec Whisper"""
-        if not self.whisper_model:
-            if stream_key != "unknown":
-                self.update_transcription_step(stream_key, "error", "Modèle Whisper indisponible", 0)
-            logger.error("❌ Modèle Whisper non disponible")
-            return None
-        
+        """Transcrire un fichier audio avec OpenAI Whisper API"""
         try:
             if stream_key != "unknown":
-                self.update_transcription_step(stream_key, "transcription", "Transcription Whisper en cours...", 60)
-            logger.info(f"🎤 Début transcription de {os.path.basename(audio_path)}...")
+                self.update_transcription_step(stream_key, "transcription", "Transcription OpenAI Whisper en cours...", 60)
+            logger.info(f"🎤 Début transcription OpenAI API de {os.path.basename(audio_path)}...")
             
-            # Transcription avec Whisper
+            # Utiliser OpenAI Whisper API au lieu du modèle local
+            from gpt_analysis_service import gpt_analyzer
+            
+            if not gpt_analyzer.client:
+                logger.error("❌ Client OpenAI non disponible pour transcription")
+                if stream_key != "unknown":
+                    self.update_transcription_step(stream_key, "error", "Client OpenAI indisponible", 0)
+                return None
+                
+            # Transcription avec OpenAI Whisper API
+            with open(audio_path, 'rb') as audio_file:
+                transcript = gpt_analyzer.client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file,
+                    language="fr"  # Français
+                )
+            
+            transcription_data = {
+                'text': transcript.text.strip(),
+                'language': 'fr',
+                'segments': [],  # OpenAI API ne retourne pas les segments par défaut
+                'duration': 0,   # Durée non disponible via API
+                'method': 'openai_whisper_api'
+            }
+            
+            text_length = len(transcription_data['text'])
+            if stream_key != "unknown":
+                self.update_transcription_step(stream_key, "gpt_analysis", f"Transcription terminée ({text_length} chars)", 70)
+            logger.info(f"✅ Transcription OpenAI terminée: {text_length} caractères")
+            return transcription_data
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur transcription OpenAI: {e}")
+            # Fallback vers Whisper local si disponible
+            if hasattr(self, 'whisper_model') and self.whisper_model:
+                logger.info("🔄 Fallback vers Whisper local...")
+                return self._transcribe_local_fallback(audio_path, stream_key)
+            else:
+                if stream_key != "unknown":
+                    self.update_transcription_step(stream_key, "error", f"Erreur transcription: {e}", 0)
+                return None
+
+    def _transcribe_local_fallback(self, audio_path: str, stream_key: str = "unknown") -> Optional[Dict[str, Any]]:
+        """Fallback vers Whisper local si OpenAI API échoue"""
+        try:
+            logger.info("📱 Utilisation Whisper local en fallback...")
+            if stream_key != "unknown":
+                self.update_transcription_step(stream_key, "transcription", "Fallback Whisper local...", 65)
+                
             result = self.whisper_model.transcribe(
                 audio_path,
-                language='fr',  # Français
+                language='fr',
                 verbose=False
             )
             
@@ -195,19 +237,17 @@ class RadioTranscriptionService:
                     }
                     for segment in result.get('segments', [])
                 ],
-                'duration': result.get('duration', 0)
+                'duration': result.get('duration', 0),
+                'method': 'whisper_local_fallback'
             }
             
-            text_length = len(transcription_data['text'])
-            if stream_key != "unknown":
-                self.update_transcription_step(stream_key, "gpt_analysis", f"Transcription terminée ({text_length} chars)", 70)
-            logger.info(f"✅ Transcription terminée: {text_length} caractères")
+            logger.info(f"✅ Transcription locale terminée: {len(transcription_data['text'])} caractères")
             return transcription_data
             
         except Exception as e:
+            logger.error(f"❌ Erreur transcription locale: {e}")
             if stream_key != "unknown":
                 self.update_transcription_step(stream_key, "error", f"Erreur transcription: {e}", 0)
-            logger.error(f"❌ Erreur transcription: {e}")
             return None
 
     def set_transcription_status(self, stream_key: str, in_progress: bool, estimated_minutes: int = None):
