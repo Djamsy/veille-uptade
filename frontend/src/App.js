@@ -560,7 +560,7 @@ function App() {
         {error && (
           <div className="alert error">
             <span>{error}</span>
-            <button onClick={() => setError(null)} className="text-white hover:opacity-75">✕</button>
+            <button onClick={() => setError(null)} className="hover:opacity-75" style={{ color: '#e74c3c' }}>✕</button>
           </div>
         )}
 
