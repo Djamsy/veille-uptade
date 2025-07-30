@@ -1,67 +1,91 @@
 <analysis>
-The AI engineer successfully initiated a media monitoring application from scratch, iteratively building upon user requirements. Initially, the project focused on general media monitoring, but quickly pivoted to a highly specialized solution for Guadeloupe-specific news and radio streams, demonstrating adaptability. The engineer prioritized free and local solutions, leading to the adoption of Whisper for speech-to-text and spaCy for summarization. Key challenges involved setting up streaming audio capture with ffmpeg, implementing robust web scraping for multiple, varied news sites, and resolving persistent issues with MongoDB collection access and an intelligent caching mechanism. The development workflow involved large initial rewrites, followed by targeted edits and extensive debugging based on user feedback and internal testing. The engineer consistently communicated progress and sought user preferences for technology choices.
+The AI engineer has built a robust media monitoring application from the ground up, successfully transitioning it into a specialized tool for Guadeloupe-specific news and social media. The development trajectory demonstrates a strong focus on iterative problem-solving and adaptability to evolving user requirements. Initial efforts centered on establishing core functionalities like web scraping, speech-to-text transcription, and a basic caching mechanism.
+
+Significant challenges included meticulously debugging and refining web scrapers for diverse website structures (France-Antilles, RCI, La 1ère, KaribInfo) and resolving persistent Collection objects do not implement truth value errors within the MongoDB integration and caching logic. The engineer implemented local sentiment analysis using Python libraries (VADER, TextBlob, spaCy) to avoid external API dependencies, extending it to analyze both articles and a newly introduced daily digest. Most recently, a social media scraping and sentiment analysis module was integrated for X (Twitter) and Facebook, pragmatically using demo data when live scraping faced technical hurdles. The current phase involves frontend enhancements, specifically integrating a search bar and a comments page, alongside backend support for these features.
 </analysis>
 
 <product_requirements>
-The user initially requested a media monitoring interface to track online feeds, perform speech-to-text transcription of audio, list online articles, and conduct social media sentiment analysis. The application must feature a React frontend, FastAPI backend, and MongoDB database.
+The application is a media monitoring interface initially designed for general online feeds, speech-to-text, article listing, and social media sentiment analysis, built with React, FastAPI, and MongoDB. It evolved into a specialized system for Guadeloupe, requiring:
 
-Subsequently, the requirements evolved to a highly specialized system for Guadeloupe:
--   **Automated Article Listing:** Daily scraping at 10 AM from four specific Guadeloupean news sites: , , , and . Articles should be listed as Title with direct hyperlinks, with an emphasis on ensuring all sources are scraped.
--   **Automated Radio Transcription:** Capture and transcription of two specific radio streams:  (7:00 AM - 7:20 AM) and  (7:00 AM - 7:30 AM). Transcription to be done locally using Whisper.
--   **Intelligent Summarization:** Each article/transcription point must be summarized in the format .
--   **Intelligent Caching:** Implement a cache mechanism to update every 24 hours to prevent infinite loading and improve performance for article listings.
--   All solutions must use free/local technologies wherever possible.
+-   **Automated Article Listing:** Daily scraping (10 AM) from , , , and . Articles should display Title with hyperlinks.
+-   **Automated Radio Transcription:** Capture and local transcription (Whisper) of  (7:00 AM - 7:20 AM) and  (7:00 AM - 7:30 AM).
+-   **Intelligent Summarization:** Each article/transcription point summarized as Title + short explanation.
+-   **Intelligent Caching:** 24-hour cache for articles to prevent infinite loading and improve performance. Cache must clear on update.
+-   **Local Sentiment Analysis:** Implement sentiment analysis without external APIs for articles, radio transcriptions, and social media posts.
+-   **Daily Digest:** A daily summary of articles/transcriptions, now enhanced with sentiment analysis and professional design.
+-   **Social Media Monitoring:** Retrieve comments/posts from X (Twitter) and Facebook based on keywords, with local sentiment analysis. Specific targeting for Conseil Départemental de la Guadeloupe and Guy Losbar.
+-   **Frontend Enhancements:** Add a search bar to the dashboard and create a dedicated comments page.
 </product_requirements>
 
 <key_technical_concepts>
 -   **Full-Stack Development:** React (frontend), FastAPI (backend), MongoDB (database).
--   **Speech-to-Text:** Local  library.
--   **Sentiment Analysis:** VADER + TextBlob (Python libraries).
--   **Web Scraping:** BeautifulSoup4, requests.
--   **Audio Streaming Capture:**  (system tool), .
--   **Text Summarization:**  (), NLTK (local extractive).
--   **Task Scheduling:** APScheduler.
--   **Caching:** Custom Python cache service.
+-   **Speech-to-Text:**  (local).
+-   **Sentiment Analysis:** VADER, TextBlob,  (fr_core_news_sm), NLTK (local, enhanced for French/Guadeloupean context, emoji handling).
+-   **Web Scraping:** ,  (iterative, site-specific).
+-   **Audio Streaming:** , .
+-   **Task Scheduling:** .
+-   **Caching:** Custom Python service.
+-   **Social Media Scraping (Attempted):**  (for X/Twitter),  (for Facebook). Fallback to demo data.
 </key_technical_concepts>
 
 <code_architecture>
-The application follows a standard full-stack architecture with a React frontend and a FastAPI backend, interacting with a MongoDB database.
+The application has a standard full-stack setup: React frontend, FastAPI backend, and MongoDB database.
 
 
 
 -   ****:
-    -   **Summary**: This is the main FastAPI application file, serving as the central hub for all backend logic. It defines API endpoints for articles, social media monitoring, sentiment analysis, transcription, dashboard statistics, and cache management. It integrates with  and , and houses the APScheduler for task automation.
-    -   **Changes**: Initial setup of all primary endpoints. Numerous modifications for bug fixes related to MongoDB collection access, dashboard statistics calculation, import errors for , and service startup logic. It was adapted to integrate and then temporarily disable/re-enable the caching mechanism. It also manages the scheduler for automated scraping and radio capture.
+    -   **Summary**: The core FastAPI application, handling all backend API endpoints.
+    -   **Changes**: Initially set up for various functionalities. Extensively modified to fix MongoDB truth value errors, implement today-only article filtering, integrate cache invalidation, and add new endpoints for local sentiment analysis, daily digest creation/retrieval, social media scraping, social media sentiment analysis, and a general search endpoint. It now also directly retrieves articles/transcriptions for the digest from MongoDB.
 -   ****:
-    -   **Summary**: A new file dedicated to handling web scraping logic for the specified Guadeloupean news sites. It contains functions to fetch HTML, parse it using BeautifulSoup, extract article titles and URLs, and store them.
-    -   **Changes**: Initially created for general scraping. Heavily modified to include site-specific scraping logic and robust error handling. Specialised  and  functions were introduced due to unique site structures. Selector issues for France-Antilles, RCI, La 1ère, and KaribInfo were identified and addressed iteratively. An  function was updated for better filtering.
+    -   **Summary**: Manages web scraping from Guadeloupean news sites.
+    -   **Changes**: Heavily modified to create specialized scraping functions (, , , ) for each source due to unique HTML structures.  and site-specific selectors were refined to accurately capture articles and handle relative URLs.
 -   ****:
-    -   **Summary**: A new file designed to implement an intelligent caching layer for frequently accessed data, primarily articles, to reduce database load and improve frontend responsiveness.
-    -   **Changes**: Created to provide caching functionality. It was integrated into  and . The cache duration was set to 24 hours. Faced persistent Collection objects do not implement truth value errors, leading to temporary deactivation and then re-activation with ongoing debugging.
+    -   **Summary**: Implements an intelligent caching layer for articles and other data.
+    -   **Changes**: Created for caching. Debugged multiple times to resolve Collection objects do not implement truth value testing errors by changing  to . Integrated with  and configured for 24-hour refresh, with cache invalidation on new scrapes.
+-   ** (NEW)**:
+    -   **Summary**: A newly created file for local, API-free sentiment analysis.
+    -   **Changes**: Implements sentiment scoring using VADER, TextBlob, and  with extended French dictionaries, emoji handling, and Guadeloupe-specific patterns (e.g., weather, tourism).
+-   ** (NEW)**:
+    -   **Summary**: A newly created file responsible for generating the daily digest of news and transcriptions.
+    -   **Changes**: Implements the  method, which fetches articles and transcriptions, performs sentiment analysis using , and formats a comprehensive HTML digest.
+-   ** (NEW)**:
+    -   **Summary**: A newly created file handling social media scraping and integration with local sentiment analysis.
+    -   **Changes**: Implemented to use  for X/Twitter and  for Facebook (though  faced issues, leading to demo data fallback). It stores scraped posts and applies local sentiment analysis.
+-   ** (NEW)**:
+    -   **Summary**: A newly created file providing realistic simulated data for social media posts.
+    -   **Changes**: Created to serve as a fallback when live social media scraping encounters issues, providing data with specific keywords (e.g., Conseil Départemental de la Guadeloupe, Guy Losbar) for testing and demonstration.
 -   ****:
-    -   **Summary**: The main React component that renders the user interface. It manages the application's layout, navigation (dashboard, articles, transcription, social media, sentiment), and makes API calls to the backend to fetch and display data.
-    -   **Changes**: Initial setup for a multi-section dashboard. Modified to display statistics, articles from the backend, and to integrate with the caching mechanism (though the backend cache faced issues). UI was updated to be responsive and professional for the Guadeloupe-specific context.
+    -   **Summary**: The main React component rendering the UI and handling data fetching.
+    -   **Changes**: Initially set up for dashboard and article display. Modified to display statistics and articles from the backend, and is currently being updated to include a search bar in the header, new navigation tabs for Search and Comments, and dedicated content sections for these new functionalities.
 -   ****:
-    -   **Summary**: Lists all Python dependencies required for the backend.
-    -   **Changes**: Updated to include , , , , , , and , reflecting the chosen free/local tech stack.
+    -   **Summary**: Python dependency list.
+    -   **Changes**: Updated to include , , , , , , , , and .
 </code_architecture>
 
 <pending_tasks>
--   **KaribInfo Scraping**: The scraping for  is still failing and needs to be debugged and implemented.
--   **Cache Stability**: The intelligent caching system (cache_service.py) continues to cause MongoDB truth value errors and needs to be fully stabilized and re-enabled reliably.
--   **Full Radio Transcription Integration**: While  and  are installed, the full automation and display of summarized radio transcriptions in the UI needs verification.
+-   **Frontend Development (Search Bar & Comments Page):** Complete the implementation of the search bar on the dashboard and the dedicated comments page in , including loading data via  and updating .
+-   **Comprehensive Testing:** After frontend changes, a full system test will be required to ensure all new features (search, comments, social media targeting) work end-to-end.
 </pending_tasks>
 
 <current_work>
-Immediately before this summary request, the AI engineer was actively debugging and fixing the web scraping functionality, particularly for the Guadeloupean news sources. The  was repeatedly modified to adapt to specific website structures and improve article extraction.
+Immediately before this summary request, the AI engineer was actively working on integrating new features into the frontend to meet the user's latest requirements. The focus was on enhancing the  file to support a search bar on the main dashboard and introduce a new Comments page.
 
-The  and  scrapers are now confirmed to be working, retrieving 10 and 20 articles respectively. However, the  scraper was still yielding 0 articles, and  was consistently failing to find any articles. The AI engineer has just identified a working selector for  and is in the process of creating a specialized scraper function for it, similar to the one implemented for RCI.
+On the backend, relevant changes were completed:
+1.  **Search Keyword Targeting:** Updated internal search keywords to specifically target Conseil Départemental de la Guadeloupe and Guy Losbar within the social media scraping (or demo data generation) logic.
+2.  **Demo Data Enhancement:** Added specific demonstration data related to these new entities () to ensure content is available for testing the search and comments features, especially since live social media scraping was problematic.
+3.  **Backend Search Endpoint:** A new search endpoint () was created in  to handle search queries from the frontend.
 
-Simultaneously, the persistent issues with the  were a major hurdle. The cache was temporarily disabled due to MongoDB collection errors, then re-enabled for 24 hours, but the errors resurfaced. The dashboard statistics, however, were confirmed to be working correctly after several fixes to .
+On the frontend (), the following modifications were in progress:
+1.  **Core Frontend Structure:** The main  component was being updated to manage new state variables for search queries and potentially comment data.
+2.  **Functionality Integration:** New functions like  and  were being added to manage user interactions for the search bar and the comments page.
+3.  **UI Components:**
+    *   A search bar was added to the header section of the dashboard.
+    *   New navigation tabs for Search and Comments were integrated into the existing tab navigation.
+    *   Content sections (JSX) for both the SearchPage and CommentsPage were being added into the main content area of the application.
 
-The current state is that the core system is operational for some sources, but the scraping of all specified sources is not yet complete, and the intelligent caching system remains unstable, requiring further attention.
+The engineer was in the process of integrating data loading logic for these new sections by modifying the  hook and the  function in  when the trajectory ended. The current state is that backend support for search is ready, and the frontend UI components are being integrated, with data fetching remaining as the immediate next step for frontend completion.
 </current_work>
 
 <optional_next_step>
-The next step is to implement the specialized scraper for  to ensure it successfully retrieves articles, and then address the  scraping.
+Modify the  function in  to include data fetching logic for the new search and comments sections.
 </optional_next_step>
