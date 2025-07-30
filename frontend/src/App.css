@@ -925,9 +925,16 @@ textarea {
 }
 
 .articles-empty-icon {
-  font-size: 4rem;
-  margin-bottom: 1rem;
-  opacity: 0.6;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+  color: var(--text-muted);
+}
+
+.articles-empty-icon svg {
+  width: 4rem;
+  height: 4rem;
+  stroke-width: 1;
 }
 
 .articles-empty-title {
