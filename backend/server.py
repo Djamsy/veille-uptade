@@ -162,6 +162,75 @@ async def get_dashboard_stats():
             "error": str(e)
         }}
 
+def _compute_dashboard_stats_today_only():
+    """Calculer les statistiques du dashboard pour les articles du jour seulement"""
+    try:
+        # Date d'aujourd'hui
+        today = datetime.now().strftime('%Y-%m-%d')
+        
+        # Compter les articles d'aujourd'hui seulement 
+        today_articles = articles_collection.count_documents({
+            'date': today
+        })
+        
+        # Récupérer quelques articles récents d'aujourd'hui
+        recent_articles = list(articles_collection.find(
+            {'date': today}
+        ).sort('scraped_at', -1).limit(5))
+        
+        # Articles par source (aujourd'hui seulement)
+        pipeline = [
+            {'$match': {'date': today}},
+            {'$group': {'_id': '$source', 'count': {'$sum': 1}}},
+            {'$sort': {'count': -1}}
+        ]
+        articles_by_source = list(articles_collection.aggregate(pipeline))
+        
+        # Statistiques du cache
+        cache_stats = {}
+        if CACHE_ENABLED:
+            try:
+                cache_stats = {
+                    'status': 'active',
+                    'stats': intelligent_cache.get_cache_stats()
+                }
+            except:
+                cache_stats = {'status': 'error'}
+        else:
+            cache_stats = {'status': 'disabled'}
+        
+        return {
+            'today_articles': today_articles,
+            'total_articles': today_articles,  # Montrer seulement ceux d'aujourd'hui
+            'recent_articles': [
+                {
+                    'title': art.get('title', '')[:100],
+                    'source': art.get('source', ''),
+                    'url': art.get('url', ''),
+                    'scraped_at': art.get('scraped_at', '')
+                }
+                for art in recent_articles
+            ],
+            'articles_by_source': [
+                {'source': item['_id'], 'count': item['count']}
+                for item in articles_by_source
+            ],
+            'cache_stats': cache_stats,
+            'last_updated': datetime.now().isoformat(),
+            'showing_data_for': f"Articles du {today} uniquement"
+        }
+        
+    except Exception as e:
+        logger.error(f"Erreur calcul stats dashboard: {e}")
+        return {
+            'today_articles': 0,
+            'total_articles': 0,
+            'recent_articles': [],
+            'articles_by_source': [],
+            'cache_stats': {'status': 'error'},
+            'last_updated': datetime.now().isoformat(),
+            'error': str(e)
+        }
 # ==================== ARTICLES ENDPOINTS ====================
 
 @app.get("/api/articles")
