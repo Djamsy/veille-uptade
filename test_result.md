@@ -262,7 +262,7 @@ frontend:
     file: "App.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
@@ -274,11 +274,35 @@ frontend:
     file: "App.js"
     stuck_count: 0
     priority: "medium"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Frontend dashboard exists but depends on updated backend API"
+
+  - task: "Search bar integration and search page"
+    implemented: true
+    working: "NA"
+    file: "App.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Completed search bar moved to dashboard above Actions Automatiques, search tab with loadTabData integration, handleSearch function implemented"
+
+  - task: "Comments page with social media data"
+    implemented: true
+    working: "NA" 
+    file: "App.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Completed comments tab with loadComments, analyzeComments, and social stats integration in loadTabData function"
 
 metadata:
   created_by: "main_agent"
