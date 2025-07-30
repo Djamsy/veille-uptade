@@ -2383,6 +2383,34 @@ async def get_sentiment_analysis_status_endpoint(text_hash: str):
         logger.error(f"Erreur statut sentiment: {e}")
         return {"success": False, "error": str(e)}
 
+@app.get("/api/sentiment/async/stats")
+async def get_async_sentiment_stats():
+    """Obtenir les statistiques du service asynchrone de sentiment"""
+    try:
+        if not ASYNC_SENTIMENT_ENABLED:
+            return {"success": False, "error": "Service asynchrone non disponible"}
+        
+        stats = async_sentiment_service.get_processing_stats()
+        return {"success": True, "stats": stats}
+        
+    except Exception as e:
+        logger.error(f"Erreur stats sentiment async: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/sentiment/async/cleanup")
+async def cleanup_async_sentiment_data(days: int = 7):
+    """Nettoyer les anciennes données de sentiment asynchrone"""
+    try:
+        if not ASYNC_SENTIMENT_ENABLED:
+            return {"success": False, "error": "Service asynchrone non disponible"}
+        
+        result = async_sentiment_service.cleanup_old_data(days)
+        return {"success": True, "cleanup": result}
+        
+    except Exception as e:
+        logger.error(f"Erreur nettoyage sentiment async: {e}")
+        return {"success": False, "error": str(e)}
+
 @app.post("/api/sentiment/analyze/quick")
 async def analyze_text_sentiment_quick(request: Request):
     """Analyse de sentiment rapide et simplifiée - Format compact"""
