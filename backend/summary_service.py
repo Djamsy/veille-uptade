@@ -38,42 +38,7 @@ class FreeSummaryService:
             logger.warning(f"Erreur extraction phrases clés: {e}")
             return []
     
-    def _extract_sentences_spacy(self, text: str, max_sentences: int) -> List[str]:
-        """Extraction avec spaCy"""
-        doc = self.nlp(text)
-        
-        # Extraire les phrases
-        sentences = [sent.text.strip() for sent in doc.sents if len(sent.text.strip()) > 20]
-        
-        if len(sentences) <= max_sentences:
-            return sentences
-        
-        # Scoring basé sur les entités nommées et les mots-clés
-        sentence_scores = {}
-        
-        for i, sentence in enumerate(sentences):
-            score = 0
-            sent_doc = self.nlp(sentence)
-            
-            # Points pour les entités nommées
-            score += len(sent_doc.ents) * 2
-            
-            # Points pour les mots-clés de Guadeloupe
-            guadeloupe_keywords = ['guadeloupe', 'antilles', 'conseil', 'départemental', 'losbar', 'maire', 'région']
-            for keyword in guadeloupe_keywords:
-                if keyword in sentence.lower():
-                    score += 3
-            
-            # Points pour la position (début = plus important)
-            if i < len(sentences) * 0.3:
-                score += 2
-            
-            sentence_scores[sentence] = score
-        
-        # Retourner les meilleures phrases
-        sorted_sentences = sorted(sentence_scores.items(), key=lambda x: x[1], reverse=True)
-        return [sent[0] for sent in sorted_sentences[:max_sentences]]
-    
+
     def _extract_sentences_basic(self, text: str, max_sentences: int) -> List[str]:
         """Extraction basique sans spaCy"""
         import re
