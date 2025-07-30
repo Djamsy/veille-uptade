@@ -1087,9 +1087,10 @@ class GuadeloupeMediaAPITester:
             return 1
 
 def main():
-    """Main test runner"""
+    """Main test runner - Focus on emergency recovery testing"""
     tester = GuadeloupeMediaAPITester()
-    return tester.run_all_tests()
+    # Run emergency recovery tests as requested
+    return tester.run_emergency_recovery_tests()
 
 if __name__ == "__main__":
     sys.exit(main())
