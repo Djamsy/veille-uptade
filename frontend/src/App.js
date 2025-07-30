@@ -1117,9 +1117,9 @@ function App() {
         </div>
       )}
 
-      {/* Navigation style Apple moderne */}
+      {/* Navigation style Apple moderne avec support mobile */}
       <div className="content-section">
-        <nav className="tab-navigation">
+        <nav className={`tab-navigation ${mobileMenuOpen ? 'mobile-open' : ''}`}>
           {[
             { id: 'dashboard', name: 'Dashboard', icon: 'dashboard' },
             { id: 'search', name: 'Recherche', icon: 'search' },
@@ -1132,15 +1132,7 @@ function App() {
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => {
-                setActiveTab(tab.id);
-                if (tab.id === 'search') {
-                  loadSearchSuggestions();
-                } else if (tab.id === 'comments') {
-                  loadComments();
-                  loadSocialStats();
-                }
-              }}
+              onClick={() => handleTabChange(tab.id)}
               className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}
             >
               {tab.name}
