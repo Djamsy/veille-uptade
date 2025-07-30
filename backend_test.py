@@ -1014,6 +1014,12 @@ class GuadeloupeMediaAPITester:
         self.test_upload_audio_transcription()
         self.test_scheduler_status()
 
+        # Test PDF DIGEST EXPORT (NEW FEATURE)
+        print("\n📄 PDF DIGEST EXPORT TESTS")
+        self.test_digest_json_endpoint()
+        self.test_digest_today_pdf()
+        self.test_digest_specific_date_pdf()
+
         # Print summary
         print("=" * 80)
         print(f"📊 Test Results: {self.tests_passed}/{self.tests_run} tests passed")
