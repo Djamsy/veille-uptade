@@ -217,26 +217,48 @@ class PopulationReactionPredictor:
             urgency = sentiment['analysis_details'].get('urgency_level', 'faible')
             themes = sentiment['analysis_details'].get('themes', [])
             
-            # Segments de population guadeloupéenne
+            # Calcul simple pour commencer
+            base_score = 0.5 if polarity == 'positive' else -0.5 if polarity == 'negative' else 0
+            
+            # Segments simplifiés
             segments = {
-                'jeunes_18_35': self._predict_youth_reaction(polarity, intensity, themes),
-                'familles': self._predict_family_reaction(polarity, intensity, themes),
-                'seniors_plus_55': self._predict_senior_reaction(polarity, intensity, themes),
-                'entrepreneurs': self._predict_business_reaction(polarity, intensity, themes),
-                'fonctionnaires': self._predict_civil_servant_reaction(polarity, intensity, themes)
+                'jeunes_18_35': {
+                    'reaction_score': base_score * 1.2,
+                    'reaction_label': self._score_to_label(base_score * 1.2),
+                    'key_concerns': ['emploi', 'formation', 'logement'],
+                    'engagement_likelihood': 'élevé'
+                },
+                'familles': {
+                    'reaction_score': base_score * 1.0,
+                    'reaction_label': self._score_to_label(base_score * 1.0),
+                    'key_concerns': ['éducation', 'santé', 'aide sociale'],
+                    'engagement_likelihood': 'modéré'
+                },
+                'seniors_plus_55': {
+                    'reaction_score': base_score * 0.8,
+                    'reaction_label': self._score_to_label(base_score * 0.8),
+                    'key_concerns': ['santé', 'retraite', 'services publics'],
+                    'engagement_likelihood': 'faible'
+                }
             }
             
-            # Réactions par communes principales
+            # Réactions par région simplifiées
             regions = {
-                'pointe_a_pitre': self._predict_regional_reaction('Pointe-à-Pitre', polarity, themes),
-                'basse_terre': self._predict_regional_reaction('Basse-Terre', polarity, themes),
-                'grande_terre': self._predict_regional_reaction('Grande-Terre', polarity, themes),
-                'communes_rurales': self._predict_regional_reaction('Rural', polarity, themes)
+                'pointe_a_pitre': {
+                    'reaction_score': base_score,
+                    'reaction_label': self._score_to_label(base_score),
+                    'specific_concerns': ['économie', 'transport']
+                },
+                'basse_terre': {
+                    'reaction_score': base_score * 0.9,
+                    'reaction_label': self._score_to_label(base_score * 0.9),
+                    'specific_concerns': ['administration', 'services']
+                }
             }
             
             # Calculer la réaction globale
             overall_scores = [seg['reaction_score'] for seg in segments.values()]
-            overall_reaction = sum(overall_scores) / len(overall_scores)
+            overall_reaction = sum(overall_scores) / len(overall_scores) if overall_scores else 0
             
             overall_label = (
                 'très positive' if overall_reaction > 0.6 else
@@ -246,9 +268,8 @@ class PopulationReactionPredictor:
                 'très négative'
             )
             
-            # Évaluer le risque de polarisation
-            score_variance = sum([(score - overall_reaction) ** 2 for score in overall_scores]) / len(overall_scores)
-            polarization_risk = 'élevé' if score_variance > 0.5 else 'modéré' if score_variance > 0.2 else 'faible'
+            # Polarisation
+            polarization_risk = 'élevé' if abs(overall_reaction) > 0.5 else 'modéré' if abs(overall_reaction) > 0.2 else 'faible'
             
             return {
                 'overall': overall_label,
@@ -257,12 +278,21 @@ class PopulationReactionPredictor:
                 'regions': regions,
                 'intensity': urgency,
                 'polarization_risk': polarization_risk,
-                'mobilization_potential': self._assess_mobilization_potential(intensity, urgency, themes)
+                'mobilization_potential': 'élevé' if intensity == 'strong' else 'modéré' if intensity == 'moderate' else 'faible'
             }
             
         except Exception as e:
             logger.error(f"Erreur prédiction par segment: {e}")
-            return {'error': str(e)}
+            return {
+                'overall': 'neutre',
+                'overall_score': 0.0,
+                'demographics': {},
+                'regions': {},
+                'intensity': 'faible',
+                'polarization_risk': 'faible',
+                'mobilization_potential': 'faible',
+                'error': str(e)
+            }
 
     def _predict_youth_reaction(self, polarity: str, intensity: str, themes: List) -> Dict:
         """Prédire la réaction des jeunes (18-35 ans)"""
