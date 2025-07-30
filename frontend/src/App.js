@@ -878,7 +878,7 @@ function App() {
         {activeTab === 'dashboard' && (
           <div className="animate-slide-in">
             <div className="section-header">
-              <h2 className="section-title">📊 Vue d'ensemble - Guadeloupe</h2>
+              <h2 className="section-title">Vue d'ensemble - Guadeloupe</h2>
               <p className="section-subtitle">Surveillance médiatique en temps réel</p>
             </div>
             
