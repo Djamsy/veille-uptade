@@ -785,6 +785,22 @@ class RadioTranscriptionService:
             result['error'] = str(e)  
             self.update_transcription_step(stream_key, "error", f"Erreur globale: {str(e)}", 0)
             logger.error(f"❌ Erreur globale pour {config['section']}: {e}")
+            
+            # ALERTE TELEGRAM - ERREUR
+            try:
+                from telegram_alerts_service import telegram_alerts
+                if telegram_alerts.bot:
+                    error_message = f"""❌ *ERREUR TRANSCRIPTION*
+
+🎙️ Station: {config['name']}
+📍 Section: {config['section']}
+💥 Erreur: {str(e)[:200]}{'...' if len(str(e)) > 200 else ''}
+
+⏰ {datetime.now().strftime('%d/%m/%Y à %H:%M')}"""
+                    
+                    telegram_alerts.send_alert_sync(error_message)
+            except Exception as telegram_error:
+                logger.warning(f"Erreur alerte Telegram erreur: {telegram_error}")
         
         return result
 
