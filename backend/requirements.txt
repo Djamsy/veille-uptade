@@ -55,3 +55,5 @@ reportlab==4.4.3
 pillow==11.3.0feedparser
 beautifulsoup4
 aiohttp
+python-telegram-bot[all]
+httpx
