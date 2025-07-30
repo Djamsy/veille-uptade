@@ -358,6 +358,51 @@ async def get_transcriptions():
         print(f"Erreur transcriptions: {e}")
         return {"success": False, "error": str(e), "transcriptions": [], "count": 0}
 
+@app.post("/api/transcriptions/reset-status")
+async def reset_transcription_status(admin_key: str = None):
+    """Nettoyer les statuts de transcription bloqués - ADMIN UNIQUEMENT"""
+    try:
+        # Vérification admin
+        if admin_key != "radio_capture_admin_2025":
+            return {
+                "success": False,
+                "error": "Nettoyage réservé à l'administration",
+                "note": "Clé admin requise"
+            }
+        
+        logger.info("🧹 Nettoyage manuel des statuts demandé par admin")
+        
+        # Sauvegarder les anciens statuts pour information
+        old_status = radio_service.get_transcription_status()
+        
+        # Nettoyer
+        radio_service.reset_all_transcription_status()
+        
+        # Nouveau statut
+        new_status = radio_service.get_transcription_status()
+        
+        return {
+            "success": True,
+            "message": "Statuts de transcription nettoyés",
+            "timestamp": datetime.now().isoformat(),
+            "admin_action": "reset_status",
+            "before": {
+                "any_in_progress": old_status["global_status"]["any_in_progress"],
+                "active_sections": old_status["global_status"]["active_sections"]
+            },
+            "after": {
+                "any_in_progress": new_status["global_status"]["any_in_progress"],
+                "active_sections": new_status["global_status"]["active_sections"]
+            }
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Erreur nettoyage statuts: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+
 @app.get("/api/transcriptions/status")
 async def get_transcription_status():
     """Récupérer le statut détaillé des transcriptions par section"""
