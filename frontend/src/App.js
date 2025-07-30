@@ -481,11 +481,9 @@ function App() {
               { id: 'dashboard', name: '📊 Dashboard', icon: '📊' },
               { id: 'search', name: '🔍 Recherche', icon: '🔍' },
               { id: 'articles', name: '📰 Articles', icon: '📰' },
-              { id: 'comments', name: '💬 Commentaires', icon: '💬' },
+              { id: 'comments', name: '💬 Réseaux Sociaux', icon: '💬' },
               { id: 'transcription', name: '📻 Radio', icon: '📻' },
-              { id: 'digest', name: '📋 Digest', icon: '📋' },
-              { id: 'social', name: '📱 Réseaux', icon: '📱' },
-              { id: 'sentiment', name: '😊 Sentiment', icon: '😊' }
+              { id: 'digest', name: '📋 Digest', icon: '📋' }
             ].map((tab) => (
               <button
                 key={tab.id}
