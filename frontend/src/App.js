@@ -304,6 +304,108 @@ function App() {
     }
   };
 
+  // Fonction de recherche
+  const handleSearch = async (query) => {
+    if (!query || query.trim().length < 2) {
+      setSearchResults(null);
+      return;
+    }
+
+    setSearchLoading(true);
+    try {
+      const response = await apiCall(`${BACKEND_URL}/api/search?q=${encodeURIComponent(query.trim())}`);
+      if (response.success) {
+        setSearchResults(response);
+      } else {
+        setError(`Erreur de recherche: ${response.error}`);
+      }
+    } catch (error) {
+      setError(`Erreur de recherche: ${error.message}`);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  // Charger les suggestions de recherche
+  const loadSearchSuggestions = async (query = '') => {
+    try {
+      const response = await apiCall(`${BACKEND_URL}/api/search/suggestions?q=${encodeURIComponent(query)}`);
+      if (response.success) {
+        setSearchSuggestions(response.suggestions);
+      }
+    } catch (error) {
+      console.warn('Erreur suggestions:', error.message);
+    }
+  };
+
+  // Charger les commentaires (posts des réseaux sociaux)
+  const loadComments = async () => {
+    setLoading(true);
+    try {
+      const response = await apiCall(`${BACKEND_URL}/api/comments`);
+      if (response.success) {
+        setComments(response.comments);
+      } else {
+        setError(`Erreur commentaires: ${response.error}`);
+      }
+    } catch (error) {
+      setError(`Erreur commentaires: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Analyser les commentaires par entité
+  const analyzeComments = async () => {
+    setLoading(true);
+    try {
+      const response = await apiCall(`${BACKEND_URL}/api/comments/analyze`, { method: 'POST' });
+      if (response.success) {
+        setCommentsAnalysis(response.analysis);
+      } else {
+        setError(`Erreur analyse commentaires: ${response.error}`);
+      }
+    } catch (error) {
+      setError(`Erreur analyse commentaires: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Charger les stats des réseaux sociaux
+  const loadSocialStats = async () => {
+    try {
+      const response = await apiCall(`${BACKEND_URL}/api/social/stats`);
+      if (response.success) {
+        setSocialStats(response.stats);
+      }
+    } catch (error) {
+      console.warn('Erreur stats réseaux sociaux:', error.message);
+    }
+  };
+
+  // Lancer le scraping des réseaux sociaux
+  const startSocialScraping = async () => {
+    try {
+      const response = await apiCall(`${BACKEND_URL}/api/social/scrape-now`, { method: 'POST' });
+      if (response.success) {
+        setBackgroundTasks(prev => ({
+          ...prev,
+          socialScraping: { status: 'running', message: response.message }
+        }));
+        // Recharger les stats après quelques secondes
+        setTimeout(() => {
+          loadSocialStats();
+          loadComments();
+        }, 30000);
+      } else {
+        setError(`Erreur scraping social: ${response.error}`);
+      }
+    } catch (error) {
+      setError(`Erreur scraping social: ${error.message}`);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Header */}
