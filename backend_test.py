@@ -876,6 +876,86 @@ class GuadeloupeMediaAPITester:
         except Exception as e:
             return self.log_test("Social Scrape Status Check", False, f"- Error: {str(e)}")
 
+    def test_digest_today_pdf(self):
+        """Test today's digest PDF download"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/digest/today/pdf")
+            success = response.status_code == 200
+            if success:
+                # Check if response is PDF
+                content_type = response.headers.get('content-type', '')
+                content_disposition = response.headers.get('content-disposition', '')
+                content_length = len(response.content)
+                
+                is_pdf = 'application/pdf' in content_type
+                has_filename = 'digest_guadeloupe_' in content_disposition
+                has_content = content_length > 1000  # PDF should be at least 1KB
+                
+                if is_pdf and has_content:
+                    details = f"- PDF downloaded: {content_length} bytes, Content-Type: {content_type}"
+                else:
+                    success = False
+                    details = f"- PDF invalid: size={content_length}, type='{content_type}', disposition='{content_disposition}'"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Today's Digest PDF", success, details)
+        except Exception as e:
+            return self.log_test("Today's Digest PDF", False, f"- Error: {str(e)}")
+
+    def test_digest_specific_date_pdf(self):
+        """Test specific date digest PDF download"""
+        try:
+            test_date = "2025-07-30"
+            response = self.session.get(f"{self.base_url}/api/digest/{test_date}/pdf")
+            success = response.status_code == 200
+            if success:
+                # Check if response is PDF
+                content_type = response.headers.get('content-type', '')
+                content_disposition = response.headers.get('content-disposition', '')
+                content_length = len(response.content)
+                
+                is_pdf = 'application/pdf' in content_type
+                has_filename = f'digest_guadeloupe_{test_date}' in content_disposition
+                has_content = content_length > 1000  # PDF should be at least 1KB
+                
+                if is_pdf and has_content:
+                    details = f"- PDF downloaded for {test_date}: {content_length} bytes, Content-Type: {content_type}"
+                else:
+                    success = False
+                    details = f"- PDF invalid: size={content_length}, type='{content_type}', disposition='{content_disposition}'"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Specific Date Digest PDF", success, details)
+        except Exception as e:
+            return self.log_test("Specific Date Digest PDF", False, f"- Error: {str(e)}")
+
+    def test_digest_json_endpoint(self):
+        """Test digest JSON endpoint for comparison"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/digest")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    digest = data.get('digest', {})
+                    articles_count = digest.get('articles_count', 0)
+                    transcriptions_count = digest.get('transcriptions_count', 0)
+                    created_at = digest.get('created_at', '')
+                    
+                    if articles_count >= 0 and created_at:
+                        details = f"- Digest created: {articles_count} articles, {transcriptions_count} transcriptions"
+                    else:
+                        success = False
+                        details = f"- Digest incomplete: articles={articles_count}, created_at='{created_at}'"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Digest JSON Endpoint", success, details)
+        except Exception as e:
+            return self.log_test("Digest JSON Endpoint", False, f"- Error: {str(e)}")
+
     def run_all_tests(self):
         """Run all API tests focusing on new features"""
         print("🚀 Starting Guadeloupe Media Monitoring API Tests")
