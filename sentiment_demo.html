@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Analyse de Sentiment GPT - Guadeloupe</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .input-section {
+            margin-bottom: 30px;
+        }
+        textarea {
+            width: 100%;
+            min-height: 120px;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            resize: vertical;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            align-items: center;
+        }
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .btn-sync {
+            background: #3498db;
+            color: white;
+        }
+        .btn-async {
+            background: #e74c3c;
+            color: white;
+        }
+        .btn-examples {
+            background: #95a5a6;
+            color: white;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        .results {
+            margin-top: 30px;
+        }
+        .result-card {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .sentiment-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .sentiment-score {
+            font-size: 24px;
+            font-weight: bold;
+            padding: 10px 15px;
+            border-radius: 50px;
+            color: white;
+        }
+        .positive { background: #27ae60; }
+        .negative { background: #e74c3c; }
+        .neutral { background: #95a5a6; }
+        .high-urgency { background: #e74c3c; }
+        .medium-urgency { background: #f39c12; }
+        .low-urgency { background: #27ae60; }
+        .section {
+            margin: 15px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 6px;
+            border-left: 4px solid #3498db;
+        }
+        .section h4 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+        }
+        .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .tag {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        .alert {
+            background: #ffebee;
+            color: #c62828;
+            padding: 10px;
+            border-radius: 4px;
+            border-left: 4px solid #f44336;
+            margin: 10px 0;
+        }
+        .examples {
+            display: none;
+            margin-top: 20px;
+        }
+        .example {
+            background: #e8f5e8;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .example:hover {
+            background: #d4edda;
+        }
+        .metadata {
+            font-size: 12px;
+            color: #666;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏝️ Analyse de Sentiment GPT - Guadeloupe</h1>
+        
+        <div class="input-section">
+            <textarea id="textInput" placeholder="Entrez votre texte à analyser (ex: actualités, déclarations politiques, événements locaux...)"></textarea>
+            
+            <div class="controls">
+                <button class="btn-sync" onclick="analyzeSync()">
+                    📊 Analyse Synchrone (3-8s)
+                </button>
+                <button class="btn-async" onclick="analyzeAsync()">
+                    ⚡ Analyse Asynchrone (instantané si cache)
+                </button>
+                <button class="btn-examples" onclick="toggleExamples()">
+                    💡 Exemples
+                </button>
+            </div>
+            
+            <div class="examples" id="examples">
+                <h4>Exemples de textes Guadeloupe :</h4>
+                <div class="example" onclick="useExample(this)">
+                    Guy Losbar annonce de nouveaux investissements pour le développement durable en Guadeloupe
+                </div>
+                <div class="example" onclick="useExample(this)">
+                    Le Conseil Départemental vote le budget pour soutenir les familles en difficulté
+                </div>
+                <div class="example" onclick="useExample(this)">
+                    Grave accident de la route en Guadeloupe, plusieurs blessés dans un état critique
+                </div>
+                <div class="example" onclick="useExample(this)">
+                    Excellent festival de musique créole à Pointe-à-Pitre ! L'ambiance était formidable
+                </div>
+                <div class="example" onclick="useExample(this)">
+                    La population manifeste contre les décisions du CD971 concernant les transports scolaires
+                </div>
+            </div>
+        </div>
+        
+        <div class="loading" id="loading">
+            <div>⏳ Analyse en cours...</div>
+        </div>
+        
+        <div class="results" id="results"></div>
+    </div>
+
+    <script>
+        const BACKEND_URL = window.location.protocol + '//' + window.location.hostname + ':8001';
+        
+        function toggleExamples() {
+            const examples = document.getElementById('examples');
+            examples.style.display = examples.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        function useExample(element) {
+            document.getElementById('textInput').value = element.textContent.trim();
+            document.getElementById('examples').style.display = 'none';
+        }
+        
+        async function analyzeSync() {
+            const text = document.getElementById('textInput').value.trim();
+            if (!text) {
+                alert('Veuillez entrer un texte à analyser');
+                return;
+            }
+            
+            showLoading(true);
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/sentiment/analyze`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ text: text, async: false })
+                });
+                
+                const data = await response.json();
+                displayResults(data, 'synchrone');
+            } catch (error) {
+                displayError('Erreur lors de l\'analyse synchrone: ' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        async function analyzeAsync() {
+            const text = document.getElementById('textInput').value.trim();
+            if (!text) {
+                alert('Veuillez entrer un texte à analyser');
+                return;
+            }
+            
+            showLoading(true);
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/sentiment/analyze`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ text: text, async: true })
+                });
+                
+                const data = await response.json();
+                
+                if (data.cached) {
+                    displayResults(data, 'asynchrone (cache)');
+                } else if (data.async) {
+                    displayAsyncStatus(data);
+                    pollStatus(data.text_hash);
+                } else {
+                    displayResults(data, 'asynchrone');
+                }
+            } catch (error) {
+                displayError('Erreur lors de l\'analyse asynchrone: ' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        async function pollStatus(textHash) {
+            const maxAttempts = 20;
+            let attempts = 0;
+            
+            const poll = async () => {
+                attempts++;
+                try {
+                    const response = await fetch(`${BACKEND_URL}/api/sentiment/status/${textHash}`);
+                    const status = await response.json();
+                    
+                    if (status.status === 'completed') {
+                        displayResults(status, 'asynchrone (terminé)');
+                        return;
+                    } else if (status.status === 'not_found') {
+                        // Essayer de récupérer depuis le cache
+                        analyzeAsync();
+                        return;
+                    } else if (attempts < maxAttempts) {
+                        setTimeout(poll, 2000);
+                    } else {
+                        displayError('Timeout: l\'analyse prend plus de temps que prévu');
+                    }
+                } catch (error) {
+                    displayError('Erreur lors de la vérification du statut: ' + error.message);
+                }
+            };
+            
+            setTimeout(poll, 2000);
+        }
+        
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+        
+        function displayAsyncStatus(data) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `
+                <div class="result-card">
+                    <h3>⚡ Analyse Asynchrone Démarrée</h3>
+                    <p><strong>Hash:</strong> ${data.text_hash}</p>
+                    <p><strong>Temps estimé:</strong> ${data.estimated_completion}</p>
+                    <p>⏳ Récupération du résultat en cours...</p>
+                </div>
+            `;
+        }
+        
+        function displayResults(data, mode) {
+            const resultsDiv = document.getElementById('results');
+            
+            if (!data.success) {
+                displayError(data.error || 'Erreur inconnue');
+                return;
+            }
+            
+            const analysis = data.analysis || data;
+            const sentiment = analysis.analysis || analysis.sentiment || analysis;
+            
+            if (!sentiment || !sentiment.basic_sentiment) {
+                displayError('Format de réponse invalide');
+                return;
+            }
+            
+            const basic = sentiment.basic_sentiment;
+            const contextual = sentiment.contextual_analysis || {};
+            const stakeholders = sentiment.stakeholders || {};
+            const thematic = sentiment.thematic_breakdown || {};
+            const recommendations = sentiment.recommendations || {};
+            const metadata = analysis.metadata || data.metadata || {};
+            
+            let html = `
+                <div class="result-card">
+                    <div class="sentiment-header">
+                        <div class="sentiment-score ${basic.polarity}">
+                            ${basic.polarity === 'positive' ? '😊' : basic.polarity === 'negative' ? '😞' : '😐'} 
+                            ${basic.score > 0 ? '+' : ''}${basic.score}
+                        </div>
+                        <div>
+                            <h3>Analyse ${mode}</h3>
+                            <p><strong>Sentiment:</strong> ${basic.polarity} (${basic.intensity})</p>
+                            <p><strong>Confiance:</strong> ${Math.round(basic.confidence * 100)}%</p>
+                        </div>
+                        <div class="urgency-level ${contextual.urgency_level}-urgency">
+                            Urgence: ${contextual.urgency_level || 'faible'}
+                        </div>
+                    </div>
+            `;
+            
+            if (contextual.guadeloupe_relevance) {
+                html += `
+                    <div class="section">
+                        <h4>🏝️ Contexte Guadeloupe</h4>
+                        <p>${contextual.guadeloupe_relevance}</p>
+                        ${contextual.local_impact ? `<p><strong>Impact local:</strong> ${contextual.local_impact}</p>` : ''}
+                        ${contextual.main_domain ? `<p><strong>Domaine principal:</strong> ${contextual.main_domain}</p>` : ''}
+                    </div>
+                `;
+            }
+            
+            if (stakeholders.personalities && stakeholders.personalities.length > 0) {
+                html += `
+                    <div class="section">
+                        <h4>👥 Personnalités Mentionnées</h4>
+                        <div class="tags">
+                            ${stakeholders.personalities.map(p => `<span class="tag">${p}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (stakeholders.institutions && stakeholders.institutions.length > 0) {
+                html += `
+                    <div class="section">
+                        <h4>🏛️ Institutions Mentionnées</h4>
+                        <div class="tags">
+                            ${stakeholders.institutions.map(i => `<span class="tag">${i}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (thematic.themes && thematic.themes.length > 0) {
+                html += `
+                    <div class="section">
+                        <h4>📋 Thèmes & Émotions</h4>
+                        <p><strong>Thèmes:</strong></p>
+                        <div class="tags">
+                            ${thematic.themes.map(t => `<span class="tag">${t}</span>`).join('')}
+                        </div>
+                        ${thematic.emotions ? `
+                            <p><strong>Émotions:</strong></p>
+                            <div class="tags">
+                                ${thematic.emotions.map(e => `<span class="tag">${e}</span>`).join('')}
+                            </div>
+                        ` : ''}
+                        ${thematic.keywords ? `
+                            <p><strong>Mots-clés:</strong></p>
+                            <div class="tags">
+                                ${thematic.keywords.map(k => `<span class="tag">${k}</span>`).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+            
+            if (recommendations.suggested_actions && recommendations.suggested_actions.length > 0) {
+                html += `
+                    <div class="section">
+                        <h4>💡 Recommandations</h4>
+                        <ul>
+                            ${recommendations.suggested_actions.map(a => `<li>${a}</li>`).join('')}
+                        </ul>
+                        ${recommendations.follow_up_needed ? '<p><strong>Suivi recommandé</strong></p>' : ''}
+                    </div>
+                `;
+            }
+            
+            if (recommendations.alerts && recommendations.alerts.length > 0) {
+                html += `
+                    <div class="alert">
+                        <h4>⚠️ Alertes</h4>
+                        <ul>
+                            ${recommendations.alerts.map(a => `<li>${a}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+            
+            html += `
+                    <div class="metadata">
+                        <strong>Métadonnées:</strong>
+                        Méthode: ${metadata.method || 'N/A'} | 
+                        Temps: ${data.processing_time || metadata.processing_time || 'N/A'} | 
+                        Mots: ${metadata.word_count || 'N/A'} | 
+                        ${metadata.analyzed_at ? `Analysé: ${new Date(metadata.analyzed_at).toLocaleString('fr-FR')}` : ''}
+                    </div>
+                </div>
+            `;
+            
+            resultsDiv.innerHTML = html;
+        }
+        
+        function displayError(message) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `
+                <div class="result-card" style="border-left-color: #e74c3c;">
+                    <h3 style="color: #e74c3c;">❌ Erreur</h3>
+                    <p>${message}</p>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>
