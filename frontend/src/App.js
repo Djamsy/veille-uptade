@@ -591,6 +591,90 @@ function App() {
               </div>
             </div>
 
+            {/* Barre de recherche */}
+            <div className="bg-white p-6 rounded-xl shadow-lg">
+              <h3 className="text-lg font-bold text-gray-800 mb-4">🔍 Recherche Rapide</h3>
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Rechercher Guy Losbar, CD971, articles..."
+                      value={searchQuery}
+                      onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        if (e.target.value.length >= 2) {
+                          loadSearchSuggestions(e.target.value);
+                        }
+                      }}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          handleSearch(searchQuery);
+                          setActiveTab('search');
+                        }
+                      }}
+                      className="w-full px-4 py-3 pl-10 pr-4 text-gray-700 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500"
+                    />
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                      </svg>
+                    </div>
+                    
+                    {/* Suggestions de recherche */}
+                    {searchSuggestions.length > 0 && searchQuery.length >= 2 && (
+                      <div className="absolute top-full left-0 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50">
+                        {searchSuggestions.map((suggestion, index) => (
+                          <button
+                            key={index}
+                            onClick={() => {
+                              setSearchQuery(suggestion);
+                              handleSearch(suggestion);
+                              setActiveTab('search');
+                              setSearchSuggestions([]);
+                            }}
+                            className="w-full text-left px-4 py-2 hover:bg-gray-100 text-gray-700 first:rounded-t-lg last:rounded-b-lg"
+                          >
+                            {suggestion}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    handleSearch(searchQuery);
+                    setActiveTab('search');
+                  }}
+                  disabled={searchLoading}
+                  className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
+                >
+                  {searchLoading ? '⏳' : '🔍'} Rechercher
+                </button>
+              </div>
+              
+              {/* Suggestions populaires */}
+              <div className="mt-4">
+                <p className="text-sm text-gray-600 mb-2">Recherches populaires :</p>
+                <div className="flex flex-wrap gap-2">
+                  {['Guy Losbar', 'Conseil Départemental', 'CD971', 'Budget départemental', 'Education'].map((term) => (
+                    <button
+                      key={term}
+                      onClick={() => {
+                        setSearchQuery(term);
+                        handleSearch(term);
+                        setActiveTab('search');
+                      }}
+                      className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full text-sm transition-colors"
+                    >
+                      {term}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             <div className="bg-white p-6 rounded-xl shadow-lg">
               <h3 className="text-xl font-bold text-gray-800 mb-4">🚀 Actions Automatiques</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
