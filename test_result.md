@@ -102,7 +102,56 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Guadeloupe media monitoring application with automated article scraping from 4 news sites (France-Antilles, RCI, La 1ère, KaribInfo), radio transcription, intelligent caching system, and local sentiment analysis. Requirements: 1) Show only today's articles in stats/dashboard, 2) Clear cache on each scraping update, 3) Local sentiment analysis without external APIs."
+user_problem_statement: "Changement de système d'analyse: remplacer l'analyse locale par GPT-4.1-mini avec prompt journalistique spécialisé. Créer un système de suivi détaillé des étapes de transcription (récolte audio → transcription → GPT → terminé) avec cache 24H. Tester sur échantillon 1 minute."
+
+backend:
+  - task: "Intégration GPT-4.1-mini"
+    implemented: true
+    working: false
+    file: "gpt_analysis_service.py"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "Service GPT créé avec prompt journalistique spécialisé mais quota API OpenAI épuisé (Error 429 - insufficient_quota). Clé API valide mais sans crédit."
+
+  - task: "Système de suivi détaillé des étapes"
+    implemented: true
+    working: true
+    file: "radio_service.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Système de suivi détaillé implémenté avec étapes: audio_capture → transcription → gpt_analysis → completed/error. Progress percentage et cache 24H intégrés."
+
+  - task: "Endpoint de test GPT"
+    implemented: true
+    working: false
+    file: "server.py"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "Endpoints /api/test-gpt et /api/test-capture-1min créés mais non fonctionnels à cause du quota OpenAI épuisé."
+
+  - task: "Modification du radio_service pour GPT"
+    implemented: true
+    working: true
+    file: "radio_service.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Service radio modifié pour utiliser GPT avec fallback vers analyse locale en cas d'erreur. Système de suivi des étapes intégré."
 
 backend:
   - task: "France-Antilles scraper"
