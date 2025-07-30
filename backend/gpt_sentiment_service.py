@@ -12,7 +12,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 
 # Charger les variables d'environnement
-load_dotenv()
+load_dotenv('/app/backend/.env')
 
 # Configuration logging
 logging.basicConfig(level=logging.INFO)
