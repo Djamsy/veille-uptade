@@ -22,6 +22,7 @@ from radio_service import radio_service
 from summary_service import summary_service
 from scheduler_service import veille_scheduler, start_scheduler
 from pdf_service import pdf_digest_service
+from transcription_analysis_service import transcription_analyzer
 
 # Import du cache avec fallback - Réactivé avec cache 24H
 
