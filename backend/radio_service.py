@@ -627,10 +627,19 @@ class RadioTranscriptionService:
                     result['error'] = "Échec de la transcription"
                     return result
                 
-                # 3. Analyse intelligente de la transcription
-                logger.info("🧠 Analyse intelligente de la transcription...")
-                from transcription_analysis_service import analyze_transcription
-                analysis = analyze_transcription(transcription['text'], config['name'])
+                # 3. Analyse intelligente avec GPT-4.1-mini
+                self.update_transcription_step(stream_key, "gpt_analysis", "Analyse GPT en cours...", 80)
+                logger.info("🧠 Analyse GPT de la transcription...")
+                
+                try:
+                    from gpt_analysis_service import analyze_transcription_with_gpt
+                    gpt_analysis = analyze_transcription_with_gpt(transcription['text'], config['name'])
+                except ImportError:
+                    logger.warning("Service GPT non disponible, utilisation du fallback local")
+                    from transcription_analysis_service import analyze_transcription
+                    gpt_analysis = analyze_transcription(transcription['text'], config['name'])
+                
+                self.update_transcription_step(stream_key, "completed", "Sauvegarde en cours...", 95)
                 
                 # 4. Sauvegarder en base de données avec analyse
                 transcription_record = {
@@ -648,12 +657,12 @@ class RadioTranscriptionService:
                     'segments': transcription['segments'],
                     
                     # Analyse intelligente
-                    'ai_summary': analysis.get('summary', transcription['text']),
-                    'ai_key_sentences': analysis.get('key_sentences', []),
-                    'ai_main_topics': analysis.get('main_topics', []),
-                    'ai_keywords': analysis.get('keywords', []),
-                    'ai_relevance_score': analysis.get('relevance_score', 0.5),
-                    'ai_analysis_metadata': analysis.get('analysis_metadata', {}),
+                    'ai_summary': gpt_analysis.get('summary', transcription['text']),
+                    'ai_key_sentences': gpt_analysis.get('key_sentences', []),
+                    'ai_main_topics': gpt_analysis.get('main_topics', []),
+                    'ai_keywords': gpt_analysis.get('keywords', []),
+                    'ai_relevance_score': gpt_analysis.get('relevance_score', 0.5),
+                    'ai_analysis_metadata': gpt_analysis.get('analysis_metadata', {}),
                     
                     # Métadonnées
                     'captured_at': datetime.now().isoformat(),
