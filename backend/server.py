@@ -73,10 +73,7 @@ except ImportError as e:
     TELEGRAM_ALERTS_ENABLED = False
     telegram_alerts = None
 
-# Fallback pour compatibilité avec le code existant utilisant l'analyse de sentiment
-SENTIMENT_ENABLED = False
-
-# Fallback pour local_sentiment_analyzer
+# Fallback pour local_sentiment_analyzer en cas d'absence du service principal
 class SentimentAnalyzerFallback:
     def analyze_sentiment(self, text):
         return {
