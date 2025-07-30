@@ -430,6 +430,23 @@ class FreeSummaryService:
             
             # 📰 ARTICLES DE PRESSE (SECTION SECONDAIRE)
             if analyzed_articles:
+                # Ajouter un en-tête spécial pour montrer que c'est secondaire
+                digest_html += f"""
+                <section style="margin-bottom: 30px; padding: 20px; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); border-radius: 10px; border: 1px solid #cbd5e1;">
+                    <h2 style="color: #475569; margin-top: 0; font-size: 22px; display: flex; align-items: center; margin-bottom: 15px;">
+                        📰 Articles de Presse - Complément d'Information
+                        <span style="background: #64748b; color: white; font-size: 11px; padding: 3px 8px; border-radius: 15px; margin-left: 10px;">
+                            Secondaire
+                        </span>
+                    </h2>
+                    <div style="background: rgba(100, 116, 139, 0.1); padding: 12px; border-radius: 8px; margin-bottom: 20px;">
+                        <p style="color: #475569; margin: 0; font-size: 14px; text-align: center;">
+                            📊 Informations complémentaires • {len(analyzed_articles)} articles analysés
+                        </p>
+                    </div>
+                </section>
+                """
+                
                 sources = {}
                 for article in analyzed_articles:
                     source = article.get('source', 'Source inconnue')
@@ -437,19 +454,19 @@ class FreeSummaryService:
                         sources[source] = []
                     sources[source].append(article)
                 
-                # Trier les sources par nombre d'articles
-                sorted_sources = sorted(sources.items(), key=lambda x: len(x[1]), reverse=True)
+                # Trier les sources par nombre d'articles (limiter pour donner moins d'importance)
+                sorted_sources = sorted(sources.items(), key=lambda x: len(x[1]), reverse=True)[:3]  # Max 3 sources
                 
                 for source, source_articles in sorted_sources:
                     digest_html += f"""
-                    <section style="margin-bottom: 35px;">
-                        <h2 style="color: #1e40af; border-bottom: 2px solid #e5e7eb; padding-bottom: 12px; margin-bottom: 20px; font-size: 22px; display: flex; align-items: center;">
-                            📰 {source} <span style="color: #6b7280; font-size: 16px; margin-left: 10px;">({len(source_articles)} articles)</span>
-                        </h2>
+                    <section style="margin-bottom: 25px; background: white; padding: 15px; border-radius: 8px; border-left: 3px solid #cbd5e1;">
+                        <h3 style="color: #475569; margin-top: 0; font-size: 18px; margin-bottom: 15px;">
+                            📰 {source} <span style="color: #94a3b8; font-size: 14px;">({len(source_articles)} articles)</span>
+                        </h3>
                     """
                     
-                    # Limiter à 8 articles par source pour le digest
-                    for i, article in enumerate(source_articles[:8]):
+                    # Limiter à 5 articles par source (au lieu de 8) pour réduire l'importance
+                    for i, article in enumerate(source_articles[:5]):
                         title = article.get('title', 'Titre non disponible')
                         url = article.get('url', '#')
                         scraped_at = article.get('scraped_at', '')
