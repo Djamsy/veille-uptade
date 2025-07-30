@@ -331,6 +331,39 @@ function App() {
     }
   };
 
+  // Recherche automatique des sujets prioritaires au démarrage
+  const performAutoSearch = async () => {
+    if (autoSearchCompleted) return;
+    
+    const prioritySubjects = ['cd971', 'Guy Losbar', 'département guadeloupe', 'GUSR', 'Ary Chalus'];
+    const results = {};
+    
+    console.log('🔍 Démarrage de la recherche automatique des sujets prioritaires...');
+    
+    for (const subject of prioritySubjects) {
+      try {
+        console.log(`Recherche automatique: ${subject}`);
+        const response = await apiCall(`${BACKEND_URL}/api/search?q=${encodeURIComponent(subject)}`);
+        if (response.success) {
+          results[subject] = {
+            total_results: response.total_results,
+            articles_count: response.articles ? response.articles.length : 0,
+            social_posts_count: response.social_posts ? response.social_posts.length : 0
+          };
+        }
+        // Petit délai entre les recherches pour éviter la surcharge
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (error) {
+        console.warn(`Erreur recherche automatique pour "${subject}":`, error.message);
+        results[subject] = { error: error.message };
+      }
+    }
+    
+    setAutoSearchResults(results);
+    setAutoSearchCompleted(true);
+    console.log('✅ Recherche automatique terminée:', results);
+  };
+
   // Fonction de recherche
   const handleSearch = async (query) => {
     if (!query || query.trim().length < 2) {
