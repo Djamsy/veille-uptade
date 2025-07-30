@@ -35,32 +35,45 @@ class GptSentimentAnalyzer:
                 logger.error(f"❌ Erreur initialisation OpenAI: {e}")
                 self.client = None
         
-        # Template de prompt pour l'analyse de sentiment
-        self.sentiment_prompt_template = """Analysez le sentiment de ce texte en français dans le contexte de la Guadeloupe et des Antilles.
+        # Template de prompt enrichi pour l'analyse de sentiment contextuelle
+        self.sentiment_prompt_template = """Analysez le sentiment de ce texte en français dans le contexte spécifique de la Guadeloupe et des Antilles françaises.
 
 TEXTE À ANALYSER:
 "{text}"
 
-INSTRUCTIONS:
-1. Analysez le sentiment global (positif, négatif, neutre)
-2. Donnez un score précis de -1.0 (très négatif) à +1.0 (très positif) 
-3. Évaluez l'intensité (faible, modérée, forte)
-4. Identifiez les émotions principales
-5. Expliquez les raisons du sentiment
-6. Détectez les sujets/thèmes abordés
-7. Contextualisez pour la Guadeloupe si pertinent
+INSTRUCTIONS D'ANALYSE CONTEXTUELLE:
+1. SENTIMENT GLOBAL: Analysez le sentiment (positif, négatif, neutre)
+2. SCORE PRÉCIS: Donnez un score de -1.0 (très négatif) à +1.0 (très positif)
+3. INTENSITÉ: Évaluez l'intensité (faible, modérée, forte)
+4. ÉMOTIONS: Identifiez les émotions principales détectées
+5. CONTEXTE LOCAL: Analysez spécifiquement pour la Guadeloupe/Antilles
+6. IMPACT POTENTIEL: Évaluez l'impact potentiel sur la population locale
+7. SUJETS SENSIBLES: Détectez les sujets pouvant nécessiter une attention particulière
+8. CATÉGORISATION: Classez par domaine (politique, économique, social, culturel, etc.)
 
 RÉPONDEZ UNIQUEMENT EN JSON VALIDE:
 {{
     "sentiment": "positif|négatif|neutre",
     "score": 0.0,
-    "intensite": "faible|modérée|forte", 
-    "emotions": ["joie", "espoir", "inquiétude", "colère", "surprise", "tristesse"],
-    "raisons": "Explication du sentiment détectée",
-    "themes": ["politique", "économie", "social", "culture", "environnement"],
-    "contexte_guadeloupe": "Pertinence pour la Guadeloupe",
+    "intensite": "faible|modérée|forte",
+    "emotions": ["joie", "espoir", "inquiétude", "colère", "surprise", "tristesse", "fierté", "déception"],
+    "raisons": "Explication détaillée du sentiment détecté",
+    "themes": ["politique", "économie", "social", "culture", "environnement", "education", "infrastructure", "tourisme"],
+    "contexte_guadeloupe": "Analyse spécifique au contexte guadeloupéen",
+    "personnalités_mentionnées": ["Guy Losbar", "autres personnalités locales"],
+    "institutions_mentionnées": ["Conseil Départemental", "CD971", "Région", "autres institutions"],
     "mots_cles": ["mot1", "mot2", "mot3"],
-    "confiance": 0.0
+    "urgence_niveau": "faible|moyen|élevé",
+    "impact_potentiel": "Description de l'impact potentiel sur la population",
+    "recommandations": ["action1", "action2"],
+    "alertes": ["alerte si sujets sensibles détectés"],
+    "categories_detaillees": {{
+        "domaine_principal": "politique|économie|social|culture|environnement|education|infrastructure",
+        "sous_categories": ["sous-cat1", "sous-cat2"],
+        "pertinence_locale": "haute|moyenne|faible"
+    }},
+    "confiance": 0.0,
+    "methode": "gpt-4o-mini-contextuel"
 }}"""
 
     def analyze_sentiment(self, text: str) -> Dict[str, Any]:
