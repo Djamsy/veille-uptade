@@ -9,6 +9,10 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 import json
 from openai import OpenAI
+from dotenv import load_dotenv
+
+# Charger les variables d'environnement
+load_dotenv()
 
 # Configuration logging
 logging.basicConfig(level=logging.INFO)
