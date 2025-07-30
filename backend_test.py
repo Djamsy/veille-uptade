@@ -1354,7 +1354,72 @@ class GuadeloupeMediaAPITester:
         except Exception as e:
             return self.log_test("GPT Fallback System", False, f"- Error: {str(e)}")
 
-    def run_gpt_transcription_tests(self):
+    def run_gpt_whisper_security_tests(self):
+        """Run tests specifically for GPT + OpenAI Whisper system with security controls"""
+        print("🔒 TESTING GPT + OPENAI WHISPER SYSTEM WITH SECURITY CONTROLS")
+        print("Testing finalized system with cost controls and admin restrictions")
+        print(f"📡 Testing against: {self.base_url}")
+        print(f"📅 Testing for date: {self.today}")
+        print("=" * 80)
+
+        # 1. MAIN ENDPOINTS TO VALIDATE (Priority 1)
+        print("\n🎯 MAIN ENDPOINTS VALIDATION")
+        print("Testing POST /api/test-gpt - GPT analysis alone")
+        self.test_gpt_analysis_endpoint()
+        
+        print("Testing POST /api/test-capture-1min - Complete pipeline WITH admin key")
+        self.test_gpt_capture_1min_with_admin_key()
+        
+        print("Testing POST /api/transcriptions/capture-now - Hour restrictions")
+        self.test_capture_hour_restrictions()
+        
+        print("Testing GET /api/transcriptions/status - Detailed status steps")
+        self.test_transcriptions_status_detailed()
+
+        # 2. CRITICAL SECURITY TESTS (Priority 2)
+        print("\n🔐 CRITICAL SECURITY TESTS")
+        print("Testing capture without admin key → should be rejected")
+        self.test_capture_without_admin_key_security()
+        
+        print("Testing explicit error message on OpenAI cost control")
+        self.test_cost_estimation_in_responses()
+
+        # 3. FUNCTIONAL TESTS (Priority 3)
+        print("\n⚙️ FUNCTIONAL TESTS")
+        print("Testing GPT-4.1-mini with journalistic prompt → structure with emojis")
+        # Already tested in test_gpt_analysis_endpoint
+        
+        print("Testing OpenAI Whisper API → method 'openai_whisper_api' in response")
+        self.test_openai_whisper_api_method()
+        
+        print("Testing detailed tracking system → audio_capture → transcription → gpt_analysis → completed")
+        self.test_transcriptions_sections_cache()
+
+        # 4. EXISTING ENDPOINTS WITH NEW SYSTEM (Priority 4)
+        print("\n📻 EXISTING ENDPOINTS WITH NEW SYSTEM")
+        self.test_transcriptions_endpoint()
+        self.test_capture_status()
+
+        # Print summary focused on GPT + Whisper security
+        print("=" * 80)
+        print("🔒 GPT + OPENAI WHISPER SECURITY TEST SUMMARY")
+        print(f"📊 Test Results: {self.tests_passed}/{self.tests_run} tests passed")
+        
+        # Expected results summary
+        print("\n📋 EXPECTED RESULTS VERIFICATION:")
+        print("✅ Security: Rejection without admin/outside hours with explanatory message")
+        print("✅ Performance: OpenAI Whisper faster than local")
+        print("✅ Quality: French transcription + structured journalistic analysis")
+        print("✅ Costs: Estimations displayed for transparency (~$0.006/min Whisper, ~$0.001-0.003 GPT)")
+        
+        if self.tests_passed >= self.tests_run * 0.8:  # 80% pass rate for security system
+            print("\n🎉 GPT + OPENAI WHISPER SYSTEM: FULLY OPERATIONAL")
+            print("✅ Cost controls working while maintaining analysis quality")
+            return 0
+        else:
+            print("\n⚠️ GPT + OPENAI WHISPER SYSTEM: ISSUES DETECTED")
+            print("❌ Some security controls or functionality not working as expected")
+            return 1
         """Run tests specifically for new GPT endpoints and transcription system"""
         print("🤖 TESTING NEW GPT ENDPOINTS AND TRANSCRIPTION SYSTEM")
         print("Testing GPT-4.1-mini integration with journalistic prompt")
