@@ -50,14 +50,8 @@ class RadioTranscriptionService:
             }
         }
         
-        # Charger le modèle Whisper (base pour l'équilibre vitesse/qualité)
-        try:
-            logger.info("📱 Chargement du modèle Whisper...")
-            self.whisper_model = whisper.load_model("base")
-            logger.info("✅ Modèle Whisper chargé avec succès")
-        except Exception as e:
-            logger.error(f"❌ Erreur chargement Whisper: {e}")
-            self.whisper_model = None
+        # Whisper model removed - using OpenAI API only
+        self.whisper_model = None
         
         # Statuts de transcription détaillés avec étapes
         self.transcription_status = {
