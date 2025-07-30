@@ -47,13 +47,47 @@ except ImportError as e:
         print("❌ Aucun service réseaux sociaux disponible")
         modern_social_scraper = None
         social_scraper = None
+# Import du service d'alertes Telegram
 try:
-    from sentiment_analysis_service import local_sentiment_analyzer, analyze_articles_sentiment
-    SENTIMENT_ENABLED = True
-    print("✅ Service d'analyse de sentiment local activé")
+    from telegram_alerts_service import telegram_alerts
+    TELEGRAM_ALERTS_ENABLED = True
+    print("✅ Service d'alertes Telegram activé")
 except ImportError as e:
-    print(f"⚠️ Service d'analyse de sentiment non disponible: {e}")
-    SENTIMENT_ENABLED = False
+    print(f"⚠️ Service d'alertes Telegram non disponible: {e}")
+    TELEGRAM_ALERTS_ENABLED = False
+    telegram_alerts = None
+
+# Fallback pour compatibilité avec le code existant utilisant l'analyse de sentiment
+SENTIMENT_ENABLED = False
+
+# Fallback pour local_sentiment_analyzer
+class SentimentAnalyzerFallback:
+    def analyze_sentiment(self, text):
+        return {
+            'polarity': 'neutral',
+            'score': 0.0,
+            'intensity': 'low',
+            'analysis_details': {
+                'confidence': 0.0,
+                'detected_patterns': []
+            }
+        }
+    
+    def get_sentiment_trends(self, articles_by_date):
+        return {
+            'success': False,
+            'error': 'Service d\'analyse de sentiment non disponible',
+            'trends': []
+        }
+
+local_sentiment_analyzer = SentimentAnalyzerFallback()
+
+def analyze_articles_sentiment(articles):
+    return {
+        'success': False,
+        'error': 'Service d\'analyse de sentiment non disponible',
+        'analyzed_articles': []
+    }
 try:
     from cache_service import intelligent_cache, get_or_compute, cache_invalidate, start_cache_service
     CACHE_ENABLED = True
