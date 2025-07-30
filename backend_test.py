@@ -295,6 +295,228 @@ class GuadeloupeMediaAPITester:
         except Exception as e:
             return self.log_test("Transcriptions Endpoint", False, f"- Error: {str(e)}")
 
+    def test_transcriptions_by_date(self):
+        """Test transcriptions by date endpoint"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/transcriptions/{self.today}")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    transcriptions = data.get('transcriptions', [])
+                    count = data.get('count', 0)
+                    date = data.get('date', '')
+                    details = f"- Found {count} transcriptions for {date}"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Transcriptions By Date", success, details)
+        except Exception as e:
+            return self.log_test("Transcriptions By Date", False, f"- Error: {str(e)}")
+
+    def test_capture_radio_now(self):
+        """Test manual radio capture endpoint"""
+        try:
+            response = self.session.post(f"{self.base_url}/api/transcriptions/capture-now")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    message = data.get('message', '')
+                    estimated_completion = data.get('estimated_completion', '')
+                    details = f"- Message: '{message}', ETA: {estimated_completion}"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Capture Radio Now", success, details)
+        except Exception as e:
+            return self.log_test("Capture Radio Now", False, f"- Error: {str(e)}")
+
+    def test_capture_status(self):
+        """Test radio capture status endpoint"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/transcriptions/capture-status")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    result = data.get('result', {})
+                    details = f"- Capture status retrieved: {len(result)} fields"
+                else:
+                    # No recent capture is also acceptable
+                    message = data.get('message', '')
+                    details = f"- No recent capture: {message}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Capture Status", success, details)
+        except Exception as e:
+            return self.log_test("Capture Status", False, f"- Error: {str(e)}")
+
+    def test_upload_audio_transcription(self):
+        """Test audio upload and transcription endpoint"""
+        try:
+            # Create a small test audio file (silence)
+            import tempfile
+            import wave
+            import struct
+            
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+                # Create a 1-second silence WAV file
+                sample_rate = 16000
+                duration = 1  # 1 second
+                frames = sample_rate * duration
+                
+                with wave.open(temp_file.name, 'w') as wav_file:
+                    wav_file.setnchannels(1)  # Mono
+                    wav_file.setsampwidth(2)  # 16-bit
+                    wav_file.setframerate(sample_rate)
+                    
+                    # Write silence (zeros)
+                    for _ in range(frames):
+                        wav_file.writeframes(struct.pack('<h', 0))
+                
+                # Upload the file
+                with open(temp_file.name, 'rb') as audio_file:
+                    files = {'file': ('test_audio.wav', audio_file, 'audio/wav')}
+                    response = self.session.post(f"{self.base_url}/api/transcribe", files=files)
+                
+                # Clean up
+                os.unlink(temp_file.name)
+            
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    transcription = data.get('transcription', {})
+                    text = transcription.get('transcription_text', '')
+                    details = f"- Transcription successful: '{text[:50]}...'"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Upload Audio Transcription", success, details)
+        except Exception as e:
+            return self.log_test("Upload Audio Transcription", False, f"- Error: {str(e)}")
+
+    def test_scheduler_status(self):
+        """Test scheduler status endpoint"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/scheduler/status")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    jobs = data.get('jobs', [])
+                    scheduler_running = data.get('scheduler_running', False)
+                    recent_logs = data.get('recent_logs', [])
+                    details = f"- Scheduler running: {scheduler_running}, Jobs: {len(jobs)}, Logs: {len(recent_logs)}"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Scheduler Status", success, details)
+        except Exception as e:
+            return self.log_test("Scheduler Status", False, f"- Error: {str(e)}")
+
+    def test_ffmpeg_dependency(self):
+        """Test if ffmpeg is available for radio capture"""
+        try:
+            # Test by trying to capture radio (this will fail if ffmpeg is missing)
+            response = self.session.post(f"{self.base_url}/api/transcriptions/capture-now")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    details = f"- ffmpeg appears to be available (capture initiated)"
+                else:
+                    error_msg = data.get('error', '').lower()
+                    if 'ffmpeg' in error_msg or 'not found' in error_msg:
+                        success = False
+                        details = f"- ffmpeg missing: {data.get('error', 'Unknown error')}"
+                    else:
+                        details = f"- ffmpeg available but other error: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("FFmpeg Dependency Check", success, details)
+        except Exception as e:
+            return self.log_test("FFmpeg Dependency Check", False, f"- Error: {str(e)}")
+
+    def test_whisper_dependency(self):
+        """Test if Whisper is properly configured"""
+        try:
+            # Test by uploading a small audio file
+            import tempfile
+            import wave
+            import struct
+            
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+                # Create a very small test audio file
+                sample_rate = 16000
+                duration = 0.1  # 0.1 second
+                frames = int(sample_rate * duration)
+                
+                with wave.open(temp_file.name, 'w') as wav_file:
+                    wav_file.setnchannels(1)
+                    wav_file.setsampwidth(2)
+                    wav_file.setframerate(sample_rate)
+                    
+                    for _ in range(frames):
+                        wav_file.writeframes(struct.pack('<h', 0))
+                
+                # Upload the file to test Whisper
+                with open(temp_file.name, 'rb') as audio_file:
+                    files = {'file': ('whisper_test.wav', audio_file, 'audio/wav')}
+                    response = self.session.post(f"{self.base_url}/api/transcribe", files=files)
+                
+                os.unlink(temp_file.name)
+            
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    details = f"- Whisper working correctly"
+                else:
+                    error_msg = data.get('error', '').lower()
+                    if 'whisper' in error_msg or 'model' in error_msg:
+                        success = False
+                        details = f"- Whisper issue: {data.get('error', 'Unknown error')}"
+                    else:
+                        details = f"- Whisper available but other error: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Whisper Dependency Check", success, details)
+        except Exception as e:
+            return self.log_test("Whisper Dependency Check", False, f"- Error: {str(e)}")
+
+    def test_radio_streaming_urls(self):
+        """Test if radio streaming URLs are accessible"""
+        try:
+            # Test the radio streaming URLs by checking if capture can be initiated
+            response = self.session.post(f"{self.base_url}/api/transcriptions/capture-now")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    details = f"- Radio streaming URLs appear accessible"
+                else:
+                    error_msg = data.get('error', '').lower()
+                    if 'url' in error_msg or 'stream' in error_msg or 'connection' in error_msg:
+                        success = False
+                        details = f"- Radio URL issue: {data.get('error', 'Unknown error')}"
+                    else:
+                        details = f"- URLs accessible but other error: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Radio Streaming URLs Check", success, details)
+        except Exception as e:
+            return self.log_test("Radio Streaming URLs Check", False, f"- Error: {str(e)}")
+
     def test_health_endpoint(self):
         """Test health check endpoint"""
         try:
