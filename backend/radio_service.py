@@ -99,14 +99,51 @@ class RadioTranscriptionService:
                 cache_time = datetime.now() + timedelta(hours=24)
                 self.transcription_status[stream_key]["cache_expires_at"] = cache_time.isoformat()
             
-            # Si on termine le processus
+            # Si on termine le processus (correction importante)
             if step in ["completed", "error"]:
                 self.transcription_status[stream_key]["in_progress"] = False
+                self.transcription_status[stream_key]["started_at"] = None  # Nettoyer
+                self.transcription_status[stream_key]["estimated_completion"] = None  # Nettoyer
                 if step == "completed":
                     self.transcription_status[stream_key]["progress_percentage"] = 100
             
             stream_name = self.radio_streams[stream_key]['name']
             logger.info(f"🔄 {stream_name}: {step} - {details} ({progress}%)")
+
+    def reset_all_transcription_status(self):
+        """Remettre à zéro tous les statuts de transcription"""
+        logger.info("🧹 Nettoyage des statuts de transcription...")
+        for stream_key in self.transcription_status:
+            self.transcription_status[stream_key] = {
+                "in_progress": False,
+                "current_step": "idle",
+                "step_details": "",
+                "started_at": None,
+                "estimated_completion": None,
+                "progress_percentage": 0,
+                "last_update": None,
+                "cache_expires_at": None
+            }
+        logger.info("✅ Statuts de transcription remis à zéro")
+
+    def cleanup_stale_status(self):
+        """Nettoyer les statuts bloqués (plus de 2h)"""
+        from datetime import datetime, timedelta
+        current_time = datetime.now()
+        
+        for stream_key, status in self.transcription_status.items():
+            if status["in_progress"] and status["started_at"]:
+                try:
+                    started_time = datetime.fromisoformat(status["started_at"])
+                    elapsed = current_time - started_time
+                    
+                    # Si le processus dure plus de 2h, c'est probablement bloqué
+                    if elapsed > timedelta(hours=2):
+                        logger.warning(f"🧹 Nettoyage statut bloqué pour {self.radio_streams[stream_key]['name']} (durée: {elapsed})")
+                        self.update_transcription_step(stream_key, "error", "Statut expiré - nettoyé automatiquement", 0)
+                except Exception as e:
+                    logger.error(f"Erreur nettoyage statut {stream_key}: {e}")
+                    self.update_transcription_step(stream_key, "idle", "Statut réinitialisé", 0)
 
     def capture_radio_stream(self, stream_key: str, duration_seconds: int) -> Optional[str]:
         """Capturer un flux radio pendant une durée donnée"""
