@@ -223,41 +223,61 @@ class TelegramAlertsService:
             return False
 
     def check_guy_losbar_mentions(self) -> List[Dict]:
-        """Vérifier les nouvelles mentions de Guy Losbar"""
+        """Vérifier les nouvelles mentions des mots-clés surveillés (Guy Losbar et sujets départementaux)"""
         try:
             # Vérifier depuis la dernière fois
             since_time = self.last_check_time.isoformat()
             
             new_mentions = []
             
+            # Créer un pattern regex optimisé pour tous les mots-clés
+            keywords_pattern = "|".join([
+                re.escape(keyword.lower()) for keyword in self.monitored_keywords
+            ])
+            
             # 1. Vérifier dans les articles
             articles_with_mentions = list(self.articles_collection.find({
                 'scraped_at': {'$gte': since_time},
                 '$or': [
-                    {'title': {'$regex': r'guy losbar|losbar', '$options': 'i'}},
-                    {'content': {'$regex': r'guy losbar|losbar', '$options': 'i'}}
+                    {'title': {'$regex': keywords_pattern, '$options': 'i'}},
+                    {'content': {'$regex': keywords_pattern, '$options': 'i'}}
                 ]
             }))
             
             for article in articles_with_mentions:
+                # Identifier quels mots-clés ont été trouvés
+                title = article.get('title', '').lower()
+                content = article.get('content', '').lower()
+                full_text = f"{title} {content}"
+                
+                found_keywords = [keyword for keyword in self.monitored_keywords 
+                                if keyword.lower() in full_text]
+                
                 new_mentions.append({
                     'type': 'article',
                     'source': article.get('source', ''),
                     'title': article.get('title', ''),
                     'url': article.get('url', ''),
                     'found_at': article.get('scraped_at', ''),
-                    'platform': 'presse'
+                    'platform': 'presse',
+                    'keywords_found': found_keywords,
+                    'priority': 'high' if any(k.lower() in ['guy losbar', 'losbar'] for k in found_keywords) else 'medium'
                 })
             
             # 2. Vérifier dans les réseaux sociaux
             social_with_mentions = list(self.social_collection.find({
                 'scraped_at': {'$gte': since_time},
-                'content': {'$regex': r'guy losbar|losbar', '$options': 'i'}
+                'content': {'$regex': keywords_pattern, '$options': 'i'}
             }))
             
             for post in social_with_mentions:
-                content = post.get('content', '')
-                truncated_content = content[:200] + '...' if len(content) > 200 else content
+                content = post.get('content', '').lower()
+                found_keywords = [keyword for keyword in self.monitored_keywords 
+                                if keyword.lower() in content]
+                
+                truncated_content = post.get('content', '')
+                if len(truncated_content) > 200:
+                    truncated_content = truncated_content[:200] + '...'
                 
                 new_mentions.append({
                     'type': 'social_post',
@@ -266,35 +286,56 @@ class TelegramAlertsService:
                     'content': truncated_content,
                     'url': post.get('url', ''),
                     'found_at': post.get('scraped_at', ''),
-                    'engagement': post.get('engagement', {}).get('total', 0)
+                    'engagement': post.get('engagement', {}).get('total', 0),
+                    'keywords_found': found_keywords,
+                    'priority': 'high' if any(k.lower() in ['guy losbar', 'losbar'] for k in found_keywords) else 'medium'
                 })
             
             # 3. Vérifier dans les transcriptions radio
             transcriptions_with_mentions = list(self.transcriptions_collection.find({
                 'captured_at': {'$gte': since_time},
                 '$or': [
-                    {'transcription': {'$regex': r'guy losbar|losbar', '$options': 'i'}},
-                    {'gpt_analysis': {'$regex': r'guy losbar|losbar', '$options': 'i'}}
+                    {'transcription_text': {'$regex': keywords_pattern, '$options': 'i'}},
+                    {'gpt_analysis': {'$regex': keywords_pattern, '$options': 'i'}},
+                    {'ai_summary': {'$regex': keywords_pattern, '$options': 'i'}}
                 ]
             }))
             
             for transcription in transcriptions_with_mentions:
-                gpt_content = transcription.get('gpt_analysis', '')
-                truncated_gpt = gpt_content[:200] + '...' if len(gpt_content) > 200 else gpt_content
+                transcription_text = transcription.get('transcription_text', '')
+                gpt_content = transcription.get('gpt_analysis', '') or transcription.get('ai_summary', '')
+                full_content = f"{transcription_text} {gpt_content}".lower()
+                
+                found_keywords = [keyword for keyword in self.monitored_keywords 
+                                if keyword.lower() in full_content]
+                
+                display_content = gpt_content if gpt_content else transcription_text
+                if len(display_content) > 200:
+                    display_content = display_content[:200] + '...'
                 
                 new_mentions.append({
                     'type': 'radio_transcription',
                     'section': transcription.get('section', ''),
-                    'content': truncated_gpt,
+                    'stream_name': transcription.get('stream_name', ''),
+                    'content': display_content,
                     'found_at': transcription.get('captured_at', ''),
-                    'platform': 'radio'
+                    'platform': 'radio',
+                    'keywords_found': found_keywords,
+                    'priority': 'high' if any(k.lower() in ['guy losbar', 'losbar'] for k in found_keywords) else 'medium'
                 })
             
-            logger.info(f"🔍 Vérification Guy Losbar: {len(new_mentions)} nouvelles mentions trouvées")
+            # Trier par priorité (high d'abord) puis par date
+            new_mentions.sort(key=lambda x: (x['priority'] != 'high', x['found_at']), reverse=True)
+            
+            logger.info(f"🔍 Vérification mots-clés étendus: {len(new_mentions)} nouvelles mentions trouvées")
+            if new_mentions:
+                high_priority = len([m for m in new_mentions if m['priority'] == 'high'])
+                logger.info(f"   📈 Dont {high_priority} mentions haute priorité (Guy Losbar/Losbar)")
+            
             return new_mentions
             
         except Exception as e:
-            logger.error(f"❌ Erreur vérification mentions Guy Losbar: {e}")
+            logger.error(f"❌ Erreur vérification mentions étendues: {e}")
             return []
 
     def check_task_status_changes(self) -> List[Dict]:
