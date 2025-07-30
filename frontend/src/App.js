@@ -28,6 +28,17 @@ function App() {
   const [socialSearchQuery, setSocialSearchQuery] = useState('');
   const [socialSearchResults, setSocialSearchResults] = useState(null);
   const [socialSearchLoading, setSocialSearchLoading] = useState(false);
+  
+  // États pour les transcriptions par sections
+  const [transcriptionSections, setTranscriptionSections] = useState({
+    "7H RCI": [],
+    "7H Guadeloupe Première": [],
+    "Autres": []
+  });
+  const [transcriptionStatus, setTranscriptionStatus] = useState({
+    sections: {},
+    global_status: { any_in_progress: false, total_sections: 2, active_sections: 0 }
+  });
   const [socialSearchError, setSocialSearchError] = useState(null);
   
   // États pour la recherche automatique
