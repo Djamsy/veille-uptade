@@ -1,16 +1,18 @@
 """
-Service de résumé automatique gratuit
-Utilise spaCy et des techniques extractives pour résumer les contenus
+Service de résumé gratuit utilisant TextRank et LexRank
+Version allégée sans dépendances lourdes
 """
-import spacy
+import logging
+import re
+from typing import List, Dict, Any, Optional
 from sumy.parsers.plaintext import PlaintextParser
 from sumy.nlp.tokenizers import Tokenizer
 from sumy.summarizers.text_rank import TextRankSummarizer
 from sumy.summarizers.lex_rank import LexRankSummarizer
-import re
-from typing import List, Dict, Any, Optional
-import logging
+from sumy.nlp.stemmers import Stemmer
 from datetime import datetime
+from pymongo import MongoClient
+import os
 
 # Configuration logging
 logging.basicConfig(level=logging.INFO)
