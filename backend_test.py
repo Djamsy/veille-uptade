@@ -921,7 +921,18 @@ class GuadeloupeMediaAPITester:
         # Test existing features
         print("\n📰 EXISTING FEATURES VERIFICATION")
         self.test_scrapers_working()
+        
+        # Test RADIO TRANSCRIPTION SYSTEM (as requested)
+        print("\n📻 RADIO TRANSCRIPTION SYSTEM TESTS")
+        self.test_ffmpeg_dependency()
+        self.test_whisper_dependency()
+        self.test_radio_streaming_urls()
         self.test_transcriptions_endpoint()
+        self.test_transcriptions_by_date()
+        self.test_capture_radio_now()
+        self.test_capture_status()
+        self.test_upload_audio_transcription()
+        self.test_scheduler_status()
 
         # Print summary
         print("=" * 80)
