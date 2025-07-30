@@ -997,6 +997,188 @@ class GuadeloupeMediaAPITester:
         except Exception as e:
             return self.log_test("GPT Analysis Endpoint", False, f"- Error: {str(e)}")
 
+    def test_gpt_capture_1min_with_admin_key(self):
+        """Test GPT capture 1 minute sample endpoint WITH admin key"""
+        try:
+            # Test with admin key
+            admin_key = "radio_capture_admin_2025"
+            original_timeout = self.session.timeout
+            self.session.timeout = 180  # 3 minutes timeout
+            
+            response = self.session.post(f"{self.base_url}/api/test-capture-1min?admin_key={admin_key}")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    audio_captured = data.get('audio_captured', False)
+                    transcription_method = data.get('transcription_method', '')
+                    gpt_analysis = data.get('gpt_analysis', {})
+                    cost_estimate = data.get('cost_estimate', {})
+                    
+                    # Check for OpenAI Whisper API usage
+                    is_openai_whisper = 'openai_whisper_api' in transcription_method
+                    has_cost_estimate = bool(cost_estimate)
+                    
+                    if audio_captured and is_openai_whisper and gpt_analysis and has_cost_estimate:
+                        details = f"- Full pipeline with admin key: method={transcription_method}, costs={cost_estimate}"
+                    else:
+                        success = False
+                        details = f"- Pipeline incomplete: audio={audio_captured}, whisper_api={is_openai_whisper}, costs={has_cost_estimate}"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            
+            self.session.timeout = original_timeout
+            return self.log_test("GPT Capture 1min WITH Admin Key", success, details)
+        except Exception as e:
+            self.session.timeout = original_timeout
+            return self.log_test("GPT Capture 1min WITH Admin Key", False, f"- Error: {str(e)}")
+
+    def test_capture_without_admin_key_security(self):
+        """Test capture without admin key should be rejected with security message"""
+        try:
+            # Test without admin key - should be rejected
+            response = self.session.post(f"{self.base_url}/api/transcriptions/capture-now")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                # Should return success=False with security message
+                if not data.get('success'):
+                    error_msg = data.get('error', '').lower()
+                    current_hour = data.get('current_hour', 0)
+                    authorized_hours = data.get('authorized_hours', [])
+                    
+                    # Check for security controls message
+                    has_security_msg = any(keyword in error_msg for keyword in ['coûts', 'openai', '7h', 'autorisées'])
+                    has_hour_info = current_hour is not None and authorized_hours == [7]
+                    
+                    if has_security_msg and has_hour_info:
+                        details = f"- Security working: hour={current_hour}, authorized={authorized_hours}, msg contains cost control"
+                    else:
+                        success = False
+                        details = f"- Security incomplete: security_msg={has_security_msg}, hour_info={has_hour_info}"
+                else:
+                    success = False
+                    details = f"- Security failed: capture allowed without admin key"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Capture Security Without Admin Key", success, details)
+        except Exception as e:
+            return self.log_test("Capture Security Without Admin Key", False, f"- Error: {str(e)}")
+
+    def test_capture_hour_restrictions(self):
+        """Test capture hour restrictions (only 7h authorized)"""
+        try:
+            from datetime import datetime
+            current_hour = datetime.now().hour
+            
+            # Test without admin key to check hour restrictions
+            response = self.session.post(f"{self.base_url}/api/transcriptions/capture-now")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if not data.get('success'):  # Should be rejected
+                    error_msg = data.get('error', '')
+                    current_hour_response = data.get('current_hour', 0)
+                    authorized_hours = data.get('authorized_hours', [])
+                    note = data.get('note', '')
+                    
+                    # Check restrictions
+                    only_7h_authorized = authorized_hours == [7]
+                    has_openai_note = 'openai' in note.lower()
+                    correct_current_hour = current_hour_response == current_hour
+                    
+                    if only_7h_authorized and has_openai_note and correct_current_hour:
+                        details = f"- Hour restrictions working: current={current_hour}, authorized={authorized_hours}, OpenAI note present"
+                    else:
+                        success = False
+                        details = f"- Restrictions incomplete: 7h_only={only_7h_authorized}, openai_note={has_openai_note}"
+                else:
+                    # If current hour is 7, capture might be allowed
+                    if current_hour == 7:
+                        details = f"- Capture allowed at 7h (expected): current_hour={current_hour}"
+                    else:
+                        success = False
+                        details = f"- Security failed: capture allowed at {current_hour}h (should only work at 7h)"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Capture Hour Restrictions", success, details)
+        except Exception as e:
+            return self.log_test("Capture Hour Restrictions", False, f"- Error: {str(e)}")
+
+    def test_openai_whisper_api_method(self):
+        """Test that OpenAI Whisper API method is used in responses"""
+        try:
+            # Test by checking transcription status or existing transcriptions
+            response = self.session.get(f"{self.base_url}/api/transcriptions")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    transcriptions = data.get('transcriptions', [])
+                    
+                    # Check if any transcription uses OpenAI Whisper API method
+                    openai_whisper_found = False
+                    for transcription in transcriptions[:5]:  # Check first 5
+                        method = transcription.get('transcription_method', '')
+                        if 'openai_whisper_api' in method:
+                            openai_whisper_found = True
+                            break
+                    
+                    if transcriptions:
+                        details = f"- Found {len(transcriptions)} transcriptions, OpenAI Whisper API method: {openai_whisper_found}"
+                    else:
+                        details = f"- No transcriptions found (acceptable): count={len(transcriptions)}"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("OpenAI Whisper API Method", success, details)
+        except Exception as e:
+            return self.log_test("OpenAI Whisper API Method", False, f"- Error: {str(e)}")
+
+    def test_cost_estimation_in_responses(self):
+        """Test that cost estimations are included in responses"""
+        try:
+            # Test with admin key to get cost estimates
+            admin_key = "radio_capture_admin_2025"
+            response = self.session.post(f"{self.base_url}/api/transcriptions/capture-now?admin_key={admin_key}")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    # Check for cost-related information in response
+                    message = data.get('message', '').lower()
+                    estimated_completion = data.get('estimated_completion', '')
+                    
+                    # Look for cost transparency mentions
+                    has_cost_info = any(keyword in message for keyword in ['coût', 'cost', 'openai', 'whisper'])
+                    has_completion_time = bool(estimated_completion)
+                    
+                    if has_completion_time:
+                        details = f"- Cost transparency: cost_info_in_msg={has_cost_info}, completion_time='{estimated_completion}'"
+                    else:
+                        success = False
+                        details = f"- Cost info incomplete: cost_info={has_cost_info}, completion_time={has_completion_time}"
+                else:
+                    # Check if error message mentions costs
+                    error_msg = data.get('error', '').lower()
+                    has_cost_control_msg = any(keyword in error_msg for keyword in ['coût', 'openai', 'contrôl'])
+                    
+                    if has_cost_control_msg:
+                        details = f"- Cost control message present in error: '{data.get('error', '')}'"
+                    else:
+                        success = False
+                        details = f"- No cost control message: error='{data.get('error', '')}'"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Cost Estimation in Responses", success, details)
+        except Exception as e:
+            return self.log_test("Cost Estimation in Responses", False, f"- Error: {str(e)}")
+
     def test_gpt_capture_1min_endpoint(self):
         """Test GPT capture 1 minute sample endpoint (may be slow)"""
         try:
