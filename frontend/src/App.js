@@ -877,57 +877,35 @@ function App() {
         {/* Dashboard moderne */}
         {activeTab === 'dashboard' && (
           <div className="animate-slide-in">
-            <div className="section-header">
-              <h2 className="section-title">Vue d'ensemble - Guadeloupe</h2>
-              <p className="section-subtitle">Surveillance médiatique en temps réel</p>
-            </div>
-            
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
-              gap: '1.5rem',
-              marginBottom: '3rem'
-            }}>
-              <div className="glass-card radio-priority-card animate-slide-in" style={{ padding: '2rem' }}>
-                <div className="priority-badge" style={{ marginBottom: '1rem' }}>
-                  🎙️ PRIORITÉ ABSOLUE
-                </div>
-                <div style={{ fontSize: '2.5rem', fontWeight: '700', color: '#fbbf24', marginBottom: '0.5rem' }}>
-                  {dashboardStats.today_transcriptions || 0}
-                </div>
-                <div style={{ color: '#e2e8f0', marginBottom: '0.5rem' }}>Radio Locale Aujourd'hui</div>
-                <div style={{ color: '#94a3b8', fontSize: '0.875rem' }}>
-                  Total: {dashboardStats.total_transcriptions || 0}
-                </div>
+            <div className="section-container">
+              <div className="section-header">
+                <h2 className="section-title">Vue d'ensemble - Guadeloupe</h2>
+                <p className="section-subtitle">Monitoring des médias locaux en temps réel</p>
               </div>
 
-              <div className="glass-card animate-slide-in" style={{ padding: '2rem' }}>
-                <div style={{ fontSize: '2rem', fontWeight: '700', color: '#3b82f6', marginBottom: '0.5rem' }}>
-                  {dashboardStats.today_articles || 0}
+              <div className="stats-container">
+                <div className="stat-card">
+                  <div className="stat-label">Articles Presse</div>
+                  <div className="stat-value">{dashboardStats.total_articles || 0}</div>
+                  <div className="stat-sublabel">Aujourd'hui</div>
                 </div>
-                <div style={{ color: '#e2e8f0', marginBottom: '0.5rem' }}>📰 Articles Presse</div>
-                <div style={{ color: '#94a3b8', fontSize: '0.875rem' }}>
-                  Total: {dashboardStats.total_articles || 0}
-                </div>
-              </div>
 
-              <div className="glass-card animate-slide-in" style={{ padding: '2rem' }}>
-                <div style={{ fontSize: '2rem', fontWeight: '700', color: '#8b5cf6', marginBottom: '0.5rem' }}>
-                  {dashboardStats.total_digests || 0}
+                <div className="stat-card">
+                  <div className="stat-label">Digests</div>
+                  <div className="stat-value">{dashboardStats.total_digests || 0}</div>
+                  <div className="stat-sublabel">Générés</div>
                 </div>
-                <div style={{ color: '#e2e8f0', marginBottom: '0.5rem' }}>📋 Digests</div>
-                <div style={{ color: '#94a3b8', fontSize: '0.875rem' }}>
-                  Résumés quotidiens
-                </div>
-              </div>
 
-              <div className="glass-card animate-slide-in" style={{ padding: '2rem' }}>
-                <div style={{ fontSize: '2rem', fontWeight: '700', color: '#22c55e', marginBottom: '0.5rem' }}>
-                  {dashboardStats.cache_stats?.cache_hit_ratio?.toFixed(1) || 0}%
+                <div className="stat-card">
+                  <div className="stat-label">Cache Performance</div>
+                  <div className="stat-value">{Math.round((dashboardStats.cache_hits / Math.max(dashboardStats.cache_total, 1)) * 100) || 0}%</div>
+                  <div className="stat-sublabel">Efficacité</div>
                 </div>
-                <div style={{ color: '#e2e8f0', marginBottom: '0.5rem' }}>⚡ Cache Performance</div>
-                <div style={{ color: '#94a3b8', fontSize: '0.875rem' }}>
-                  Optimisation système
+
+                <div className="stat-card">
+                  <div className="stat-label">Transcriptions</div>
+                  <div className="stat-value">{dashboardStats.total_transcriptions || 0}</div>
+                  <div className="stat-sublabel">Radio</div>
                 </div>
               </div>
             </div>
