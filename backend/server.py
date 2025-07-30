@@ -96,11 +96,31 @@ class SentimentAnalyzerFallback:
 local_sentiment_analyzer = SentimentAnalyzerFallback()
 
 def analyze_articles_sentiment(articles):
-    return {
-        'success': False,
-        'error': 'Service d\'analyse de sentiment non disponible',
-        'analyzed_articles': []
-    }
+    """Analyser le sentiment des articles avec GPT en mode asynchrone"""
+    try:
+        if not SENTIMENT_ENABLED:
+            return {
+                'success': False,
+                'error': 'Service d\'analyse de sentiment non disponible',
+                'analyzed_articles': []
+            }
+        
+        # Utiliser le service GPT si disponible
+        if 'gpt_sentiment_analyzer' in globals():
+            return gpt_sentiment_analyzer.analyze_articles_batch(articles)
+        else:
+            return {
+                'success': False,
+                'error': 'Service GPT non disponible',
+                'analyzed_articles': []
+            }
+    except Exception as e:
+        logger.error(f"Erreur analyse articles sentiment: {e}")
+        return {
+            'success': False,
+            'error': str(e),
+            'analyzed_articles': []
+        }
 try:
     from cache_service import intelligent_cache, get_or_compute, cache_invalidate, start_cache_service
     CACHE_ENABLED = True
