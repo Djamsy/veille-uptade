@@ -248,15 +248,18 @@ backend:
 
   - task: "Dashboard statistics API"
     implemented: true
-    working: "NA"
+    working: true
     file: "server.py"  
     stuck_count: 0
     priority: "medium"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Updated to show today-only stats with better error handling - needs retesting"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Dashboard stats API working correctly. Shows 192 today articles with proper today-only filtering. Cache stats active, services healthy. Message confirms 'Articles du 2025-07-30 uniquement'."
 
   - task: "Radio transcription system"
     implemented: true
