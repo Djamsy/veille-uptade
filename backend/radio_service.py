@@ -585,6 +585,20 @@ class RadioTranscriptionService:
         config = self.radio_streams[stream_key]
         duration_seconds = config['duration_minutes'] * 60
         
+        # ALERTE TELEGRAM - DÉBUT DE CAPTURE
+        try:
+            from telegram_alerts_service import telegram_alerts
+            if telegram_alerts.bot:
+                start_message = f"""📻 *DÉBUT CAPTURE RADIO*
+
+🎙️ Station: {config['name']}
+📍 Section: {config['section']}
+⏱️ Durée: {config['duration_minutes']} minutes
+🚀 Démarré le {datetime.now().strftime('%d/%m/%Y à %H:%M')}"""
+                telegram_alerts.send_alert_sync(start_message)
+        except Exception as e:
+            logger.warning(f"Erreur alerte Telegram début: {e}")
+        
         # Utiliser la capture segmentée automatiquement pour les durées > 10 minutes
         if use_segmented is None:
             use_segmented = duration_seconds > 600  # Plus de 10 minutes
