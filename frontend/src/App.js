@@ -1138,14 +1138,22 @@ function App() {
                   📄 Créer Digest
                 </button>
                 {digest && (
-                  <a
-                    href={`${BACKEND_URL}/api/digest/${selectedDate}/html`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
-                  >
-                    🔗 Version HTML
-                  </a>
+                  <>
+                    <a
+                      href={`${BACKEND_URL}/api/digest/${selectedDate}/pdf`}
+                      className="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+                    >
+                      📄 Télécharger PDF
+                    </a>
+                    <a
+                      href={`${BACKEND_URL}/api/digest/${selectedDate}/html`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+                    >
+                      🔗 Version HTML
+                    </a>
+                  </>
                 )}
               </div>
             </div>
