@@ -151,6 +151,74 @@ class RadioTranscriptionService:
             logger.error(f"❌ Erreur transcription: {e}")
             return None
 
+    def set_transcription_status(self, stream_key: str, in_progress: bool, estimated_minutes: int = None):
+        """Mettre à jour le statut de transcription"""
+        if stream_key in self.transcription_status:
+            self.transcription_status[stream_key]["in_progress"] = in_progress
+            
+            if in_progress:
+                self.transcription_status[stream_key]["started_at"] = datetime.now().isoformat()
+                if estimated_minutes:
+                    completion_time = datetime.now() + timedelta(minutes=estimated_minutes)
+                    self.transcription_status[stream_key]["estimated_completion"] = completion_time.isoformat()
+                logger.info(f"🔄 Transcription en cours: {self.radio_streams[stream_key]['name']}")
+            else:
+                self.transcription_status[stream_key]["started_at"] = None
+                self.transcription_status[stream_key]["estimated_completion"] = None
+                logger.info(f"✅ Transcription terminée: {self.radio_streams[stream_key]['name']}")
+
+    def get_transcription_status(self) -> Dict[str, Any]:
+        """Récupérer le statut de toutes les transcriptions"""
+        status_summary = {
+            "sections": {},
+            "global_status": {
+                "any_in_progress": False,
+                "total_sections": len(self.radio_streams),
+                "active_sections": 0
+            }
+        }
+        
+        for stream_key, config in self.radio_streams.items():
+            section_status = self.transcription_status[stream_key].copy()
+            section_status.update({
+                "section_name": config["section"],
+                "description": config["description"],
+                "duration_minutes": config["duration_minutes"],
+                "start_time": f"{config['start_hour']:02d}:{config['start_minute']:02d}",
+                "priority": config["priority"]
+            })
+            
+            status_summary["sections"][stream_key] = section_status
+            
+            if section_status["in_progress"]:
+                status_summary["global_status"]["any_in_progress"] = True
+                status_summary["global_status"]["active_sections"] += 1
+        
+        return status_summary
+
+    def get_todays_transcriptions_by_section(self) -> Dict[str, List]:
+        """Récupérer les transcriptions d'aujourd'hui organisées par section"""
+        today = datetime.now().strftime('%Y-%m-%d')
+        all_transcriptions = list(self.transcriptions_collection.find(
+            {'date': today}, 
+            {'_id': 0}
+        ).sort('captured_at', -1))
+        
+        sections = {
+            "7H RCI": [],
+            "7H Guadeloupe Première": [],
+            "Autres": []
+        }
+        
+        for transcription in all_transcriptions:
+            section = transcription.get('section', 'Autres')
+            if section in sections:
+                sections[section].append(transcription)
+            else:
+                sections["Autres"].append(transcription)
+        
+        return sections
+
     def capture_and_transcribe_stream(self, stream_key: str) -> Dict[str, Any]:
         """Capturer et transcrire un flux radio"""
         config = self.radio_streams[stream_key]
