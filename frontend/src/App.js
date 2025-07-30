@@ -626,21 +626,41 @@ function App() {
         </div>
       </header>
 
-      {/* Barre de statut des tâches en arrière-plan */}
+      {/* Barre de statut des tâches - Style Apple moderne */}
       {(backgroundTasks.scraping || backgroundTasks.capturing) && (
-        <div className="glass-card" style={{ margin: '1rem', padding: '1rem' }}>
-          <div className="main-container">
-            <div className="flex items-center gap-4 text-sm">
+        <div className="content-section">
+          <div className="glass-card animate-slide-in" style={{ padding: '1.5rem', marginBottom: '1rem' }}>
+            <div className="flex items-center gap-6">
               {backgroundTasks.scraping && (
-                <div className="flex items-center gap-2">
-                  <div className="loading-spinner" style={{ width: '20px', height: '20px' }}></div>
-                  <span style={{ color: '#2c3e50' }}>Scraping en cours... (2-3 min)</span>
+                <div className="flex items-center gap-3">
+                  <div className="animate-pulse">
+                    <div style={{ 
+                      width: '8px', 
+                      height: '8px', 
+                      background: '#3b82f6', 
+                      borderRadius: '50%',
+                      boxShadow: '0 0 20px rgba(59, 130, 246, 0.6)'
+                    }}></div>
+                  </div>
+                  <span className="status-indicator status-info">
+                    🔄 Scraping en cours... (2-3 min)
+                  </span>
                 </div>
               )}
               {backgroundTasks.capturing && (
-                <div className="flex items-center gap-2">
-                  <div className="loading-spinner" style={{ width: '20px', height: '20px' }}></div>
-                  <span style={{ color: '#2c3e50' }}>Capture radio en cours... (3-5 min)</span>
+                <div className="flex items-center gap-3">
+                  <div className="animate-pulse">
+                    <div style={{ 
+                      width: '8px', 
+                      height: '8px', 
+                      background: '#f59e0b', 
+                      borderRadius: '50%',
+                      boxShadow: '0 0 20px rgba(245, 158, 11, 0.6)'
+                    }}></div>
+                  </div>
+                  <span className="status-indicator status-warning">
+                    📻 Capture radio en cours... (3-5 min)
+                  </span>
                 </div>
               )}
             </div>
