@@ -1105,39 +1105,148 @@ function App() {
                 <div className="priority-badge" style={{ marginBottom: '1.5rem' }}>
                   🎙️ PRIORITÉ ABSOLUE
                 </div>
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-800">🎙️ 7H RCI</h3>
-                    <p className="text-sm text-gray-600">RCI Guadeloupe - Journal matinal</p>
-                    <p className="text-xs text-gray-500">07:00 - 07:20 (20 min)</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {transcriptionStatus.sections?.rci_7h?.in_progress && (
-                      <div className="flex items-center gap-1 text-green-600">
-                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                        <span className="text-xs">En cours...</span>
-                      </div>
-                    )}
-                    <button
-                      onClick={() => captureSection('rci')}
-                      disabled={loading || transcriptionStatus.sections?.rci_7h?.in_progress}
-                      className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-semibold transition-colors disabled:bg-gray-400"
-                    >
-                      📻 Capturer
-                    </button>
+                {/* Information */}
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem', color: '#1a1a1a' }}>
+                    🎙️ 7H RCI
+                  </h3>
+                  <div style={{ color: '#6b7280', fontSize: '0.9rem' }}>
+                    RCI Guadeloupe - Journal matinal | 07:00 - 07:20 (20 min)
                   </div>
                 </div>
-                <div className="space-y-3">
+
+                {/* Statut et actions */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                  <div>
+                    {transcriptionStatus.sections?.rci_7h?.in_progress ? (
+                      <div className="status-indicator status-warning">
+                        <div style={{ width: '6px', height: '6px', background: '#f59e0b', borderRadius: '50%', animation: 'pulse 2s infinite' }}></div>
+                        {transcriptionStatus.sections?.rci_7h?.step_details || 'En cours...'}
+                      </div>
+                    ) : (
+                      <div className="status-indicator status-success">
+                        ✅ Prêt à capturer
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => captureSection('rci')}
+                    disabled={loading || transcriptionStatus.sections?.rci_7h?.in_progress}
+                    className={transcriptionStatus.sections?.rci_7h?.in_progress ? 'btn-secondary' : 'btn-primary'}
+                    style={{ opacity: transcriptionStatus.sections?.rci_7h?.in_progress ? 0.6 : 1 }}
+                  >
+                    📻 Capturer
+                  </button>
+                </div>
+
+                {/* Transcriptions */}
+                <div className="transcription-list">
                   {transcriptionSections["7H RCI"]?.length > 0 ? (
-                    transcriptionSections["7H RCI"].slice(0, 3).map(t => (
-                      <div key={t.id} className="bg-gray-50 p-3 rounded-lg">
-                        {/* Résumé IA ou transcription brute */}
-                        <p className="text-sm text-gray-700 font-medium">
-                          {t.ai_summary || `"${t.transcription_text.substring(0, 100)}..."`}
-                        </p>
+                    transcriptionSections["7H RCI"].slice(0, 2).map(t => (
+                      <div key={t.id} className="transcription-item" style={{ padding: '1.5rem' }}>
+                        {/* Information */}
+                        <div className="transcription-information">
+                          📻 {t.stream_name} - {new Date(t.captured_at).toLocaleDateString('fr-FR')}
+                        </div>
                         
-                        {/* Mots-clés et sujets */}
-                        {t.ai_keywords && t.ai_keywords.length > 0 && (
+                        {/* Explication */}
+                        <div className="transcription-explication">
+                          {t.gpt_analysis || t.ai_summary || `"${t.transcription_text?.substring(0, 150)}..."`}
+                        </div>
+
+                        {/* Métadonnées */}
+                        <div className="transcription-meta">
+                          <span style={{ color: '#f59e0b', fontWeight: '500' }}>
+                            {t.transcription_method === 'segmented_openai_whisper_api' ? '🎬 Segmenté' : '🎤 Simple'}
+                          </span>
+                          <span>{new Date(t.captured_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                          {t.segments_count && (
+                            <span>{t.segments_count} segments</span>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="glass-card" style={{ padding: '2rem', textAlign: 'center' }}>
+                      <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>📻</div>
+                      <p style={{ color: '#6b7280' }}>Aucune transcription aujourd'hui</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Section 7H Guadeloupe Première */}
+              <div className="glass-card" style={{ padding: '2rem' }}>
+                {/* Information */}
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem', color: '#1a1a1a' }}>
+                    📻 7H Guadeloupe Première
+                  </h3>
+                  <div style={{ color: '#6b7280', fontSize: '0.9rem' }}>
+                    Guadeloupe Première - Actualités matinales | 07:00 - 07:30 (30 min)
+                  </div>
+                </div>
+
+                {/* Statut et actions */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                  <div>
+                    {transcriptionStatus.sections?.guadeloupe_premiere_7h?.in_progress ? (
+                      <div className="status-indicator status-warning">
+                        <div style={{ width: '6px', height: '6px', background: '#f59e0b', borderRadius: '50%', animation: 'pulse 2s infinite' }}></div>
+                        {transcriptionStatus.sections?.guadeloupe_premiere_7h?.step_details || 'En cours...'}
+                      </div>
+                    ) : (
+                      <div className="status-indicator status-info">
+                        ✅ Prêt à capturer
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => captureSection('guadeloupe')}
+                    disabled={loading || transcriptionStatus.sections?.guadeloupe_premiere_7h?.in_progress}
+                    className={transcriptionStatus.sections?.guadeloupe_premiere_7h?.in_progress ? 'btn-secondary' : 'btn-primary'}
+                    style={{ opacity: transcriptionStatus.sections?.guadeloupe_premiere_7h?.in_progress ? 0.6 : 1 }}
+                  >
+                    📻 Capturer
+                  </button>
+                </div>
+
+                {/* Transcriptions */}
+                <div className="transcription-list">
+                  {transcriptionSections["7H Guadeloupe Première"]?.length > 0 ? (
+                    transcriptionSections["7H Guadeloupe Première"].slice(0, 2).map(t => (
+                      <div key={t.id} className="transcription-item" style={{ padding: '1.5rem' }}>
+                        {/* Information */}
+                        <div className="transcription-information">
+                          📻 {t.stream_name} - {new Date(t.captured_at).toLocaleDateString('fr-FR')}
+                        </div>
+                        
+                        {/* Explication */}
+                        <div className="transcription-explication">
+                          {t.gpt_analysis || t.ai_summary || `"${t.transcription_text?.substring(0, 150)}..."`}
+                        </div>
+
+                        {/* Métadonnées */}
+                        <div className="transcription-meta">
+                          <span style={{ color: '#3b82f6', fontWeight: '500' }}>
+                            {t.transcription_method === 'segmented_openai_whisper_api' ? '🎬 Segmenté' : '🎤 Simple'}
+                          </span>
+                          <span>{new Date(t.captured_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                          {t.segments_count && (
+                            <span>{t.segments_count} segments</span>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="glass-card" style={{ padding: '2rem', textAlign: 'center' }}>
+                      <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>📻</div>
+                      <p style={{ color: '#6b7280' }}>Aucune transcription aujourd'hui</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
                           <div className="flex flex-wrap gap-1 mt-2">
                             {t.ai_keywords.slice(0, 4).map((keyword, idx) => (
                               <span key={idx} className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
