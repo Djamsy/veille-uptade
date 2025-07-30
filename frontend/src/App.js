@@ -698,56 +698,114 @@ function App() {
         </nav>
       </div>
 
-      {/* Main Content */}
-      <main className="main-container">
-        {/* Affichage des erreurs */}
+      {/* Main Content style Apple moderne */}
+      <main className="content-section">
+        {/* Affichage des erreurs - Style Apple */}
         {error && (
-          <div className="alert error">
-            <span>{error}</span>
-            <button onClick={() => setError(null)} className="hover:opacity-75" style={{ color: '#e74c3c' }}>✕</button>
-          </div>
-        )}
-
-        {/* Loading overlay */}
-        {loading && (
-          <div className="loading-overlay">
-            <div className="loading-content">
-              <div className="loading-spinner"></div>
-              <p>Traitement en cours...</p>
+          <div className="glass-card animate-slide-in" style={{ 
+            padding: '1rem', 
+            marginBottom: '2rem',
+            background: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid rgba(239, 68, 68, 0.3)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span className="status-indicator status-error">{error}</span>
+              <button 
+                onClick={() => setError(null)} 
+                className="btn-secondary"
+                style={{ padding: '0.5rem', minWidth: 'auto' }}
+              >
+                ✕
+              </button>
             </div>
           </div>
         )}
 
-        {/* Dashboard */}
+        {/* Loading overlay - Style Apple */}
+        {loading && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(13, 17, 23, 0.8)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999
+          }}>
+            <div className="glass-card animate-fade-in" style={{ padding: '2rem', textAlign: 'center' }}>
+              <div className="animate-pulse" style={{ 
+                width: '40px', 
+                height: '40px', 
+                background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', 
+                borderRadius: '50%',
+                margin: '0 auto 1rem'
+              }}></div>
+              <p style={{ color: '#e2e8f0' }}>Traitement en cours...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Dashboard moderne */}
         {activeTab === 'dashboard' && (
-          <div className="space-y-6">
-            <h2 className="text-3xl font-bold mb-6" style={{ color: '#2c3e50' }}>📊 Vue d'ensemble - Guadeloupe</h2>
+          <div className="animate-slide-in">
+            <div className="section-header">
+              <h2 className="section-title">📊 Vue d'ensemble - Guadeloupe</h2>
+              <p className="section-subtitle">Surveillance médiatique en temps réel</p>
+            </div>
             
-            <div className="stats-grid">
-              <div className="stat-card priority-card">
-                <div className="stat-label">🎙️ Radio Locale - Priorité</div>
-                <div className="stat-value">{dashboardStats.today_transcriptions || 0}</div>
-                <div className="stat-sublabel">Total: {dashboardStats.total_transcriptions || 0}</div>
-                <div className="stat-badge">PRIORITÉ</div>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
+              gap: '1.5rem',
+              marginBottom: '3rem'
+            }}>
+              <div className="glass-card radio-priority-card animate-slide-in" style={{ padding: '2rem' }}>
+                <div className="priority-badge" style={{ marginBottom: '1rem' }}>
+                  🎙️ PRIORITÉ ABSOLUE
+                </div>
+                <div style={{ fontSize: '2.5rem', fontWeight: '700', color: '#fbbf24', marginBottom: '0.5rem' }}>
+                  {dashboardStats.today_transcriptions || 0}
+                </div>
+                <div style={{ color: '#e2e8f0', marginBottom: '0.5rem' }}>Radio Locale Aujourd'hui</div>
+                <div style={{ color: '#94a3b8', fontSize: '0.875rem' }}>
+                  Total: {dashboardStats.total_transcriptions || 0}
+                </div>
               </div>
 
-              <div className="stat-card">
-                <div className="stat-label">📰 Articles Presse</div>
-                <div className="stat-value">{dashboardStats.today_articles || 0}</div>
-                <div className="stat-sublabel">Total: {dashboardStats.total_articles || 0}</div>
+              <div className="glass-card animate-slide-in" style={{ padding: '2rem' }}>
+                <div style={{ fontSize: '2rem', fontWeight: '700', color: '#3b82f6', marginBottom: '0.5rem' }}>
+                  {dashboardStats.today_articles || 0}
+                </div>
+                <div style={{ color: '#e2e8f0', marginBottom: '0.5rem' }}>📰 Articles Presse</div>
+                <div style={{ color: '#94a3b8', fontSize: '0.875rem' }}>
+                  Total: {dashboardStats.total_articles || 0}
+                </div>
               </div>
 
-              <div className="stat-card">
-                <div className="stat-label">Digests</div>
-                <div className="stat-value">{dashboardStats.total_digests || 0}</div>
-                <div className="stat-sublabel">Résumés quotidiens</div>
+              <div className="glass-card animate-slide-in" style={{ padding: '2rem' }}>
+                <div style={{ fontSize: '2rem', fontWeight: '700', color: '#8b5cf6', marginBottom: '0.5rem' }}>
+                  {dashboardStats.total_digests || 0}
+                </div>
+                <div style={{ color: '#e2e8f0', marginBottom: '0.5rem' }}>📋 Digests</div>
+                <div style={{ color: '#94a3b8', fontSize: '0.875rem' }}>
+                  Résumés quotidiens
+                </div>
               </div>
 
-              <div className="stat-card">
-                <div className="stat-label">Cache Hit Ratio</div>
-                <div className="stat-value">
+              <div className="glass-card animate-slide-in" style={{ padding: '2rem' }}>
+                <div style={{ fontSize: '2rem', fontWeight: '700', color: '#22c55e', marginBottom: '0.5rem' }}>
                   {dashboardStats.cache_stats?.cache_hit_ratio?.toFixed(1) || 0}%
                 </div>
+                <div style={{ color: '#e2e8f0', marginBottom: '0.5rem' }}>⚡ Cache Performance</div>
+                <div style={{ color: '#94a3b8', fontSize: '0.875rem' }}>
+                  Optimisation système
+                </div>
+              </div>
+            </div>
                 <div className="stat-sublabel">
                   {dashboardStats.cache_stats?.valid_cached_keys || 0} clés actives
                 </div>
