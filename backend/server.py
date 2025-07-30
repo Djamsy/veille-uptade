@@ -402,8 +402,8 @@ async def get_transcriptions_by_date(date: str):
         raise HTTPException(status_code=500, detail=f"Erreur récupération transcriptions: {str(e)}")
 
 @app.post("/api/transcriptions/capture-now")
-async def capture_radio_now():
-    """Lancer la capture radio immédiatement en arrière-plan"""
+async def capture_radio_now(section: str = None):
+    """Lancer la capture radio immédiatement en arrière-plan pour une section spécifique ou toutes"""
     try:
         # Invalider le cache des transcriptions
         cache_invalidate('transcriptions')
@@ -413,7 +413,18 @@ async def capture_radio_now():
         
         def capture_async():
             try:
-                result = radio_service.capture_all_streams()
+                if section:
+                    # Capturer une section spécifique
+                    if section == "rci":
+                        result = radio_service.capture_and_transcribe_stream("rci_7h")
+                    elif section == "guadeloupe":
+                        result = radio_service.capture_and_transcribe_stream("guadeloupe_premiere_7h")
+                    else:
+                        result = {"success": False, "error": "Section inconnue. Utilisez 'rci' ou 'guadeloupe'"}
+                else:
+                    # Capturer toutes les sections
+                    result = radio_service.capture_all_streams()
+                
                 intelligent_cache.set_cached_data('last_capture_result', result)
             except Exception as e:
                 intelligent_cache.set_cached_data('last_capture_result', {
@@ -426,11 +437,21 @@ async def capture_radio_now():
         capture_thread.daemon = True
         capture_thread.start()
         
-        return {
-            "success": True, 
-            "message": "Capture radio démarrée en arrière-plan. Consultez les transcriptions dans quelques minutes.",
-            "estimated_completion": "3-5 minutes"
-        }
+        if section:
+            section_name = "7H RCI" if section == "rci" else "7H Guadeloupe Première"
+            return {
+                "success": True, 
+                "message": f"Capture de {section_name} démarrée en arrière-plan. Consultez les transcriptions dans quelques minutes.",
+                "section": section_name,
+                "estimated_completion": "3-5 minutes"
+            }
+        else:
+            return {
+                "success": True, 
+                "message": "Capture radio démarrée en arrière-plan. Consultez les transcriptions dans quelques minutes.",
+                "sections": ["7H RCI", "7H Guadeloupe Première"],
+                "estimated_completion": "3-5 minutes"
+            }
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur lancement capture: {str(e)}")
