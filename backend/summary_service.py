@@ -44,47 +44,100 @@ class FreeSummaryService:
         self.lexrank_summarizer = LexRankSummarizer()
 
     def extract_key_sentences(self, text: str, max_sentences: int = 3) -> List[str]:
-        """Extraire les phrases clés d'un texte avec spaCy"""
-        if not self.nlp or not text.strip():
+        """Extraire les phrases clés d'un texte avec spaCy ou méthodes alternatives"""
+        if not text.strip():
             return []
         
         try:
-            # Traitement du texte
-            doc = self.nlp(text)
-            
-            # Extraire les phrases
-            sentences = [sent.text.strip() for sent in doc.sents if len(sent.text.strip()) > 20]
-            
-            if len(sentences) <= max_sentences:
-                return sentences
-            
-            # Scoring basé sur les entités nommées et les mots-clés
-            sentence_scores = {}
-            
-            for i, sentence in enumerate(sentences):
-                score = 0
-                sent_doc = self.nlp(sentence)
-                
-                # Points pour les entités nommées
-                score += len(sent_doc.ents) * 2
-                
-                # Points pour les mots importants
-                important_pos = ['NOUN', 'PROPN', 'ADJ']
-                score += sum(1 for token in sent_doc if token.pos_ in important_pos)
-                
-                # Bonus si en début de texte
-                if i < len(sentences) * 0.3:
-                    score += 2
-                
-                sentence_scores[sentence] = score
-            
-            # Retourner les meilleures phrases
-            top_sentences = sorted(sentence_scores.items(), key=lambda x: x[1], reverse=True)
-            return [sent[0] for sent in top_sentences[:max_sentences]]
-            
+            if self.nlp:
+                # Méthode avec spaCy (si disponible)
+                return self._extract_sentences_spacy(text, max_sentences)
+            else:
+                # Méthode alternative sans spaCy
+                return self._extract_sentences_basic(text, max_sentences)
         except Exception as e:
-            logger.error(f"Erreur extraction phrases clés: {e}")
-            return []
+            logger.warning(f"Erreur extraction phrases clés: {e}")
+            return self._extract_sentences_basic(text, max_sentences)
+    
+    def _extract_sentences_spacy(self, text: str, max_sentences: int) -> List[str]:
+        """Extraction avec spaCy"""
+        doc = self.nlp(text)
+        
+        # Extraire les phrases
+        sentences = [sent.text.strip() for sent in doc.sents if len(sent.text.strip()) > 20]
+        
+        if len(sentences) <= max_sentences:
+            return sentences
+        
+        # Scoring basé sur les entités nommées et les mots-clés
+        sentence_scores = {}
+        
+        for i, sentence in enumerate(sentences):
+            score = 0
+            sent_doc = self.nlp(sentence)
+            
+            # Points pour les entités nommées
+            score += len(sent_doc.ents) * 2
+            
+            # Points pour les mots-clés de Guadeloupe
+            guadeloupe_keywords = ['guadeloupe', 'antilles', 'conseil', 'départemental', 'losbar', 'maire', 'région']
+            for keyword in guadeloupe_keywords:
+                if keyword in sentence.lower():
+                    score += 3
+            
+            # Points pour la position (début = plus important)
+            if i < len(sentences) * 0.3:
+                score += 2
+            
+            sentence_scores[sentence] = score
+        
+        # Retourner les meilleures phrases
+        sorted_sentences = sorted(sentence_scores.items(), key=lambda x: x[1], reverse=True)
+        return [sent[0] for sent in sorted_sentences[:max_sentences]]
+    
+    def _extract_sentences_basic(self, text: str, max_sentences: int) -> List[str]:
+        """Extraction basique sans spaCy"""
+        import re
+        
+        # Diviser en phrases avec regex
+        sentences = re.split(r'[.!?]+', text)
+        sentences = [s.strip() for s in sentences if len(s.strip()) > 20]
+        
+        if len(sentences) <= max_sentences:
+            return sentences
+        
+        # Scoring basique
+        sentence_scores = {}
+        
+        for i, sentence in enumerate(sentences):
+            score = 0
+            
+            # Points pour les mots-clés de Guadeloupe
+            guadeloupe_keywords = ['guadeloupe', 'antilles', 'conseil', 'départemental', 'losbar', 'maire', 'région', 'guy']
+            for keyword in guadeloupe_keywords:
+                if keyword in sentence.lower():
+                    score += 3
+            
+            # Points pour la longueur (ni trop courte ni trop longue)
+            length = len(sentence.split())
+            if 10 <= length <= 30:
+                score += 2
+            
+            # Points pour la position (début = plus important)
+            if i < len(sentences) * 0.3:
+                score += 2
+            
+            # Points pour les mots importants
+            important_words = ['important', 'annonce', 'décision', 'nouveau', 'nouvelle', 'projet', 'développement']
+            for word in important_words:
+                if word in sentence.lower():
+                    score += 1
+            
+            sentence_scores[sentence] = score
+        
+        # Retourner les meilleures phrases
+        sorted_sentences = sorted(sentence_scores.items(), key=lambda x: x[1], reverse=True)
+        return [sent[0] for sent in sorted_sentences[:max_sentences]]
 
     def summarize_with_textrank(self, text: str, sentence_count: int = 2) -> str:
         """Résumer avec TextRank"""
