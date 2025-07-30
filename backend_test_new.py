@@ -12,7 +12,7 @@ import os
 from datetime import datetime
 
 class GuadeloupeVeilleAPITester:
-    def __init__(self, base_url="https://ef5be455-26ce-4288-890e-6818eb1d7a51.preview.emergentagent.com"):
+    def __init__(self, base_url="https://938e5f4b-4f11-496e-9c1b-9acf492d425b.preview.emergentagent.com"):
         self.base_url = base_url
         self.tests_run = 0
         self.tests_passed = 0
