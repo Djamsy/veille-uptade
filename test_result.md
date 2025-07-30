@@ -165,23 +165,29 @@ backend:
     file: "radio_service.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Système de suivi détaillé implémenté avec étapes: audio_capture → transcription → gpt_analysis → completed/error. Progress percentage et cache 24H intégrés."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Detailed tracking system fully operational. GET /api/transcriptions/status shows 2 sections with detailed tracking steps (audio_capture → transcription → gpt_analysis → completed). GET /api/transcriptions/sections returns organized sections ['7H RCI', '7H Guadeloupe Première', 'Autres']. 24H cache system active."
 
   - task: "Endpoint de test GPT"
     implemented: true
-    working: false
+    working: true
     file: "server.py"
-    stuck_count: 1
+    stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "main"
         comment: "Endpoints /api/test-gpt et /api/test-capture-1min créés mais non fonctionnels à cause du quota OpenAI épuisé."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: GPT endpoints fully operational. POST /api/test-gpt works perfectly with journalistic prompt (method=gpt-4o-mini, emojis: 🏛️💼🌿, analysis length=609 chars). POST /api/test-capture-1min with admin key completes full pipeline (method=openai_whisper_api, costs displayed, gpt_time=5.3s). OpenAI API quota restored and working."
 
   - task: "Modification du radio_service pour GPT"
     implemented: true
@@ -189,11 +195,14 @@ backend:
     file: "radio_service.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Service radio modifié pour utiliser GPT avec fallback vers analyse locale en cas d'erreur. Système de suivi des étapes intégré."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Radio service GPT integration working correctly. OpenAI Whisper API method confirmed in transcription responses. Security controls operational: captures rejected without admin key (hour=14, authorized=[7]) with explicit OpenAI cost control message. Cost transparency implemented with estimates (~$0.006/min Whisper, ~$0.001-0.003 GPT)."
 
 backend:
   - task: "France-Antilles scraper"
