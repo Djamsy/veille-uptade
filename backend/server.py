@@ -1068,6 +1068,30 @@ async def get_social_scrape_status():
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+@app.post("/api/social/clean-demo-data")
+async def clean_demo_data():
+    """Nettoyer les anciennes données de démonstration de la base"""
+    try:
+        if not SOCIAL_MEDIA_ENABLED:
+            return {"success": False, "error": "Service réseaux sociaux non disponible"}
+        
+        cleaned_count = social_scraper.clean_demo_data_from_db()
+        
+        # Invalider le cache social
+        if CACHE_ENABLED:
+            cache_invalidate('social')
+            cache_invalidate('comments')
+        
+        return {
+            "success": True,
+            "message": f"{cleaned_count} posts de démonstration supprimés",
+            "cleaned_count": cleaned_count
+        }
+        
+    except Exception as e:
+        logger.error(f"Erreur nettoyage données démo: {e}")
+        return {"success": False, "error": str(e)}
+
 @app.post("/api/social/install-dependencies")
 async def install_social_dependencies():
     """Installer les dépendances pour le scraping social (snscrape, playwright)"""
