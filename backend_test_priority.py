@@ -11,7 +11,7 @@ import time
 from datetime import datetime
 
 class GuadeloupeMediaAPITester:
-    def __init__(self, base_url="https://2b90a2f6-8c6b-4335-a643-12cd029b2682.preview.emergentagent.com"):
+    def __init__(self, base_url="https://d43a2372-86d2-4456-a6f4-a49fe368dc6a.preview.emergentagent.com"):
         self.base_url = base_url
         self.tests_run = 0
         self.tests_passed = 0

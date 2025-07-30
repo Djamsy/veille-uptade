@@ -1,89 +1,133 @@
 <analysis>
-The AI engineer successfully built a media monitoring application for Guadeloupe, focusing on iterative development and adapting to changing requirements. Initial efforts centered on core functionalities like web scraping, speech-to-text, and caching. Key challenges included debugging scrapers for various news sites and resolving MongoDB integration issues. Local sentiment analysis was implemented to avoid external API dependencies. Social media scraping for X (Twitter) and Facebook was integrated, using demo data as a fallback. Recent work involved significant frontend enhancements, including a search bar, a social media comments section, and a complete design overhaul to a liquid glass aesthetic with a specific Caribbean-inspired color palette. The engineer has diligently addressed user feedback, removed demo data, and refactored UI components for responsiveness and improved aesthetics. The immediate focus is now on diagnosing and fixing issues related to radio capture and transcription.
+The AI engineer successfully completed a series of complex tasks for a media monitoring application. The work began with integrating GPT-4.1-mini for intelligent transcription analysis, replacing a local AI, and implementing detailed status tracking. This involved careful management of OpenAI API keys, handling quota issues, and fixing  path problems and  exceptions during audio processing. A significant challenge was stabilizing long radio captures (20+ minutes), which was resolved by implementing a robust segmented capture and processing method using OpenAI Whisper API. Concurrently, the UI underwent two major redesigns: first to an Apple/Netflix dark theme, and then to a white minimalist theme, coupled with reformatting article and transcription displays for better readability. Throughout the process, the engineer demonstrated strong debugging skills, addressing inconsistencies in transcription statuses and data saving, ensuring a fully functional and polished product.
 </analysis>
 
 <product_requirements>
-The application is a media monitoring interface for Guadeloupe, built with React, FastAPI, and MongoDB, initially for general online feeds. Its specialized requirements include:
+The application is a comprehensive media monitoring platform for Guadeloupe, built with React, FastAPI, and MongoDB. Its core functionalities include automated daily article listing from local news sites and automated radio transcription using local Whisper. It provides intelligent summarization, 24-hour caching, local sentiment analysis (enhanced for French/Guadeloupean context), and a daily news digest. Social media monitoring (X and Facebook) with local sentiment analysis and a search bar is also integrated. The frontend features a responsive liquid glass design with a desaturated sky blue/sun yellow palette.
 
--   **Automated Article Listing:** Daily scraping (10 AM) from , , , and , displaying hyperlinked titles.
--   **Automated Radio Transcription:** Capture and local Whisper transcription of  (7:00-7:20 AM) and  (7:00-7:30 AM).
--   **Intelligent Summarization:** Title + short explanation for each article/transcription.
--   **Intelligent Caching:** 24-hour cache for articles with invalidation on update.
--   **Local Sentiment Analysis:** API-free sentiment scoring for articles, radio transcriptions, and social media posts, enhanced for French/Guadeloupean context.
--   **Daily Digest:** A daily summary of news/transcriptions with sentiment analysis and professional design.
--   **Social Media Monitoring:** Retrieve comments/posts from X and Facebook based on keywords (e.g., Conseil Départemental de la Guadeloupe, Guy Losbar, cd971, GUSR, Ary Chalus), with local sentiment analysis and a dedicated search bar.
--   **Frontend Enhancements:** Responsive liquid glass design with desaturated sky blue and sun yellow palette, including a search bar on the dashboard, and a combined Réseaux Sociaux tab for comments and social media.
+During this development trajectory, the following enhancements and fixes were explicitly requested and implemented:
+*   **PDF Export:** Ability to download the daily digest as a PDF.
+*   **Radio Transcription Debugging & Enhancement:** Resolve persistent 500 errors, empty transcriptions, timeouts, and implement pre-named sections (7H RCI, 7H Guadeloupe Première).
+*   **Intelligent AI Analysis:** Integrate GPT-4.1-mini for interpreting, summarizing, extracting key phrases, identifying subjects, and scoring relevance of raw transcriptions using a specific journalistic prompt.
+*   **Transcription Status:** Display in-progress indicators for active transcriptions, including detailed step-by-step progress and a mechanism to clear stale in-progress statuses.
+*   **Auto-refresh:** Automatically update the radio transcription interface.
+*   **Prioritization:** Elevate radio transcriptions to primary importance over articles in both the dashboard and daily digest, with distinct visual styling.
+*   **Long Capture Stability:** Implement a robust solution for stable and reliable long audio captures (e.g., 20 minutes) which were previously failing silently. This involved segmenting the capture process.
+*   **UI Redesign (Iterative):** First, a modern Apple/Netflix dark theme with glassmorphism, then a white minimalist design for improved readability.
+*   **Article/Transcription Display Format:** Present content as information (title/summary) and explication (detailed text) pairs in the UI.
 </product_requirements>
 
 <key_technical_concepts>
 -   **Full-Stack:** React, FastAPI, MongoDB.
--   **Speech-to-Text:** .
--   **Sentiment Analysis:** VADER, TextBlob,  (fr_core_news_sm), NLTK.
--   **Web Scraping:** ,  (site-specific).
--   **Audio Streaming:** , .
--   **Task Scheduling:** .
--   **Social Media Scraping:**  (X/Twitter),  (Facebook).
--   **UI/UX:** Tailwind CSS, Glassmorphism, Responsive Design.
+-   **AI/LLM:**  (API), GPT-4.1-mini.
+-   **Speech-to-Text:** , .
+-   **Text Processing:** , NLTK.
+-   **PDF Generation:** , .
+-   **UI/UX:** Tailwind CSS, Glassmorphism, Responsive Design, Apple/Netflix/Minimalist aesthetics.
+-   **Concurrency:** .
 </key_technical_concepts>
 
 <code_architecture>
-The application uses a standard full-stack setup with React for the frontend, FastAPI for the backend, and MongoDB as the database.
+The application utilizes a standard full-stack setup with React for the frontend, FastAPI for the backend, and MongoDB as the database.
 
 
 
 -   ****:
-    -   **Summary**: The core FastAPI application, managing all backend API endpoints.
-    -   **Changes**: Extensively modified to handle today-only article filtering, cache invalidation, and new endpoints for local sentiment analysis, daily digest, social media scraping/analysis, and a general search. Recent changes include a new  endpoint for specific social media searches, and the main  endpoint was enhanced to support  parameter. A  endpoint was added to remove old demo entries.
+    -   **Summary**: The core FastAPI application handling all backend API endpoints.
+    -   **Changes**:
+        -   Added  and  endpoints for testing GPT integration and segmented audio capture.
+        -   Secured the  and test endpoints to restrict access (7 AM only, admin key required) for cost control with OpenAI API.
+        -   Added  endpoint for manual cleanup of transcription statuses.
+        -   Modified existing  and  endpoints to correctly pass parameters to  methods after signature changes and to reflect the use of new GPT analysis.
 -   ****:
-    -   **Summary**: Manages web scraping from Guadeloupean news sites.
-    -   **Changes**: Modified for specialized scraping functions for each source due to unique HTML structures.
--   ****:
-    -   **Summary**: Implements an intelligent caching layer.
-    -   **Changes**: Debugged for truth value errors, integrated with  for 24-hour refresh and invalidation.
+    -   **Summary**: Manages radio stream capture and transcription.
+    -   **Changes**:
+        -   Refactored  to integrate  for analysis instead of .
+        -   Updated status tracking:  now handles detailed progress, replacing older  calls.
+        -   Implemented  for cleaning up stale  flags. This method is called during initialization.
+        -   Crucially, introduced  to divide long audio captures (e.g., 20 minutes) into 5-minute segments, processing and concatenating them robustly to prevent silent failures.
+        -   Updated  signature and calls.
+        -   Ensured  is correctly invoked.
 -   ** (NEW)**:
-    -   **Summary**: Provides local, API-free sentiment analysis.
-    -   **Changes**: Implements scoring using VADER, TextBlob, and  with French dictionaries and Guadeloupe-specific patterns.
--   ** (NEW)**:
+    -   **Summary**: New service dedicated to intelligent analysis of raw transcriptions using OpenAI's GPT-4.1-mini.
+    -   **Changes**: Created to handle API calls to OpenAI, apply the specific journalistic prompt for analysis, and manage the OpenAI API key. Includes logging for initialization and errors.
+-   ****:
+    -   **Summary**: Previous local AI analysis service.
+    -   **Changes**: No direct changes, but its functionality was superseded and replaced by  in the  and  integration.
+-   ****:
     -   **Summary**: Generates the daily digest.
-    -   **Changes**: Implements  to fetch and analyze articles/transcriptions, formatting them into an HTML digest.
--   ** (NEW)**:
-    -   **Summary**: Handles social media scraping and local sentiment analysis.
-    -   **Changes**: Initially used  and  with demo data fallback. Later modified to entirely remove demo data usage, focusing on real-time scraping, and includes logic for specific keyword scraping.
--   ** (DELETED)**:
-    -   **Summary**: Previously provided simulated data for social media posts.
-    -   **Changes**: Was created as a fallback. **This file has been completely removed from the codebase** as per user request to use real data only.
+    -   **Changes**: Ensured it correctly fetches and displays the new  content from transcriptions, prioritizing radio content with specific styling.
 -   ****:
     -   **Summary**: The main React component for UI rendering and data fetching.
-    -   **Changes**: Extensively modified. Initially updated to display statistics and articles, then to include a search bar in the dashboard (moved from header), new navigation tabs (Recherche and Réseaux Sociaux), and content sections for these.  and  were updated for new data loading. The Comments and Réseaux tabs were merged into a single Réseaux Sociaux tab, and Sentiment was removed. It now features automatic search for specific keywords on startup and includes a social media search bar with suggestions. All UI components were refactored for a responsive liquid glass design with a desaturated blue/yellow color palette.
--   ** and **:
-    -   **Summary**: Main CSS files for styling the application.
-    -   **Changes**: Heavily refactored to implement glassmorphism (liquid glass) design, including blur effects, transparency, modern typography, and a new color palette (desaturated sky blue and sun yellow). Media queries were added for full responsiveness across desktop, tablet, and mobile.
+    -   **Changes**:
+        -   Refactored extensively for two major UI redesigns: first to an Apple/Netflix dark theme, then to a white minimalist theme. This involved significant changes to JSX structure and class names.
+        -   Updated UI elements to display detailed transcription status (, ) and the new segmented capture progress.
+        -   Modified display logic for articles and radio transcriptions to adhere to the information / explication format, including dynamically rendering GPT-analyzed content.
+        -   Adjusted button styles and layout for the new design themes.
+-   ****:
+    -   **Summary**: Main CSS file for application styling.
+    -   **Changes**: Completely revamped to support the Apple/Netflix dark theme (gradients, glassmorphism, modern typography) and subsequently the white minimalist theme (clean whites, strong contrasts, simplified elements). New styles were added for specific UI components like the priority card, navigation tabs, and content sections to match the requested aesthetics.
+-   ****:
+    -   **Summary**: Environment variables for the backend.
+    -   **Changes**: Added  for GPT integration.
 -   ****:
     -   **Summary**: Python dependency list.
-    -   **Changes**: Updated to include , , , , , , , , and .
+    -   **Changes**: Added usage: openai [-h] [-v] [-b API_BASE] [-k API_KEY] [-p PROXY [PROXY ...]]
+              [-o ORGANIZATION] [-t {openai,azure}]
+              [--api-version API_VERSION] [--azure-endpoint AZURE_ENDPOINT]
+              [--azure-ad-token AZURE_AD_TOKEN] [-V]
+              {api,tools,migrate,grit} ...
+
+positional arguments:
+  {api,tools,migrate,grit}
+    api                 Direct API calls
+    tools               Client side tools for convenience
+
+options:
+  -h, --help            show this help message and exit
+  -v, --verbose         Set verbosity.
+  -b API_BASE, --api-base API_BASE
+                        What API base url to use.
+  -k API_KEY, --api-key API_KEY
+                        What API key to use.
+  -p PROXY [PROXY ...], --proxy PROXY [PROXY ...]
+                        What proxy to use.
+  -o ORGANIZATION, --organization ORGANIZATION
+                        Which organization to run as (will use your default
+                        organization if not specified)
+  -t {openai,azure}, --api-type {openai,azure}
+                        The backend API to call, must be `openai` or `azure`
+  --api-version API_VERSION
+                        The Azure API version, e.g.
+                        'https://learn.microsoft.com/en-us/azure/ai-
+                        services/openai/reference#rest-api-versioning'
+  --azure-endpoint AZURE_ENDPOINT
+                        The Azure endpoint, e.g.
+                        'https://endpoint.openai.azure.com'
+  --azure-ad-token AZURE_AD_TOKEN
+                        A token from Azure Active Directory,
+                        https://www.microsoft.com/en-
+                        us/security/business/identity-access/microsoft-entra-
+                        id
+  -V, --version         show program's version number and exit for OpenAI API access.
 </code_architecture>
 
 <pending_tasks>
--   **Radio Capture and Transcription Debugging:** Diagnose and fix the issue preventing radio capture and transcription from functioning correctly.
+-   No explicit pending tasks were identified at the end of the trajectory, as the AI engineer confirmed all requested features and fixes were implemented and tested, and the system was declared Mission Accomplie Totalement!.
 </pending_tasks>
 
 <current_work>
-Immediately before this summary request, the AI engineer had just completed a significant phase of frontend and backend enhancements, focusing on UI/UX and data handling. The primary work was:
+Immediately before this summary request, the AI engineer had just finalized a comprehensive set of enhancements, bringing the media monitoring application to a robust and aesthetically polished state. The work culminated in:
 
-1.  **Frontend Design Overhaul**: Implemented a liquid glass (glassmorphism) design across the application, making it responsive for desktop, tablet, and mobile. This involved extensive modifications to , , and refactoring components in  to utilize these new styles and ensure visual consistency and responsiveness. This also included changing the color scheme to a desaturated sky blue and sun yellow palette for improved readability and aesthetic appeal, as requested by the user.
-2.  **Social Media Functionality Refinement**:
-    *   **Demo Data Removal**: Completely removed reliance on demo data for social media posts. This involved modifying  to remove fallback to demo data, creating and executing a cleanup endpoint in  to remove existing demo data from MongoDB, and ultimately deleting the  file.
-    *   **Consolidated UI Tabs**: Merged redundant Comments and Réseaux tabs into a single 💬 Réseaux Sociaux tab, enhancing UI clarity in . The Sentiment tab was also removed as sentiment analysis is integrated elsewhere.
-    *   **Automatic Social Media Search**: Implemented automatic searching for predefined priority subjects (e.g., cd971, Guy Losbar) on application startup, displaying their post counts in the dashboard. This was configured within 's  hook.
-    *   **Specific Social Media Search Bar**: Added a dedicated search bar within the Réseaux Sociaux page, allowing users to search and trigger scraping for specific keywords. This involved frontend UI changes in  and the creation of a new backend endpoint  in , with enhancements to  to support  queries.
+1.  **Full OpenAI Integration:** The application now leverages  for intelligent journalistic analysis of radio transcriptions, and the  for fast and efficient speech-to-text conversion. This replaced previous local AI solutions, significantly improving analysis quality and speed. The system adheres to cost control by restricting API calls to scheduled times (7 AM) and requiring an administrative key for on-demand captures.
+2.  **Robust Long Capture Solution:** A critical problem of silently failing long audio captures (e.g., 20 minutes) was resolved by implementing a sophisticated segmented capture method. This approach breaks down long recordings into reliable 5-minute segments, processes each, and then concatenates the results, ensuring stability and completion for extended audio content.
+3.  **Detailed Status Tracking:** The backend now provides granular, real-time status updates for transcription processes, showing  (with segment progress), , , and  steps. A mechanism was also implemented to automatically clean up any stale in-progress statuses on backend startup and via a dedicated admin endpoint.
+4.  **Dynamic UI Updates and Digest Integration:** The frontend now correctly displays the analyzed GPT content for radio transcriptions. The daily digest also properly integrates this AI-generated content, prioritizing radio updates with distinct visual styling, ensuring all content is correctly and promptly reflected across the application.
+5.  **Complete UI Redesign:** The application's user interface underwent a significant transformation. Initially, it was revamped to an Apple/Netflix dark theme with elegant glassmorphism and modern typography. Following user feedback, it was further refined into a white minimalist design, focusing on clarity, readability, and a professional, uncluttered aesthetic. This included reformatting the display of articles and transcriptions into clear information / explication pairs.
 
-The application's interface is now modern, responsive, and specifically tailored for Guadeloupean media monitoring, and it correctly attempts to scrape real social media data. The previous engineer was evaluating the application's overall state and was then informed by the user that the capture plus transcription functionality (radio stream processing) is not working.
-
-**Most Recent Conversation**:
-The user stated: je crois que la capture plus transcripton fonctionne pas (Chat Message 131).
-The AI engineer responded: Vous avez raison ! Je vais diagnostiquer le problème avec la capture radio et la transcription. Vérifions dabord létat actuel de cette fonctionnalité. (Chat Message 132).
+The application is now fully operational, stable for extended use cases, intelligently analyzed by cutting-edge AI, and boasts a premium, user-friendly interface.
 </current_work>
 
 <optional_next_step>
-Diagnose the issue preventing radio capture and transcription from functioning, starting with verifying its current status.
+No explicit next steps or pending tasks remain, as all requested features have been implemented and confirmed as fully operational.
 </optional_next_step>
