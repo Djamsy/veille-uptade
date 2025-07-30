@@ -317,6 +317,9 @@ def start_cache_service():
     """Démarrer le service de cache"""
     logger.info("🚀 Service de cache intelligent démarré")
     
+    # Nettoyer les clés malformées au démarrage
+    intelligent_cache.cleanup_malformed_cache_keys()
+    
     # Préchauffer le cache
     intelligent_cache.warm_cache()
     
