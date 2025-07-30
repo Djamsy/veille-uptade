@@ -185,10 +185,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# MongoDB Configuration
+# MongoDB Configuration - Compatible Atlas et local
 MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+print(f"🔗 Connecting to MongoDB: {MONGO_URL[:50]}...")
+
 try:
-    client = MongoClient(MONGO_URL)
+    # Configuration robuste pour MongoDB Atlas et local
+    if 'mongodb+srv://' in MONGO_URL or 'atlas' in MONGO_URL.lower():
+        # Configuration optimisée pour MongoDB Atlas
+        client = MongoClient(
+            MONGO_URL,
+            serverSelectionTimeoutMS=5000,  # 5 secondes timeout
+            connectTimeoutMS=5000,
+            maxPoolSize=10,
+            retryWrites=True,
+            w='majority'
+        )
+        print("🌐 Configuration MongoDB Atlas détectée")
+    else:
+        # Configuration pour MongoDB local
+        client = MongoClient(MONGO_URL)
+        print("🏠 Configuration MongoDB locale détectée")
+    
+    # Test de connection
+    client.admin.command('ping')
+    
     db = client.veille_media
     
     # Collections
@@ -198,8 +219,23 @@ try:
     logs_collection = db.scheduler_logs
     
     print("✅ Connected to MongoDB successfully")
+    
+    # Créer des index pour optimiser les performances
+    try:
+        articles_collection.create_index([("date", -1), ("scraped_at", -1)])
+        articles_collection.create_index([("source", 1)])
+        articles_collection.create_index([("title", "text")])
+        transcriptions_collection.create_index([("date", -1)])
+        print("✅ MongoDB indexes created/verified")
+    except Exception as idx_error:
+        print(f"⚠️ Index creation warning (non-critical): {idx_error}")
+        
 except Exception as e:
     print(f"❌ MongoDB connection error: {e}")
+    # En production, on peut vouloir arrêter l'application si MongoDB n'est pas disponible
+    if os.environ.get('ENVIRONMENT') == 'production':
+        print("🚨 MongoDB connection required in production - exiting")
+        exit(1)
 
 # Démarrer les services
 start_scheduler()
