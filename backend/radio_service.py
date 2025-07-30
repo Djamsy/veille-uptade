@@ -58,6 +58,12 @@ class RadioTranscriptionService:
         except Exception as e:
             logger.error(f"❌ Erreur chargement Whisper: {e}")
             self.whisper_model = None
+        
+        # Statuts de transcription en cours
+        self.transcription_status = {
+            "rci_7h": {"in_progress": False, "started_at": None, "estimated_completion": None},
+            "guadeloupe_premiere_7h": {"in_progress": False, "started_at": None, "estimated_completion": None}
+        }
 
     def capture_radio_stream(self, stream_key: str, duration_seconds: int) -> Optional[str]:
         """Capturer un flux radio pendant une durée donnée"""
