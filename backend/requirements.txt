@@ -52,4 +52,6 @@ playwright
 
 # Pour la génération de PDF
 reportlab==4.4.3
-pillow==11.3.0
+pillow==11.3.0feedparser
+beautifulsoup4
+aiohttp
