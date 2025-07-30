@@ -186,7 +186,7 @@ class PDFDigestService:
             logger.warning(f"Erreur parsing HTML pour PDF: {e}")
             # Fallback: ajouter le contenu brut
             clean_text = self._clean_html_tags(html_content)
-            story.append(Paragraph(clean_text, self.styles['BodyText']))
+            story.append(Paragraph(clean_text, self.styles['CustomBodyText']))
     
     def _clean_html_tags(self, text: str) -> str:
         """Nettoyer les tags HTML et garder le formatage basique"""
