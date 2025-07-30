@@ -679,11 +679,9 @@ class RadioTranscriptionService:
                     os.unlink(audio_path)
                     
         except Exception as e:
-            result['error'] = str(e)
+            result['error'] = str(e)  
+            self.update_transcription_step(stream_key, "error", f"Erreur globale: {str(e)}", 0)
             logger.error(f"❌ Erreur globale pour {config['section']}: {e}")
-        finally:
-            # Marquer comme terminé
-            self.set_transcription_status(stream_key, False)
         
         return result
 
