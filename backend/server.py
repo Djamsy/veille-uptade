@@ -1212,7 +1212,7 @@ async def get_social_media_stats():
         if not SOCIAL_MEDIA_ENABLED:
             return {"success": False, "error": "Service réseaux sociaux non disponible"}
         
-        stats = social_scraper.get_posts_stats()
+        stats = modern_social_scraper.get_posts_stats()
         return {"success": True, "stats": stats}
         
     except Exception as e:
