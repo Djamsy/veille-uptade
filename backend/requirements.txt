@@ -5,12 +5,7 @@ python-multipart==0.0.6
 aiofiles==23.2.1
 python-dotenv==1.0.0
 
-# Pour la transcription audio (Whisper)
-openai-whisper==20231117
-torch==2.1.1
-torchaudio==2.1.1
-
-# Pour OpenAI GPT
+# Pour OpenAI GPT et Whisper
 openai==1.58.0
 
 # Pour l'analyse de sentiment
@@ -37,8 +32,8 @@ ffmpeg-python==0.2.0
 # Pour le scheduling automatique
 APScheduler==3.10.4
 
-# Pour le résumé automatique gratuit
-spacy==3.7.2
+# Pour le résumé automatique (sans modèles spaCy spécifiques)
+spacy>=3.7.0,<3.8.0
 sumy==0.11.0
 
 # Utilitaires
@@ -52,8 +47,10 @@ playwright
 
 # Pour la génération de PDF
 reportlab==4.4.3
-pillow==11.3.0feedparser
-beautifulsoup4
-aiohttp
+pillow==11.3.0
+
+# Pour les alertes Telegram
 python-telegram-bot[all]
-httpx
+
+# Pour les services modernes
+aiohttp
