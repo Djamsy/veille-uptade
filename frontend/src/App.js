@@ -483,12 +483,12 @@ function App() {
         <div className="main-container">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-4">
-              <h1 className="text-2xl font-bold text-white">
+              <h1 className="text-3xl font-bold" style={{ color: '#2c3e50' }}>
                 🏝️ Veille Média Guadeloupe
               </h1>
             </div>
 
-            <div className="text-sm text-white opacity-75">
+            <div className="text-sm" style={{ color: '#34495e' }}>
               Dernière MAJ: {new Date().toLocaleDateString('fr-FR', { 
                 day: 'numeric', 
                 month: 'short', 
@@ -504,17 +504,17 @@ function App() {
       {(backgroundTasks.scraping || backgroundTasks.capturing) && (
         <div className="glass-card" style={{ margin: '1rem', padding: '1rem' }}>
           <div className="main-container">
-            <div className="flex items-center gap-4 text-sm text-white">
+            <div className="flex items-center gap-4 text-sm">
               {backgroundTasks.scraping && (
                 <div className="flex items-center gap-2">
                   <div className="loading-spinner" style={{ width: '20px', height: '20px' }}></div>
-                  <span>Scraping en cours... (2-3 min)</span>
+                  <span style={{ color: '#2c3e50' }}>Scraping en cours... (2-3 min)</span>
                 </div>
               )}
               {backgroundTasks.capturing && (
                 <div className="flex items-center gap-2">
                   <div className="loading-spinner" style={{ width: '20px', height: '20px' }}></div>
-                  <span>Capture radio en cours... (3-5 min)</span>
+                  <span style={{ color: '#2c3e50' }}>Capture radio en cours... (3-5 min)</span>
                 </div>
               )}
             </div>
