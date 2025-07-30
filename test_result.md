@@ -102,7 +102,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Changement de système d'analyse: remplacer l'analyse locale par GPT-4.1-mini avec prompt journalistique spécialisé. Créer un système de suivi détaillé des étapes de transcription (récolte audio → transcription → GPT → terminé) avec cache 24H. Tester sur échantillon 1 minute."
+user_problem_statement: "Amélioration de l'application de surveillance médiatique Guadeloupe avec 3 nouvelles fonctionnalités prioritaires: 1) Filtres et tri avancés pour articles (date, source, recherche, pagination), 2) Graphiques et analytics visuels (dashboard enrichi, répartition par sources, timeline, sentiment), 3) Mobile UX optimisé (menu hamburger, navigation tactile responsive). Utilisation de Chart.js pour les visualisations et amélioration complète de l'expérience mobile."
 
 backend:
   - task: "Intégration GPT-4.1-mini"
