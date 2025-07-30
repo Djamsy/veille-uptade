@@ -472,8 +472,18 @@ async def get_today_digest():
             
             if not digest:
                 # Créer le digest s'il n'existe pas
-                articles = guadeloupe_scraper.get_todays_articles()
-                transcriptions = radio_service.get_todays_transcriptions()
+                # Récupérer les articles d'aujourd'hui directement de la DB
+                today = datetime.now().strftime('%Y-%m-%d')
+                articles = list(articles_collection.find(
+                    {'date': today}, 
+                    {'_id': 0}
+                ).sort('scraped_at', -1))
+                
+                # Récupérer les transcriptions d'aujourd'hui 
+                transcriptions = list(transcriptions_collection.find(
+                    {'date': today}, 
+                    {'_id': 0}
+                ).sort('captured_at', -1))
                 
                 digest_html = summary_service.create_daily_digest(articles, transcriptions)
                 
