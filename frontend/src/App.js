@@ -503,26 +503,37 @@ function App() {
       )}
 
       {/* Navigation */}
-      <nav className="bg-indigo-600 shadow-md">
-        <div className="container mx-auto px-6">
-          <div className="flex space-x-1">
+      <nav className="bg-white shadow">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex space-x-8">
             {[
-              { id: 'dashboard', label: '📊 Dashboard', icon: '📊' },
-              { id: 'articles', label: '📰 Articles Guadeloupe', icon: '📰' },
-              { id: 'transcription', label: '📻 Radio', icon: '📻' },
-              { id: 'digest', label: '📄 Digest Quotidien', icon: '📄' },
-              { id: 'scheduler', label: '⏰ Planificateur', icon: '⏰' }
-            ].map(tab => (
+              { id: 'dashboard', name: '📊 Dashboard', icon: '📊' },
+              { id: 'search', name: '🔍 Recherche', icon: '🔍' },
+              { id: 'articles', name: '📰 Articles', icon: '📰' },
+              { id: 'comments', name: '💬 Commentaires', icon: '💬' },
+              { id: 'transcription', name: '📻 Radio', icon: '📻' },
+              { id: 'digest', name: '📋 Digest', icon: '📋' },
+              { id: 'social', name: '📱 Réseaux', icon: '📱' },
+              { id: 'sentiment', name: '😊 Sentiment', icon: '😊' }
+            ].map((tab) => (
               <button
                 key={tab.id}
-                className={`px-6 py-3 font-semibold transition-all duration-200 ${
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  if (tab.id === 'search') {
+                    loadSearchSuggestions();
+                  } else if (tab.id === 'comments') {
+                    loadComments();
+                    loadSocialStats();
+                  }
+                }}
+                className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors duration-200 ${
                   activeTab === tab.id
-                    ? 'bg-white text-indigo-600 border-b-4 border-indigo-600'
-                    : 'text-white hover:bg-indigo-500'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
-                onClick={() => setActiveTab(tab.id)}
               >
-                {tab.label}
+                {tab.name}
               </button>
             ))}
           </div>
