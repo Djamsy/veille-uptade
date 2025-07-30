@@ -120,17 +120,44 @@ backend:
         agent: "main"
         comment: "✅ SERVICE GPT OPÉRATIONNEL: Après recharge du compte OpenAI, test réussi avec analyse parfaite. Prompt journalistique fonctionne: structure par catégories avec emojis (🏛️ Politique, 💼 Économie, 🌿 Environnement), format bilan de veille quotidienne. Temps traitement: ~8 secondes."
 
+  - task: "OpenAI Whisper API intégration"
+    implemented: true
+    working: true
+    file: "radio_service.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "✅ WHISPER API OPÉRATIONNEL: Remplacement Whisper local par OpenAI Whisper API réussi. Test 30s: transcription française parfaite (492 chars, méthode 'openai_whisper_api'), avec fallback local en cas d'erreur. Plus rapide et efficace."
+
   - task: "Test capture audio + transcription + GPT"
     implemented: true
-    working: false
+    working: true
     file: "server.py"
-    stuck_count: 1
+    stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "main"
         comment: "Test échantillon 30s: capture audio réussie (180KB) mais transcription Whisper trop lente sur cette machine (>2min pour 30s audio). GPT fonctionne parfaitement en amont."
+      - working: true
+        agent: "main"
+        comment: "✅ PIPELINE COMPLET FONCTIONNEL: Capture 30s (90KB) + OpenAI Whisper API + GPT-4.1-mini analyse journalistique. Temps total rapide, avec sécurité admin et contrôle coûts intégrés."
+
+  - task: "Sécurisation captures programmées"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "✅ CONTRÔLE COÛTS OPÉRATIONNEL: Captures limitées à 7h du matin + clé admin pour tests. Sécurité validée: tentatives non-autorisées rejetées avec message explicatif sur contrôle coûts OpenAI."
 
   - task: "Système de suivi détaillé des étapes"
     implemented: true
