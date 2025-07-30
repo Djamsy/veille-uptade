@@ -22,6 +22,8 @@ from radio_service import radio_service
 from summary_service import summary_service
 from scheduler_service import veille_scheduler, start_scheduler
 
+# Import du cache avec fallback - Réactivé avec cache 24H
+
 # Import du service d'analyse de sentiment local
 try:
     from sentiment_analysis_service import local_sentiment_analyzer, analyze_articles_sentiment
