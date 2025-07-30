@@ -422,6 +422,8 @@ async def get_capture_status():
 async def transcribe_audio(file: UploadFile = File(...)):
     """Transcrire un fichier audio uploadé avec Whisper"""
     try:
+        logger.info(f"🎵 Début transcription fichier: {file.filename}")
+        
         if not file.filename.lower().endswith(('.mp3', '.wav', '.m4a', '.ogg', '.flac')):
             raise HTTPException(status_code=400, detail="Format audio non supporté")
         
@@ -430,9 +432,13 @@ async def transcribe_audio(file: UploadFile = File(...)):
             shutil.copyfileobj(file.file, temp_file)
             temp_path = temp_file.name
         
+        logger.info(f"📁 Fichier temporaire créé: {temp_path}")
+        
         try:
             # Utiliser le service de transcription
+            logger.info("🎤 Début transcription avec Whisper...")
             transcription_data = radio_service.transcribe_audio_file(temp_path)
+            logger.info(f"✅ Transcription terminée, résultat: {transcription_data is not None}")
             
             if transcription_data:
                 # Sauvegarder en base
@@ -448,25 +454,34 @@ async def transcribe_audio(file: UploadFile = File(...)):
                     "source": "upload"
                 }
                 
+                logger.info("💾 Sauvegarde en base de données...")
                 # Insérer en base de données  
                 record_for_db = record.copy()
                 insert_result = transcriptions_collection.insert_one(record_for_db)
+                logger.info(f"✅ Sauvegarde terminée, ID: {insert_result.inserted_id}")
                 
                 # Le record original n'a pas d'ObjectId, pas besoin de le supprimer
                 
                 # Invalider le cache des transcriptions
                 cache_invalidate('transcriptions')
                 
+                logger.info("🎯 Réponse prête à renvoyer")
                 return {"success": True, "transcription": record}
             else:
+                logger.error("❌ Échec de la transcription (résultat vide)")
                 raise HTTPException(status_code=500, detail="Échec de la transcription")
             
         finally:
             # Nettoyer le fichier temporaire
             if os.path.exists(temp_path):
                 os.unlink(temp_path)
+                logger.info(f"🧹 Fichier temporaire nettoyé: {temp_path}")
             
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
+        logger.error(f"❌ Erreur transcription: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Erreur transcription: {str(e)}")
 
 # ==================== DIGEST ENDPOINTS ====================
