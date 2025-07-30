@@ -7,6 +7,10 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 import openai
 from openai import OpenAI
+from dotenv import load_dotenv
+
+# Charger explicitement le fichier .env
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -32,15 +36,22 @@ Voici la transcription :"""
         """Initialiser le client OpenAI"""
         try:
             api_key = os.environ.get('OPENAI_API_KEY')
+            logger.info(f"🔑 Vérification clé API: {'trouvée' if api_key else 'MANQUANTE'}")
+            
             if not api_key:
                 logger.error("OPENAI_API_KEY non trouvée dans les variables d'environnement")
+                logger.info(f"Variables d'environnement disponibles: {list(os.environ.keys())}")
                 return
             
+            # Masquer la clé dans les logs pour sécurité
+            key_preview = f"{api_key[:10]}...{api_key[-4:]}" if len(api_key) > 14 else "clé_courte"
+            logger.info(f"🔑 Utilisation clé API: {key_preview}")
+            
             self.client = OpenAI(api_key=api_key)
-            logger.info("Client OpenAI initialisé avec succès")
+            logger.info("✅ Client OpenAI initialisé avec succès")
             
         except Exception as e:
-            logger.error(f"Erreur initialisation OpenAI: {e}")
+            logger.error(f"❌ Erreur initialisation OpenAI: {e}")
             self.client = None
 
     def analyze_transcription(self, transcription_text: str, stream_name: str = "") -> Dict[str, Any]:
