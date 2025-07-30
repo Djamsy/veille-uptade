@@ -44,7 +44,7 @@ snscrape==0.7.0.20230622
 
 # Pour la génération de PDF
 reportlab==4.4.3
-pillow==11.3.0
+pillow==10.1.0
 
 # Pour les alertes Telegram (version allégée)
 python-telegram-bot==20.7
@@ -54,3 +54,6 @@ aiohttp==3.9.1
 
 # Dépendances pour production Kubernetes
 gunicorn==21.2.0
+
+# Explicitement exclure certaines dépendances problématiques
+# NE PAS INSTALLER: spacy, fr-core-news-sm, torch, transformers, playwright
