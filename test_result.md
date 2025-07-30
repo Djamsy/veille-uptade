@@ -211,11 +211,14 @@ backend:
     file: "scraper_service.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Implemented specialized scraper for France-Antilles using article h2/h3 selectors, retrieving 15 articles successfully"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED POST-DEPLOYMENT: France-Antilles scraper fully operational. Found 15 articles with proper structure (title, URL, date). Working correctly after heavy dependencies removal."
 
   - task: "RCI Guadeloupe scraper"
     implemented: true
