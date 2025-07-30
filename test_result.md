@@ -206,15 +206,18 @@ backend:
 
   - task: "Endpoints de filtrage avancé des articles"
     implemented: true
-    working: false
+    working: true
     file: "server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "main"
         comment: "🚀 NOUVEAUX ENDPOINTS CRÉÉS: /api/articles/filtered (filtrage par date, source, texte, tri, pagination), /api/articles/sources (sources disponibles), /api/analytics/articles-by-source, /api/analytics/articles-timeline, /api/analytics/sentiment-by-source, /api/analytics/dashboard-metrics. Système de filtrage MongoDB avec requêtes optimisées et agrégations pour analytics. À tester."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: All new filtering and analytics endpoints fully operational. Fixed route ordering issue (moved specific routes before parameterized /api/articles/{date}). GET /api/articles/filtered works with all parameters (date_start, date_end, source, search_text, sort_by, limit, offset) returning proper pagination and filters_applied. GET /api/articles/sources returns 4 sources with counts. All 4 analytics endpoints working: articles-by-source (Chart.js pie format), articles-timeline (Chart.js line format), sentiment-by-source (Chart.js stacked bar format), dashboard-metrics (structured metrics). MongoDB aggregation pipelines optimized. Pagination logic correct with has_more flag. All sort options working (date_desc, date_asc, source_asc, title_asc). Test results: 11/11 passed."
 
   - task: "Frontend - Filtres et tri articles"
     implemented: true
