@@ -1,5 +1,167 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+} from 'chart.js';
+import { Bar, Line, Doughnut } from 'react-chartjs-2';
+
+// Enregistrer les composants Chart.js
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+);
+
+// Composants graphiques
+const SourceChart = ({ data }) => {
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false
+      },
+      tooltip: {
+        backgroundColor: 'rgba(17, 24, 39, 0.9)',
+        titleColor: '#f9fafb',
+        bodyColor: '#f9fafb',
+        borderColor: 'rgba(75, 85, 99, 0.3)',
+        borderWidth: 1
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        grid: {
+          color: 'rgba(75, 85, 99, 0.1)'
+        },
+        ticks: {
+          color: '#6b7280'
+        }
+      },
+      x: {
+        grid: {
+          display: false
+        },
+        ticks: {
+          color: '#6b7280',
+          maxRotation: 45
+        }
+      }
+    }
+  };
+
+  return <Doughnut data={data} options={options} />;
+};
+
+const TimelineChart = ({ data }) => {
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false
+      },
+      tooltip: {
+        backgroundColor: 'rgba(17, 24, 39, 0.9)',
+        titleColor: '#f9fafb',
+        bodyColor: '#f9fafb',
+        borderColor: 'rgba(75, 85, 99, 0.3)',
+        borderWidth: 1
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        grid: {
+          color: 'rgba(75, 85, 99, 0.1)'
+        },
+        ticks: {
+          color: '#6b7280'
+        }
+      },
+      x: {
+        grid: {
+          display: false
+        },
+        ticks: {
+          color: '#6b7280',
+          maxRotation: 45
+        }
+      }
+    },
+    interaction: {
+      intersect: false,
+      mode: 'index'
+    }
+  };
+
+  return <Line data={data} options={options} />;
+};
+
+const SentimentChart = ({ data }) => {
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top',
+        labels: {
+          color: '#4b5563',
+          usePointStyle: true
+        }
+      },
+      tooltip: {
+        backgroundColor: 'rgba(17, 24, 39, 0.9)',
+        titleColor: '#f9fafb',
+        bodyColor: '#f9fafb',
+        borderColor: 'rgba(75, 85, 99, 0.3)',
+        borderWidth: 1
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        stacked: true,
+        grid: {
+          color: 'rgba(75, 85, 99, 0.1)'
+        },
+        ticks: {
+          color: '#6b7280'
+        }
+      },
+      x: {
+        stacked: true,
+        grid: {
+          display: false
+        },
+        ticks: {
+          color: '#6b7280',
+          maxRotation: 45
+        }
+      }
+    }
+  };
+
+  return <Bar data={data} options={options} />;
+};
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 
