@@ -5,10 +5,10 @@ python-multipart==0.0.6
 aiofiles==23.2.1
 python-dotenv==1.0.0
 
-# Pour OpenAI GPT et Whisper
+# Pour OpenAI GPT et Whisper API (pas de modèles locaux)
 openai==1.58.0
 
-# Pour l'analyse de sentiment
+# Pour l'analyse de sentiment (local, sans modèles lourds)
 vaderSentiment==3.3.2
 textblob==0.17.1
 nltk==3.8.1
@@ -25,23 +25,22 @@ praw==7.7.1
 # Pour les requêtes HTTP
 httpx==0.25.2
 
-# Pour la capture audio streaming
+# Pour la capture audio streaming (léger)
 streamlink==6.5.1
 ffmpeg-python==0.2.0
 
 # Pour le scheduling automatique
 APScheduler==3.10.4
 
-# Pour le résumé automatique (sans modèles spaCy spécifiques)
-spacy>=3.7.0,<3.8.0
+# Pour le résumé automatique (sans modèles spécifiques)
 sumy==0.11.0
 
-# Utilitaires
+# Utilitaires essentiels
 pandas==2.1.4
 numpy==1.25.2
 python-dateutil==2.8.2
 
-# Pour le scraping et l'automatisation
+# Pour le scraping (légers)
 snscrape
 playwright
 
