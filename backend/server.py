@@ -190,20 +190,49 @@ def _compute_dashboard_stats_today_only():
 async def get_articles():
     """Récupérer les articles du jour avec cache intelligent"""
     try:
-        def fetch_articles():
-            return guadeloupe_scraper.get_todays_articles()
-        
-        # Cache de 5 minutes pour les articles si disponible
         if CACHE_ENABLED:
-            articles = get_or_compute('articles_today', fetch_articles)
-        else:
-            articles = fetch_articles()
+            def compute_articles_today():
+                return _compute_articles_today_only()
             
-        return {"success": True, "articles": articles, "count": len(articles)}
+            # Récupérer les articles d'aujourd'hui depuis le cache ou calculer
+            articles_data = get_or_compute('articles_today', compute_articles_today)
+        else:
+            articles_data = _compute_articles_today_only()
         
+        return {"success": True, "articles": articles_data.get('articles', []), "count": articles_data.get('count', 0)}
+    
     except Exception as e:
         print(f"Erreur articles: {e}")
         return {"success": False, "error": str(e), "articles": [], "count": 0}
+
+def _compute_articles_today_only():
+    """Récupérer seulement les articles d'aujourd'hui"""
+    try:
+        # Date d'aujourd'hui
+        today = datetime.now().strftime('%Y-%m-%d')
+        
+        # Récupérer les articles d'aujourd'hui triés par date de scraping
+        articles = list(articles_collection.find({
+            'date': today
+        }).sort('scraped_at', -1).limit(100))
+        
+        # Nettoyer les données (convertir ObjectId si nécessaire)
+        clean_articles = []
+        for article in articles:
+            if '_id' in article:
+                del article['_id']  # Supprimer l'ObjectId MongoDB
+            clean_articles.append(article)
+        
+        return {
+            'articles': clean_articles,
+            'count': len(clean_articles),
+            'date_filter': today,
+            'message': f'Articles du {today} uniquement'
+        }
+        
+    except Exception as e:
+        logger.error(f"Erreur récupération articles aujourd'hui: {e}")
+        return {'articles': [], 'count': 0, 'error': str(e)}
 
 @app.get("/api/articles/{date}")
 async def get_articles_by_date(date: str):
