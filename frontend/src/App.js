@@ -1167,14 +1167,36 @@ function App() {
                 </article>
               ))}
               
-              {articles.length === 0 && (
-                <div className="glass-card" style={{ padding: '3rem', textAlign: 'center' }}>
-                  <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📰</div>
-                  <p style={{ color: '#6b7280', fontSize: '1.1rem' }}>Aucun article disponible</p>
-                  <p style={{ color: '#9ca3af', fontSize: '0.9rem', marginTop: '0.5rem' }}>
-                    Lancez un scraping pour récupérer les derniers articles
+              {articles.length === 0 && !loading && (
+                <div className="articles-empty-state">
+                  <div className="articles-empty-icon">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWith="1.5">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                      <polyline points="14,2 14,8 20,8"/>
+                      <line x1="16" y1="13" x2="8" y2="13"/>
+                      <line x1="16" y1="17" x2="8" y2="17"/>
+                      <polyline points="10,9 9,9 8,9"/>
+                    </svg>
+                  </div>
+                  <h3 className="articles-empty-title">Aucun article disponible</h3>
+                  <p className="articles-empty-description">
+                    Lancez un scraping pour récupérer les derniers articles de Guadeloupe
                   </p>
                 </div>
+              )}
+
+              {loading && articles.length === 0 && (
+                <>
+                  {[...Array(3)].map((_, index) => (
+                    <div key={index} className="article-skeleton">
+                      <div className="skeleton-line title"></div>
+                      <div className="skeleton-line content"></div>
+                      <div className="skeleton-line content"></div>
+                      <div className="skeleton-line content"></div>
+                      <div className="skeleton-line meta"></div>
+                    </div>
+                  ))}
+                </>
               )}
             </div>
           </div>
