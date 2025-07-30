@@ -1687,6 +1687,140 @@ async def get_sentiment_stats():
         logger.error(f"Erreur stats sentiment: {e}")
         return {"success": False, "error": str(e)}
 
+# ==================== GPT TEST ENDPOINTS ====================
+
+@app.post("/api/test-gpt")
+async def test_gpt_analysis(text: str = None):
+    """Tester l'analyse GPT avec un échantillon de texte"""
+    try:
+        # Import du nouveau service GPT
+        from gpt_analysis_service import analyze_transcription_with_gpt, test_gpt_connection
+        
+        # Tester la connexion d'abord
+        connection_test = test_gpt_connection()
+        if connection_test['status'] != 'success':
+            return {
+                "success": False,
+                "error": "Connexion GPT échouée",
+                "connection_test": connection_test
+            }
+        
+        # Utiliser un texte de test si aucun n'est fourni
+        if not text:
+            text = """
+            Bonjour, nous sommes en direct de RCI Guadeloupe pour les actualités de ce matin. 
+            Au programme aujourd'hui, la réunion du Conseil Départemental avec Guy Losbar pour discuter du budget 2025. 
+            Dans l'économie, le secteur du tourisme montre des signes de reprise après la période difficile. 
+            En matière d'environnement, les sargasses continuent d'affecter les côtes guadeloupéennes. 
+            Voilà pour ce tour d'horizon matinal, à très bientôt sur RCI.
+            """
+        
+        # Analyser avec GPT
+        start_time = datetime.now()
+        analysis = analyze_transcription_with_gpt(text.strip(), "Test GPT")
+        end_time = datetime.now()
+        
+        # Calculer le temps de traitement
+        processing_time = (end_time - start_time).total_seconds()
+        
+        return {
+            "success": True,
+            "original_text": text.strip(),
+            "gpt_analysis": analysis,
+            "processing_time_seconds": processing_time,
+            "connection_test": connection_test,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except ImportError as e:
+        return {
+            "success": False,
+            "error": f"Service GPT non disponible: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Erreur test GPT: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.post("/api/test-capture-1min")
+async def test_radio_capture_1min():
+    """Tester la capture radio avec échantillon de 1 minute et analyse GPT"""
+    try:
+        # Capture de test 1 minute pour RCI
+        config = radio_service.radio_streams["rci_7h"]
+        
+        logger.info("🧪 Test capture 1 minute avec analyse GPT")
+        
+        # Marquer le début du test
+        radio_service.update_transcription_step("rci_7h", "audio_capture", "Test 1 minute", 10)
+        
+        # Capturer 1 minute (60 secondes)
+        audio_path = radio_service.capture_radio_stream("rci_7h", 60)
+        
+        if not audio_path:
+            return {
+                "success": False,
+                "error": "Échec capture audio 1 minute",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        try:
+            # Transcrire
+            transcription = radio_service.transcribe_audio_file(audio_path, "rci_7h")
+            
+            if not transcription:
+                return {
+                    "success": False,
+                    "error": "Échec transcription 1 minute",
+                    "timestamp": datetime.now().isoformat()
+                }
+            
+            # Analyser avec GPT
+            from gpt_analysis_service import analyze_transcription_with_gpt
+            start_gpt = datetime.now()
+            gpt_analysis = analyze_transcription_with_gpt(transcription['text'], "Test 1min RCI")
+            end_gpt = datetime.now()
+            
+            gpt_processing_time = (end_gpt - start_gpt).total_seconds()
+            
+            # Marquer le test comme terminé
+            radio_service.update_transcription_step("rci_7h", "completed", "Test terminé", 100)
+            
+            return {
+                "success": True,
+                "test_type": "1_minute_sample",
+                "audio_duration": 60,
+                "transcription": {
+                    "text": transcription['text'],
+                    "language": transcription.get('language', 'fr'),
+                    "character_count": len(transcription['text']),
+                    "word_count": len(transcription['text'].split())
+                },
+                "gpt_analysis": gpt_analysis,
+                "performance": {
+                    "gpt_processing_time": gpt_processing_time,
+                    "transcription_length": len(transcription['text']),
+                    "audio_file_size": os.path.getsize(audio_path) if os.path.exists(audio_path) else 0
+                },
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        finally:
+            # Nettoyer le fichier temporaire
+            if audio_path and os.path.exists(audio_path):
+                os.unlink(audio_path)
+                
+    except Exception as e:
+        radio_service.update_transcription_step("rci_7h", "error", f"Erreur test: {str(e)}", 0)
+        return {
+            "success": False,
+            "error": f"Erreur test capture 1min: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+
 # ==================== HEALTH CHECK ENDPOINTS ====================
 
 @app.get("/api/health")
