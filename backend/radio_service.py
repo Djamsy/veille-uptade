@@ -222,8 +222,7 @@ class RadioTranscriptionService:
     def capture_and_transcribe_stream(self, stream_key: str) -> Dict[str, Any]:
         """Capturer et transcrire un flux radio"""
         config = self.radio_streams[stream_key]
-        # Durée de test réduite pour voir l'analyse IA rapidement
-        duration_seconds = 30  # config['duration_minutes'] * 60
+        duration_seconds = config['duration_minutes'] * 60
         
         result = {
             'success': False,
