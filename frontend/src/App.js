@@ -924,6 +924,7 @@ function App() {
             { id: 'dashboard', name: 'Dashboard', icon: 'dashboard' },
             { id: 'search', name: 'Recherche', icon: 'search' },
             { id: 'articles', name: 'Articles', icon: 'articles' },
+            { id: 'analytics', name: 'Analytics', icon: 'analytics' },
             { id: 'sentiment', name: 'Analyse Sentiment', icon: 'sentiment' },
             { id: 'comments', name: 'Réseaux Sociaux', icon: 'social' },
             { id: 'transcription', name: 'Radio', icon: 'radio' },
