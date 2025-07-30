@@ -192,6 +192,27 @@ RÉPONDEZ UNIQUEMENT EN JSON VALIDE:
         if not isinstance(mots_cles, list):
             mots_cles = []
         
+        # Nouveaux champs enrichis
+        personnalites = gpt_data.get('personnalités_mentionnées', [])
+        if not isinstance(personnalites, list):
+            personnalites = []
+            
+        institutions = gpt_data.get('institutions_mentionnées', [])
+        if not isinstance(institutions, list):
+            institutions = []
+            
+        recommandations = gpt_data.get('recommandations', [])
+        if not isinstance(recommandations, list):
+            recommandations = []
+            
+        alertes = gpt_data.get('alertes', [])
+        if not isinstance(alertes, list):
+            alertes = []
+        
+        categories_detaillees = gpt_data.get('categories_detaillees', {})
+        if not isinstance(categories_detaillees, dict):
+            categories_detaillees = {}
+        
         confiance = float(gpt_data.get('confiance', 0.8))
         confiance = max(0.0, min(1.0, confiance))
         
@@ -209,8 +230,33 @@ RÉPONDEZ UNIQUEMENT EN JSON VALIDE:
                 'keywords': mots_cles,
                 'explanation': gpt_data.get('raisons', ''),
                 'guadeloupe_context': gpt_data.get('contexte_guadeloupe', ''),
+                'personalities_mentioned': personnalites,
+                'institutions_mentioned': institutions,
+                'impact_potential': gpt_data.get('impact_potentiel', ''),
+                'urgency_level': gpt_data.get('urgence_niveau', 'faible'),
+                'recommendations': recommandations,
+                'alerts': alertes,
+                'detailed_categories': categories_detaillees,
+                'local_relevance': categories_detaillees.get('pertinence_locale', 'moyenne'),
+                'main_domain': categories_detaillees.get('domaine_principal', 'général'),
                 'confidence': confiance,
-                'method': 'gpt-4o-mini'
+                'method': gpt_data.get('methode', 'gpt-4o-mini-contextuel')
+            },
+            'enhanced_analysis': {
+                'contextual_insights': gpt_data.get('contexte_guadeloupe', ''),
+                'stakeholder_mentions': {
+                    'personalities': personnalites,
+                    'institutions': institutions
+                },
+                'priority_assessment': {
+                    'urgency': gpt_data.get('urgence_niveau', 'faible'),
+                    'impact': gpt_data.get('impact_potentiel', ''),
+                    'alerts': alertes
+                },
+                'actionable_insights': {
+                    'recommendations': recommandations,
+                    'follow_up_needed': len(alertes) > 0 or gpt_data.get('urgence_niveau', 'faible') in ['moyen', 'élevé']
+                }
             },
             'analyzed_at': datetime.now().isoformat()
         }
