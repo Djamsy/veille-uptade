@@ -130,6 +130,38 @@
   background: rgba(255, 255, 255, 0.8);
 }
 
+.stat-card.priority-card {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(251, 191, 36, 0.15) 100%);
+  border: 2px solid rgba(245, 158, 11, 0.4);
+  position: relative;
+}
+
+.stat-card.priority-card::before {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+  height: 6px;
+}
+
+.stat-card.priority-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 35px rgba(245, 158, 11, 0.25);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(251, 191, 36, 0.2) 100%);
+}
+
+.stat-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: linear-gradient(45deg, #f59e0b, #fbbf24);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+}
+
 .stat-value {
   font-size: 2.5rem;
   font-weight: 700;
