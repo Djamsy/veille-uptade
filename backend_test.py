@@ -314,6 +314,168 @@ class GuadeloupeMediaAPITester:
         except Exception as e:
             return self.log_test("Health Check", False, f"- Error: {str(e)}")
 
+    def test_search_endpoint(self):
+        """Test search endpoint with specific queries for Guy Losbar and Conseil Départemental"""
+        test_queries = ["Guy Losbar", "Conseil Départemental", "CD971"]
+        
+        for query in test_queries:
+            try:
+                response = self.session.get(f"{self.base_url}/api/search", params={'q': query})
+                success = response.status_code == 200
+                if success:
+                    data = response.json()
+                    if data.get('success'):
+                        articles = data.get('articles', [])
+                        social_posts = data.get('social_posts', [])
+                        total_results = data.get('total_results', 0)
+                        searched_in = data.get('searched_in', [])
+                        
+                        if total_results >= 0 and len(searched_in) > 0:
+                            details = f"- Query '{query}': {len(articles)} articles, {len(social_posts)} social posts, searched in: {searched_in}"
+                        else:
+                            success = False
+                            details = f"- Query '{query}' failed: total={total_results}, searched_in={searched_in}"
+                    else:
+                        success = False
+                        details = f"- Query '{query}' API returned success=False: {data.get('error', 'Unknown error')}"
+                else:
+                    details = f"- Query '{query}' Status: {response.status_code}"
+                
+                self.log_test(f"Search Endpoint - '{query}'", success, details)
+            except Exception as e:
+                self.log_test(f"Search Endpoint - '{query}'", False, f"- Error: {str(e)}")
+
+    def test_comments_endpoint(self):
+        """Test comments endpoint to retrieve social media posts"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/comments")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    comments = data.get('comments', [])
+                    count = data.get('count', 0)
+                    
+                    # Check if comments have sentiment analysis
+                    has_sentiment = False
+                    if comments:
+                        first_comment = comments[0]
+                        has_sentiment = 'sentiment_summary' in first_comment or 'sentiment' in first_comment
+                    
+                    if count >= 0:
+                        details = f"- Found {count} comments/posts, sentiment analysis: {has_sentiment}"
+                    else:
+                        success = False
+                        details = f"- Comments retrieval failed: count={count}"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Comments Endpoint", success, details)
+        except Exception as e:
+            return self.log_test("Comments Endpoint", False, f"- Error: {str(e)}")
+
+    def test_social_scrape_now(self):
+        """Test social media scraping endpoint"""
+        try:
+            response = self.session.post(f"{self.base_url}/api/social/scrape-now")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    message = data.get('message', '')
+                    estimated_completion = data.get('estimated_completion', '')
+                    note = data.get('note', '')
+                    
+                    if 'scraping' in message.lower() and estimated_completion:
+                        details = f"- Message: '{message}', ETA: {estimated_completion}, Note: '{note}'"
+                    else:
+                        success = False
+                        details = f"- Social scraping not properly initiated: message='{message}'"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Social Media Scrape Now", success, details)
+        except Exception as e:
+            return self.log_test("Social Media Scrape Now", False, f"- Error: {str(e)}")
+
+    def test_social_stats(self):
+        """Test social media statistics endpoint"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/social/stats")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    stats = data.get('stats', {})
+                    
+                    if isinstance(stats, dict) and len(stats) >= 0:
+                        details = f"- Social stats retrieved: {len(stats)} stat categories"
+                    else:
+                        success = False
+                        details = f"- Social stats failed: stats={stats}"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Social Media Stats", success, details)
+        except Exception as e:
+            return self.log_test("Social Media Stats", False, f"- Error: {str(e)}")
+
+    def test_search_suggestions(self):
+        """Test search suggestions endpoint"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/search/suggestions", params={'q': 'Guy'})
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    suggestions = data.get('suggestions', [])
+                    
+                    if isinstance(suggestions, list):
+                        details = f"- Found {len(suggestions)} suggestions: {suggestions[:3]}"
+                    else:
+                        success = False
+                        details = f"- Search suggestions failed: suggestions={suggestions}"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Search Suggestions", success, details)
+        except Exception as e:
+            return self.log_test("Search Suggestions", False, f"- Error: {str(e)}")
+
+    def test_comments_analyze(self):
+        """Test comments sentiment analysis endpoint"""
+        try:
+            response = self.session.post(f"{self.base_url}/api/comments/analyze")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    analysis = data.get('analysis', {})
+                    total_comments = analysis.get('total_comments', 0)
+                    by_entity = analysis.get('by_entity', {})
+                    
+                    if total_comments >= 0 and isinstance(by_entity, dict):
+                        details = f"- Analyzed {total_comments} comments, entities: {list(by_entity.keys())}"
+                    else:
+                        success = False
+                        details = f"- Comments analysis failed: total={total_comments}, entities={len(by_entity)}"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Comments Sentiment Analysis", success, details)
+        except Exception as e:
+            return self.log_test("Comments Sentiment Analysis", False, f"- Error: {str(e)}")
+
     def run_all_tests(self):
         """Run all API tests focusing on new features"""
         print("🚀 Starting Guadeloupe Media Monitoring API Tests")
