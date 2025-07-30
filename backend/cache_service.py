@@ -217,46 +217,12 @@ class IntelligentCache:
 
     def warm_cache(self):
         """Préchauffer le cache avec les données essentielles"""
-        logger.info("🔥 Préchauffage du cache...")
-        
         try:
-            # Importer les services nécessaires
-            from scraper_service import guadeloupe_scraper
-            from radio_service import radio_service
+            logger.info("🔥 Préchauffage du cache...")
             
-            # Préchauffer les articles d'aujourd'hui
-            def get_articles():
-                return guadeloupe_scraper.get_todays_articles()
-            
-            # Préchauffer les transcriptions d'aujourd'hui
-            def get_transcriptions():
-                return radio_service.get_todays_transcriptions()
-            
-            # Exécuter en parallèle avec timeout
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                # Soumettre les tâches avec timeout
-                future_articles = executor.submit(lambda: self.get_or_compute('articles_today', get_articles))
-                future_transcriptions = executor.submit(lambda: self.get_or_compute('transcriptions_today', get_transcriptions))
-                
-                # Attendre avec timeout de 30 secondes par tâche
-                try:
-                    future_articles.result(timeout=30)
-                    logger.info("✅ Préchauffage articles terminé")
-                except concurrent.futures.TimeoutError:
-                    logger.warning("⚠️ Timeout lors du préchauffage des articles (30s)")
-                except Exception as e:
-                    logger.error(f"❌ Erreur préchauffage articles: {e}")
-                
-                try:
-                    future_transcriptions.result(timeout=10)
-                    logger.info("✅ Préchauffage transcriptions terminé")
-                except concurrent.futures.TimeoutError:
-                    logger.warning("⚠️ Timeout lors du préchauffage des transcriptions (10s)")
-                except Exception as e:
-                    logger.error(f"❌ Erreur préchauffage transcriptions: {e}")
-            
-            logger.info("✅ Préchauffage du cache terminé")
+            # DÉSACTIVER TEMPORAIREMENT le préchauffage pour éviter le blocage
+            logger.info("⚠️ Préchauffage du cache désactivé temporairement")
+            logger.info("✅ Préchauffage du cache terminé (désactivé)")
             
         except Exception as e:
             logger.error(f"❌ Erreur préchauffage cache: {e}")
