@@ -27,20 +27,16 @@ class FreeSummaryService:
         self.lexrank_summarizer = LexRankSummarizer()
 
     def extract_key_sentences(self, text: str, max_sentences: int = 3) -> List[str]:
-        """Extraire les phrases clés d'un texte avec spaCy ou méthodes alternatives"""
+        """Extraire les phrases clés d'un texte avec méthodes basiques (sans spaCy)"""
         if not text.strip():
             return []
         
         try:
-            if self.nlp:
-                # Méthode avec spaCy (si disponible)
-                return self._extract_sentences_spacy(text, max_sentences)
-            else:
-                # Méthode alternative sans spaCy
-                return self._extract_sentences_basic(text, max_sentences)
+            # Utiliser uniquement la méthode basique (spaCy supprimé)
+            return self._extract_sentences_basic(text, max_sentences)
         except Exception as e:
             logger.warning(f"Erreur extraction phrases clés: {e}")
-            return self._extract_sentences_basic(text, max_sentences)
+            return []
     
     def _extract_sentences_spacy(self, text: str, max_sentences: int) -> List[str]:
         """Extraction avec spaCy"""
