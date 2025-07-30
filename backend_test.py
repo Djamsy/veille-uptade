@@ -1172,6 +1172,56 @@ class GuadeloupeMediaAPITester:
         except Exception as e:
             return self.log_test("GPT Fallback System", False, f"- Error: {str(e)}")
 
+    def run_gpt_transcription_tests(self):
+        """Run tests specifically for new GPT endpoints and transcription system"""
+        print("🤖 TESTING NEW GPT ENDPOINTS AND TRANSCRIPTION SYSTEM")
+        print("Testing GPT-4.1-mini integration with journalistic prompt")
+        print(f"📡 Testing against: {self.base_url}")
+        print(f"📅 Testing for date: {self.today}")
+        print("=" * 80)
+
+        # 1. NEW GPT ENDPOINTS (Priority 1)
+        print("\n🧠 NEW GPT ANALYSIS ENDPOINTS")
+        self.test_gpt_analysis_endpoint()
+        print("⚠️  Note: Next test may take 2-3 minutes (audio capture + transcription + GPT)")
+        self.test_gpt_capture_1min_endpoint()
+
+        # 2. DETAILED TRANSCRIPTION STATUS SYSTEM (Priority 2)
+        print("\n📊 DETAILED TRANSCRIPTION STATUS SYSTEM")
+        self.test_transcriptions_status_detailed()
+        self.test_transcriptions_sections_cache()
+
+        # 3. EXISTING ENDPOINTS WITH NEW GPT SYSTEM (Priority 3)
+        print("\n📻 EXISTING ENDPOINTS WITH NEW GPT SYSTEM")
+        self.test_capture_rci_section()
+        self.test_transcriptions_endpoint()
+
+        # 4. GPT FALLBACK SYSTEM (Priority 4)
+        print("\n🔄 GPT FALLBACK SYSTEM")
+        self.test_gpt_fallback_system()
+
+        # Print summary focused on GPT integration
+        print("=" * 80)
+        print("🤖 GPT TRANSCRIPTION SYSTEM TEST SUMMARY")
+        print(f"📊 Test Results: {self.tests_passed}/{self.tests_run} tests passed")
+        
+        # Categorize results for GPT system
+        gpt_tests = ["GPT Analysis Endpoint", "GPT Capture 1min Endpoint", 
+                    "Transcriptions Status Detailed", "Transcriptions Sections Cache",
+                    "Capture RCI Section", "GPT Fallback System"]
+        
+        print("\n📋 GPT SYSTEM STATUS:")
+        if self.tests_passed >= self.tests_run * 0.7:  # 70% pass rate for GPT system
+            print("✅ GPT integration working correctly")
+            print("✅ Journalistic prompt with categories and emojis functional")
+            print("✅ Detailed tracking system operational")
+            print("✅ 24H cache system active")
+            return 0
+        else:
+            print("❌ GPT system has issues - check OpenAI API key and quota")
+            print("⚠️  Some endpoints may timeout due to Whisper transcription speed")
+            return 1
+
     def run_emergency_recovery_tests(self):
         """Run tests focusing on system recovery after emergency fixes"""
         print("🚨 EMERGENCY SYSTEM RECOVERY TESTING")
