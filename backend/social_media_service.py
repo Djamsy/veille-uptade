@@ -65,25 +65,46 @@ class SocialMediaScraper:
             logger.error(f"❌ Erreur installation: {e}")
 
     def scrape_twitter_keyword(self, keyword: str, max_posts: int = 20) -> List[Dict[str, Any]]:
-        """Scraper X/Twitter pour un mot-clé avec snscrape"""
+        """Scraper X/Twitter pour un mot-clé avec snscrape - Version améliorée"""
         try:
             import snscrape.modules.twitter as sntwitter
             
             posts = []
-            search_query = f'{keyword} lang:fr OR lang:ht'  # Français ou créole haïtien
+            
+            # Construire une query plus spécifique pour la Guadeloupe
+            if keyword.lower() in ['guy losbar', 'losbar']:
+                search_query = f'"Guy Losbar" OR "Losbar" OR "président conseil départemental" lang:fr'
+            elif keyword.lower() in ['conseil départemental', 'cd971']:
+                search_query = f'"Conseil Départemental" OR "CD971" OR "département guadeloupe" lang:fr'
+            else:
+                search_query = f'{keyword} (guadeloupe OR gwada OR 971 OR antilles) lang:fr'
             
             logger.info(f"🔍 Recherche Twitter: {search_query}")
             
-            # Limiter aux tweets des 7 derniers jours
-            since_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+            # Limiter aux tweets des 30 derniers jours pour plus de résultats
+            since_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
             search_query += f' since:{since_date}'
             
-            for i, tweet in enumerate(sntwitter.TwitterSearchScraper(search_query).get_items()):
-                if i >= max_posts:
+            tweet_count = 0
+            for tweet in sntwitter.TwitterSearchScraper(search_query).get_items():
+                if tweet_count >= max_posts:
                     break
                 
-                # Filtrer les tweets avec engagement minimum
-                if tweet.replyCount + tweet.retweetCount + tweet.likeCount < 1:
+                # Filtrer les tweets avec un minimum d'engagement ou de contenu
+                if len(tweet.rawContent) < 20:  # Tweets trop courts
+                    continue
+                
+                # Prioriser les tweets avec engagement
+                total_engagement = tweet.replyCount + tweet.retweetCount + tweet.likeCount
+                
+                # Détecter les entités pertinentes dans le contenu
+                content_lower = tweet.rawContent.lower()
+                is_relevant = any(entity in content_lower for entity in [
+                    'guy losbar', 'losbar', 'conseil départemental', 'cd971',
+                    'département guadeloupe', 'guadeloupe', 'gwada'
+                ])
+                
+                if not is_relevant:
                     continue
                 
                 post_data = {
@@ -98,25 +119,37 @@ class SocialMediaScraper:
                         'likes': tweet.likeCount,
                         'retweets': tweet.retweetCount,
                         'replies': tweet.replyCount,
-                        'total': tweet.likeCount + tweet.retweetCount + tweet.replyCount
+                        'total': total_engagement
                     },
                     'url': tweet.url,
                     'scraped_at': datetime.now().isoformat(),
                     'date': datetime.now().strftime('%Y-%m-%d'),
                     'is_reply': tweet.inReplyToTweetId is not None,
-                    'language': tweet.lang or 'fr'
+                    'language': tweet.lang or 'fr',
+                    'demo_data': False,  # Explicitement marquer comme vraies données
+                    'relevance_score': total_engagement + (50 if 'guy losbar' in content_lower else 0)
                 }
                 
+                # Détecter l'entité politique mentionnée
+                if any(name in content_lower for name in ['guy losbar', 'losbar']):
+                    post_data['political_figure'] = 'Guy Losbar'
+                elif 'ary chalus' in content_lower:
+                    post_data['political_figure'] = 'Ary Chalus'
+                
                 posts.append(post_data)
+                tweet_count += 1
                 
                 # Respecter les limites
-                time.sleep(self.rate_limit_delay)
+                time.sleep(self.rate_limit_delay / 2)  # Réduire le délai
             
-            logger.info(f"✅ Twitter {keyword}: {len(posts)} posts récupérés")
+            # Trier par pertinence et engagement
+            posts.sort(key=lambda x: x.get('relevance_score', 0), reverse=True)
+            
+            logger.info(f"✅ Twitter {keyword}: {len(posts)} posts récupérés (réels)")
             return posts
             
         except ImportError:
-            logger.error("❌ snscrape non installé. Lancez install_dependencies()")
+            logger.error("❌ snscrape non installé. Lancez: pip install snscrape")
             return []
         except Exception as e:
             logger.error(f"❌ Erreur scraping Twitter {keyword}: {e}")
