@@ -2595,7 +2595,7 @@ async def predict_population_reaction_endpoint(request: Request):
             }
         }
         
-        logger.info(f"✅ Prédiction terminée: {prediction['population_reaction_forecast']['overall']} (confiance: {prediction['confidence_level']})")
+        logger.info(f"✅ Prédiction terminée: {prediction.get('population_reaction_forecast', {}).get('overall', 'inconnue')} (confiance: {prediction.get('confidence_level', 0)})")
         
         return response
     
