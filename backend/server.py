@@ -47,15 +47,25 @@ except ImportError as e:
         print("❌ Aucun service réseaux sociaux disponible")
         modern_social_scraper = None
         social_scraper = None
-# Import du service d'alertes Telegram
+# Import du service d'analyse de sentiment GPT
 try:
-    from telegram_alerts_service import telegram_alerts
-    TELEGRAM_ALERTS_ENABLED = True
-    print("✅ Service d'alertes Telegram activé")
+    from gpt_sentiment_service import gpt_sentiment_analyzer, analyze_articles_sentiment
+    SENTIMENT_ENABLED = True
+    print("✅ Service d'analyse de sentiment GPT activé")
 except ImportError as e:
-    print(f"⚠️ Service d'alertes Telegram non disponible: {e}")
-    TELEGRAM_ALERTS_ENABLED = False
-    telegram_alerts = None
+    print(f"⚠️ Service d'analyse de sentiment GPT non disponible: {e}")
+    SENTIMENT_ENABLED = False
+    # Fallback vers service local si nécessaire
+    try:
+        from sentiment_analysis_service import local_sentiment_analyzer, analyze_articles_sentiment
+        SENTIMENT_ENABLED = True
+        print("✅ Fallback: Service d'analyse de sentiment local activé")
+    except ImportError:
+        print("❌ Aucun service d'analyse de sentiment disponible")
+
+# Fallback pour compatibilité avec les endpoints Telegram existants
+TELEGRAM_ALERTS_ENABLED = False
+telegram_alerts = None
 
 # Fallback pour compatibilité avec le code existant utilisant l'analyse de sentiment
 SENTIMENT_ENABLED = False
