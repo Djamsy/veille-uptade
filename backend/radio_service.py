@@ -164,15 +164,17 @@ class RadioTranscriptionService:
             logger.error(f"❌ Erreur capture {config['name']}: {e}")
             return None
 
-    def transcribe_audio_file(self, audio_path: str, stream_key: str) -> Optional[Dict[str, Any]]:
+    def transcribe_audio_file(self, audio_path: str, stream_key: str = "unknown") -> Optional[Dict[str, Any]]:
         """Transcrire un fichier audio avec Whisper"""
         if not self.whisper_model:
-            self.update_transcription_step(stream_key, "error", "Modèle Whisper indisponible", 0)
+            if stream_key != "unknown":
+                self.update_transcription_step(stream_key, "error", "Modèle Whisper indisponible", 0)
             logger.error("❌ Modèle Whisper non disponible")
             return None
         
         try:
-            self.update_transcription_step(stream_key, "transcription", "Transcription Whisper en cours...", 60)
+            if stream_key != "unknown":
+                self.update_transcription_step(stream_key, "transcription", "Transcription Whisper en cours...", 60)
             logger.info(f"🎤 Début transcription de {os.path.basename(audio_path)}...")
             
             # Transcription avec Whisper
@@ -197,12 +199,14 @@ class RadioTranscriptionService:
             }
             
             text_length = len(transcription_data['text'])
-            self.update_transcription_step(stream_key, "gpt_analysis", f"Transcription terminée ({text_length} chars)", 70)
+            if stream_key != "unknown":
+                self.update_transcription_step(stream_key, "gpt_analysis", f"Transcription terminée ({text_length} chars)", 70)
             logger.info(f"✅ Transcription terminée: {text_length} caractères")
             return transcription_data
             
         except Exception as e:
-            self.update_transcription_step(stream_key, "error", f"Erreur transcription: {e}", 0)
+            if stream_key != "unknown":
+                self.update_transcription_step(stream_key, "error", f"Erreur transcription: {e}", 0)
             logger.error(f"❌ Erreur transcription: {e}")
             return None
 
