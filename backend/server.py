@@ -672,6 +672,196 @@ async def warm_cache():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur préchauffage cache: {str(e)}")
 
+# ==================== SENTIMENT ANALYSIS ENDPOINTS ====================
+
+@app.get("/api/sentiment/articles")
+async def analyze_articles_sentiment():
+    """Analyser le sentiment des articles du jour"""
+    try:
+        if not SENTIMENT_ENABLED:
+            return {"success": False, "error": "Service d'analyse de sentiment non disponible"}
+        
+        if CACHE_ENABLED:
+            def compute_sentiment_analysis():
+                return _compute_sentiment_articles_today()
+            
+            # Cache des analyses de sentiment pour la journée
+            sentiment_data = get_or_compute('sentiment_articles_today', compute_sentiment_analysis)
+        else:
+            sentiment_data = _compute_sentiment_articles_today()
+        
+        return {"success": True, **sentiment_data}
+    
+    except Exception as e:
+        logger.error(f"Erreur analyse sentiment articles: {e}")
+        return {"success": False, "error": str(e)}
+
+def _compute_sentiment_articles_today():
+    """Analyser le sentiment des articles d'aujourd'hui"""
+    try:
+        # Récupérer les articles d'aujourd'hui
+        today = datetime.now().strftime('%Y-%m-%d')
+        articles = list(articles_collection.find({
+            'date': today
+        }).sort('scraped_at', -1))
+        
+        # Nettoyer les données MongoDB
+        clean_articles = []
+        for article in articles:
+            if '_id' in article:
+                del article['_id']
+            clean_articles.append(article)
+        
+        if not clean_articles:
+            return {
+                'articles': [],
+                'summary': {
+                    'total_articles': 0,
+                    'sentiment_distribution': {'positive': 0, 'negative': 0, 'neutral': 0, 'total': 0},
+                    'average_sentiment_score': 0.0,
+                    'most_common_patterns': {},
+                    'analysis_timestamp': datetime.now().isoformat()
+                }
+            }
+        
+        # Analyser le sentiment
+        analysis_result = analyze_articles_sentiment(clean_articles)
+        
+        return analysis_result
+        
+    except Exception as e:
+        logger.error(f"Erreur calcul sentiment articles: {e}")
+        return {
+            'articles': [],
+            'summary': {
+                'total_articles': 0,
+                'sentiment_distribution': {'positive': 0, 'negative': 0, 'neutral': 0, 'total': 0},
+                'average_sentiment_score': 0.0,
+                'most_common_patterns': {},
+                'analysis_timestamp': datetime.now().isoformat(),
+                'error': str(e)
+            }
+        }
+
+@app.post("/api/sentiment/analyze")
+async def analyze_text_sentiment_endpoint(text: str = Form(...)):
+    """Analyser le sentiment d'un texte donné"""
+    try:
+        if not SENTIMENT_ENABLED:
+            return {"success": False, "error": "Service d'analyse de sentiment non disponible"}
+        
+        if not text:
+            return {"success": False, "error": "Texte requis"}
+        
+        # Analyser le sentiment du texte
+        sentiment_result = local_sentiment_analyzer.analyze_sentiment(text)
+        
+        return {
+            "success": True,
+            "text": text[:200] + "..." if len(text) > 200 else text,
+            "sentiment": sentiment_result
+        }
+        
+    except Exception as e:
+        logger.error(f"Erreur analyse sentiment texte: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/sentiment/trends")
+async def get_sentiment_trends():
+    """Récupérer les tendances de sentiment sur plusieurs jours"""
+    try:
+        if not SENTIMENT_ENABLED:
+            return {"success": False, "error": "Service d'analyse de sentiment non disponible"}
+        
+        if CACHE_ENABLED:
+            def compute_sentiment_trends():
+                return _compute_sentiment_trends()
+            
+            # Cache des tendances (renouveler chaque jour)
+            trends_data = get_or_compute('sentiment_trends', compute_sentiment_trends)
+        else:
+            trends_data = _compute_sentiment_trends()
+        
+        return {"success": True, **trends_data}
+    
+    except Exception as e:
+        logger.error(f"Erreur tendances sentiment: {e}")
+        return {"success": False, "error": str(e)}
+
+def _compute_sentiment_trends():
+    """Calculer les tendances de sentiment sur les 7 derniers jours"""
+    try:
+        from datetime import datetime, timedelta
+        
+        # Récupérer les articles des 7 derniers jours
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=7)
+        
+        articles_by_date = {}
+        
+        for i in range(7):
+            date = (start_date + timedelta(days=i)).strftime('%Y-%m-%d')
+            articles = list(articles_collection.find({
+                'date': date
+            }))
+            
+            # Nettoyer les données MongoDB
+            clean_articles = []
+            for article in articles:
+                if '_id' in article:
+                    del article['_id']
+                clean_articles.append(article)
+            
+            articles_by_date[date] = clean_articles
+        
+        # Analyser les tendances
+        trends_result = local_sentiment_analyzer.get_sentiment_trends(articles_by_date)
+        
+        return trends_result
+        
+    except Exception as e:
+        logger.error(f"Erreur calcul tendances sentiment: {e}")
+        return {
+            'trends_by_date': {},
+            'analysis_period': {'start_date': None, 'end_date': None, 'total_days': 0},
+            'error': str(e),
+            'generated_at': datetime.now().isoformat()
+        }
+
+@app.get("/api/sentiment/stats")
+async def get_sentiment_stats():
+    """Obtenir les statistiques générales du sentiment"""
+    try:
+        if not SENTIMENT_ENABLED:
+            return {"success": False, "error": "Service d'analyse de sentiment non disponible"}
+        
+        # Récupérer les analyses du jour
+        today_analysis = _compute_sentiment_articles_today()
+        
+        # Statistiques du service
+        service_stats = {
+            'service_enabled': SENTIMENT_ENABLED,
+            'analysis_method': 'local_french_sentiment',
+            'features': [
+                'Dictionnaire français spécialisé',
+                'Détection de patterns Guadeloupe/Antilles',
+                'Gestion des négations et intensificateurs',
+                'Analyse contextuelle'
+            ],
+            'supported_languages': ['français', 'créole (partiel)'],
+            'last_analysis': datetime.now().isoformat()
+        }
+        
+        return {
+            "success": True,
+            "today_summary": today_analysis.get('summary', {}),
+            "service_info": service_stats
+        }
+        
+    except Exception as e:
+        logger.error(f"Erreur stats sentiment: {e}")
+        return {"success": False, "error": str(e)}
+
 # ==================== HEALTH CHECK ENDPOINTS ====================
 
 @app.get("/api/health")
