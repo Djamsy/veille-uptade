@@ -2299,6 +2299,39 @@ async def analyze_text_sentiment_endpoint(request: Request):
         logger.error(f"Erreur analyse sentiment: {e}")
         return {"success": False, "error": str(e)}
 
+@app.post("/api/sentiment/analyze/quick")
+async def analyze_text_sentiment_quick(request: Request):
+    """Analyse de sentiment rapide et simplifiée - Format compact"""
+    try:
+        if not SENTIMENT_ENABLED:
+            return {"success": False, "error": "Service d'analyse de sentiment non disponible"}
+        
+        body = await request.json()
+        text = body.get('text', '').strip()
+        
+        if not text:
+            return {"success": False, "error": "Texte requis pour l'analyse"}
+        
+        # Analyser avec GPT
+        sentiment_result = gpt_sentiment_analyzer.analyze_sentiment(text)
+        
+        # Format compact et rapide
+        return {
+            "success": True,
+            "polarity": sentiment_result['polarity'],
+            "score": sentiment_result['score'],
+            "intensity": sentiment_result['intensity'],
+            "themes": sentiment_result['analysis_details']['themes'][:3],  # Top 3 themes
+            "guadeloupe_context": sentiment_result['analysis_details']['guadeloupe_context'],
+            "confidence": sentiment_result['analysis_details']['confidence'],
+            "urgency": sentiment_result['analysis_details'].get('urgency_level', 'faible'),
+            "method": "gpt-quick-analysis"
+        }
+    
+    except Exception as e:
+        logger.error(f"Erreur analyse sentiment rapide: {e}")
+        return {"success": False, "error": str(e)}
+
 @app.get("/api/sentiment/articles")
 async def get_articles_with_sentiment():
     """Récupérer les articles avec analyse de sentiment GPT"""
