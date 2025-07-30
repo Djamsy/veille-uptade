@@ -814,9 +814,15 @@ function App() {
 
             {/* Résultats de recherche automatique */}
             {autoSearchCompleted && Object.keys(autoSearchResults).length > 0 && (
-              <div className="glass-card">
-                <h3 className="text-xl font-bold mb-4" style={{ color: '#2c3e50' }}>📈 Veille Automatique - Sujets Prioritaires</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              <div className="glass-card animate-slide-in" style={{ padding: '2rem' }}>
+                <h3 className="section-title" style={{ fontSize: '1.5rem', marginBottom: '2rem' }}>
+                  📈 Veille Automatique - Sujets Prioritaires
+                </h3>
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+                  gap: '1rem' 
+                }}>
                   {Object.entries(autoSearchResults).map(([subject, result]) => (
                     <div key={subject} className="glass-card" style={{ padding: '1rem' }}>
                       <h4 className="font-semibold mb-2" style={{ color: '#2c3e50' }}>{subject}</h4>
