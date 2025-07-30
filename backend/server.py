@@ -1092,6 +1092,71 @@ async def clean_demo_data():
         logger.error(f"Erreur nettoyage données démo: {e}")
         return {"success": False, "error": str(e)}
 
+@app.post("/api/social/scrape-keyword")
+async def scrape_social_keyword(request: Request):
+    """Scraper les réseaux sociaux pour un mot-clé spécifique"""
+    try:
+        if not SOCIAL_MEDIA_ENABLED:
+            return {"success": False, "error": "Service réseaux sociaux non disponible"}
+        
+        body = await request.json()
+        keyword = body.get('keyword', '').strip()
+        
+        if not keyword or len(keyword) < 2:
+            return {"success": False, "error": "Mot-clé trop court (minimum 2 caractères)"}
+        
+        logger.info(f"🔍 Scraping social pour mot-clé: {keyword}")
+        
+        # Scraper uniquement pour ce mot-clé
+        def scrape_keyword_async():
+            try:
+                results = social_scraper.scrape_all_keywords([keyword])
+                
+                # Sauvegarder les posts trouvés
+                all_posts = results['twitter'] + results['facebook'] + results['instagram']
+                saved_count = social_scraper.save_posts_to_db(all_posts)
+                
+                # Marquer les posts avec le mot-clé recherché
+                for post in all_posts:
+                    post['search_keyword'] = keyword
+                
+                cache_result = {
+                    'success': True,
+                    'keyword': keyword,
+                    'total_posts': results['total_posts'],
+                    'saved_posts': saved_count,
+                    'by_platform': {
+                        'twitter': len(results['twitter']),
+                        'facebook': len(results['facebook']),
+                        'instagram': len(results['instagram'])
+                    },
+                    'scraped_at': results['scraped_at']
+                }
+                
+                if CACHE_ENABLED:
+                    intelligent_cache.set_cached_data(f'social_keyword_{keyword}', cache_result)
+                
+                logger.info(f"✅ Scraping mot-clé '{keyword}' terminé: {saved_count} posts sauvegardés")
+                
+            except Exception as e:
+                logger.error(f"❌ Erreur scraping mot-clé '{keyword}': {e}")
+        
+        # Lancer en arrière-plan
+        import threading
+        thread = threading.Thread(target=scrape_keyword_async)
+        thread.start()
+        
+        return {
+            "success": True,
+            "message": f"Scraping démarré pour le mot-clé: {keyword}",
+            "keyword": keyword,
+            "estimated_completion": "30-60 secondes"
+        }
+        
+    except Exception as e:
+        logger.error(f"Erreur endpoint scrape-keyword: {e}")
+        return {"success": False, "error": str(e)}
+
 @app.post("/api/social/install-dependencies")
 async def install_social_dependencies():
     """Installer les dépendances pour le scraping social (snscrape, playwright)"""
