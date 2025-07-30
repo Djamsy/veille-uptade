@@ -628,6 +628,39 @@ function App() {
               </div>
             </div>
 
+            {/* Résultats de recherche automatique */}
+            {autoSearchCompleted && Object.keys(autoSearchResults).length > 0 && (
+              <div className="bg-white p-6 rounded-xl shadow-lg">
+                <h3 className="text-lg font-bold text-gray-800 mb-4">📈 Veille Automatique - Sujets Prioritaires</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                  {Object.entries(autoSearchResults).map(([subject, result]) => (
+                    <div key={subject} className="border border-gray-200 rounded-lg p-3">
+                      <h4 className="font-semibold text-sm text-gray-800 mb-2">{subject}</h4>
+                      {result.error ? (
+                        <p className="text-xs text-red-600">Erreur</p>
+                      ) : (
+                        <div className="text-xs text-gray-600">
+                          <p>📰 {result.articles_count || 0} articles</p>
+                          <p>💬 {result.social_posts_count || 0} posts</p>
+                          <p className="font-medium">Total: {result.total_results || 0}</p>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => {
+                          setSearchQuery(subject);
+                          handleSearch(subject);
+                          setActiveTab('search');
+                        }}
+                        className="mt-2 text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition-colors"
+                      >
+                        🔍 Voir détails
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Barre de recherche */}
             <div className="bg-white p-6 rounded-xl shadow-lg">
               <h3 className="text-lg font-bold text-gray-800 mb-4">🔍 Recherche Rapide</h3>
