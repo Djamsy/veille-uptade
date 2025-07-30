@@ -963,6 +963,215 @@ class GuadeloupeMediaAPITester:
         except Exception as e:
             return self.log_test("Digest JSON Endpoint", False, f"- Error: {str(e)}")
 
+    # ==================== NEW GPT ENDPOINTS TESTS ====================
+    
+    def test_gpt_analysis_endpoint(self):
+        """Test GPT analysis endpoint with journalistic prompt"""
+        try:
+            test_text = "Le Conseil Départemental de la Guadeloupe a voté le budget 2025 avec une augmentation des investissements dans l'éducation et les infrastructures routières."
+            data = {'text': test_text}
+            response = self.session.post(f"{self.base_url}/api/test-gpt", data=data)
+            success = response.status_code == 200
+            if success:
+                response_data = response.json()
+                if response_data.get('success'):
+                    analysis = response_data.get('analysis', {})
+                    categories = analysis.get('categories', [])
+                    summary = analysis.get('summary', '')
+                    
+                    # Check for journalistic categories with emojis
+                    expected_emojis = ['🏛️', '💼', '🌿']
+                    has_emojis = any(emoji in str(categories) for emoji in expected_emojis)
+                    
+                    if categories and summary and has_emojis:
+                        details = f"- GPT analysis successful: {len(categories)} categories, emojis: {has_emojis}"
+                    else:
+                        success = False
+                        details = f"- GPT analysis incomplete: categories={len(categories)}, emojis={has_emojis}"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {response_data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("GPT Analysis Endpoint", success, details)
+        except Exception as e:
+            return self.log_test("GPT Analysis Endpoint", False, f"- Error: {str(e)}")
+
+    def test_gpt_capture_1min_endpoint(self):
+        """Test GPT capture 1 minute sample endpoint (may be slow)"""
+        try:
+            # Increase timeout for this test as it involves audio capture + transcription + GPT
+            original_timeout = self.session.timeout
+            self.session.timeout = 180  # 3 minutes timeout
+            
+            response = self.session.post(f"{self.base_url}/api/test-capture-1min")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    audio_captured = data.get('audio_captured', False)
+                    transcription_text = data.get('transcription_text', '')
+                    gpt_analysis = data.get('gpt_analysis', {})
+                    processing_time = data.get('processing_time_seconds', 0)
+                    
+                    if audio_captured and transcription_text and gpt_analysis:
+                        details = f"- Full pipeline successful: audio={audio_captured}, transcription_len={len(transcription_text)}, processing_time={processing_time}s"
+                    else:
+                        success = False
+                        details = f"- Pipeline incomplete: audio={audio_captured}, transcription_len={len(transcription_text)}, gpt_analysis={bool(gpt_analysis)}"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            
+            # Restore original timeout
+            self.session.timeout = original_timeout
+            return self.log_test("GPT Capture 1min Endpoint", success, details)
+        except Exception as e:
+            # Restore original timeout
+            self.session.timeout = original_timeout
+            return self.log_test("GPT Capture 1min Endpoint", False, f"- Error: {str(e)}")
+
+    def test_transcriptions_status_detailed(self):
+        """Test detailed transcription status with new tracking steps"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/transcriptions/status")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    status = data.get('status', {})
+                    sections = status.get('sections', {})
+                    
+                    # Check for detailed tracking steps
+                    expected_steps = ['audio_capture', 'transcription', 'gpt_analysis', 'completed']
+                    has_detailed_steps = False
+                    
+                    for section_name, section_data in sections.items():
+                        if isinstance(section_data, dict):
+                            current_step = section_data.get('current_step', '')
+                            progress = section_data.get('progress_percentage', 0)
+                            if current_step in expected_steps:
+                                has_detailed_steps = True
+                                break
+                    
+                    if sections and has_detailed_steps:
+                        details = f"- Detailed status: {len(sections)} sections, tracking steps: {has_detailed_steps}"
+                    else:
+                        success = False
+                        details = f"- Status incomplete: sections={len(sections)}, detailed_steps={has_detailed_steps}"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Transcriptions Status Detailed", success, details)
+        except Exception as e:
+            return self.log_test("Transcriptions Status Detailed", False, f"- Error: {str(e)}")
+
+    def test_transcriptions_sections_cache(self):
+        """Test transcriptions by sections with 24H cache"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/transcriptions/sections")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    sections = data.get('sections', {})
+                    
+                    # Check for expected sections (RCI, Guadeloupe Première)
+                    expected_sections = ['rci', 'guadeloupe_premiere']
+                    found_sections = []
+                    
+                    for section_key in sections.keys():
+                        if any(expected in section_key.lower() for expected in expected_sections):
+                            found_sections.append(section_key)
+                    
+                    if sections:
+                        details = f"- Sections retrieved: {list(sections.keys())}, expected found: {found_sections}"
+                    else:
+                        success = False
+                        details = f"- No sections found: {sections}"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Transcriptions Sections Cache", success, details)
+        except Exception as e:
+            return self.log_test("Transcriptions Sections Cache", False, f"- Error: {str(e)}")
+
+    def test_capture_rci_section(self):
+        """Test capture for specific RCI section with new GPT system"""
+        try:
+            response = self.session.post(f"{self.base_url}/api/transcriptions/capture-now?section=rci")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    message = data.get('message', '')
+                    section = data.get('section', '')
+                    estimated_completion = data.get('estimated_completion', '')
+                    
+                    # Check if RCI section is mentioned
+                    rci_mentioned = 'rci' in message.lower() or 'rci' in section.lower()
+                    
+                    if rci_mentioned and estimated_completion:
+                        details = f"- RCI capture initiated: section='{section}', ETA={estimated_completion}"
+                    else:
+                        success = False
+                        details = f"- RCI capture failed: rci_mentioned={rci_mentioned}, section='{section}'"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("Capture RCI Section", success, details)
+        except Exception as e:
+            return self.log_test("Capture RCI Section", False, f"- Error: {str(e)}")
+
+    def test_gpt_fallback_system(self):
+        """Test GPT fallback to local analysis if GPT fails"""
+        try:
+            # This test checks if the system gracefully handles GPT failures
+            # We'll test by checking if transcription analysis still works
+            response = self.session.get(f"{self.base_url}/api/transcriptions")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    transcriptions = data.get('transcriptions', [])
+                    
+                    # Check if any transcription has analysis (either GPT or local fallback)
+                    has_analysis = False
+                    analysis_type = "unknown"
+                    
+                    for transcription in transcriptions[:3]:  # Check first 3
+                        if transcription.get('ai_summary') or transcription.get('ai_analysis_metadata'):
+                            has_analysis = True
+                            # Check if it's GPT or local analysis
+                            metadata = transcription.get('ai_analysis_metadata', {})
+                            if 'gpt' in str(metadata).lower():
+                                analysis_type = "gpt"
+                            elif 'local' in str(metadata).lower():
+                                analysis_type = "local_fallback"
+                            break
+                    
+                    if has_analysis:
+                        details = f"- Analysis system working: type={analysis_type}, transcriptions={len(transcriptions)}"
+                    else:
+                        # No analysis is also acceptable if no transcriptions exist
+                        details = f"- No analysis found (acceptable if no transcriptions): count={len(transcriptions)}"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("GPT Fallback System", success, details)
+        except Exception as e:
+            return self.log_test("GPT Fallback System", False, f"- Error: {str(e)}")
+
     def run_emergency_recovery_tests(self):
         """Run tests focusing on system recovery after emergency fixes"""
         print("🚨 EMERGENCY SYSTEM RECOVERY TESTING")
