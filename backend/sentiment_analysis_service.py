@@ -86,8 +86,56 @@ class LocalSentimentAnalyzer:
         # Convertir en minuscules
         text = text.lower()
         
+        # Mapper les emojis à leur sentiment
+        emoji_positive = ['😊', '😀', '😃', '😄', '😁', '😆', '🙂', '😉', '😍', '🥰', '😘', '🤗', 
+                         '🎉', '🎊', '👏', '👍', '❤️', '💕', '💖', '🌟', '⭐', '✨', '🌞', '🌅', '🏖️']
+        emoji_negative = ['😟', '😞', '😔', '😢', '😭', '😰', '😨', '😱', '😤', '😡', '🤬', '💔',
+                         '⚠️', '🚨', '❌', '💥', '🌪️', '⛈️', '😷', '🤒', '🤢']
+        
+        # Remplacer les emojis par des mots
+        for emoji in emoji_positive:
+            if emoji in text:
+                text = text.replace(emoji, ' positif ')
+        
+        for emoji in emoji_negative:
+            if emoji in text:
+                text = text.replace(emoji, ' négatif ')
+        
+        # Supprimer les autres emojis restants
+        import re
+        emoji_pattern = re.compile("["
+                                   u"\U0001F600-\U0001F64F"  # emoticons
+                                   u"\U0001F300-\U0001F5FF"  # symbols & pictographs
+                                   u"\U0001F680-\U0001F6FF"  # transport & map symbols
+                                   u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
+                                   u"\U00002700-\U000027BF"  # dingbats
+                                   u"\U0001f926-\U0001f937"
+                                   u"\U00010000-\U0010ffff"
+                                   u"\u2640-\u2642" 
+                                   u"\u2600-\u2B55"
+                                   u"\u200d"
+                                   u"\u23cf"
+                                   u"\u23e9"
+                                   u"\u231a"
+                                   u"\ufe0f"  # dingbats
+                                   u"\u3030"
+                                   "]+", flags=re.UNICODE)
+        text = emoji_pattern.sub(r' ', text)
+        
+        # Supprimer les hashtags mais garder le mot
+        text = re.sub(r'#(\w+)', r'\1', text)
+        
+        # Supprimer les mentions mais garder la structure
+        text = re.sub(r'@\w+', '', text)
+        
+        # Supprimer les URLs
+        text = re.sub(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', '', text)
+        
         # Supprimer les caractères spéciaux mais garder les accents
         text = re.sub(r'[^\w\sàâäéèêëïîôöùûüÿç]', ' ', text)
+        
+        # Remplacer les points d'exclamation multiples par le mot "exclamation"
+        text = re.sub(r'!+', ' exclamation ', text)
         
         # Supprimer les espaces multiples
         text = re.sub(r'\s+', ' ', text)
