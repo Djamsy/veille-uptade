@@ -403,9 +403,27 @@ async def get_transcriptions_by_date(date: str):
         raise HTTPException(status_code=500, detail=f"Erreur récupération transcriptions: {str(e)}")
 
 @app.post("/api/transcriptions/capture-now")
-async def capture_radio_now(section: str = None):
-    """Lancer la capture radio immédiatement en arrière-plan pour une section spécifique ou toutes"""
+async def capture_radio_now(section: str = None, admin_key: str = None):
+    """Lancer la capture radio - RÉSERVÉ aux captures programmées et admin uniquement"""
     try:
+        from datetime import datetime
+        current_hour = datetime.now().hour
+        
+        # Vérification de sécurité : captures autorisées uniquement entre 7h-8h OU avec clé admin
+        authorized_hours = [7]  # Uniquement 7h du matin
+        admin_authorized = admin_key == "radio_capture_admin_2025"  # Clé temporaire pour admin
+        
+        if current_hour not in authorized_hours and not admin_authorized:
+            return {
+                "success": False,
+                "error": "Captures autorisées uniquement à 7h du matin pour contrôler les coûts OpenAI",
+                "current_hour": current_hour,
+                "authorized_hours": authorized_hours,
+                "note": "Utilisation de l'API OpenAI Whisper - coûts contrôlés"
+            }
+        
+        logger.info(f"🔒 Capture autorisée - Heure: {current_hour}h, Admin: {admin_authorized}")
+        
         # Invalider le cache des transcriptions
         cache_invalidate('transcriptions')
         
