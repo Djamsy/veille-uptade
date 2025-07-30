@@ -978,7 +978,7 @@ function App() {
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold text-gray-800">🔍 Recherche</h2>
               <div className="text-sm text-gray-600">
-                Focus: Conseil Départemental Guadeloupe & Guy Losbar
+                Recherche dans articles et réseaux sociaux
               </div>
             </div>
 
