@@ -226,11 +226,14 @@ backend:
     file: "scraper_service.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Specialized RCI scraper working correctly, retrieving 20 articles successfully"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED POST-DEPLOYMENT: RCI Guadeloupe scraper fully operational. Found 27 articles with proper structure. Working correctly after heavy dependencies removal."
 
   - task: "La 1ère Guadeloupe scraper"
     implemented: true
