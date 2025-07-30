@@ -967,37 +967,78 @@ function App() {
 
         {/* Articles */}
         {activeTab === 'articles' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-gray-800">📰 Articles de Guadeloupe</h2>
-              <button
-                onClick={scrapeArticlesNow}
-                disabled={backgroundTasks.scraping}
-                className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
-                  backgroundTasks.scraping
-                    ? 'bg-gray-400 text-gray-700 cursor-not-allowed'
-                    : 'bg-blue-500 hover:bg-blue-600 text-white'
-                }`}
-              >
-                {backgroundTasks.scraping ? '⏳ Scraping...' : '🔄 Scraper Maintenant'}
-              </button>
+          <div className="animate-slide-in">
+            <div className="section-header">
+              <h2 className="section-title">📰 Articles de Guadeloupe</h2>
+              <p className="section-subtitle">Sources : France-Antilles, RCI.fm, La 1ère, KaribInfo</p>
             </div>
 
-            <div className="bg-white p-4 rounded-lg shadow-md">
-              <p className="text-sm text-gray-600">
-                <strong>Sources automatiques :</strong> France-Antilles, RCI.fm, La 1ère, KaribInfo | 
-                <strong> Programmé :</strong> Tous les jours à 10H00 |
-                <strong> Cache :</strong> 5 minutes
-              </p>
+            <div className="glass-card" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                <div style={{ color: '#6b7280', fontSize: '0.9rem' }}>
+                  <strong>Programmé :</strong> Tous les jours à 10H00 | <strong>Cache :</strong> 5 minutes
+                </div>
+                <button
+                  onClick={scrapeArticlesNow}
+                  disabled={backgroundTasks.scraping}
+                  className={backgroundTasks.scraping ? 'btn-secondary' : 'btn-primary'}
+                  style={{ opacity: backgroundTasks.scraping ? 0.6 : 1 }}
+                >
+                  {backgroundTasks.scraping ? '⏳ Scraping...' : '🔄 Scraper Maintenant'}
+                </button>
+              </div>
             </div>
 
-            <div className="grid gap-6">
+            <div className="article-list">
               {articles.map(article => (
-                <div key={article.id} className="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow">
-                  <div className="flex justify-between items-start mb-3">
-                    <h3 className="text-xl font-bold text-gray-800 flex-1">
-                      <a href={article.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
-                        {article.title}
+                <div key={article.id} className="article-item">
+                  {/* Information */}
+                  <div className="article-information">
+                    <a href={article.url} target="_blank" rel="noopener noreferrer" style={{ color: '#1a1a1a', textDecoration: 'none' }}>
+                      {article.title}
+                    </a>
+                  </div>
+                  
+                  {/* Explication */}
+                  <div className="article-explication">
+                    {article.summary || article.ai_summary || "Résumé non disponible"}
+                  </div>
+
+                  {/* Métadonnées */}
+                  <div className="article-meta">
+                    <span className="article-source">{article.source}</span>
+                    <span className="article-date">
+                      {new Date(article.published_at || article.scraped_at).toLocaleDateString('fr-FR', {
+                        day: 'numeric',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </span>
+                    {article.sentiment_score && (
+                      <span style={{ 
+                        color: article.sentiment_score > 0.1 ? '#059669' : article.sentiment_score < -0.1 ? '#dc2626' : '#6b7280',
+                        fontWeight: '500'
+                      }}>
+                        {article.sentiment_score > 0.1 ? '😊 Positif' : article.sentiment_score < -0.1 ? '😞 Négatif' : '😐 Neutre'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+              
+              {articles.length === 0 && (
+                <div className="glass-card" style={{ padding: '3rem', textAlign: 'center' }}>
+                  <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📰</div>
+                  <p style={{ color: '#6b7280', fontSize: '1.1rem' }}>Aucun article disponible</p>
+                  <p style={{ color: '#9ca3af', fontSize: '0.9rem', marginTop: '0.5rem' }}>
+                    Lancez un scraping pour récupérer les derniers articles
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
                       </a>
                     </h3>
                     <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium ml-4">
