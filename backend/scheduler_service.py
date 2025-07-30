@@ -82,7 +82,35 @@ class VeilleScheduler:
         except Exception as e:
             self.log_job_execution("capture_radio", False, str(e))
 
-    def job_create_daily_digest(self):
+    def job_clean_cache_24h(self):
+        """Job de nettoyage du cache après 24H"""
+        try:
+            logger.info("🧹 Début du job de nettoyage du cache 24H...")
+            
+            # Import du service de cache
+            try:
+                from cache_service import intelligent_cache
+                
+                # Nettoyer le cache expiré
+                cleaned_count = intelligent_cache.cleanup_expired_cache()
+                
+                details = f"Cache nettoyé: {cleaned_count} entrées expirées supprimées"
+                self.log_job_execution("clean_cache_24h", True, details)
+                
+                # Envoyer une alerte Telegram si service disponible
+                try:
+                    from telegram_alerts_service import telegram_alerts
+                    if telegram_alerts.bot:
+                        message = f"🧹 *Nettoyage Cache Automatique*\n\n✅ {cleaned_count} entrées expirées supprimées\n⏰ {datetime.now().strftime('%d/%m/%Y à %H:%M')}"
+                        telegram_alerts.send_alert_sync(message)
+                except:
+                    pass  # Ignore si Telegram non disponible
+                
+            except ImportError:
+                self.log_job_execution("clean_cache_24h", False, "Service de cache non disponible")
+                
+        except Exception as e:
+            self.log_job_execution("clean_cache_24h", False, str(e))
         """Job de création du digest quotidien à 12H"""
         try:
             logger.info("🚀 Début du job de création du digest...")
