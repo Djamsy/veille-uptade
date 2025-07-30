@@ -714,15 +714,98 @@ function App() {
     setReactionPrediction(null);
   };
 
-  // Charger les stats des réseaux sociaux
-  const loadSocialStats = async () => {
+  // Charger les sources disponibles pour les filtres
+  const loadAvailableSources = async () => {
     try {
-      const response = await apiCall(`${BACKEND_URL}/api/social/stats`);
+      const response = await apiCall(`${BACKEND_URL}/api/articles/sources`);
       if (response.success) {
-        setSocialStats(response.stats);
+        setAvailableSources(response.sources);
       }
     } catch (error) {
-      console.warn('Erreur stats réseaux sociaux:', error.message);
+      console.warn('Erreur chargement sources:', error.message);
+    }
+  };
+
+  // Charger les articles filtrés
+  const loadFilteredArticles = async (newFilters = null, offset = 0) => {
+    const activeFilters = newFilters || filters;
+    
+    try {
+      const params = new URLSearchParams({
+        limit: '50',
+        offset: offset.toString(),
+        sort_by: activeFilters.sortBy
+      });
+      
+      if (activeFilters.dateStart) params.append('date_start', activeFilters.dateStart);
+      if (activeFilters.dateEnd) params.append('date_end', activeFilters.dateEnd);
+      if (activeFilters.source && activeFilters.source !== 'all') params.append('source', activeFilters.source);
+      if (activeFilters.searchText) params.append('search_text', activeFilters.searchText);
+      
+      const response = await apiCall(`${BACKEND_URL}/api/articles/filtered?${params}`);
+      if (response.success) {
+        if (offset === 0) {
+          setFilteredArticles(response.articles);
+        } else {
+          setFilteredArticles(prev => [...prev, ...response.articles]);
+        }
+        setPagination(response.pagination);
+      }
+    } catch (error) {
+      setError(`Erreur filtrage articles: ${error.message}`);
+    }
+  };
+
+  // Charger les données d'analytics
+  const loadAnalyticsData = async () => {
+    try {
+      setLoading(true);
+      
+      // Charger toutes les analytics en parallèle
+      const [sourceData, timelineData, sentimentData, metricsData] = await Promise.all([
+        apiCall(`${BACKEND_URL}/api/analytics/articles-by-source`),
+        apiCall(`${BACKEND_URL}/api/analytics/articles-timeline`),
+        apiCall(`${BACKEND_URL}/api/analytics/sentiment-by-source`),
+        apiCall(`${BACKEND_URL}/api/analytics/dashboard-metrics`)
+      ]);
+      
+      setAnalyticsData({
+        sourceChart: sourceData.success ? sourceData : null,
+        timelineChart: timelineData.success ? timelineData : null,
+        sentimentChart: sentimentData.success ? sentimentData : null,
+        dashboardMetrics: metricsData.success ? metricsData : null
+      });
+      
+    } catch (error) {
+      console.warn('Erreur chargement analytics:', error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Appliquer les filtres
+  const applyFilters = (newFilters) => {
+    setFilters(newFilters);
+    loadFilteredArticles(newFilters, 0);
+  };
+
+  // Réinitialiser les filtres
+  const resetFilters = () => {
+    const defaultFilters = {
+      dateStart: '',
+      dateEnd: '',
+      source: 'all',
+      searchText: '',
+      sortBy: 'date_desc'
+    };
+    setFilters(defaultFilters);
+    loadFilteredArticles(defaultFilters, 0);
+  };
+
+  // Charger plus d'articles (pagination)
+  const loadMoreArticles = () => {
+    if (pagination.hasMore && !loading) {
+      loadFilteredArticles(filters, pagination.offset + pagination.returned);
     }
   };
 
