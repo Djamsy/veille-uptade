@@ -1031,6 +1031,418 @@ async def warm_cache():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur préchauffage cache: {str(e)}")
 
+# ==================== ARTICLES FILTERING & ANALYTICS ENDPOINTS ====================
+
+@app.get("/api/articles/filtered")
+async def get_filtered_articles(
+    date_start: str = None,
+    date_end: str = None,
+    source: str = None,
+    search_text: str = None,
+    sort_by: str = "date_desc",
+    limit: int = 100,
+    offset: int = 0
+):
+    """Récupérer les articles avec filtres avancés et tri"""
+    try:
+        # Construire la requête MongoDB
+        query = {}
+        
+        # Filtre par date
+        if date_start or date_end:
+            date_filter = {}
+            if date_start:
+                date_filter['$gte'] = date_start
+            if date_end:
+                date_filter['$lte'] = date_end
+            query['date'] = date_filter
+        
+        # Filtre par source
+        if source and source != "all":
+            query['source'] = {'$regex': source, '$options': 'i'}
+        
+        # Filtre par texte de recherche
+        if search_text and len(search_text.strip()) >= 2:
+            search_regex = {'$regex': search_text.strip(), '$options': 'i'}
+            query['$or'] = [
+                {'title': search_regex},
+                {'source': search_regex}
+            ]
+        
+        # Définir l'ordre de tri
+        sort_options = {
+            "date_desc": [("scraped_at", -1)],
+            "date_asc": [("scraped_at", 1)],
+            "source_asc": [("source", 1), ("scraped_at", -1)],
+            "source_desc": [("source", -1), ("scraped_at", -1)],
+            "title_asc": [("title", 1)],
+            "title_desc": [("title", -1)]
+        }
+        
+        sort_query = sort_options.get(sort_by, [("scraped_at", -1)])
+        
+        # Exécuter la requête avec pagination
+        articles_cursor = articles_collection.find(
+            query,
+            {'_id': 0}
+        ).sort(sort_query).skip(offset).limit(limit)
+        
+        articles = list(articles_cursor)
+        
+        # Compter le total pour la pagination
+        total_count = articles_collection.count_documents(query)
+        
+        # Calculer les métadonnées de pagination
+        has_more = (offset + len(articles)) < total_count
+        
+        return {
+            "success": True,
+            "articles": articles,
+            "pagination": {
+                "total": total_count,
+                "limit": limit,
+                "offset": offset,
+                "has_more": has_more,
+                "returned": len(articles)
+            },
+            "filters_applied": {
+                "date_start": date_start,
+                "date_end": date_end,
+                "source": source,
+                "search_text": search_text,
+                "sort_by": sort_by
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Erreur filtrage articles: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur filtrage articles: {str(e)}")
+
+@app.get("/api/articles/sources")
+async def get_available_sources():
+    """Récupérer la liste des sources disponibles pour les filtres"""
+    try:
+        # Pipeline d'agrégation pour obtenir les sources avec leur nombre d'articles
+        pipeline = [
+            {'$group': {
+                '_id': '$source',
+                'count': {'$sum': 1},
+                'latest_article': {'$max': '$scraped_at'}
+            }},
+            {'$sort': {'count': -1}}
+        ]
+        
+        sources = list(articles_collection.aggregate(pipeline))
+        
+        # Formater les résultats
+        formatted_sources = [
+            {
+                'name': source['_id'],
+                'count': source['count'],
+                'latest_article': source['latest_article']
+            }
+            for source in sources if source['_id']  # Exclure les sources nulles
+        ]
+        
+        return {
+            "success": True,
+            "sources": formatted_sources,
+            "total_sources": len(formatted_sources)
+        }
+        
+    except Exception as e:
+        logger.error(f"Erreur récupération sources: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur récupération sources: {str(e)}")
+
+@app.get("/api/analytics/articles-by-source")
+async def get_articles_by_source_analytics(days: int = 7):
+    """Analytics: répartition des articles par source sur les X derniers jours"""
+    try:
+        from datetime import datetime, timedelta
+        
+        # Calculer la date de début
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days)
+        date_filter = start_date.strftime('%Y-%m-%d')
+        
+        # Pipeline d'agrégation
+        pipeline = [
+            {
+                '$match': {
+                    'date': {'$gte': date_filter}
+                }
+            },
+            {
+                '$group': {
+                    '_id': '$source',
+                    'count': {'$sum': 1},
+                    'latest_date': {'$max': '$date'}
+                }
+            },
+            {
+                '$sort': {'count': -1}
+            }
+        ]
+        
+        results = list(articles_collection.aggregate(pipeline))
+        
+        # Formater pour les graphiques
+        labels = [item['_id'] for item in results]
+        data = [item['count'] for item in results]
+        colors = [
+            '#3b82f6', '#ef4444', '#10b981', '#f59e0b', 
+            '#8b5cf6', '#06b6d4', '#f97316', '#84cc16'
+        ]
+        
+        return {
+            "success": True,
+            "chart_data": {
+                "labels": labels,
+                "datasets": [{
+                    "label": f"Articles ({days} derniers jours)",
+                    "data": data,
+                    "backgroundColor": colors[:len(data)],
+                    "borderColor": colors[:len(data)],
+                    "borderWidth": 1
+                }]
+            },
+            "raw_data": results,
+            "period": f"{days} derniers jours",
+            "total_articles": sum(data)
+        }
+        
+    except Exception as e:
+        logger.error(f"Erreur analytics par source: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur analytics par source: {str(e)}")
+
+@app.get("/api/analytics/articles-timeline")
+async def get_articles_timeline_analytics(days: int = 14):
+    """Analytics: évolution temporelle des articles"""
+    try:
+        from datetime import datetime, timedelta
+        
+        # Calculer les dates
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days)
+        
+        # Pipeline d'agrégation par jour
+        pipeline = [
+            {
+                '$match': {
+                    'date': {'$gte': start_date.strftime('%Y-%m-%d')}
+                }
+            },
+            {
+                '$group': {
+                    '_id': '$date',
+                    'count': {'$sum': 1}
+                }
+            },
+            {
+                '$sort': {'_id': 1}
+            }
+        ]
+        
+        results = list(articles_collection.aggregate(pipeline))
+        
+        # Créer une série complète de dates (combler les trous)
+        date_range = []
+        current_date = start_date
+        while current_date <= end_date:
+            date_range.append(current_date.strftime('%Y-%m-%d'))
+            current_date += timedelta(days=1)
+        
+        # Mapper les résultats
+        data_map = {item['_id']: item['count'] for item in results}
+        timeline_data = [data_map.get(date, 0) for date in date_range]
+        
+        return {
+            "success": True,
+            "chart_data": {
+                "labels": date_range,
+                "datasets": [{
+                    "label": "Articles par jour",
+                    "data": timeline_data,
+                    "borderColor": "#3b82f6",
+                    "backgroundColor": "rgba(59, 130, 246, 0.1)",
+                    "tension": 0.4,
+                    "fill": True
+                }]
+            },
+            "raw_data": results,
+            "period": f"{days} derniers jours",
+            "total_articles": sum(timeline_data)
+        }
+        
+    except Exception as e:
+        logger.error(f"Erreur analytics timeline: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur analytics timeline: {str(e)}")
+
+@app.get("/api/analytics/sentiment-by-source")
+async def get_sentiment_by_source_analytics():
+    """Analytics: analyse de sentiment par source"""
+    try:
+        if not SENTIMENT_ENABLED:
+            return {"success": False, "error": "Service d'analyse de sentiment non disponible"}
+        
+        # Récupérer les articles récents avec analyse de sentiment
+        today = datetime.now().strftime('%Y-%m-%d')
+        articles = list(articles_collection.find(
+            {'date': today},
+            {'_id': 0, 'source': 1, 'title': 1}
+        ).limit(100))
+        
+        if not articles:
+            return {
+                "success": True,
+                "chart_data": {
+                    "labels": [],
+                    "datasets": []
+                },
+                "message": "Aucun article à analyser aujourd'hui"
+            }
+        
+        # Analyser le sentiment de chaque article
+        from sentiment_analysis_service import local_sentiment_analyzer
+        
+        sentiment_by_source = {}
+        
+        for article in articles:
+            source = article['source']
+            if source not in sentiment_by_source:
+                sentiment_by_source[source] = {'positive': 0, 'negative': 0, 'neutral': 0}
+            
+            # Analyser le sentiment du titre
+            sentiment = local_sentiment_analyzer.analyze_sentiment(article['title'])
+            polarity = sentiment['polarity']
+            
+            if polarity == 'positive':
+                sentiment_by_source[source]['positive'] += 1
+            elif polarity == 'negative':
+                sentiment_by_source[source]['negative'] += 1
+            else:
+                sentiment_by_source[source]['neutral'] += 1
+        
+        # Formater pour les graphiques (barres empilées)
+        sources = list(sentiment_by_source.keys())
+        positive_data = [sentiment_by_source[source]['positive'] for source in sources]
+        negative_data = [sentiment_by_source[source]['negative'] for source in sources]
+        neutral_data = [sentiment_by_source[source]['neutral'] for source in sources]
+        
+        return {
+            "success": True,
+            "chart_data": {
+                "labels": sources,
+                "datasets": [
+                    {
+                        "label": "Positif",
+                        "data": positive_data,
+                        "backgroundColor": "#10b981",
+                        "borderColor": "#059669",
+                        "borderWidth": 1
+                    },
+                    {
+                        "label": "Neutre",
+                        "data": neutral_data,
+                        "backgroundColor": "#6b7280",
+                        "borderColor": "#4b5563",
+                        "borderWidth": 1
+                    },
+                    {
+                        "label": "Négatif",
+                        "data": negative_data,
+                        "backgroundColor": "#ef4444",
+                        "borderColor": "#dc2626",
+                        "borderWidth": 1
+                    }
+                ]
+            },
+            "raw_data": sentiment_by_source,
+            "analyzed_articles": len(articles)
+        }
+        
+    except Exception as e:
+        logger.error(f"Erreur analytics sentiment: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur analytics sentiment: {str(e)}")
+
+@app.get("/api/analytics/dashboard-metrics")
+async def get_dashboard_metrics():
+    """Métriques complètes pour le dashboard"""
+    try:
+        from datetime import datetime, timedelta
+        
+        today = datetime.now().strftime('%Y-%m-%d')
+        yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+        week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+        
+        # Articles aujourd'hui
+        articles_today = articles_collection.count_documents({'date': today})
+        articles_yesterday = articles_collection.count_documents({'date': yesterday})
+        articles_week = articles_collection.count_documents({'date': {'$gte': week_ago}})
+        
+        # Calcul des évolutions
+        articles_evolution = articles_today - articles_yesterday if articles_yesterday > 0 else 0
+        articles_evolution_pct = round((articles_evolution / articles_yesterday * 100), 1) if articles_yesterday > 0 else 0
+        
+        # Transcriptions (si disponible)
+        transcriptions_today = 0
+        try:
+            transcriptions_today = transcriptions_collection.count_documents({'date': today})
+        except:
+            pass
+        
+        # Sources actives
+        sources_pipeline = [
+            {'$match': {'date': today}},
+            {'$group': {'_id': '$source'}},
+            {'$count': 'total'}
+        ]
+        sources_result = list(articles_collection.aggregate(sources_pipeline))
+        active_sources = sources_result[0]['total'] if sources_result else 0
+        
+        # Cache stats
+        cache_stats = {"efficiency": 0, "hits": 0, "total": 0}
+        try:
+            from cache_service import intelligent_cache
+            cache_stats = intelligent_cache.get_cache_stats()
+        except:
+            pass
+        
+        return {
+            "success": True,
+            "metrics": {
+                "articles_today": {
+                    "value": articles_today,
+                    "evolution": articles_evolution,
+                    "evolution_pct": articles_evolution_pct,
+                    "label": "Articles aujourd'hui"
+                },
+                "articles_week": {
+                    "value": articles_week,
+                    "label": "Articles (7 jours)"
+                },
+                "transcriptions_today": {
+                    "value": transcriptions_today,
+                    "label": "Transcriptions radio"
+                },
+                "active_sources": {
+                    "value": active_sources,
+                    "label": "Sources actives"
+                },
+                "cache_efficiency": {
+                    "value": round(cache_stats.get("efficiency", 0)),
+                    "label": "Efficacité cache (%)"
+                }
+            },
+            "last_updated": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Erreur métriques dashboard: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur métriques dashboard: {str(e)}")
+
+# ==================== SEARCH ENDPOINTS ====================
+
 @app.get("/api/search")
 async def search_content(q: str, source: str = "all", limit: int = 50, social_only: bool = False):
     """Rechercher dans les articles et posts des réseaux sociaux"""
