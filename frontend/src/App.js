@@ -1299,55 +1299,8 @@ function App() {
           </div>
         )}
 
-                        
-                        {/* Mots-clés et sujets */}
-                        {t.ai_keywords && t.ai_keywords.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {t.ai_keywords.slice(0, 4).map((keyword, idx) => (
-                              <span key={idx} className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">
-                                {keyword}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        
-                        {/* Score de pertinence */}
-                        {t.ai_relevance_score && (
-                          <div className="flex items-center gap-2 mt-2">
-                            <div className="flex">
-                              {[1,2,3,4,5].map(star => (
-                                <span key={star} className={`text-xs ${
-                                  star <= (t.ai_relevance_score * 5) ? 'text-yellow-400' : 'text-gray-300'
-                                }`}>⭐</span>
-                              ))}
-                            </div>
-                            <span className="text-xs text-gray-500">
-                              Pertinence: {Math.round(t.ai_relevance_score * 100)}%
-                            </span>
-                          </div>
-                        )}
-                        
-                        <p className="text-xs text-gray-500 mt-2">
-                          {new Date(t.captured_at || t.uploaded_at).toLocaleString('fr-FR')}
-                        </p>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-6 text-gray-500">
-                      <div className="text-2xl mb-2">🌴</div>
-                      <p className="text-sm">Aucune transcription aujourd'hui</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Section Autres */}
-            {transcriptionSections["Autres"]?.length > 0 && (
-              <div className="bg-white p-6 rounded-xl shadow-lg">
-                <h3 className="text-xl font-bold text-gray-800 mb-4">📤 Fichiers Uploadés</h3>
-                <div className="grid gap-4">
-                  {transcriptionSections["Autres"].map(transcription => (
+        {/* Search */}
+        {activeTab === 'search' && (
                     <div key={transcription.id} className="bg-gray-50 p-4 rounded-lg">
                       <div className="flex justify-between items-start mb-2">
                         <h4 className="font-semibold text-gray-800">{transcription.filename}</h4>
