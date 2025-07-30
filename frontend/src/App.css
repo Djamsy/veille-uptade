@@ -857,12 +857,24 @@ textarea {
 .article-sentiment {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.5rem;
   padding: 0.25rem 0.75rem;
   border-radius: var(--radius-lg);
   font-size: var(--font-size-xs);
   font-weight: 600;
   border: 1px solid;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  position: relative;
+}
+
+.article-sentiment::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 0.25rem;
 }
 
 .article-sentiment.positive {
@@ -871,16 +883,28 @@ textarea {
   border-color: rgb(16 185 129 / 0.2);
 }
 
+.article-sentiment.positive::before {
+  background: var(--success-color);
+}
+
 .article-sentiment.negative {
   background: rgb(239 68 68 / 0.1);
   color: var(--error-color);
   border-color: rgb(239 68 68 / 0.2);
 }
 
+.article-sentiment.negative::before {
+  background: var(--error-color);
+}
+
 .article-sentiment.neutral {
   background: rgb(107 114 128 / 0.1);
   color: var(--text-muted);
   border-color: rgb(107 114 128 / 0.2);
+}
+
+.article-sentiment.neutral::before {
+  background: var(--text-muted);
 }
 
 /* =========================== ARTICLE ACTIONS =========================== */
