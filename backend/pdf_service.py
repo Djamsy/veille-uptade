@@ -117,7 +117,7 @@ class PDFDigestService:
                 # Convertir le HTML en contenu PDF
                 self._add_html_content_to_story(story, digest_html)
             else:
-                story.append(Paragraph("Aucun contenu disponible pour ce digest.", self.styles['BodyText']))
+                story.append(Paragraph("Aucun contenu disponible pour ce digest.", self.styles['CustomBodyText']))
             
             # Pied de page
             story.append(Spacer(1, 30))
@@ -125,7 +125,7 @@ class PDFDigestService:
             <i>Ce document a été généré automatiquement par le système de veille média de la Guadeloupe. 
             Les informations proviennent de sources publiques et sont analysées par intelligence artificielle locale.</i>
             """
-            story.append(Paragraph(footer_text, self.styles['BodyText']))
+            story.append(Paragraph(footer_text, self.styles['CustomBodyText']))
             
             # Générer le PDF
             doc.build(story)
