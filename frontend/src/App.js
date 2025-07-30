@@ -1159,9 +1159,41 @@ function App() {
                           </span>
                         </div>
                       </div>
+                      
+                      {/* Résumé IA ou transcription brute */}
                       <div className="bg-white p-3 rounded border-l-2 border-gray-300 mb-2">
-                        <p className="text-gray-700 italic">"{transcription.transcription_text || 'Transcription vide'}"</p>
+                        <p className="text-gray-700 font-medium">
+                          {transcription.ai_summary || `"${transcription.transcription_text || 'Transcription vide'}"`}
+                        </p>
                       </div>
+                      
+                      {/* Mots-clés */}
+                      {transcription.ai_keywords && transcription.ai_keywords.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {transcription.ai_keywords.slice(0, 5).map((keyword, idx) => (
+                            <span key={idx} className="bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-xs">
+                              {keyword}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* Score de pertinence */}
+                      {transcription.ai_relevance_score && (
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="flex">
+                            {[1,2,3,4,5].map(star => (
+                              <span key={star} className={`text-xs ${
+                                star <= (transcription.ai_relevance_score * 5) ? 'text-yellow-400' : 'text-gray-300'
+                              }`}>⭐</span>
+                            ))}
+                          </div>
+                          <span className="text-xs text-gray-500">
+                            Pertinence: {Math.round(transcription.ai_relevance_score * 100)}%
+                          </span>
+                        </div>
+                      )}
+                      
                       <p className="text-xs text-gray-500">
                         Uploadé le {new Date(transcription.uploaded_at).toLocaleString('fr-FR')}
                       </p>
