@@ -796,13 +796,13 @@ function App() {
       <div className="content-section">
         <nav className="tab-navigation">
           {[
-            { id: 'dashboard', name: '📊 Dashboard', icon: '📊' },
-            { id: 'search', name: '🔍 Recherche', icon: '🔍' },
-            { id: 'articles', name: '📰 Articles', icon: '📰' },
-            { id: 'sentiment', name: '🧠 Analyse Sentiment', icon: '🧠' },
-            { id: 'comments', name: '💬 Réseaux Sociaux', icon: '💬' },
-            { id: 'transcription', name: '📻 Radio', icon: '📻' },
-            { id: 'digest', name: '📋 Digest', icon: '📋' }
+            { id: 'dashboard', name: 'Dashboard', icon: 'dashboard' },
+            { id: 'search', name: 'Recherche', icon: 'search' },
+            { id: 'articles', name: 'Articles', icon: 'articles' },
+            { id: 'sentiment', name: 'Analyse Sentiment', icon: 'sentiment' },
+            { id: 'comments', name: 'Réseaux Sociaux', icon: 'social' },
+            { id: 'transcription', name: 'Radio', icon: 'radio' },
+            { id: 'digest', name: 'Digest', icon: 'digest' }
           ].map((tab) => (
             <button
               key={tab.id}
