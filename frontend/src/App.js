@@ -685,7 +685,8 @@ function App() {
                               setActiveTab('search');
                               setSearchSuggestions([]);
                             }}
-                            className="w-full text-left px-4 py-2 text-white hover:bg-white hover:bg-opacity-10 first:rounded-t-lg last:rounded-b-lg"
+                            className="w-full text-left px-4 py-2 hover:bg-white hover:bg-opacity-10 first:rounded-t-lg last:rounded-b-lg"
+                            style={{ color: '#2c3e50' }}
                           >
                             {suggestion}
                           </button>
@@ -708,7 +709,7 @@ function App() {
               
               {/* Suggestions populaires */}
               <div className="mt-4">
-                <p className="text-sm text-white opacity-75 mb-2">Recherches populaires :</p>
+                <p className="text-sm mb-2" style={{ color: '#7f8c8d' }}>Recherches populaires :</p>
                 <div className="flex flex-wrap gap-2">
                   {['cd971', 'Guy Losbar', 'département guadeloupe', 'GUSR', 'Ary Chalus', 'Budget départemental'].map((term) => (
                     <button
@@ -729,7 +730,7 @@ function App() {
             </div>
 
             <div className="glass-card">
-              <h3 className="text-xl font-bold text-white mb-4">🚀 Actions Automatiques</h3>
+              <h3 className="text-xl font-bold mb-4" style={{ color: '#2c3e50' }}>🚀 Actions Automatiques</h3>
               <div className="actions-grid">
                 <button
                   onClick={scrapeArticlesNow}
