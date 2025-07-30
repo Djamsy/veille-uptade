@@ -263,15 +263,18 @@ backend:
 
   - task: "Radio transcription system"
     implemented: true
-    working: "NA"
+    working: false
     file: "server.py"
-    stuck_count: 0
+    stuck_count: 1
     priority: "medium"
     needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
         comment: "ffmpeg and Whisper dependencies installed, needs integration testing"
+      - working: false
+        agent: "testing"
+        comment: "❌ CRITICAL ISSUE: ffmpeg was missing from system. Installed ffmpeg successfully. Whisper model loads correctly but transcription endpoints return 500 errors. Backend startup appears to hang during cache warming phase, causing 502 errors. Radio capture endpoints exist but cannot be tested due to backend connectivity issues."
 
 frontend:
   - task: "Article display interface"
