@@ -541,6 +541,38 @@ async def transcribe_audio(file: UploadFile = File(...)):
 
 # ==================== DIGEST ENDPOINTS ====================
 
+@app.get("/api/digest/test-order")
+async def test_digest_order():
+    """Test de l'ordre des transcriptions dans le digest"""
+    try:
+        today = datetime.now().strftime('%Y-%m-%d')
+        
+        # Récupérer directement sans cache
+        articles = list(articles_collection.find(
+            {'date': today}, 
+            {'_id': 0}
+        ).sort('scraped_at', -1).limit(10))  # Limiter pour accélérer
+        
+        transcriptions = list(transcriptions_collection.find(
+            {'date': today}, 
+            {'_id': 0}
+        ).sort('captured_at', -1))
+        
+        # Créer le digest sans cache
+        digest_html = summary_service.create_daily_digest(articles, transcriptions)
+        
+        return {
+            "success": True,
+            "articles_count": len(articles),
+            "transcriptions_count": len(transcriptions),
+            "digest_preview": digest_html[:500] + "...",  # Premiers 500 caractères
+            "full_digest": digest_html
+        }
+        
+    except Exception as e:
+        logger.error(f"Erreur test digest: {e}")
+        return {"success": False, "error": str(e)}
+
 @app.get("/api/digest")
 async def get_today_digest():
     """Récupérer le digest du jour avec cache"""
