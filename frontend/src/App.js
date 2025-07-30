@@ -439,9 +439,6 @@ function App() {
               <h1 className="text-2xl font-bold text-gray-900">
                 🏝️ Veille Média Guadeloupe
               </h1>
-              <span className="text-sm text-gray-500 bg-blue-100 px-2 py-1 rounded">
-                Focus: Conseil Départemental & Guy Losbar
-              </span>
             </div>
 
             <div className="text-sm text-gray-600">
