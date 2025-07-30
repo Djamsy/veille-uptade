@@ -373,6 +373,17 @@ class SocialMediaScraper:
             logger.error(f"❌ Erreur récupération posts: {e}")
             return []
 
+    def clean_demo_data_from_db(self):
+        """Nettoyer les anciennes données de démonstration de la base"""
+        try:
+            # Supprimer tous les posts marqués comme demo_data
+            result = self.social_collection.delete_many({'demo_data': True})
+            logger.info(f"🧹 {result.deleted_count} posts de démonstration supprimés")
+            return result.deleted_count
+        except Exception as e:
+            logger.error(f"❌ Erreur nettoyage données démo: {e}")
+            return 0
+
     def get_posts_stats(self) -> Dict[str, Any]:
         """Obtenir les statistiques des posts"""
         try:
