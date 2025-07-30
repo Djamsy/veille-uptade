@@ -704,6 +704,283 @@ async def warm_cache():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur préchauffage cache: {str(e)}")
 
+# ==================== SOCIAL MEDIA ENDPOINTS ====================
+
+@app.get("/api/social/stats")
+async def get_social_media_stats():
+    """Obtenir les statistiques des réseaux sociaux"""
+    try:
+        if not SOCIAL_MEDIA_ENABLED:
+            return {"success": False, "error": "Service réseaux sociaux non disponible"}
+        
+        stats = social_scraper.get_posts_stats()
+        return {"success": True, "stats": stats}
+        
+    except Exception as e:
+        logger.error(f"Erreur stats réseaux sociaux: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/social/posts")
+async def get_social_media_posts(platform: str = None, days: int = 1):
+    """Récupérer les posts des réseaux sociaux récents"""
+    try:
+        if not SOCIAL_MEDIA_ENABLED:
+            return {"success": False, "error": "Service réseaux sociaux non disponible"}
+        
+        posts = social_scraper.get_recent_posts(days=days, platform=platform)
+        return {"success": True, "posts": posts, "count": len(posts)}
+        
+    except Exception as e:
+        logger.error(f"Erreur récupération posts: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/social/scrape-now")
+async def scrape_social_media_now():
+    """Lancer le scraping des réseaux sociaux immédiatement"""
+    try:
+        if not SOCIAL_MEDIA_ENABLED:
+            return {"success": False, "error": "Service réseaux sociaux non disponible"}
+        
+        # Lancer le scraping en arrière-plan
+        import threading
+        
+        def scrape_async():
+            try:
+                logger.info("🚀 Début scraping réseaux sociaux...")
+                results = social_scraper.scrape_all_keywords()
+                
+                # Sauvegarder tous les posts
+                all_posts = results['twitter'] + results['facebook'] + results['instagram']
+                saved_count = social_scraper.save_posts_to_db(all_posts)
+                
+                # Sauvegarder le résultat dans le cache
+                if CACHE_ENABLED:
+                    intelligent_cache.set_cached_data('last_social_scraping_result', {
+                        'success': True,
+                        'total_posts': results['total_posts'],
+                        'saved_posts': saved_count,
+                        'by_platform': {
+                            'twitter': len(results['twitter']),
+                            'facebook': len(results['facebook']),
+                            'instagram': len(results['instagram'])
+                        },
+                        'keywords': results['keywords_searched'],
+                        'scraped_at': results['scraped_at']
+                    })
+                
+                logger.info(f"✅ Scraping terminé: {saved_count} posts sauvegardés")
+                
+            except Exception as e:
+                error_result = {
+                    'success': False,
+                    'error': str(e),
+                    'scraped_at': datetime.now().isoformat()
+                }
+                if CACHE_ENABLED:
+                    intelligent_cache.set_cached_data('last_social_scraping_result', error_result)
+                logger.error(f"❌ Erreur scraping réseaux sociaux: {e}")
+        
+        # Démarrer en arrière-plan
+        scraping_thread = threading.Thread(target=scrape_async)
+        scraping_thread.daemon = True
+        scraping_thread.start()
+        
+        return {
+            "success": True,
+            "message": "Scraping des réseaux sociaux démarré en arrière-plan",
+            "estimated_completion": "3-5 minutes",
+            "note": "Utilise snscrape (Twitter) et Playwright (Facebook) sans API"
+        }
+        
+    except Exception as e:
+        logger.error(f"Erreur lancement scraping social: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/social/scrape-status")
+async def get_social_scrape_status():
+    """Récupérer le statut du dernier scraping réseaux sociaux"""
+    try:
+        if CACHE_ENABLED:
+            last_result = intelligent_cache.get_cached_data('last_social_scraping_result')
+            if last_result:
+                return {"success": True, "result": last_result}
+        
+        return {"success": False, "message": "Aucun scraping récent"}
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/social/install-dependencies")
+async def install_social_dependencies():
+    """Installer les dépendances pour le scraping social (snscrape, playwright)"""
+    try:
+        if not SOCIAL_MEDIA_ENABLED:
+            return {"success": False, "error": "Service réseaux sociaux non disponible"}
+        
+        # Lancer l'installation en arrière-plan
+        import threading
+        
+        def install_deps():
+            try:
+                social_scraper.install_dependencies()
+                if CACHE_ENABLED:
+                    intelligent_cache.set_cached_data('social_deps_installed', {
+                        'success': True,
+                        'installed_at': datetime.now().isoformat(),
+                        'dependencies': ['snscrape', 'playwright']
+                    })
+            except Exception as e:
+                if CACHE_ENABLED:
+                    intelligent_cache.set_cached_data('social_deps_installed', {
+                        'success': False,
+                        'error': str(e),
+                        'installed_at': datetime.now().isoformat()
+                    })
+        
+        install_thread = threading.Thread(target=install_deps)
+        install_thread.daemon = True
+        install_thread.start()
+        
+        return {
+            "success": True,
+            "message": "Installation des dépendances en cours (snscrape, playwright)",
+            "estimated_completion": "2-3 minutes"
+        }
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/social/sentiment")
+async def analyze_social_sentiment():
+    """Analyser le sentiment des posts des réseaux sociaux"""
+    try:
+        if not SOCIAL_MEDIA_ENABLED:
+            return {"success": False, "error": "Service réseaux sociaux non disponible"}
+        
+        if not SENTIMENT_ENABLED:
+            return {"success": False, "error": "Service d'analyse de sentiment non disponible"}
+        
+        if CACHE_ENABLED:
+            def compute_social_sentiment():
+                return _compute_social_sentiment_analysis()
+            
+            sentiment_data = get_or_compute('social_sentiment_today', compute_social_sentiment)
+        else:
+            sentiment_data = _compute_social_sentiment_analysis()
+        
+        return {"success": True, **sentiment_data}
+        
+    except Exception as e:
+        logger.error(f"Erreur analyse sentiment social: {e}")
+        return {"success": False, "error": str(e)}
+
+def _compute_social_sentiment_analysis():
+    """Analyser le sentiment des posts sociaux d'aujourd'hui"""
+    try:
+        # Récupérer les posts d'aujourd'hui
+        posts = social_scraper.get_recent_posts(days=1)
+        
+        if not posts:
+            return {
+                'posts': [],
+                'summary': {
+                    'total_posts': 0,
+                    'sentiment_distribution': {'positive': 0, 'negative': 0, 'neutral': 0, 'total': 0},
+                    'average_sentiment_score': 0.0,
+                    'most_common_patterns': {},
+                    'by_platform': {},
+                    'analysis_timestamp': datetime.now().isoformat()
+                }
+            }
+        
+        # Analyser le sentiment de tous les posts
+        analyzed_posts = []
+        platform_sentiments = {'twitter': [], 'facebook': [], 'instagram': []}
+        
+        for post in posts:
+            # Analyser le sentiment du contenu
+            sentiment_result = local_sentiment_analyzer.analyze_sentiment(post.get('content', ''))
+            
+            # Ajouter l'analyse au post
+            analyzed_post = {
+                **post,
+                'sentiment': sentiment_result,
+                'sentiment_summary': {
+                    'polarity': sentiment_result['polarity'],
+                    'score': sentiment_result['score'],
+                    'intensity': sentiment_result['intensity'],
+                    'confidence': sentiment_result['analysis_details']['confidence']
+                }
+            }
+            analyzed_posts.append(analyzed_post)
+            
+            # Grouper par plateforme pour les stats
+            platform = post.get('platform', 'unknown')
+            if platform in platform_sentiments:
+                platform_sentiments[platform].append(sentiment_result['score'])
+        
+        # Calculer les statistiques globales
+        all_scores = [post['sentiment']['score'] for post in analyzed_posts]
+        avg_score = sum(all_scores) / len(all_scores) if all_scores else 0
+        
+        # Distribution par sentiment
+        sentiment_counts = {'positive': 0, 'negative': 0, 'neutral': 0}
+        for post in analyzed_posts:
+            polarity = post['sentiment']['polarity']
+            sentiment_counts[polarity] += 1
+        
+        # Patterns les plus communs
+        all_patterns = []
+        for post in analyzed_posts:
+            all_patterns.extend(post['sentiment']['analysis_details']['detected_patterns'])
+        
+        from collections import Counter
+        pattern_counts = Counter(all_patterns)
+        
+        # Stats par plateforme
+        platform_stats = {}
+        for platform, scores in platform_sentiments.items():
+            if scores:
+                platform_stats[platform] = {
+                    'count': len(scores),
+                    'avg_score': sum(scores) / len(scores),
+                    'sentiment_distribution': {
+                        'positive': len([s for s in scores if s > 0.1]),
+                        'negative': len([s for s in scores if s < -0.1]),
+                        'neutral': len([s for s in scores if -0.1 <= s <= 0.1])
+                    }
+                }
+        
+        return {
+            'posts': analyzed_posts,
+            'summary': {
+                'total_posts': len(analyzed_posts),
+                'sentiment_distribution': {
+                    **sentiment_counts,
+                    'total': len(analyzed_posts)
+                },
+                'average_sentiment_score': round(avg_score, 3),
+                'most_common_patterns': dict(pattern_counts.most_common(5)),
+                'by_platform': platform_stats,
+                'analysis_timestamp': datetime.now().isoformat()
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Erreur calcul sentiment social: {e}")
+        return {
+            'posts': [],
+            'summary': {
+                'total_posts': 0,
+                'sentiment_distribution': {'positive': 0, 'negative': 0, 'neutral': 0, 'total': 0},
+                'average_sentiment_score': 0.0,
+                'most_common_patterns': {},
+                'by_platform': {},
+                'analysis_timestamp': datetime.now().isoformat(),
+                'error': str(e)
+            }
+        }
+
 # ==================== SENTIMENT ANALYSIS ENDPOINTS ====================
 
 @app.get("/api/sentiment/articles")
