@@ -1298,26 +1298,7 @@ function App() {
             </div>
           </div>
         )}
-                        <span className="text-xs">En cours...</span>
-                      </div>
-                    )}
-                    <button
-                      onClick={() => captureSection('guadeloupe')}
-                      disabled={loading || transcriptionStatus.sections?.guadeloupe_premiere_7h?.in_progress}
-                      className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm font-semibold transition-colors disabled:bg-gray-400"
-                    >
-                      📻 Capturer
-                    </button>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  {transcriptionSections["7H Guadeloupe Première"]?.length > 0 ? (
-                    transcriptionSections["7H Guadeloupe Première"].slice(0, 3).map(t => (
-                      <div key={t.id} className="bg-gray-50 p-3 rounded-lg">
-                        {/* Résumé IA ou transcription brute */}
-                        <p className="text-sm text-gray-700 font-medium">
-                          {t.ai_summary || `"${t.transcription_text.substring(0, 100)}..."`}
-                        </p>
+
                         
                         {/* Mots-clés et sujets */}
                         {t.ai_keywords && t.ai_keywords.length > 0 && (
