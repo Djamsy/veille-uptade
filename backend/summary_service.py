@@ -190,28 +190,101 @@ class FreeSummaryService:
         return "<br><br>".join(summaries)
 
     def summarize_transcriptions(self, transcriptions: List[Dict[str, Any]]) -> str:
-        """Résumer les transcriptions radio"""
+        """Résumer les transcriptions radio avec format HTML spécifique"""
         if not transcriptions:
-            return "<p>Aucune transcription à résumer.</p>"
+            return "<p>Aucune transcription radio disponible pour cette journée.</p>"
         
         all_summaries = []
         
         for transcription in transcriptions:
-            stream_name = transcription.get('stream_name', 'Radio')
-            text = transcription.get('transcription_text', '')
-            timestamp = transcription.get('captured_at', '')
+            # Données de base
+            stream_name = transcription.get('stream_name', transcription.get('section', 'Radio'))
+            start_time = transcription.get('start_time', '')
+            captured_at = transcription.get('captured_at', '')
             
-            if text and len(text.strip()) > 50:
-                # Résumer le contenu de la transcription
-                content_summary = self.create_formatted_summary(text, 3)
+            # Utiliser l'analyse IA si disponible, sinon fallback
+            ai_summary = transcription.get('ai_summary', '')
+            ai_keywords = transcription.get('ai_keywords', [])
+            ai_relevance_score = transcription.get('ai_relevance_score', 0)
+            raw_text = transcription.get('transcription_text', '')
+            
+            # Vérifier si on a du contenu valide
+            content_to_use = ai_summary if ai_summary and ai_summary != raw_text else raw_text
+            
+            if content_to_use and len(content_to_use.strip()) > 10:
+                # Format HTML demandé : <strong>titre</strong> + texte + <p>
                 
-                # Ajouter le header
-                header = f"<strong>📻 {stream_name}</strong> - {timestamp[:16] if timestamp else ''}"
-                full_summary = f"{header}<br>{content_summary}"
+                # Créer le titre avec horaire
+                time_info = f" ({start_time})" if start_time else ""
+                if captured_at:
+                    date_part = captured_at[:10] if len(captured_at) >= 10 else ""
+                    time_part = captured_at[11:16] if len(captured_at) >= 16 else ""
+                    time_info = f" - {date_part} {time_part}"
                 
-                all_summaries.append(full_summary)
+                title = f"<strong>📻 {stream_name}{time_info}</strong>"
+                
+                # Contenu principal (résumé IA ou transcription nettoyée)
+                if ai_summary and ai_summary != raw_text:
+                    # Utiliser le résumé IA
+                    content = ai_summary
+                else:
+                    # Nettoyer et raccourcir la transcription brute
+                    content = self._clean_and_shorten_transcription(content_to_use, 200)
+                
+                # Ajouter les mots-clés si disponibles
+                keywords_html = ""
+                if ai_keywords and len(ai_keywords) > 0:
+                    keywords_list = ", ".join(ai_keywords[:5])
+                    keywords_html = f"<br><em>Mots-clés: {keywords_list}</em>"
+                
+                # Score de pertinence si disponible
+                relevance_html = ""
+                if ai_relevance_score and ai_relevance_score > 0.3:
+                    stars = "⭐" * min(int(ai_relevance_score * 5), 5)
+                    relevance_html = f"<br><small>Pertinence: {stars} ({int(ai_relevance_score * 100)}%)</small>"
+                
+                # Assembler selon le format demandé
+                transcription_summary = f"""
+{title}
+{content}
+{keywords_html}
+{relevance_html}
+<p></p>
+""".strip()
+                
+                all_summaries.append(transcription_summary)
         
-        return "<br><br><hr><br>".join(all_summaries) if all_summaries else "<p>Aucune transcription valide.</p>"
+        if not all_summaries:
+            return "<p>Aucune transcription radio valide pour cette journée.</p>"
+        
+        # Joindre toutes les transcriptions
+        return "<br><hr><br>".join(all_summaries)
+
+    def _clean_and_shorten_transcription(self, text: str, max_length: int = 200) -> str:
+        """Nettoyer et raccourcir une transcription brute"""
+        if not text:
+            return "Transcription non disponible"
+        
+        # Nettoyer les bruits de parole courants
+        import re
+        clean_text = re.sub(r'\b(euh+|heu+|ben|alors|donc|voilà|quoi|hein)\b', ' ', text, flags=re.IGNORECASE)
+        clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+        
+        # Raccourcir si nécessaire
+        if len(clean_text) > max_length:
+            # Couper à la dernière phrase complète
+            shortened = clean_text[:max_length]
+            last_period = shortened.rfind('.')
+            last_exclamation = shortened.rfind('!')
+            last_question = shortened.rfind('?')
+            
+            cut_point = max(last_period, last_exclamation, last_question)
+            if cut_point > max_length // 2:  # Si on trouve une fin de phrase raisonnable
+                clean_text = shortened[:cut_point + 1]
+            else:
+                clean_text = shortened + "..."
+        
+        return clean_text
 
     def create_daily_digest(self, articles: List[Dict], transcriptions: List[Dict]) -> str:
         """Créer le digest quotidien complet avec analyse de sentiment"""
