@@ -26,14 +26,27 @@ from transcription_analysis_service import transcription_analyzer
 
 # Import du cache avec fallback - Réactivé avec cache 24H
 
-# Import du service réseaux sociaux
+# Import du service réseaux sociaux MODERNE
 try:
-    from social_media_service import social_scraper
+    from modern_social_service import modern_social_scraper
+    # Alias pour compatibilité avec le code existant
+    social_scraper = modern_social_scraper
     SOCIAL_MEDIA_ENABLED = True
-    print("✅ Service réseaux sociaux activé")
+    print("✅ Service réseaux sociaux MODERNE activé (Twitter API v2 + Nitter + RSS)")
 except ImportError as e:
-    print(f"⚠️ Service réseaux sociaux non disponible: {e}")
+    print(f"⚠️ Service réseaux sociaux moderne non disponible: {e}")
     SOCIAL_MEDIA_ENABLED = False
+    # Fallback vers ancien service
+    try:
+        from social_media_service import social_scraper
+        # Alias pour cohérence
+        modern_social_scraper = social_scraper
+        SOCIAL_MEDIA_ENABLED = True
+        print("✅ Fallback: Service réseaux sociaux classique activé")
+    except ImportError:
+        print("❌ Aucun service réseaux sociaux disponible")
+        modern_social_scraper = None
+        social_scraper = None
 try:
     from sentiment_analysis_service import local_sentiment_analyzer, analyze_articles_sentiment
     SENTIMENT_ENABLED = True
