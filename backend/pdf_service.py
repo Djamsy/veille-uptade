@@ -165,22 +165,22 @@ class PDFDigestService:
                 elif '<strong>' in line and '</strong>' in line:
                     # Texte en gras
                     text = line.replace('<strong>', '<b>').replace('</strong>', '</b>')
-                    story.append(Paragraph(text, self.styles['BodyText']))
+                    story.append(Paragraph(text, self.styles['CustomBodyText']))
                 
                 elif '<a href=' in line:
                     # Liens - les garder mais nettoyer
                     text = self._clean_html_links(line)
-                    story.append(Paragraph(text, self.styles['BodyText']))
+                    story.append(Paragraph(text, self.styles['CustomBodyText']))
                 
                 elif '<p>' in line or any(tag in line for tag in ['<div>', '<span>']):
                     # Paragraphes et autres contenus
                     text = self._clean_html_tags(line)
                     if len(text.strip()) > 10:  # Éviter les lignes trop courtes
-                        story.append(Paragraph(text, self.styles['BodyText']))
+                        story.append(Paragraph(text, self.styles['CustomBodyText']))
                 
                 elif len(line) > 20 and not line.startswith('<'):
                     # Texte brut suffisamment long
-                    story.append(Paragraph(line, self.styles['BodyText']))
+                    story.append(Paragraph(line, self.styles['CustomBodyText']))
             
         except Exception as e:
             logger.warning(f"Erreur parsing HTML pour PDF: {e}")
