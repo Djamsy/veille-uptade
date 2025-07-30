@@ -809,6 +809,18 @@ function App() {
     }
   };
 
+  // Charger les stats des réseaux sociaux
+  const loadSocialStats = async () => {
+    try {
+      const response = await apiCall(`${BACKEND_URL}/api/social/stats`);
+      if (response.success) {
+        setSocialStats(response.stats);
+      }
+    } catch (error) {
+      console.warn('Erreur stats réseaux sociaux:', error.message);
+    }
+  };
+
   // Lancer le scraping des réseaux sociaux
   const startSocialScraping = async () => {
     try {
