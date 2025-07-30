@@ -2059,6 +2059,183 @@ async def health_check():
     except Exception as e:
         return {"success": False, "error": str(e), "timestamp": datetime.now().isoformat()}
 
+# ==================== TELEGRAM ALERTS ENDPOINTS ====================
+
+@app.post("/api/telegram/configure")
+async def configure_telegram_bot(request: Request):
+    """Configurer le bot Telegram avec token et chat_id"""
+    try:
+        if not TELEGRAM_ALERTS_ENABLED:
+            return {"success": False, "error": "Service d'alertes Telegram non disponible"}
+        
+        body = await request.json()
+        token = body.get('token', '').strip()
+        chat_id = body.get('chat_id')
+        
+        if not token or not chat_id:
+            return {"success": False, "error": "Token et chat_id requis"}
+        
+        # Configurer le bot
+        success = telegram_alerts.configure_telegram(token, int(chat_id))
+        
+        if success:
+            return {
+                "success": True,
+                "message": "Bot Telegram configuré avec succès",
+                "chat_id": chat_id,
+                "configured_at": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "success": False,
+                "error": "Erreur lors de la configuration du bot"
+            }
+    
+    except Exception as e:
+        logger.error(f"Erreur configuration Telegram: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/telegram/test")
+async def test_telegram_alert():
+    """Envoyer une alerte de test"""
+    try:
+        if not TELEGRAM_ALERTS_ENABLED:
+            return {"success": False, "error": "Service d'alertes Telegram non disponible"}
+        
+        success = telegram_alerts.send_test_alert()
+        
+        if success:
+            return {
+                "success": True,
+                "message": "Alerte de test envoyée avec succès",
+                "sent_at": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "success": False,
+                "error": "Échec de l'envoi de l'alerte de test"
+            }
+    
+    except Exception as e:
+        logger.error(f"Erreur test alerte Telegram: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/telegram/start-monitoring")
+async def start_telegram_monitoring():
+    """Démarrer la surveillance automatique"""
+    try:
+        if not TELEGRAM_ALERTS_ENABLED:
+            return {"success": False, "error": "Service d'alertes Telegram non disponible"}
+        
+        telegram_alerts.start_monitoring()
+        
+        return {
+            "success": True,
+            "message": "Surveillance automatique démarrée",
+            "monitoring_active": True,
+            "started_at": datetime.now().isoformat()
+        }
+    
+    except Exception as e:
+        logger.error(f"Erreur démarrage surveillance: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/telegram/stop-monitoring")
+async def stop_telegram_monitoring():
+    """Arrêter la surveillance automatique"""
+    try:
+        if not TELEGRAM_ALERTS_ENABLED:
+            return {"success": False, "error": "Service d'alertes Telegram non disponible"}
+        
+        telegram_alerts.stop_monitoring()
+        
+        return {
+            "success": True,
+            "message": "Surveillance automatique arrêtée",
+            "monitoring_active": False,
+            "stopped_at": datetime.now().isoformat()
+        }
+    
+    except Exception as e:
+        logger.error(f"Erreur arrêt surveillance: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/telegram/status")
+async def get_telegram_status():
+    """Obtenir le statut de la surveillance Telegram"""
+    try:
+        if not TELEGRAM_ALERTS_ENABLED:
+            return {"success": False, "error": "Service d'alertes Telegram non disponible"}
+        
+        status = telegram_alerts.get_monitoring_status()
+        
+        return {
+            "success": True,
+            "status": status,
+            "service_enabled": True,
+            "checked_at": datetime.now().isoformat()
+        }
+    
+    except Exception as e:
+        logger.error(f"Erreur statut Telegram: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/telegram/send-alert")
+async def send_manual_telegram_alert(request: Request):
+    """Envoyer une alerte manuelle"""
+    try:
+        if not TELEGRAM_ALERTS_ENABLED:
+            return {"success": False, "error": "Service d'alertes Telegram non disponible"}
+        
+        body = await request.json()
+        message = body.get('message', '').strip()
+        chat_id = body.get('chat_id')
+        
+        if not message:
+            return {"success": False, "error": "Message requis"}
+        
+        success = telegram_alerts.send_alert_sync(message, chat_id)
+        
+        if success:
+            return {
+                "success": True,
+                "message": "Alerte envoyée avec succès",
+                "sent_at": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "success": False,
+                "error": "Échec de l'envoi de l'alerte"
+            }
+    
+    except Exception as e:
+        logger.error(f"Erreur envoi alerte manuelle: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/telegram/alerts-history")
+async def get_telegram_alerts_history(limit: int = 50):
+    """Récupérer l'historique des alertes"""
+    try:
+        if not TELEGRAM_ALERTS_ENABLED:
+            return {"success": False, "error": "Service d'alertes Telegram non disponible"}
+        
+        # Récupérer les alertes depuis MongoDB
+        alerts = list(telegram_alerts.alerts_collection.find(
+            {}, 
+            {'_id': 0}
+        ).sort('sent_at', -1).limit(limit))
+        
+        return {
+            "success": True,
+            "alerts": alerts,
+            "count": len(alerts),
+            "retrieved_at": datetime.now().isoformat()
+        }
+    
+    except Exception as e:
+        logger.error(f"Erreur historique alertes: {e}")
+        return {"success": False, "error": str(e)}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)
