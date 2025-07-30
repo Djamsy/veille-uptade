@@ -40,16 +40,18 @@ pandas==2.1.4
 numpy==1.25.2
 python-dateutil==2.8.2
 
-# Pour le scraping (légers)
-snscrape
-playwright
+# Pour le scraping (versions spécifiques pour stabilité production)
+snscrape==0.7.3.20240106
 
 # Pour la génération de PDF
 reportlab==4.4.3
 pillow==11.3.0
 
-# Pour les alertes Telegram
-python-telegram-bot[all]
+# Pour les alertes Telegram (version allégée)
+python-telegram-bot==20.7
 
 # Pour les services modernes
-aiohttp
+aiohttp==3.9.1
+
+# Dépendances pour production Kubernetes
+gunicorn==21.2.0
