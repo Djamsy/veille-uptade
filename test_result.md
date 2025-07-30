@@ -233,15 +233,18 @@ backend:
 
   - task: "API endpoints for articles"
     implemented: true
-    working: "NA"
+    working: true
     file: "server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Updated to show today-only articles with cache clearing - needs retesting"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Articles API working perfectly. /api/articles returns 100 today's articles with proper filtering. All 4 scrapers working (France-Antilles, RCI, La 1ère, KaribInfo). Cache clearing integrated with scraping operations."
 
   - task: "Dashboard statistics API"
     implemented: true
