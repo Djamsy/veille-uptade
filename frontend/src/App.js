@@ -327,10 +327,16 @@ function App() {
       const data = await response.json();
       if (data.success) {
         alert(`✅ ${data.message}`);
-        // Actualiser le statut
+        // Actualiser le statut immédiatement
         setTimeout(() => {
           loadTranscriptionStatus();
         }, 1000);
+        
+        // Actualiser les sections après le temps estimé de completion (3-5 min)
+        setTimeout(() => {
+          loadTranscriptionSections();
+          loadTranscriptionStatus();
+        }, 180000); // 3 minutes
       } else {
         alert(`❌ Erreur: ${data.error || 'Erreur inconnue'}`);
       }
