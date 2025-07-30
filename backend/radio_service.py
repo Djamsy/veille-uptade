@@ -26,21 +26,27 @@ class RadioTranscriptionService:
         self.db = self.client.veille_media
         self.transcriptions_collection = self.db.radio_transcriptions
         
-        # Configuration des flux radio
+        # Configuration des flux radio avec sections pré-nommées
         self.radio_streams = {
-            "stream_1": {
-                "name": "Flux Radio 1",
+            "rci_7h": {
+                "name": "7H RCI",
+                "description": "RCI Guadeloupe - Journal matinal",
                 "url": "http://n01a-eu.rcs.revma.com/v4hf7bwspwzuv?rj-ttl=5&rj-tok=AAABmFgYf1YAGI3rfz2-KTLPnA",
                 "duration_minutes": 20,  # 7H00-7H20
                 "start_hour": 7,
-                "start_minute": 0
+                "start_minute": 0,
+                "section": "7H RCI",
+                "priority": 1
             },
-            "stream_2": {
-                "name": "Flux Radio 2", 
+            "guadeloupe_premiere_7h": {
+                "name": "7H Guadeloupe Première", 
+                "description": "Guadeloupe Première - Actualités matinales",
                 "url": "http://guadeloupe.ice.infomaniak.ch/guadeloupe-128.mp3",
                 "duration_minutes": 30,  # 7H00-7H30
                 "start_hour": 7,
-                "start_minute": 0
+                "start_minute": 0,
+                "section": "7H Guadeloupe Première",
+                "priority": 2
             }
         }
         
