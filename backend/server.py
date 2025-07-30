@@ -480,14 +480,30 @@ async def transcribe_audio(file: UploadFile = File(...)):
             logger.info(f"✅ Transcription terminée, résultat: {transcription_data is not None}")
             
             if transcription_data:
+                # Analyse intelligente de la transcription
+                logger.info("🧠 Analyse intelligente de la transcription uploadée...")
+                analysis = transcription_analyzer.analyze_transcription(transcription_data['text'], file.filename)
+                
                 # Sauvegarder en base
                 record = {
                     "id": str(uuid.uuid4()),
                     "filename": file.filename,
+                    
+                    # Transcription brute
                     "transcription_text": transcription_data['text'],
                     "language": transcription_data['language'],
                     "duration_seconds": transcription_data['duration'],
                     "segments": transcription_data['segments'],
+                    
+                    # Analyse intelligente
+                    "ai_summary": analysis.get('summary', transcription_data['text']),
+                    "ai_key_sentences": analysis.get('key_sentences', []),
+                    "ai_main_topics": analysis.get('main_topics', []),
+                    "ai_keywords": analysis.get('keywords', []),
+                    "ai_relevance_score": analysis.get('relevance_score', 0.5),
+                    "ai_analysis_metadata": analysis.get('analysis_metadata', {}),
+                    
+                    # Métadonnées
                     "uploaded_at": datetime.now().isoformat(),
                     "date": datetime.now().strftime('%Y-%m-%d'),
                     "source": "upload"
