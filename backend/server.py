@@ -1245,27 +1245,32 @@ async def scrape_social_media_now():
         
         def scrape_async():
             try:
-                logger.info("🚀 Début scraping réseaux sociaux...")
-                results = social_scraper.scrape_all_keywords()
+                logger.info("🚀 Début scraping réseaux sociaux MODERNE...")
+                
+                # Utiliser le nouveau service moderne avec Twitter API v2
+                results = modern_social_scraper.scrape_all_modern_sources()
                 
                 # Sauvegarder tous les posts
-                all_posts = results['twitter'] + results['facebook'] + results['instagram']
-                saved_count = social_scraper.save_posts_to_db(all_posts)
+                all_posts = results['twitter_api'] + results['twitter_nitter'] + results['rss_official']
+                saved_count = modern_social_scraper.save_posts_to_db(all_posts)
                 
-                # Sauvegarder le résultat dans le cache
+                # Résultat enrichi avec info sur les méthodes
                 cache_result = {
                     'success': True,
                     'total_posts': results['total_posts'],
                     'saved_posts': saved_count,
-                    'by_platform': {
-                        'twitter': len(results['twitter']),
-                        'facebook': len(results['facebook']),
-                        'instagram': len(results['instagram'])
+                    'by_method': {
+                        'twitter_api_v2': len(results['twitter_api']),
+                        'twitter_nitter': len(results['twitter_nitter']),
+                        'rss_official': len(results['rss_official'])
                     },
+                    'methods_used': results['methods_used'],
+                    'success_rate': results.get('success_rate', {}),
                     'keywords': results['keywords_searched'],
                     'scraped_at': results['scraped_at'],
                     'demo_mode': results.get('demo_mode', False),
-                    'note': results.get('note', '')
+                    'note': results.get('note', 'Service moderne utilisé'),
+                    'service_version': 'modern_2025'
                 }
                 
                 if CACHE_ENABLED:
