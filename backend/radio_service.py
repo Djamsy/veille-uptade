@@ -444,14 +444,10 @@ class RadioTranscriptionService:
             
         except Exception as e:
             logger.error(f"❌ Erreur transcription OpenAI: {e}")
-            # Fallback vers Whisper local si disponible
-            if hasattr(self, 'whisper_model') and self.whisper_model:
-                logger.info("🔄 Fallback vers Whisper local...")
-                return self._transcribe_local_fallback(audio_path, stream_key)
-            else:
-                if stream_key != "unknown":
-                    self.update_transcription_step(stream_key, "error", f"Erreur transcription: {e}", 0)
-                return None
+            # Plus de fallback vers modèle local - OpenAI API uniquement
+            if stream_key != "unknown":
+                self.update_transcription_step(stream_key, "error", f"Erreur transcription: {e}", 0)
+            return None
 
     def _transcribe_local_fallback(self, audio_path: str, stream_key: str = "unknown") -> Optional[Dict[str, Any]]:
         """Fallback vers Whisper local si OpenAI API échoue - DISABLED"""
