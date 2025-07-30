@@ -1306,6 +1306,305 @@ function App() {
           </div>
         )}
 
+        {/* Articles avec filtres avancés */}
+        {activeTab === 'articles' && (
+          <div className="animate-slide-in">
+            {/* Header avec filtres */}
+            <div className="section-container">
+              <div className="section-header">
+                <h2 className="section-title">📰 Articles de Presse</h2>
+                <p className="section-subtitle">Filtrage et tri avancés des articles locaux</p>
+              </div>
+
+              {/* Interface de filtres */}
+              <div className="glass-card" style={{ padding: '2rem', marginBottom: '2rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+                  {/* Filtre par texte */}
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#374151' }}>
+                      Recherche
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Titre, source..."
+                      value={filters.searchText}
+                      onChange={(e) => setFilters({...filters, searchText: e.target.value})}
+                      className="glass-input"
+                    />
+                  </div>
+
+                  {/* Filtre par source */}
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#374151' }}>
+                      Source
+                    </label>
+                    <select
+                      value={filters.source}
+                      onChange={(e) => setFilters({...filters, source: e.target.value})}
+                      className="glass-input"
+                    >
+                      <option value="all">Toutes les sources</option>
+                      {availableSources.map(source => (
+                        <option key={source.name} value={source.name}>
+                          {source.name} ({source.count})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Date de début */}
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#374151' }}>
+                      Date début
+                    </label>
+                    <input
+                      type="date"
+                      value={filters.dateStart}
+                      onChange={(e) => setFilters({...filters, dateStart: e.target.value})}
+                      className="glass-input"
+                    />
+                  </div>
+
+                  {/* Date de fin */}
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#374151' }}>
+                      Date fin
+                    </label>
+                    <input
+                      type="date"
+                      value={filters.dateEnd}
+                      onChange={(e) => setFilters({...filters, dateEnd: e.target.value})}
+                      className="glass-input"
+                    />
+                  </div>
+
+                  {/* Tri */}
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#374151' }}>
+                      Trier par
+                    </label>
+                    <select
+                      value={filters.sortBy}
+                      onChange={(e) => setFilters({...filters, sortBy: e.target.value})}
+                      className="glass-input"
+                    >
+                      <option value="date_desc">Date ↓</option>
+                      <option value="date_asc">Date ↑</option>
+                      <option value="source_asc">Source A-Z</option>
+                      <option value="source_desc">Source Z-A</option>
+                      <option value="title_asc">Titre A-Z</option>
+                      <option value="title_desc">Titre Z-A</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Boutons d'action */}
+                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                  <button
+                    onClick={() => applyFilters(filters)}
+                    className="glass-button primary"
+                    disabled={loading}
+                  >
+                    🔍 Appliquer les filtres
+                  </button>
+                  <button
+                    onClick={resetFilters}
+                    className="glass-button secondary"
+                  >
+                    🔄 Réinitialiser
+                  </button>
+                </div>
+              </div>
+
+              {/* Résultats */}
+              <div className="glass-card" style={{ padding: '1.5rem' }}>
+                {/* Métadonnées des résultats */}
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center', 
+                  marginBottom: '1.5rem',
+                  padding: '1rem',
+                  background: 'rgba(59, 130, 246, 0.05)',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(59, 130, 246, 0.1)'
+                }}>
+                  <span style={{ fontWeight: '500', color: '#1e40af' }}>
+                    {pagination.total} articles trouvés
+                  </span>
+                  <span style={{ color: '#6b7280', fontSize: '0.9rem' }}>
+                    Page {Math.floor(pagination.offset / 50) + 1}
+                  </span>
+                </div>
+
+                {/* Liste des articles filtrés */}
+                <div className="articles-grid">
+                  {filteredArticles.map((article, index) => (
+                    <div key={`${article.id || index}`} className="article-card">
+                      <div className="article-content">
+                        <h3 className="article-title">
+                          <a 
+                            href={article.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            style={{ textDecoration: 'none', color: 'inherit' }}
+                          >
+                            {article.title}
+                          </a>
+                        </h3>
+                        
+                        <div className="article-meta">
+                          <span className="article-source">{article.source}</span>
+                          <span className="article-date">
+                            {new Date(article.scraped_at).toLocaleDateString('fr-FR', {
+                              day: 'numeric',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Bouton charger plus */}
+                {pagination.hasMore && (
+                  <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+                    <button
+                      onClick={loadMoreArticles}
+                      className="glass-button secondary"
+                      disabled={loading}
+                    >
+                      {loading ? '⏳ Chargement...' : '📄 Charger plus d\'articles'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Analytics et graphiques */}
+        {activeTab === 'analytics' && (
+          <div className="animate-slide-in">
+            <div className="section-container">
+              <div className="section-header">
+                <h2 className="section-title">📊 Analytics Visuels</h2>
+                <p className="section-subtitle">Analyses graphiques et métriques avancées</p>
+              </div>
+
+              {/* Métriques du dashboard enrichies */}
+              {analyticsData.dashboardMetrics && (
+                <div className="stats-container" style={{ marginBottom: '3rem' }}>
+                  {Object.entries(analyticsData.dashboardMetrics.metrics).map(([key, metric]) => (
+                    <div key={key} className="stat-card enhanced">
+                      <div className="stat-label">{metric.label}</div>
+                      <div className="stat-value">
+                        {metric.value}
+                        {metric.evolution_pct && (
+                          <span style={{ 
+                            fontSize: '0.7rem', 
+                            color: metric.evolution_pct > 0 ? '#10b981' : '#ef4444',
+                            marginLeft: '0.5rem'
+                          }}>
+                            {metric.evolution_pct > 0 ? '↗' : '↘'} {Math.abs(metric.evolution_pct)}%
+                          </span>
+                        )}
+                      </div>
+                      {metric.evolution !== undefined && (
+                        <div className="stat-sublabel">
+                          {metric.evolution >= 0 ? '+' : ''}{metric.evolution} vs hier
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Graphiques */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem' }}>
+                
+                {/* Graphique: Articles par source */}
+                {analyticsData.sourceChart && (
+                  <div className="glass-card" style={{ padding: '2rem' }}>
+                    <h3 style={{ marginBottom: '1.5rem', color: '#1f2937', fontSize: '1.25rem' }}>
+                      📊 Articles par Source
+                    </h3>
+                    <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <SourceChart data={analyticsData.sourceChart.chart_data} />
+                    </div>
+                    <div style={{ marginTop: '1rem', textAlign: 'center', color: '#6b7280', fontSize: '0.9rem' }}>
+                      {analyticsData.sourceChart.total_articles} articles • {analyticsData.sourceChart.period}
+                    </div>
+                  </div>
+                )}
+
+                {/* Graphique: Évolution temporelle */}
+                {analyticsData.timelineChart && (
+                  <div className="glass-card" style={{ padding: '2rem' }}>
+                    <h3 style={{ marginBottom: '1.5rem', color: '#1f2937', fontSize: '1.25rem' }}>
+                      📈 Évolution Temporelle
+                    </h3>
+                    <div style={{ height: '300px' }}>
+                      <TimelineChart data={analyticsData.timelineChart.chart_data} />
+                    </div>
+                    <div style={{ marginTop: '1rem', textAlign: 'center', color: '#6b7280', fontSize: '0.9rem' }}>
+                      {analyticsData.timelineChart.total_articles} articles • {analyticsData.timelineChart.period}
+                    </div>
+                  </div>
+                )}
+
+                {/* Graphique: Sentiment par source */}
+                {analyticsData.sentimentChart && analyticsData.sentimentChart.chart_data.labels.length > 0 && (
+                  <div className="glass-card" style={{ padding: '2rem' }}>
+                    <h3 style={{ marginBottom: '1.5rem', color: '#1f2937', fontSize: '1.25rem' }}>
+                      💭 Sentiment par Source
+                    </h3>
+                    <div style={{ height: '300px' }}>
+                      <SentimentChart data={analyticsData.sentimentChart.chart_data} />
+                    </div>
+                    <div style={{ marginTop: '1rem', textAlign: 'center', color: '#6b7280', fontSize: '0.9rem' }}>
+                      {analyticsData.sentimentChart.analyzed_articles} articles analysés
+                    </div>
+                  </div>
+                )}
+
+                {/* Informations sur les données */}
+                <div className="glass-card" style={{ padding: '2rem' }}>
+                  <h3 style={{ marginBottom: '1.5rem', color: '#1f2937', fontSize: '1.25rem' }}>
+                    ℹ️ Informations
+                  </h3>
+                  <div style={{ color: '#4b5563', lineHeight: '1.6' }}>
+                    <p style={{ marginBottom: '1rem' }}>
+                      <strong>Sources de données :</strong> Articles extraits automatiquement des principaux 
+                      médias guadeloupéens (France-Antilles, RCI, La 1ère, KaribInfo).
+                    </p>
+                    <p style={{ marginBottom: '1rem' }}>
+                      <strong>Fréquence de mise à jour :</strong> Scraping automatique quotidien, 
+                      cache intelligent 24H.
+                    </p>
+                    <p>
+                      <strong>Analyse de sentiment :</strong> Traitement local des titres avec 
+                      dictionnaires français et patterns Guadeloupe.
+                    </p>
+                  </div>
+                  
+                  <button
+                    onClick={loadAnalyticsData}
+                    className="glass-button primary"
+                    style={{ marginTop: '1.5rem' }}
+                    disabled={loading}
+                  >
+                    {loading ? '⏳ Actualisation...' : '🔄 Actualiser les données'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Transcriptions Radio */}
         {activeTab === 'transcription' && (
           <div className="animate-slide-in">
