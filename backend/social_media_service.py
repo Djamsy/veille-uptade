@@ -259,50 +259,82 @@ class SocialMediaScraper:
             logger.error(f"❌ Erreur scraping Instagram {keyword}: {e}")
             return []
 
-    def scrape_all_keywords(self, keywords: List[str] = None) -> Dict[str, List[Dict]]:
-        """Scraper tous les réseaux pour tous les mots-clés"""
+    def scrape_all_keywords_with_demo(self, keywords: List[str] = None) -> Dict[str, List[Dict]]:
+        """Scraper avec fallback vers données de démonstration si APIs indisponibles"""
         if not keywords:
-            keywords = self.keywords_guadeloupe[:3]  # Limiter pour éviter la surcharge
+            keywords = self.keywords_guadeloupe[:3]
         
+        # Essayer d'abord le scraping réel
         results = {
             'twitter': [],
             'facebook': [],
             'instagram': [],
             'total_posts': 0,
             'keywords_searched': keywords,
-            'scraped_at': datetime.now().isoformat()
+            'scraped_at': datetime.now().isoformat(),
+            'demo_mode': False,
+            'note': ''
         }
         
-        logger.info(f"🚀 Début scraping pour {len(keywords)} mots-clés")
+        logger.info(f"🚀 Tentative de scraping pour {len(keywords)} mots-clés")
         
-        for keyword in keywords:
-            logger.info(f"🔍 Scraping pour: {keyword}")
+        # Test Twitter avec un seul mot-clé pour vérifier la disponibilité
+        try:
+            test_posts = self.scrape_twitter_keyword(keywords[0], max_posts=1)
+            if test_posts:
+                # API disponible, procéder normalement
+                for keyword in keywords:
+                    twitter_posts = self.scrape_twitter_keyword(keyword, self.max_posts_per_keyword)
+                    results['twitter'].extend(twitter_posts)
+                    
+                    # Facebook et Instagram (limités)
+                    try:
+                        facebook_posts = asyncio.run(self.scrape_facebook_keyword(keyword, 5))
+                        results['facebook'].extend(facebook_posts)
+                    except:
+                        pass
+                    
+                    instagram_posts = self.scrape_instagram_basic(keyword, 3)
+                    results['instagram'].extend(instagram_posts)
+                    
+                    time.sleep(self.rate_limit_delay)
+            else:
+                raise Exception("Pas de données Twitter disponibles")
+                
+        except Exception as e:
+            logger.warning(f"APIs réseaux sociaux indisponibles: {e}")
+            logger.info("🔄 Basculement vers données de démonstration")
             
-            # Twitter/X
-            twitter_posts = self.scrape_twitter_keyword(keyword, self.max_posts_per_keyword)
-            results['twitter'].extend(twitter_posts)
-            
-            # Pause entre les plateformes
-            time.sleep(self.rate_limit_delay)
-            
-            # Facebook (méthode async)
+            # Utiliser les données de démonstration
             try:
-                facebook_posts = asyncio.run(self.scrape_facebook_keyword(keyword, self.max_posts_per_keyword))
-                results['facebook'].extend(facebook_posts)
-            except Exception as e:
-                logger.warning(f"Facebook scraping failed for {keyword}: {e}")
-            
-            # Instagram (basique)
-            instagram_posts = self.scrape_instagram_basic(keyword, 5)
-            results['instagram'].extend(instagram_posts)
-            
-            # Pause entre les mots-clés
-            time.sleep(self.rate_limit_delay * 2)
+                from social_demo_data import generate_realistic_social_posts, get_demo_social_stats
+                
+                demo_posts = generate_realistic_social_posts()
+                demo_stats = get_demo_social_stats()
+                
+                # Répartir les posts par plateforme
+                for post in demo_posts:
+                    platform = post['platform']
+                    if platform in results:
+                        results[platform].append(post)
+                
+                results['demo_mode'] = True
+                results['note'] = "Données de démonstration utilisées - APIs Twitter/Facebook indisponibles"
+                results['demo_stats'] = demo_stats
+                
+                logger.info(f"✅ Mode démonstration: {len(demo_posts)} posts générés")
+                
+            except Exception as demo_error:
+                logger.error(f"❌ Erreur mode démonstration: {demo_error}")
         
         # Calculer totaux
         results['total_posts'] = len(results['twitter']) + len(results['facebook']) + len(results['instagram'])
         
-        logger.info(f"✅ Scraping terminé: {results['total_posts']} posts au total")
+        if results['demo_mode']:
+            logger.info(f"✅ Mode démonstration terminé: {results['total_posts']} posts")
+        else:
+            logger.info(f"✅ Scraping réel terminé: {results['total_posts']} posts")
+        
         return results
 
     def save_posts_to_db(self, posts: List[Dict[str, Any]]) -> int:
