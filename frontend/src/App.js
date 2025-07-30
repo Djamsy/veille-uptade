@@ -974,7 +974,7 @@ function App() {
 
             {/* Barre de recherche */}
             <div className="glass-card">
-              <h3 className="text-xl font-bold mb-4" style={{ color: '#2c3e50' }}>🔍 Recherche Rapide</h3>
+              <h3 className="text-xl font-bold mb-4" style={{ color: '#2c3e50' }}>Recherche Rapide</h3>
               <div className="flex gap-4 flex-col md:flex-row">
                 <div className="flex-1">
                   <div className="relative">
