@@ -183,7 +183,11 @@ class RadioTranscriptionService:
                 }
                 
                 # Insérer en base
-                self.transcriptions_collection.insert_one(transcription_record)
+                insert_result = self.transcriptions_collection.insert_one(transcription_record.copy())
+                
+                # Retirer l'ObjectId pour éviter les problèmes de sérialisation
+                if '_id' in transcription_record:
+                    del transcription_record['_id']
                 
                 result['success'] = True
                 result['transcription'] = transcription_record
