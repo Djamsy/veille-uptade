@@ -28,6 +28,7 @@ function App() {
   const [socialSearchQuery, setSocialSearchQuery] = useState('');
   const [socialSearchResults, setSocialSearchResults] = useState(null);
   const [socialSearchLoading, setSocialSearchLoading] = useState(false);
+  const [socialSearchError, setSocialSearchError] = useState(null);
   
   // États pour la recherche automatique
   const [autoSearchCompleted, setAutoSearchCompleted] = useState(false);
