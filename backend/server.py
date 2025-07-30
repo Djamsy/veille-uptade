@@ -208,7 +208,13 @@ async def get_articles():
         else:
             articles_data = _compute_articles_today_only()
         
-        return {"success": True, "articles": articles_data.get('articles', []), "count": articles_data.get('count', 0)}
+        # Vérifier le format des données
+        if isinstance(articles_data, dict):
+            return {"success": True, "articles": articles_data.get('articles', []), "count": articles_data.get('count', 0)}
+        elif isinstance(articles_data, list):
+            return {"success": True, "articles": articles_data, "count": len(articles_data)}
+        else:
+            return {"success": False, "error": "Format de données invalide", "articles": [], "count": 0}
     
     except Exception as e:
         print(f"Erreur articles: {e}")
