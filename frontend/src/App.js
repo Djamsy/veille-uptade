@@ -721,8 +721,6 @@ function App() {
                 <div className="stat-value">{dashboardStats.today_articles || 0}</div>
                 <div className="stat-sublabel">Total: {dashboardStats.total_articles || 0}</div>
               </div>
-                <div className="stat-sublabel">Total: {dashboardStats.total_transcriptions || 0}</div>
-              </div>
 
               <div className="stat-card">
                 <div className="stat-label">Digests</div>
