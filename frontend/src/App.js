@@ -45,6 +45,14 @@ function App() {
   const [autoSearchCompleted, setAutoSearchCompleted] = useState(false);
   const [autoSearchResults, setAutoSearchResults] = useState({});
 
+  // États pour l'analyse de sentiment et prédiction des réactions
+  const [sentimentText, setSentimentText] = useState('');
+  const [sentimentResult, setSentimentResult] = useState(null);
+  const [sentimentLoading, setSentimentLoading] = useState(false);
+  const [reactionPrediction, setReactionPrediction] = useState(null);
+  const [predictionLoading, setPredictionLoading] = useState(false);
+  const [sentimentMode, setSentimentMode] = useState('sync'); // 'sync' ou 'async'
+
   // Fonction utilitaire pour les appels API avec timeout et gestion d'erreur
   const apiCall = async (url, options = {}) => {
     const controller = new AbortController();
