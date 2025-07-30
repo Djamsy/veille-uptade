@@ -2268,6 +2268,7 @@ async def analyze_text_sentiment_endpoint(request: Request):
         
         body = await request.json()
         text = body.get('text', '').strip()
+        use_async = body.get('async', False)  # Option pour traitement asynchrone
         
         if not text:
             return {"success": False, "error": "Texte requis pour l'analyse"}
@@ -2275,50 +2276,36 @@ async def analyze_text_sentiment_endpoint(request: Request):
         if len(text) < 5:
             return {"success": False, "error": "Texte trop court pour une analyse fiable"}
         
-        # Analyser avec GPT
+        # Mode asynchrone - retour immédiat avec traitement en arrière-plan
+        if use_async and ASYNC_SENTIMENT_ENABLED:
+            # Vérifier d'abord le cache
+            cached_result = get_text_sentiment_cached(text)
+            if cached_result:
+                logger.info(f"🎯 Sentiment cache hit - retour immédiat")
+                return {
+                    "success": True,
+                    "cached": True,
+                    "analysis": _format_enriched_response(cached_result, text),
+                    "processing_time": "~0.1 secondes (cache)"
+                }
+            
+            # Ajouter à la queue de traitement
+            text_hash = analyze_text_async(text, priority='high')
+            return {
+                "success": True,
+                "async": True,
+                "text_hash": text_hash,
+                "message": "Analyse démarrée en arrière-plan",
+                "status_endpoint": f"/api/sentiment/status/{text_hash}",
+                "estimated_completion": "10-20 secondes"
+            }
+        
+        # Mode synchrone (original)
         logger.info(f"🤖 Analyse GPT sentiment enrichie pour texte de {len(text)} caractères")
         sentiment_result = gpt_sentiment_analyzer.analyze_sentiment(text)
         
         # Créer une réponse enrichie structurée
-        response = {
-            "success": True,
-            "analysis": {
-                "basic_sentiment": {
-                    "polarity": sentiment_result['polarity'],
-                    "score": sentiment_result['score'],
-                    "intensity": sentiment_result['intensity'],
-                    "confidence": sentiment_result['analysis_details']['confidence']
-                },
-                "contextual_analysis": {
-                    "guadeloupe_relevance": sentiment_result['analysis_details']['guadeloupe_context'],
-                    "local_impact": sentiment_result['analysis_details'].get('impact_potential', ''),
-                    "urgency_level": sentiment_result['analysis_details'].get('urgency_level', 'faible'),
-                    "main_domain": sentiment_result['analysis_details'].get('main_domain', 'général')
-                },
-                "stakeholders": {
-                    "personalities": sentiment_result['analysis_details'].get('personalities_mentioned', []),
-                    "institutions": sentiment_result['analysis_details'].get('institutions_mentioned', [])
-                },
-                "thematic_breakdown": {
-                    "themes": sentiment_result['analysis_details']['themes'],
-                    "emotions": sentiment_result['analysis_details']['emotions'],
-                    "keywords": sentiment_result['analysis_details']['keywords']
-                },
-                "recommendations": {
-                    "suggested_actions": sentiment_result['analysis_details'].get('recommendations', []),
-                    "alerts": sentiment_result['analysis_details'].get('alerts', []),
-                    "follow_up_needed": sentiment_result.get('enhanced_analysis', {}).get('actionable_insights', {}).get('follow_up_needed', False)
-                }
-            },
-            "metadata": {
-                "text_length": len(text),
-                "word_count": sentiment_result['word_count'],
-                "analyzed_at": sentiment_result.get('analyzed_at'),
-                "method": sentiment_result['analysis_details'].get('method', 'gpt-4o-mini-contextuel'),
-                "processing_time": "~3-8 secondes"
-            },
-            "raw_sentiment": sentiment_result  # Données complètes pour debug/développement
-        }
+        response = _format_enriched_response(sentiment_result, text)
         
         logger.info(f"✅ Analyse GPT terminée: {sentiment_result['polarity']} (score: {sentiment_result['score']}, urgence: {sentiment_result['analysis_details'].get('urgency_level', 'faible')})")
         
@@ -2326,6 +2313,74 @@ async def analyze_text_sentiment_endpoint(request: Request):
     
     except Exception as e:
         logger.error(f"Erreur analyse sentiment: {e}")
+        return {"success": False, "error": str(e)}
+
+def _format_enriched_response(sentiment_result: Dict, text: str) -> Dict:
+    """Formater la réponse enrichie de façon consistante"""
+    return {
+        "success": True,
+        "analysis": {
+            "basic_sentiment": {
+                "polarity": sentiment_result['polarity'],
+                "score": sentiment_result['score'],
+                "intensity": sentiment_result['intensity'],
+                "confidence": sentiment_result['analysis_details']['confidence']
+            },
+            "contextual_analysis": {
+                "guadeloupe_relevance": sentiment_result['analysis_details']['guadeloupe_context'],
+                "local_impact": sentiment_result['analysis_details'].get('impact_potential', ''),
+                "urgency_level": sentiment_result['analysis_details'].get('urgency_level', 'faible'),
+                "main_domain": sentiment_result['analysis_details'].get('main_domain', 'général')
+            },
+            "stakeholders": {
+                "personalities": sentiment_result['analysis_details'].get('personalities_mentioned', []),
+                "institutions": sentiment_result['analysis_details'].get('institutions_mentioned', [])
+            },
+            "thematic_breakdown": {
+                "themes": sentiment_result['analysis_details']['themes'],
+                "emotions": sentiment_result['analysis_details']['emotions'],
+                "keywords": sentiment_result['analysis_details']['keywords']
+            },
+            "recommendations": {
+                "suggested_actions": sentiment_result['analysis_details'].get('recommendations', []),
+                "alerts": sentiment_result['analysis_details'].get('alerts', []),
+                "follow_up_needed": sentiment_result.get('enhanced_analysis', {}).get('actionable_insights', {}).get('follow_up_needed', False)
+            }
+        },
+        "metadata": {
+            "text_length": len(text),
+            "word_count": sentiment_result['word_count'],
+            "analyzed_at": sentiment_result.get('analyzed_at'),
+            "method": sentiment_result['analysis_details'].get('method', 'gpt-4o-mini-contextuel'),
+            "processing_time": "~3-8 secondes"
+        },
+        "raw_sentiment": sentiment_result  # Données complètes pour debug/développement
+    }
+
+@app.get("/api/sentiment/status/{text_hash}")
+async def get_sentiment_analysis_status_endpoint(text_hash: str):
+    """Obtenir le statut d'une analyse de sentiment asynchrone"""
+    try:
+        if not ASYNC_SENTIMENT_ENABLED:
+            return {"success": False, "error": "Service asynchrone non disponible"}
+        
+        status = get_sentiment_analysis_status(text_hash)
+        
+        if status['status'] == 'completed':
+            # Si terminé, formater la réponse complète
+            cached_result = get_text_sentiment_cached("")  # Hash sera comparé
+            if cached_result:
+                return {
+                    "success": True,
+                    "status": "completed",
+                    "analysis": _format_enriched_response(cached_result, "")['analysis'],
+                    "completed_at": status.get('completed_at')
+                }
+        
+        return {"success": True, **status}
+        
+    except Exception as e:
+        logger.error(f"Erreur statut sentiment: {e}")
         return {"success": False, "error": str(e)}
 
 @app.post("/api/sentiment/analyze/quick")
