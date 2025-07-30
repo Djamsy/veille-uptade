@@ -749,6 +749,38 @@ class RadioTranscriptionService:
             method_info = f" (segmenté: {transcription.get('segments_count', 1)} parties)" if use_segmented else ""
             logger.info(f"✅ Transcription sauvegardée pour {config['section']}{method_info}")
             
+            # ALERTE TELEGRAM - FIN DE TRANSCRIPTION
+            try:
+                from telegram_alerts_service import telegram_alerts
+                if telegram_alerts.bot:
+                    # Vérifier si Guy Losbar est mentionné
+                    transcription_text = transcription_record.get('transcription_text', '')
+                    gpt_text = transcription_record.get('gpt_analysis', '')
+                    full_content = f"{transcription_text} {gpt_text}".lower()
+                    
+                    guy_losbar_mentioned = any(keyword in full_content 
+                                             for keyword in ['guy losbar', 'losbar'])
+                    
+                    status_emoji = "🎯" if guy_losbar_mentioned else "✅"
+                    mention_info = "\n🚨 *Guy Losbar mentionné !*" if guy_losbar_mentioned else ""
+                    
+                    transcription_length = len(transcription_text)
+                    gpt_length = len(gpt_text)
+                    
+                    end_message = f"""📻 *TRANSCRIPTION TERMINÉE* {status_emoji}
+
+🎙️ Station: {config['name']}
+📍 Section: {config['section']}  
+⏱️ Durée: {config['duration_minutes']} minutes
+📝 Transcription: {transcription_length} caractères
+🤖 Analyse GPT: {gpt_length} caractères{mention_info}
+
+✅ Terminé le {datetime.now().strftime('%d/%m/%Y à %H:%M')}"""
+                    
+                    telegram_alerts.send_alert_sync(end_message)
+            except Exception as e:
+                logger.warning(f"Erreur alerte Telegram fin: {e}")
+            
         except Exception as e:
             result['error'] = str(e)  
             self.update_transcription_step(stream_key, "error", f"Erreur globale: {str(e)}", 0)
