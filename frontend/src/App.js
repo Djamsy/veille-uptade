@@ -579,6 +579,122 @@ function App() {
     }
   };
 
+  // Analyser le sentiment d'un texte
+  const analyzeSentiment = async (useAsync = false) => {
+    if (!sentimentText.trim()) {
+      setError('Veuillez entrer un texte à analyser');
+      return;
+    }
+
+    setSentimentLoading(true);
+    setSentimentResult(null);
+    setError(null);
+
+    try {
+      const response = await apiCall(`${BACKEND_URL}/api/sentiment/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          text: sentimentText.trim(),
+          async: useAsync 
+        })
+      });
+
+      if (response.success) {
+        if (response.async) {
+          // Mode asynchrone - polling du statut
+          setSentimentResult({ 
+            mode: 'async', 
+            status: 'processing', 
+            hash: response.text_hash,
+            message: response.message 
+          });
+          pollSentimentStatus(response.text_hash);
+        } else {
+          // Mode synchrone ou cache hit
+          setSentimentResult(response);
+        }
+      } else {
+        setError(`Erreur analyse sentiment: ${response.error}`);
+      }
+    } catch (error) {
+      setError(`Erreur analyse sentiment: ${error.message}`);
+    } finally {
+      setSentimentLoading(false);
+    }
+  };
+
+  // Polling du statut pour l'analyse asynchrone
+  const pollSentimentStatus = async (textHash) => {
+    let attempts = 0;
+    const maxAttempts = 15;
+
+    const poll = async () => {
+      attempts++;
+      try {
+        const response = await apiCall(`${BACKEND_URL}/api/sentiment/status/${textHash}`);
+        
+        if (response.success && response.status === 'completed') {
+          setSentimentResult(response);
+          setSentimentLoading(false);
+        } else if (response.status === 'not_found') {
+          // Réessayer l'analyse (probablement en cache maintenant)
+          analyzeSentiment(true);
+        } else if (attempts < maxAttempts) {
+          setTimeout(poll, 2000);
+        } else {
+          setError('Timeout: analyse plus longue que prévue');
+          setSentimentLoading(false);
+        }
+      } catch (error) {
+        setError(`Erreur vérification statut: ${error.message}`);
+        setSentimentLoading(false);
+      }
+    };
+
+    setTimeout(poll, 2000);
+  };
+
+  // Prédire la réaction de la population
+  const predictReaction = async () => {
+    if (!sentimentText.trim()) {
+      setError('Veuillez entrer un texte pour la prédiction');
+      return;
+    }
+
+    setPredictionLoading(true);
+    setReactionPrediction(null);
+    setError(null);
+
+    try {
+      const response = await apiCall(`${BACKEND_URL}/api/sentiment/predict-reaction`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          text: sentimentText.trim(),
+          context: { source: 'frontend_test' }
+        })
+      });
+
+      if (response.success) {
+        setReactionPrediction(response.prediction);
+      } else {
+        setError(`Erreur prédiction réaction: ${response.error}`);
+      }
+    } catch (error) {
+      setError(`Erreur prédiction réaction: ${error.message}`);
+    } finally {
+      setPredictionLoading(false);
+    }
+  };
+
+  // Utiliser un exemple de texte
+  const useSentimentExample = (example) => {
+    setSentimentText(example);
+    setSentimentResult(null);
+    setReactionPrediction(null);
+  };
+
   // Charger les stats des réseaux sociaux
   const loadSocialStats = async () => {
     try {
