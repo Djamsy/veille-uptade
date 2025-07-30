@@ -279,6 +279,59 @@ function App() {
     }
   };
 
+  // Charger les transcriptions par sections
+  const loadTranscriptionSections = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/transcriptions/sections`);
+      const data = await response.json();
+      if (data.success) {
+        setTranscriptionSections(data.sections);
+      }
+    } catch (error) {
+      console.error('Erreur chargement sections transcriptions:', error);
+    }
+  };
+
+  // Charger le statut des transcriptions
+  const loadTranscriptionStatus = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/transcriptions/status`);
+      const data = await response.json();
+      if (data.success) {
+        setTranscriptionStatus(data.status);
+      }
+    } catch (error) {
+      console.error('Erreur chargement statut transcriptions:', error);
+    }
+  };
+
+  // Lancer la capture d'une section spécifique
+  const captureSection = async (section) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${BACKEND_URL}/api/transcriptions/capture-now?section=${section}`, {
+        method: 'POST'
+      });
+      const data = await response.json();
+      if (data.success) {
+        alert(`✅ ${data.message}`);
+        // Actualiser le statut
+        setTimeout(() => {
+          loadTranscriptionStatus();
+        }, 1000);
+      } else {
+        alert(`❌ Erreur: ${data.error || 'Erreur inconnue'}`);
+      }
+    } catch (error) {
+      console.error('Erreur capture section:', error);
+      alert('❌ Erreur lors du lancement de la capture');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadTranscriptions = async () => {
+
   const createDigestNow = async () => {
     setLoading(true);
     try {
