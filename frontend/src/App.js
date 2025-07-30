@@ -200,6 +200,8 @@ function App() {
 
   useEffect(() => {
     loadDashboardStats();
+    loadAvailableSources(); // Charger les sources disponibles
+    
     if (activeTab !== 'dashboard') {
       loadTabData(activeTab);
     }
@@ -209,6 +211,10 @@ function App() {
       loadSearchSuggestions();
     } else if (activeTab === 'comments') {
       loadSocialStats();
+    } else if (activeTab === 'articles') {
+      loadFilteredArticles(); // Utiliser le nouveau système de filtrage
+    } else if (activeTab === 'analytics') {
+      loadAnalyticsData();
     } else if (activeTab === 'transcription') {
       loadTranscriptionSections();
       loadTranscriptionStatus();
