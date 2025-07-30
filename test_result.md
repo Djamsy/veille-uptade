@@ -177,11 +177,14 @@ backend:
     file: "server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Modified scrape-now endpoint to clear cache completely before and after scraping, ensuring fresh data display"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Scrape-now endpoint returns cache_cleared: true with message confirming cache clearing. Cache invalidation working correctly before and after scraping operations."
 
   - task: "Today-only articles display"
     implemented: true
