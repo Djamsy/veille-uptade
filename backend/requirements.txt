@@ -42,3 +42,8 @@ sumy==0.11.0
 pandas==2.1.4
 numpy==1.25.2
 python-dateutil==2.8.2
+
+# Pour le scraping et l'automatisation
+snscrape
+playwright
+asyncio-compat
