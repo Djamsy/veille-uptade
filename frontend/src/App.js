@@ -948,8 +948,20 @@ function App() {
         {/* Transcriptions Radio */}
         {activeTab === 'transcription' && (
           <div className="space-y-6">
+            {/* En-tête avec statut global */}
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-gray-800">📻 Transcriptions Radio</h2>
+              <div>
+                <h2 className="text-2xl font-bold text-gray-800">📻 Transcriptions Radio</h2>
+                <div className="flex items-center gap-2 mt-1">
+                  <div className={`w-3 h-3 rounded-full ${transcriptionStatus.global_status.any_in_progress ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
+                  <span className="text-sm text-gray-600">
+                    {transcriptionStatus.global_status.any_in_progress 
+                      ? `${transcriptionStatus.global_status.active_sections} transcription(s) en cours`
+                      : 'Aucune transcription en cours'
+                    }
+                  </span>
+                </div>
+              </div>
               <div className="flex gap-2">
                 <button
                   onClick={captureRadioNow}
@@ -960,7 +972,7 @@ function App() {
                       : 'bg-green-500 hover:bg-green-600 text-white'
                   }`}
                 >
-                  {backgroundTasks.capturing ? '⏳ Capture...' : '📻 Capturer Maintenant'}
+                  {backgroundTasks.capturing ? '⏳ Capture...' : '📻 Capturer Tout'}
                 </button>
                 <label className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors cursor-pointer">
                   📤 Upload Audio
@@ -969,56 +981,147 @@ function App() {
               </div>
             </div>
 
-            <div className="bg-white p-4 rounded-lg shadow-md">
-              <p className="text-sm text-gray-600">
-                <strong>Flux automatiques :</strong> 2 radios guadeloupéennes | 
-                <strong> Programmé :</strong> Tous les jours à 7H00 (7H00-7H20 et 7H00-7H30) |
-                <strong> Cache :</strong> 5 minutes
-              </p>
+            {/* Sections de transcription prédéfinies */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Section 7H RCI */}
+              <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-blue-500">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-800">🎙️ 7H RCI</h3>
+                    <p className="text-sm text-gray-600">RCI Guadeloupe - Journal matinal</p>
+                    <p className="text-xs text-gray-500">07:00 - 07:20 (20 min)</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {transcriptionStatus.sections?.rci_7h?.in_progress && (
+                      <div className="flex items-center gap-1 text-green-600">
+                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                        <span className="text-xs">En cours...</span>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => captureSection('rci')}
+                      disabled={loading || transcriptionStatus.sections?.rci_7h?.in_progress}
+                      className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-semibold transition-colors disabled:bg-gray-400"
+                    >
+                      📻 Capturer
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {transcriptionSections["7H RCI"]?.length > 0 ? (
+                    transcriptionSections["7H RCI"].slice(0, 3).map(t => (
+                      <div key={t.id} className="bg-gray-50 p-3 rounded-lg">
+                        <p className="text-sm text-gray-700 italic">"{t.transcription_text.substring(0, 100)}..."</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(t.captured_at || t.uploaded_at).toLocaleString('fr-FR')}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-6 text-gray-500">
+                      <div className="text-2xl mb-2">📻</div>
+                      <p className="text-sm">Aucune transcription aujourd'hui</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Section 7H Guadeloupe Première */}
+              <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-green-500">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-800">🌴 7H Guadeloupe Première</h3>
+                    <p className="text-sm text-gray-600">Guadeloupe Première - Actualités matinales</p>
+                    <p className="text-xs text-gray-500">07:00 - 07:30 (30 min)</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {transcriptionStatus.sections?.guadeloupe_premiere_7h?.in_progress && (
+                      <div className="flex items-center gap-1 text-green-600">
+                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                        <span className="text-xs">En cours...</span>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => captureSection('guadeloupe')}
+                      disabled={loading || transcriptionStatus.sections?.guadeloupe_premiere_7h?.in_progress}
+                      className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm font-semibold transition-colors disabled:bg-gray-400"
+                    >
+                      📻 Capturer
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {transcriptionSections["7H Guadeloupe Première"]?.length > 0 ? (
+                    transcriptionSections["7H Guadeloupe Première"].slice(0, 3).map(t => (
+                      <div key={t.id} className="bg-gray-50 p-3 rounded-lg">
+                        <p className="text-sm text-gray-700 italic">"{t.transcription_text.substring(0, 100)}..."</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(t.captured_at || t.uploaded_at).toLocaleString('fr-FR')}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-6 text-gray-500">
+                      <div className="text-2xl mb-2">🌴</div>
+                      <p className="text-sm">Aucune transcription aujourd'hui</p>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
-            <div className="grid gap-6">
-              {transcriptions.map(transcription => (
-                <div key={transcription.id} className="bg-white p-6 rounded-xl shadow-lg">
-                  <div className="flex justify-between items-start mb-3">
-                    <h3 className="text-xl font-bold text-gray-800">
-                      {transcription.stream_name || transcription.filename}
-                    </h3>
-                    <div className="flex gap-2">
-                      <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm">
-                        {Math.round(transcription.duration_seconds || 0)}s
-                      </span>
-                      <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
-                        {transcription.language || 'fr'}
-                      </span>
+            {/* Section Autres */}
+            {transcriptionSections["Autres"]?.length > 0 && (
+              <div className="bg-white p-6 rounded-xl shadow-lg">
+                <h3 className="text-xl font-bold text-gray-800 mb-4">📤 Fichiers Uploadés</h3>
+                <div className="grid gap-4">
+                  {transcriptionSections["Autres"].map(transcription => (
+                    <div key={transcription.id} className="bg-gray-50 p-4 rounded-lg">
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-semibold text-gray-800">{transcription.filename}</h4>
+                        <div className="flex gap-2">
+                          <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">
+                            {Math.round(transcription.duration_seconds || 0)}s
+                          </span>
+                          <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
+                            {transcription.language || 'fr'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="bg-white p-3 rounded border-l-2 border-gray-300 mb-2">
+                        <p className="text-gray-700 italic">"{transcription.transcription_text || 'Transcription vide'}"</p>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Uploadé le {new Date(transcription.uploaded_at).toLocaleString('fr-FR')}
+                      </p>
                     </div>
-                  </div>
-                  <div className="bg-gray-50 p-4 rounded-lg mb-3">
-                    <p className="text-gray-700 italic">"{transcription.transcription_text}"</p>
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {transcription.captured_at ? 
-                      `Capturé le ${new Date(transcription.captured_at).toLocaleString('fr-FR')}` :
-                      `Uploadé le ${new Date(transcription.uploaded_at).toLocaleString('fr-FR')}`
-                    }
-                  </div>
+                  ))}
                 </div>
-              ))}
-              {transcriptions.length === 0 && !loading && (
-                <div className="text-center py-12 text-gray-500">
-                  <div className="text-6xl mb-4">📻</div>
-                  <p className="text-xl">Aucune transcription pour cette date</p>
-                  <p>La capture automatique a lieu tous les jours à 7H</p>
+              </div>
+            )}
+
+            {/* Message si aucune transcription */}
+            {Object.values(transcriptionSections).every(section => section.length === 0) && !loading && (
+              <div className="text-center py-12 text-gray-500">
+                <div className="text-6xl mb-4">📻</div>
+                <p className="text-xl mb-2">Aucune transcription pour aujourd'hui</p>
+                <p className="mb-4">La capture automatique a lieu tous les jours à 7H</p>
+                <div className="flex justify-center gap-4">
                   <button
-                    onClick={captureRadioNow}
-                    disabled={backgroundTasks.capturing}
-                    className="mt-4 bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+                    onClick={() => captureSection('rci')}
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
                   >
-                    {backgroundTasks.capturing ? '⏳ Capture...' : '📻 Lancer la capture'}
+                    📻 Capturer 7H RCI
+                  </button>
+                  <button
+                    onClick={() => captureSection('guadeloupe')}
+                    className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+                  >
+                    📻 Capturer Guadeloupe 1ère
                   </button>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         )}
 
