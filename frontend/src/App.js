@@ -806,11 +806,6 @@ function App() {
                 </div>
               </div>
             </div>
-                <div className="stat-sublabel">
-                  {dashboardStats.cache_stats?.valid_cached_keys || 0} clés actives
-                </div>
-              </div>
-            </div>
 
             {/* Résultats de recherche automatique */}
             {autoSearchCompleted && Object.keys(autoSearchResults).length > 0 && (
