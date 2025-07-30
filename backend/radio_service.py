@@ -76,9 +76,9 @@ class RadioTranscriptionService:
             with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_file:
                 temp_path = temp_file.name
             
-            # Commande FFmpeg pour capturer le flux
+            # Commande FFmpeg pour capturer le flux avec chemin complet
             cmd = [
-                'ffmpeg',
+                '/usr/bin/ffmpeg',
                 '-i', config['url'],
                 '-t', str(duration_seconds),
                 '-acodec', 'mp3',
