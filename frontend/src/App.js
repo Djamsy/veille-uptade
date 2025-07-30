@@ -1983,6 +1983,484 @@ function App() {
             </div>
           </div>
         )}
+
+        {/* Analyse de Sentiment et Prédiction des Réactions */}
+        {activeTab === 'sentiment' && (
+          <div className="animate-slide-in">
+            <div className="section-header">
+              <h2 className="section-title">🧠 Analyse de Sentiment & Anticipation Réactions</h2>
+              <p className="section-subtitle">Analyse GPT contextuelle pour la Guadeloupe</p>
+            </div>
+
+            {/* Interface d'analyse */}
+            <div className="glass-card animate-slide-in" style={{ padding: '2rem', marginBottom: '2rem' }}>
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{ 
+                  display: 'block', 
+                  marginBottom: '0.5rem', 
+                  color: '#e2e8f0', 
+                  fontWeight: '600' 
+                }}>
+                  Texte à analyser :
+                </label>
+                <textarea
+                  value={sentimentText}
+                  onChange={(e) => setSentimentText(e.target.value)}
+                  placeholder="Entrez un texte d'actualité, une déclaration politique, ou un événement local..."
+                  rows="4"
+                  style={{
+                    width: '100%',
+                    padding: '1rem',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    background: 'rgba(15, 23, 42, 0.8)',
+                    color: '#e2e8f0',
+                    fontSize: '1rem',
+                    resize: 'vertical'
+                  }}
+                />
+              </div>
+
+              {/* Exemples rapides */}
+              <div style={{ marginBottom: '1.5rem' }}>
+                <p style={{ color: '#94a3b8', marginBottom: '0.5rem', fontSize: '0.875rem' }}>
+                  💡 Exemples Guadeloupe :
+                </p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  {[
+                    "Guy Losbar annonce de nouveaux investissements pour le développement durable",
+                    "Le Conseil Départemental vote le budget pour soutenir les familles en difficulté",
+                    "Grave accident de la route en Guadeloupe, plusieurs blessés dans un état critique",
+                    "Excellent festival de musique créole à Pointe-à-Pitre",
+                    "CD971 lance une politique sociale ambitieuse pour les jeunes"
+                  ].map((example, i) => (
+                    <button
+                      key={i}
+                      onClick={() => useSentimentExample(example)}
+                      style={{
+                        padding: '0.5rem 1rem',
+                        background: 'rgba(59, 130, 246, 0.1)',
+                        border: '1px solid rgba(59, 130, 246, 0.3)',
+                        borderRadius: '6px',
+                        color: '#93c5fd',
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseOver={(e) => {
+                        e.target.style.background = 'rgba(59, 130, 246, 0.2)';
+                      }}
+                      onMouseOut={(e) => {
+                        e.target.style.background = 'rgba(59, 130, 246, 0.1)';
+                      }}
+                    >
+                      {example.length > 50 ? example.substring(0, 50) + '...' : example}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Boutons d'action */}
+              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => analyzeSentiment(false)}
+                  disabled={sentimentLoading || !sentimentText.trim()}
+                  className="btn-primary"
+                  style={{ 
+                    opacity: sentimentLoading || !sentimentText.trim() ? 0.5 : 1,
+                    cursor: sentimentLoading || !sentimentText.trim() ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {sentimentLoading ? '⏳ Analyse...' : '📊 Analyse Synchrone (3-8s)'}
+                </button>
+                
+                <button
+                  onClick={() => analyzeSentiment(true)}
+                  disabled={sentimentLoading || !sentimentText.trim()}
+                  className="btn-secondary"
+                  style={{ 
+                    opacity: sentimentLoading || !sentimentText.trim() ? 0.5 : 1,
+                    cursor: sentimentLoading || !sentimentText.trim() ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {sentimentLoading ? '⏳ Traitement...' : '⚡ Analyse Asynchrone (instantané si cache)'}
+                </button>
+
+                <button
+                  onClick={predictReaction}
+                  disabled={predictionLoading || !sentimentText.trim()}
+                  className="btn-accent"
+                  style={{ 
+                    opacity: predictionLoading || !sentimentText.trim() ? 0.5 : 1,
+                    cursor: predictionLoading || !sentimentText.trim() ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {predictionLoading ? '⏳ Prédiction...' : '🔮 Prédire la Réaction Population'}
+                </button>
+              </div>
+            </div>
+
+            {/* Résultats de l'analyse de sentiment */}
+            {sentimentResult && (
+              <div className="glass-card animate-slide-in" style={{ padding: '2rem', marginBottom: '2rem' }}>
+                <h3 className="section-title" style={{ marginBottom: '1.5rem' }}>
+                  📊 Résultats de l'Analyse de Sentiment
+                </h3>
+
+                {sentimentResult.mode === 'async' && sentimentResult.status === 'processing' ? (
+                  <div style={{ textAlign: 'center', padding: '2rem' }}>
+                    <div className="animate-pulse" style={{
+                      width: '40px',
+                      height: '40px',
+                      background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+                      borderRadius: '50%',
+                      margin: '0 auto 1rem'
+                    }}></div>
+                    <p style={{ color: '#e2e8f0' }}>⏳ {sentimentResult.message}</p>
+                    <p style={{ color: '#94a3b8', fontSize: '0.875rem' }}>
+                      Hash: {sentimentResult.hash}
+                    </p>
+                  </div>
+                ) : sentimentResult.analysis ? (
+                  <div>
+                    {/* Sentiment principal */}
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '1rem', 
+                      marginBottom: '2rem',
+                      padding: '1.5rem',
+                      background: 'rgba(15, 23, 42, 0.6)',
+                      borderRadius: '12px'
+                    }}>
+                      <div style={{
+                        fontSize: '3rem',
+                        background: sentimentResult.analysis.basic_sentiment.polarity === 'positive' ? 'linear-gradient(135deg, #10b981, #34d399)' : 
+                                   sentimentResult.analysis.basic_sentiment.polarity === 'negative' ? 'linear-gradient(135deg, #ef4444, #f87171)' : 
+                                   'linear-gradient(135deg, #6b7280, #9ca3af)',
+                        borderRadius: '50%',
+                        width: '80px',
+                        height: '80px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        {sentimentResult.analysis.basic_sentiment.polarity === 'positive' ? '😊' : 
+                         sentimentResult.analysis.basic_sentiment.polarity === 'negative' ? '😞' : '😐'}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#e2e8f0', marginBottom: '0.5rem' }}>
+                          Sentiment: {sentimentResult.analysis.basic_sentiment.polarity} 
+                          ({sentimentResult.analysis.basic_sentiment.score > 0 ? '+' : ''}{sentimentResult.analysis.basic_sentiment.score})
+                        </div>
+                        <div style={{ color: '#94a3b8' }}>
+                          Intensité: {sentimentResult.analysis.basic_sentiment.intensity} • 
+                          Confiance: {Math.round(sentimentResult.analysis.basic_sentiment.confidence * 100)}% •
+                          Urgence: {sentimentResult.analysis.contextual_analysis.urgency_level}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Contexte Guadeloupe */}
+                    {sentimentResult.analysis.contextual_analysis.guadeloupe_relevance && (
+                      <div style={{ marginBottom: '2rem' }}>
+                        <h4 style={{ color: '#fbbf24', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          🏝️ Contexte Guadeloupe
+                        </h4>
+                        <p style={{ 
+                          color: '#e2e8f0', 
+                          lineHeight: '1.6',
+                          padding: '1rem',
+                          background: 'rgba(251, 191, 36, 0.1)',
+                          borderRadius: '8px',
+                          borderLeft: '4px solid #fbbf24'
+                        }}>
+                          {sentimentResult.analysis.contextual_analysis.guadeloupe_relevance}
+                        </p>
+                        {sentimentResult.analysis.contextual_analysis.local_impact && (
+                          <p style={{ 
+                            color: '#94a3b8', 
+                            fontSize: '0.875rem',
+                            marginTop: '0.5rem',
+                            fontStyle: 'italic'
+                          }}>
+                            <strong>Impact local:</strong> {sentimentResult.analysis.contextual_analysis.local_impact}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Parties prenantes */}
+                    {(sentimentResult.analysis.stakeholders.personalities.length > 0 || sentimentResult.analysis.stakeholders.institutions.length > 0) && (
+                      <div style={{ marginBottom: '2rem' }}>
+                        <h4 style={{ color: '#8b5cf6', marginBottom: '1rem' }}>👥 Parties Prenantes Identifiées</h4>
+                        <div style={{ display: 'flex', gap: '2rem' }}>
+                          {sentimentResult.analysis.stakeholders.personalities.length > 0 && (
+                            <div>
+                              <p style={{ color: '#e2e8f0', marginBottom: '0.5rem', fontSize: '0.875rem' }}>Personnalités:</p>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                {sentimentResult.analysis.stakeholders.personalities.map((person, i) => (
+                                  <span key={i} style={{
+                                    padding: '0.25rem 0.75rem',
+                                    background: 'rgba(139, 92, 246, 0.2)',
+                                    border: '1px solid rgba(139, 92, 246, 0.3)',
+                                    borderRadius: '12px',
+                                    color: '#c4b5fd',
+                                    fontSize: '0.875rem'
+                                  }}>
+                                    {person}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {sentimentResult.analysis.stakeholders.institutions.length > 0 && (
+                            <div>
+                              <p style={{ color: '#e2e8f0', marginBottom: '0.5rem', fontSize: '0.875rem' }}>Institutions:</p>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                {sentimentResult.analysis.stakeholders.institutions.map((institution, i) => (
+                                  <span key={i} style={{
+                                    padding: '0.25rem 0.75rem',
+                                    background: 'rgba(59, 130, 246, 0.2)',
+                                    border: '1px solid rgba(59, 130, 246, 0.3)',
+                                    borderRadius: '12px',
+                                    color: '#93c5fd',
+                                    fontSize: '0.875rem'
+                                  }}>
+                                    {institution}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Thèmes et émotions */}
+                    <div style={{ marginBottom: '2rem' }}>
+                      <h4 style={{ color: '#10b981', marginBottom: '1rem' }}>📋 Analyse Thématique</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                        <div>
+                          <p style={{ color: '#e2e8f0', marginBottom: '0.5rem', fontSize: '0.875rem' }}>Thèmes:</p>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                            {sentimentResult.analysis.thematic_breakdown.themes.map((theme, i) => (
+                              <span key={i} style={{
+                                padding: '0.25rem 0.5rem',
+                                background: 'rgba(16, 185, 129, 0.2)',
+                                borderRadius: '6px',
+                                color: '#6ee7b7',
+                                fontSize: '0.75rem'
+                              }}>
+                                {theme}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <p style={{ color: '#e2e8f0', marginBottom: '0.5rem', fontSize: '0.875rem' }}>Émotions:</p>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                            {sentimentResult.analysis.thematic_breakdown.emotions.map((emotion, i) => (
+                              <span key={i} style={{
+                                padding: '0.25rem 0.5rem',
+                                background: 'rgba(245, 158, 11, 0.2)',
+                                borderRadius: '6px',
+                                color: '#fbbf24',
+                                fontSize: '0.75rem'
+                              }}>
+                                {emotion}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Recommandations */}
+                    {sentimentResult.analysis.recommendations.suggested_actions.length > 0 && (
+                      <div style={{ marginBottom: '2rem' }}>
+                        <h4 style={{ color: '#06b6d4', marginBottom: '1rem' }}>💡 Recommandations</h4>
+                        <ul style={{ listStyle: 'none', padding: 0 }}>
+                          {sentimentResult.analysis.recommendations.suggested_actions.map((action, i) => (
+                            <li key={i} style={{
+                              padding: '0.75rem',
+                              background: 'rgba(6, 182, 212, 0.1)',
+                              borderRadius: '8px',
+                              borderLeft: '4px solid #06b6d4',
+                              color: '#e2e8f0',
+                              marginBottom: '0.5rem'
+                            }}>
+                              • {action}
+                            </li>
+                          ))}
+                        </ul>
+                        {sentimentResult.analysis.recommendations.follow_up_needed && (
+                          <p style={{ 
+                            color: '#fbbf24', 
+                            fontSize: '0.875rem',
+                            marginTop: '1rem',
+                            fontWeight: '600'
+                          }}>
+                            ⚠️ Suivi recommandé
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Alertes */}
+                    {sentimentResult.analysis.recommendations.alerts.length > 0 && (
+                      <div style={{
+                        padding: '1rem',
+                        background: 'rgba(239, 68, 68, 0.1)',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        borderRadius: '8px',
+                        marginBottom: '2rem'
+                      }}>
+                        <h4 style={{ color: '#f87171', marginBottom: '0.5rem' }}>⚠️ Alertes</h4>
+                        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                          {sentimentResult.analysis.recommendations.alerts.map((alert, i) => (
+                            <li key={i} style={{ color: '#fca5a5', marginBottom: '0.25rem' }}>
+                              • {alert}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Métadonnées */}
+                    <div style={{ 
+                      padding: '1rem',
+                      background: 'rgba(75, 85, 99, 0.1)',
+                      borderRadius: '8px',
+                      fontSize: '0.875rem',
+                      color: '#9ca3af'
+                    }}>
+                      <strong>Métadonnées:</strong> 
+                      Méthode: {sentimentResult.metadata?.method || 'N/A'} | 
+                      Temps: {sentimentResult.processing_time || sentimentResult.metadata?.processing_time || 'N/A'} | 
+                      Mots: {sentimentResult.metadata?.word_count || 'N/A'} | 
+                      {sentimentResult.metadata?.analyzed_at && `Analysé: ${new Date(sentimentResult.metadata.analyzed_at).toLocaleString('fr-FR')}`}
+                      {sentimentResult.cached && ' | 📋 Résultat en cache'}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>
+                    <p>Format de réponse inattendu</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Prédiction des réactions */}
+            {reactionPrediction && (
+              <div className="glass-card animate-slide-in" style={{ padding: '2rem' }}>
+                <h3 className="section-title" style={{ marginBottom: '1.5rem' }}>
+                  🔮 Anticipation de la Réaction de la Population
+                </h3>
+
+                {/* Réaction globale */}
+                <div style={{
+                  textAlign: 'center',
+                  padding: '2rem',
+                  background: 'rgba(15, 23, 42, 0.6)',
+                  borderRadius: '12px',
+                  marginBottom: '2rem'
+                }}>
+                  <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>
+                    {reactionPrediction.population_reaction.overall_reaction === 'très positive' ? '🎉' :
+                     reactionPrediction.population_reaction.overall_reaction === 'positive' ? '😊' :
+                     reactionPrediction.population_reaction.overall_reaction === 'neutre' ? '😐' :
+                     reactionPrediction.population_reaction.overall_reaction === 'négative' ? '😞' : '😡'}
+                  </div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#e2e8f0', marginBottom: '0.5rem' }}>
+                    Réaction Globale: {reactionPrediction.population_reaction.overall_reaction}
+                  </div>
+                  <div style={{ color: '#94a3b8' }}>
+                    Score: {reactionPrediction.population_reaction.overall_score} | 
+                    Polarisation: {reactionPrediction.population_reaction.polarization_risk} | 
+                    Confiance: {Math.round(reactionPrediction.confidence * 100)}%
+                  </div>
+                </div>
+
+                {/* Réactions par segment */}
+                <div style={{ marginBottom: '2rem' }}>
+                  <h4 style={{ color: '#8b5cf6', marginBottom: '1rem' }}>👥 Réactions par Segment de Population</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
+                    {Object.entries(reactionPrediction.population_reaction.by_demographic).map(([segment, data]) => (
+                      <div key={segment} style={{
+                        padding: '1rem',
+                        background: 'rgba(75, 85, 99, 0.1)',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(139, 92, 246, 0.2)'
+                      }}>
+                        <div style={{ fontWeight: 'bold', color: '#e2e8f0', marginBottom: '0.5rem' }}>
+                          {segment.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        </div>
+                        <div style={{ color: '#c4b5fd', marginBottom: '0.5rem' }}>
+                          {data.reaction_label} ({data.reaction_score})
+                        </div>
+                        <div style={{ fontSize: '0.875rem', color: '#94a3b8' }}>
+                          Engagement: {data.engagement_likelihood}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.5rem' }}>
+                          Préoccupations: {data.key_concerns.join(', ')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Données sources */}
+                <div style={{ marginBottom: '2rem' }}>
+                  <h4 style={{ color: '#10b981', marginBottom: '1rem' }}>📊 Sources de Données Utilisées</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                    <div style={{
+                      padding: '1rem',
+                      background: 'rgba(16, 185, 129, 0.1)',
+                      borderRadius: '8px'
+                    }}>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#6ee7b7' }}>
+                        {reactionPrediction.data_sources.similar_articles}
+                      </div>
+                      <div style={{ color: '#94a3b8', fontSize: '0.875rem' }}>Articles similaires</div>
+                    </div>
+                    <div style={{
+                      padding: '1rem',
+                      background: 'rgba(59, 130, 246, 0.1)',
+                      borderRadius: '8px'
+                    }}>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#93c5fd' }}>
+                        {reactionPrediction.data_sources.similar_social_posts}
+                      </div>
+                      <div style={{ color: '#94a3b8', fontSize: '0.875rem' }}>Posts réseaux sociaux</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recommandations stratégiques */}
+                {reactionPrediction.strategic_recommendations.length > 0 && (
+                  <div>
+                    <h4 style={{ color: '#f59e0b', marginBottom: '1rem' }}>🎯 Recommandations Stratégiques</h4>
+                    <div style={{ display: 'grid', gap: '0.5rem' }}>
+                      {reactionPrediction.strategic_recommendations.map((recommendation, i) => (
+                        <div key={i} style={{
+                          padding: '1rem',
+                          background: 'rgba(245, 158, 11, 0.1)',
+                          borderRadius: '8px',
+                          borderLeft: '4px solid #f59e0b',
+                          color: '#e2e8f0'
+                        }}>
+                          {recommendation}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
       </main>
     </div>
   );
