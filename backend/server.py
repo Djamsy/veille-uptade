@@ -448,7 +448,12 @@ async def transcribe_audio(file: UploadFile = File(...)):
                     "source": "upload"
                 }
                 
-                transcriptions_collection.insert_one(record)
+                # Insérer en base de données
+                insert_result = transcriptions_collection.insert_one(record.copy())
+                
+                # Retirer l'ObjectId ajouté par MongoDB pour éviter les erreurs de sérialisation JSON
+                if '_id' in record:
+                    del record['_id']
                 
                 # Invalider le cache des transcriptions
                 cache_invalidate('transcriptions')
