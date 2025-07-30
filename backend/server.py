@@ -1808,6 +1808,52 @@ async def test_gpt_analysis(text: str = None):
             "timestamp": datetime.now().isoformat()
         }
 
+@app.post("/api/test-capture-long")
+async def test_long_capture_segmented(minutes: int = 5, admin_key: str = None):
+    """Tester la capture longue segmentée - ADMIN UNIQUEMENT"""
+    try:
+        # Vérification admin
+        if admin_key != "radio_capture_admin_2025":
+            return {
+                "success": False,
+                "error": "Test capture longue réservé à l'administration"
+            }
+        
+        # Limiter à 20 minutes max pour sécurité
+        if minutes > 20:
+            minutes = 20
+        
+        # Modifier temporairement la durée pour le test
+        original_duration = radio_service.radio_streams["rci_7h"]["duration_minutes"]  
+        radio_service.radio_streams["rci_7h"]["duration_minutes"] = minutes
+        
+        try:
+            logger.info(f"🧪 Test capture longue segmentée: {minutes} minutes")
+            
+            # Forcer l'utilisation de la méthode segmentée
+            result = radio_service.capture_and_transcribe_stream("rci_7h", use_segmented=True)
+            
+            return {
+                "success": result.get('success', False),
+                "message": f"Test capture segmentée {minutes} minutes",
+                "method": "segmented",
+                "duration_minutes": minutes,
+                "result": result,
+                "segments_info": result.get('transcription', {}).get('segments_info', []),
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        finally:
+            # Restaurer la durée originale
+            radio_service.radio_streams["rci_7h"]["duration_minutes"] = original_duration
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Erreur test capture longue: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+
 @app.post("/api/test-capture-and-save")
 async def test_capture_and_save(admin_key: str = None):
     """Test capture rapide 10s + sauvegarde en DB - ADMIN UNIQUEMENT"""
