@@ -147,12 +147,12 @@ class VeilleScheduler:
     def setup_jobs(self):
         """Configurer les tâches programmées"""
         
-        # Job scraping articles à 10H00 tous les jours
+        # Job scraping articles TOUTES LES HEURES (au lieu de 10H seulement)
         self.scheduler.add_job(
             func=self.job_scrape_articles,
-            trigger=CronTrigger(hour=10, minute=0),
+            trigger=CronTrigger(minute=0),  # Toutes les heures à la minute 0
             id='scrape_articles',
-            name='Scraping Articles 10H',
+            name='Scraping Articles Horaire',
             replace_existing=True,
             max_instances=1
         )
@@ -177,10 +177,21 @@ class VeilleScheduler:
             max_instances=1
         )
         
+        # Job nettoyage cache après 24H (tous les jours à 2H du matin)
+        self.scheduler.add_job(
+            func=self.job_clean_cache_24h,
+            trigger=CronTrigger(hour=2, minute=0),
+            id='clean_cache_24h',
+            name='Nettoyage Cache 24H',
+            replace_existing=True,
+            max_instances=1
+        )
+        
         logger.info("📅 Jobs programmés configurés:")
-        logger.info("   - Scraping articles: 10H00")
+        logger.info("   - Scraping articles: TOUTES LES HEURES")
         logger.info("   - Capture radio: 7H00")
         logger.info("   - Digest quotidien: 12H00")
+        logger.info("   - Nettoyage cache: 2H00 (après 24H)")
 
     def start(self):
         """Démarrer le scheduler"""
