@@ -580,10 +580,14 @@ class RadioTranscriptionService:
         
         return sections
 
-    def capture_and_transcribe_stream(self, stream_key: str) -> Dict[str, Any]:
-        """Capturer et transcrire un flux radio avec analyse GPT"""
+    def capture_and_transcribe_stream(self, stream_key: str, use_segmented: bool = None) -> Dict[str, Any]:
+        """Capturer et transcrire un flux radio avec analyse GPT (segmenté pour les longues durées)"""
         config = self.radio_streams[stream_key]
         duration_seconds = config['duration_minutes'] * 60
+        
+        # Utiliser la capture segmentée automatiquement pour les durées > 10 minutes
+        if use_segmented is None:
+            use_segmented = duration_seconds > 600  # Plus de 10 minutes
         
         result = {
             'success': False,
@@ -592,95 +596,148 @@ class RadioTranscriptionService:
             'section': config['section'],
             'timestamp': datetime.now().isoformat(),
             'error': None,
-            'transcription': None
+            'transcription': None,
+            'method': 'segmented' if use_segmented else 'single'
         }
         
         try:
-            # Marquer comme en cours
+            # Marquer comme en cours avec la nouvelle méthode
             self.update_transcription_step(stream_key, "audio_capture", "Initialisation...", 5)
             
-            # 1. Capturer le flux
-            audio_path = self.capture_radio_stream(stream_key, duration_seconds)
-            if not audio_path:
-                result['error'] = "Échec de la capture audio"
-                return result
-            
-            try:
-                # 2. Transcrire l'audio
-                transcription = self.transcribe_audio_file(audio_path, stream_key)
-                if not transcription:
-                    result['error'] = "Échec de la transcription"
+            if use_segmented:
+                logger.info(f"🎬 Capture segmentée activée pour {config['name']} ({duration_seconds}s)")
+                
+                # 1. Capturer par segments
+                segments_paths = self.capture_radio_stream_segmented(stream_key, duration_seconds)
+                
+                if not segments_paths:
+                    result['error'] = "Échec de la capture segmentée - aucun segment valide"
                     return result
                 
-                # 3. Analyse intelligente avec GPT-4.1-mini
-                self.update_transcription_step(stream_key, "gpt_analysis", "Analyse GPT en cours...", 80)
-                logger.info("🧠 Analyse GPT de la transcription...")
+                # 2. Choix: transcrire individuellement (plus fiable) ou concaténer puis transcrire
+                if len(segments_paths) > 3:  # Si beaucoup de segments, transcrire individuellement
+                    logger.info("🎤 Transcription individuelle des segments...")
+                    segment_transcriptions = self.transcribe_segments_individually(segments_paths, stream_key)
+                    
+                    if not segment_transcriptions:
+                        result['error'] = "Échec de la transcription segmentée"
+                        return result
+                    
+                    # Fusionner les transcriptions
+                    self.update_transcription_step(stream_key, "transcription", "Fusion des transcriptions...", 75)
+                    transcription = self.merge_transcriptions(segment_transcriptions)
+                    
+                else:  # Peu de segments, concaténer puis transcrire
+                    logger.info("🔗 Assemblage puis transcription...")
+                    concatenated_path = self.concatenate_audio_segments(segments_paths, stream_key)
+                    
+                    if not concatenated_path:
+                        result['error'] = "Échec de l'assemblage des segments"
+                        return result
+                    
+                    try:
+                        transcription = self.transcribe_audio_file(concatenated_path, stream_key)
+                    finally:
+                        # Nettoyer le fichier concaténé
+                        if concatenated_path and os.path.exists(concatenated_path):
+                            os.unlink(concatenated_path)
+                
+                # Nettoyer les segments
+                for segment_path in segments_paths:
+                    if os.path.exists(segment_path):
+                        os.unlink(segment_path)
+                        
+            else:
+                # 1. Capture simple (méthode originale pour durées courtes)
+                audio_path = self.capture_radio_stream(stream_key, duration_seconds)
+                if not audio_path:
+                    result['error'] = "Échec de la capture audio"
+                    return result
                 
                 try:
-                    from gpt_analysis_service import analyze_transcription_with_gpt
-                    gpt_analysis = analyze_transcription_with_gpt(transcription['text'], config['name'])
-                except ImportError:
-                    logger.warning("Service GPT non disponible, utilisation du fallback local")
-                    from transcription_analysis_service import analyze_transcription
-                    gpt_analysis = analyze_transcription(transcription['text'], config['name'])
+                    # 2. Transcrire l'audio
+                    transcription = self.transcribe_audio_file(audio_path, stream_key)
+                finally:
+                    # Nettoyer le fichier temporaire
+                    if audio_path and os.path.exists(audio_path):
+                        os.unlink(audio_path)
+            
+            if not transcription:
+                result['error'] = "Échec de la transcription"
+                return result
+            
+            # 3. Analyse intelligente avec GPT-4.1-mini
+            self.update_transcription_step(stream_key, "gpt_analysis", "Analyse GPT en cours...", 80)
+            logger.info("🧠 Analyse GPT de la transcription...")
+            
+            try:
+                from gpt_analysis_service import analyze_transcription_with_gpt
+                gpt_analysis = analyze_transcription_with_gpt(transcription['text'], config['name'])
+            except ImportError:
+                logger.warning("Service GPT non disponible, utilisation du fallback local")
+                from transcription_analysis_service import analyze_transcription
+                gpt_analysis = analyze_transcription(transcription['text'], config['name'])
+            
+            self.update_transcription_step(stream_key, "completed", "Sauvegarde en cours...", 95)
+            
+            # 4. Sauvegarder en base de données avec analyse GPT
+            transcription_record = {
+                'id': f"{stream_key}_{int(time.time())}",
+                'stream_key': stream_key,
+                'stream_name': config['name'],
+                'section': config['section'],
+                'description': config['description'],
+                'stream_url': config['url'],
                 
-                self.update_transcription_step(stream_key, "completed", "Sauvegarde en cours...", 95)
+                # Transcription brute
+                'transcription_text': transcription['text'],
+                'language': transcription['language'],
+                'duration_seconds': transcription.get('duration', duration_seconds),
+                'segments': transcription.get('segments', []),
+                'transcription_method': transcription.get('method', 'openai_whisper_api'),
                 
-                # 4. Sauvegarder en base de données avec analyse GPT
-                transcription_record = {
-                    'id': f"{stream_key}_{int(time.time())}",
-                    'stream_key': stream_key,
-                    'stream_name': config['name'],
-                    'section': config['section'],
-                    'description': config['description'],
-                    'stream_url': config['url'],
-                    
-                    # Transcription brute
-                    'transcription_text': transcription['text'],
-                    'language': transcription['language'],
-                    'duration_seconds': transcription['duration'],
-                    'segments': transcription['segments'],
-                    
-                    # Analyse GPT
-                    'gpt_analysis': gpt_analysis.get('gpt_analysis', gpt_analysis.get('summary', '')),
-                    'ai_summary': gpt_analysis.get('gpt_analysis', gpt_analysis.get('summary', '')),
-                    'analysis_method': gpt_analysis.get('analysis_method', 'gpt-4o-mini'),
-                    'analysis_status': gpt_analysis.get('status', 'success'),
-                    'ai_analysis_metadata': gpt_analysis.get('analysis_metadata', {}),
-                    
-                    # Compatibilité avec ancien format
-                    'ai_key_sentences': gpt_analysis.get('key_sentences', []),
-                    'ai_main_topics': gpt_analysis.get('main_topics', []),
-                    'ai_keywords': gpt_analysis.get('keywords', []),
-                    'ai_relevance_score': gpt_analysis.get('relevance_score', 0.8),
-                    
-                    # Métadonnées
-                    'captured_at': datetime.now().isoformat(),
-                    'date': datetime.now().strftime('%Y-%m-%d'),
-                    'audio_size_bytes': os.path.getsize(audio_path) if os.path.exists(audio_path) else 0,
-                    'priority': config['priority'],
-                    'start_time': f"{config['start_hour']:02d}:{config['start_minute']:02d}"
-                }
+                # Métadonnées de segmentation si applicable
+                'segments_count': transcription.get('segments_count', 1),
+                'segments_info': transcription.get('segments_info', []),
                 
-                # Insérer en base
-                record_for_db = transcription_record.copy()
-                insert_result = self.transcriptions_collection.insert_one(record_for_db)
+                # Analyse GPT
+                'gpt_analysis': gpt_analysis.get('gpt_analysis', gpt_analysis.get('summary', '')),
+                'ai_summary': gpt_analysis.get('gpt_analysis', gpt_analysis.get('summary', '')),
+                'analysis_method': gpt_analysis.get('analysis_method', 'gpt-4o-mini'),
+                'analysis_status': gpt_analysis.get('status', 'success'),
+                'ai_analysis_metadata': gpt_analysis.get('analysis_metadata', {}),
                 
-                # Le record original n'a pas d'ObjectId ajouté par MongoDB
-                result['success'] = True
-                result['transcription'] = transcription_record
+                # Compatibilité avec ancien format
+                'ai_key_sentences': gpt_analysis.get('key_sentences', []),
+                'ai_main_topics': gpt_analysis.get('main_topics', []),
+                'ai_keywords': gpt_analysis.get('keywords', []),
+                'ai_relevance_score': gpt_analysis.get('relevance_score', 0.8),
                 
-                self.update_transcription_step(stream_key, "completed", "✅ Terminé avec succès", 100)
-                logger.info(f"✅ Transcription sauvegardée pour {config['section']}")
-                
-            finally:
-                # Nettoyer le fichier temporaire
-                if audio_path and os.path.exists(audio_path):
-                    os.unlink(audio_path)
-                    
+                # Métadonnées
+                'captured_at': datetime.now().isoformat(),
+                'date': datetime.now().strftime('%Y-%m-%d'),
+                'audio_size_bytes': sum([os.path.getsize(p) for p in segments_paths if os.path.exists(p)]) if use_segmented else 0,
+                'priority': config['priority'],
+                'start_time': f"{config['start_hour']:02d}:{config['start_minute']:02d}",
+                'capture_method': 'segmented' if use_segmented else 'single'
+            }
+            
+            # Insérer en base
+            record_for_db = transcription_record.copy()
+            insert_result = self.transcriptions_collection.insert_one(record_for_db)
+            
+            # Le record original n'a pas d'ObjectId ajouté par MongoDB
+            result['success'] = True
+            result['transcription'] = transcription_record
+            
+            self.update_transcription_step(stream_key, "completed", "✅ Terminé avec succès", 100)
+            
+            method_info = f" (segmenté: {transcription.get('segments_count', 1)} parties)" if use_segmented else ""
+            logger.info(f"✅ Transcription sauvegardée pour {config['section']}{method_info}")
+            
         except Exception as e:
-            result['error'] = str(e)
-            self.update_transcription_step(stream_key, "error", f"Erreur: {str(e)}", 0)
+            result['error'] = str(e)  
+            self.update_transcription_step(stream_key, "error", f"Erreur globale: {str(e)}", 0)
             logger.error(f"❌ Erreur globale pour {config['section']}: {e}")
         
         return result
