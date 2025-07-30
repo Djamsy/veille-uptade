@@ -747,26 +747,31 @@ async def scrape_social_media_now():
         def scrape_async():
             try:
                 logger.info("🚀 Début scraping réseaux sociaux...")
-                results = social_scraper.scrape_all_keywords()
+                results = social_scraper.scrape_all_keywords_with_demo()
                 
                 # Sauvegarder tous les posts
                 all_posts = results['twitter'] + results['facebook'] + results['instagram']
                 saved_count = social_scraper.save_posts_to_db(all_posts)
                 
                 # Sauvegarder le résultat dans le cache
+                cache_result = {
+                    'success': True,
+                    'total_posts': results['total_posts'],
+                    'saved_posts': saved_count,
+                    'by_platform': {
+                        'twitter': len(results['twitter']),
+                        'facebook': len(results['facebook']),
+                        'instagram': len(results['instagram'])
+                    },
+                    'keywords': results['keywords_searched'],
+                    'scraped_at': results['scraped_at'],
+                    'demo_mode': results.get('demo_mode', False),
+                    'note': results.get('note', ''),
+                    'demo_stats': results.get('demo_stats', {})
+                }
+                
                 if CACHE_ENABLED:
-                    intelligent_cache.set_cached_data('last_social_scraping_result', {
-                        'success': True,
-                        'total_posts': results['total_posts'],
-                        'saved_posts': saved_count,
-                        'by_platform': {
-                            'twitter': len(results['twitter']),
-                            'facebook': len(results['facebook']),
-                            'instagram': len(results['instagram'])
-                        },
-                        'keywords': results['keywords_searched'],
-                        'scraped_at': results['scraped_at']
-                    })
+                    intelligent_cache.set_cached_data('last_social_scraping_result', cache_result)
                 
                 logger.info(f"✅ Scraping terminé: {saved_count} posts sauvegardés")
                 
