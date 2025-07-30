@@ -963,8 +963,216 @@ class GuadeloupeMediaAPITester:
         except Exception as e:
             return self.log_test("Digest JSON Endpoint", False, f"- Error: {str(e)}")
 
-    # ==================== NEW GPT ENDPOINTS TESTS ====================
+    # ==================== NEW GPT SENTIMENT SERVICE TESTS ====================
     
+    def test_gpt_sentiment_service_direct(self):
+        """Test direct GPT sentiment service with different texts"""
+        try:
+            # Import the service directly
+            import sys
+            sys.path.append('/app/backend')
+            from gpt_sentiment_service import gpt_sentiment_analyzer, analyze_text_sentiment
+            
+            # Test texts from the review request
+            test_texts = [
+                "Guy Losbar annonce d'excellents projets pour le développement durable de la Guadeloupe",
+                "Grave accident de la route à Basse-Terre, plusieurs victimes",
+                "Le Conseil Départemental vote le budget 2025",
+                "Festival de musique créole : une ambiance exceptionnelle à Pointe-à-Pitre"
+            ]
+            
+            results = []
+            for text in test_texts:
+                result = analyze_text_sentiment(text)
+                results.append({
+                    'text': text[:50] + "...",
+                    'sentiment': result['polarity'],
+                    'score': result['score'],
+                    'emotions': result['analysis_details']['emotions'][:3],  # First 3 emotions
+                    'themes': result['analysis_details']['themes'][:3],  # First 3 themes
+                    'method': result['analysis_details']['method']
+                })
+            
+            # Check if GPT method is used
+            gpt_methods = [r for r in results if 'gpt' in r['method']]
+            success = len(gpt_methods) > 0
+            
+            if success:
+                details = f"- GPT sentiment working: {len(gpt_methods)}/{len(results)} used GPT, methods: {[r['method'] for r in results]}"
+            else:
+                details = f"- GPT sentiment not working: methods used: {[r['method'] for r in results]}"
+            
+            return self.log_test("GPT Sentiment Service Direct", success, details)
+        except Exception as e:
+            return self.log_test("GPT Sentiment Service Direct", False, f"- Error: {str(e)}")
+
+    def test_gpt_sentiment_contextual_analysis(self):
+        """Test GPT sentiment contextual analysis for Guadeloupe"""
+        try:
+            import sys
+            sys.path.append('/app/backend')
+            from gpt_sentiment_service import analyze_text_sentiment
+            
+            # Test Guadeloupe-specific contexts
+            guadeloupe_texts = [
+                "Guy Losbar présente les nouveaux projets du Conseil Départemental pour l'éducation",
+                "Accident grave sur la route de Basse-Terre, intervention des secours",
+                "Nouvelle école inaugurée à Pointe-à-Pitre par le CD971",
+                "Festival créole : succès populaire dans toute la Guadeloupe"
+            ]
+            
+            contextual_results = []
+            for text in guadeloupe_texts:
+                result = analyze_text_sentiment(text)
+                
+                # Check for Guadeloupe context
+                guadeloupe_context = result['analysis_details'].get('guadeloupe_context', '')
+                has_context = bool(guadeloupe_context and len(guadeloupe_context) > 10)
+                
+                contextual_results.append({
+                    'text': text[:40] + "...",
+                    'sentiment': result['polarity'],
+                    'has_guadeloupe_context': has_context,
+                    'themes': result['analysis_details']['themes'],
+                    'emotions': result['analysis_details']['emotions']
+                })
+            
+            # Check quality of contextual analysis
+            with_context = [r for r in contextual_results if r['has_guadeloupe_context']]
+            with_themes = [r for r in contextual_results if len(r['themes']) > 0]
+            with_emotions = [r for r in contextual_results if len(r['emotions']) > 0]
+            
+            success = len(with_themes) >= 2 and len(with_emotions) >= 2
+            
+            if success:
+                details = f"- Contextual analysis working: {len(with_context)} with context, {len(with_themes)} with themes, {len(with_emotions)} with emotions"
+            else:
+                details = f"- Contextual analysis weak: context={len(with_context)}, themes={len(with_themes)}, emotions={len(with_emotions)}"
+            
+            return self.log_test("GPT Sentiment Contextual Analysis", success, details)
+        except Exception as e:
+            return self.log_test("GPT Sentiment Contextual Analysis", False, f"- Error: {str(e)}")
+
+    def test_gpt_sentiment_quality_analysis(self):
+        """Test quality of GPT sentiment analysis (emotions, themes, context)"""
+        try:
+            import sys
+            sys.path.append('/app/backend')
+            from gpt_sentiment_service import analyze_text_sentiment
+            
+            # Test with rich content for quality analysis
+            rich_text = "Le Conseil Départemental de la Guadeloupe, sous la direction de Guy Losbar, a voté un budget ambitieux pour 2025. Ce budget prévoit des investissements majeurs dans l'éducation, avec la construction de nouvelles écoles, et dans les infrastructures routières pour améliorer la sécurité. Les familles guadeloupéennes bénéficieront également d'aides sociales renforcées."
+            
+            result = analyze_text_sentiment(rich_text)
+            
+            # Check quality indicators
+            emotions = result['analysis_details']['emotions']
+            themes = result['analysis_details']['themes']
+            keywords = result['analysis_details']['keywords']
+            explanation = result['analysis_details']['explanation']
+            guadeloupe_context = result['analysis_details']['guadeloupe_context']
+            confidence = result['analysis_details']['confidence']
+            
+            # Quality checks
+            has_emotions = len(emotions) >= 2
+            has_themes = len(themes) >= 2
+            has_keywords = len(keywords) >= 3
+            has_explanation = len(explanation) > 20
+            has_context = len(guadeloupe_context) > 10
+            good_confidence = confidence > 0.6
+            
+            quality_score = sum([has_emotions, has_themes, has_keywords, has_explanation, has_context, good_confidence])
+            success = quality_score >= 4  # At least 4/6 quality indicators
+            
+            if success:
+                details = f"- Quality analysis: {quality_score}/6 indicators, emotions={len(emotions)}, themes={len(themes)}, confidence={confidence}"
+            else:
+                details = f"- Quality insufficient: {quality_score}/6 indicators, missing: emotions={has_emotions}, themes={has_themes}, explanation={has_explanation}"
+            
+            return self.log_test("GPT Sentiment Quality Analysis", success, details)
+        except Exception as e:
+            return self.log_test("GPT Sentiment Quality Analysis", False, f"- Error: {str(e)}")
+
+    def test_gpt_sentiment_performance_costs(self):
+        """Test GPT sentiment performance and cost optimization"""
+        try:
+            import sys
+            import time
+            sys.path.append('/app/backend')
+            from gpt_sentiment_service import analyze_text_sentiment
+            
+            # Test performance with multiple texts
+            test_texts = [
+                "Excellent projet du CD971 pour l'environnement",
+                "Problème de circulation à Pointe-à-Pitre",
+                "Nouvelle initiative de Guy Losbar pour l'éducation"
+            ]
+            
+            start_time = time.time()
+            results = []
+            
+            for text in test_texts:
+                result = analyze_text_sentiment(text)
+                results.append({
+                    'method': result['analysis_details']['method'],
+                    'processing_time': time.time() - start_time
+                })
+            
+            total_time = time.time() - start_time
+            avg_time = total_time / len(test_texts)
+            
+            # Check if gpt-4o-mini is used (cost optimization)
+            gpt_mini_used = any('gpt-4o-mini' in r['method'] for r in results)
+            reasonable_time = avg_time < 10  # Should be under 10 seconds per text on average
+            
+            success = gpt_mini_used and reasonable_time
+            
+            if success:
+                details = f"- Performance good: avg_time={avg_time:.1f}s, gpt-4o-mini used: {gpt_mini_used}, total_time={total_time:.1f}s"
+            else:
+                details = f"- Performance issues: avg_time={avg_time:.1f}s, gpt-4o-mini: {gpt_mini_used}, methods: {[r['method'] for r in results]}"
+            
+            return self.log_test("GPT Sentiment Performance & Costs", success, details)
+        except Exception as e:
+            return self.log_test("GPT Sentiment Performance & Costs", False, f"- Error: {str(e)}")
+
+    def test_gpt_sentiment_utility_functions(self):
+        """Test GPT sentiment utility functions"""
+        try:
+            import sys
+            sys.path.append('/app/backend')
+            from gpt_sentiment_service import analyze_text_sentiment, analyze_articles_sentiment
+            
+            # Test analyze_text_sentiment function
+            text_result = analyze_text_sentiment("Guy Losbar annonce de bonnes nouvelles pour la Guadeloupe")
+            text_success = text_result['polarity'] in ['positive', 'negative', 'neutral']
+            
+            # Test analyze_articles_sentiment function
+            mock_articles = [
+                {'title': 'Excellent festival à Pointe-à-Pitre', 'content': 'Ambiance formidable'},
+                {'title': 'Accident grave à Basse-Terre', 'content': 'Plusieurs victimes'},
+                {'title': 'Budget voté par le CD971', 'content': 'Nouvelles mesures sociales'}
+            ]
+            
+            articles_result = analyze_articles_sentiment(mock_articles)
+            articles_success = (
+                'articles' in articles_result and 
+                'summary' in articles_result and
+                len(articles_result['articles']) == 3
+            )
+            
+            success = text_success and articles_success
+            
+            if success:
+                summary = articles_result['summary']
+                details = f"- Utility functions working: text_sentiment={text_result['polarity']}, articles_analyzed={len(articles_result['articles'])}, method={summary.get('analysis_method', 'unknown')}"
+            else:
+                details = f"- Utility functions failed: text_success={text_success}, articles_success={articles_success}"
+            
+            return self.log_test("GPT Sentiment Utility Functions", success, details)
+        except Exception as e:
+            return self.log_test("GPT Sentiment Utility Functions", False, f"- Error: {str(e)}")
+
     def test_gpt_analysis_endpoint(self):
         """Test GPT analysis endpoint with journalistic prompt"""
         try:
