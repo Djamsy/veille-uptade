@@ -1038,10 +1038,25 @@ function App() {
       {/* Header style Apple moderne */}
       <header className="glass-header">
         <div className="header-content">
-          <div>
-            <h1 className="header-title">
-              🏝️ Veille Média Guadeloupe
-            </h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            {/* Menu hamburger mobile */}
+            <button 
+              className="mobile-menu-button"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Menu"
+            >
+              <div className={`hamburger-icon ${mobileMenuOpen ? 'open' : ''}`}>
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </button>
+            
+            <div>
+              <h1 className="header-title">
+                🏝️ Veille Média Guadeloupe
+              </h1>
+            </div>
           </div>
           <div className="header-subtitle">
             Dernière MAJ: {new Date().toLocaleDateString('fr-FR', { 
@@ -1053,6 +1068,12 @@ function App() {
           </div>
         </div>
       </header>
+
+      {/* Overlay mobile */}
+      <div 
+        className={`mobile-overlay ${mobileMenuOpen ? 'active' : ''}`}
+        onClick={() => setMobileMenuOpen(false)}
+      ></div>
 
       {/* Barre de statut des tâches - Style Apple moderne */}
       {(backgroundTasks.scraping || backgroundTasks.capturing) && (
