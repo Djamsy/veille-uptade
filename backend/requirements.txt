@@ -55,5 +55,7 @@ aiohttp==3.9.1
 # Dépendances pour production Kubernetes
 gunicorn==21.2.0
 
-# Explicitement exclure certaines dépendances problématiques
-# NE PAS INSTALLER: spacy, fr-core-news-sm, torch, transformers, playwright
+# Note: Packages exclus de la production pour éviter erreurs déploiement:
+# - Modèles NLP lourds (spaCy, transformers, torch)
+# - Navigateurs automatisés (playwright, selenium)
+# - Modèles de langue française locaux
