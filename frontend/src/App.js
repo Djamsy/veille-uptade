@@ -1042,34 +1042,43 @@ function App() {
 
         {/* Transcriptions Radio */}
         {activeTab === 'transcription' && (
-          <div className="space-y-6">
+          <div className="animate-slide-in">
             {/* En-tête avec statut global */}
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-800">📻 Transcriptions Radio</h2>
-                <div className="flex items-center gap-2 mt-1">
-                  <div className={`w-3 h-3 rounded-full ${transcriptionStatus.global_status.any_in_progress ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
-                  <span className="text-sm text-gray-600">
+            <div className="section-header">
+              <h2 className="section-title">📻 Transcriptions Radio</h2>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', marginTop: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ 
+                    width: '8px', 
+                    height: '8px', 
+                    borderRadius: '50%',
+                    background: transcriptionStatus.global_status.any_in_progress ? '#10b981' : '#9ca3af',
+                    animation: transcriptionStatus.global_status.any_in_progress ? 'pulse 2s infinite' : 'none'
+                  }}></div>
+                  <span style={{ color: '#6b7280', fontSize: '0.9rem' }}>
                     {transcriptionStatus.global_status.any_in_progress 
                       ? `${transcriptionStatus.global_status.active_sections} transcription(s) en cours`
                       : 'Aucune transcription en cours'
                     }
                   </span>
-                  <div className="flex items-center gap-1 ml-4">
-                    <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
-                    <span className="text-xs text-blue-600">Auto-actualisation (30s)</span>
-                  </div>
                 </div>
+                {transcriptionStatus.global_status.any_in_progress && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#3b82f6', animation: 'pulse 2s infinite' }}></div>
+                    <span style={{ color: '#3b82f6', fontSize: '0.8rem' }}>Auto-actualisation (30s)</span>
+                  </div>
+                )}
               </div>
-              <div className="flex gap-2">
+            </div>
+
+            {/* Boutons d'action */}
+            <div className="glass-card" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                 <button
                   onClick={captureRadioNow}
                   disabled={backgroundTasks.capturing}
-                  className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
-                    backgroundTasks.capturing
-                      ? 'bg-gray-400 text-gray-700 cursor-not-allowed'
-                      : 'bg-green-500 hover:bg-green-600 text-white'
-                  }`}
+                  className={backgroundTasks.capturing ? 'btn-secondary' : 'btn-primary'}
+                  style={{ opacity: backgroundTasks.capturing ? 0.6 : 1 }}
                 >
                   {backgroundTasks.capturing ? '⏳ Capture...' : '📻 Capturer Tout'}
                 </button>
@@ -1078,21 +1087,24 @@ function App() {
                     loadTranscriptionSections();
                     loadTranscriptionStatus();
                   }}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+                  className="btn-secondary"
                 >
                   🔄 Actualiser
                 </button>
-                <label className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors cursor-pointer">
+                <label className="btn-primary cursor-pointer">
                   📤 Upload Audio
-                  <input type="file" accept="audio/*" onChange={uploadAudio} className="hidden" />
+                  <input type="file" accept="audio/*" onChange={uploadAudio} style={{ display: 'none' }} />
                 </label>
               </div>
             </div>
 
             {/* Sections de transcription prédéfinies */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem', marginBottom: '3rem' }}>
               {/* Section 7H RCI */}
-              <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-blue-500">
+              <div className="glass-card radio-priority-card" style={{ padding: '2rem' }}>
+                <div className="priority-badge" style={{ marginBottom: '1.5rem' }}>
+                  🎙️ PRIORITÉ ABSOLUE
+                </div>
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <h3 className="text-xl font-bold text-gray-800">🎙️ 7H RCI</h3>
