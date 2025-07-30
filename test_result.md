@@ -107,15 +107,30 @@ user_problem_statement: "Changement de système d'analyse: remplacer l'analyse l
 backend:
   - task: "Intégration GPT-4.1-mini"
     implemented: true
-    working: false
+    working: true
     file: "gpt_analysis_service.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false  
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "Service GPT créé avec prompt journalistique spécialisé mais quota API OpenAI épuisé (Error 429 - insufficient_quota). Clé API valide mais sans crédit."
+      - working: true
+        agent: "main"
+        comment: "✅ SERVICE GPT OPÉRATIONNEL: Après recharge du compte OpenAI, test réussi avec analyse parfaite. Prompt journalistique fonctionne: structure par catégories avec emojis (🏛️ Politique, 💼 Économie, 🌿 Environnement), format bilan de veille quotidienne. Temps traitement: ~8 secondes."
+
+  - task: "Test capture audio + transcription + GPT"
+    implemented: true
+    working: false
+    file: "server.py"
     stuck_count: 1
     priority: "high"
     needs_retesting: true
     status_history:
       - working: false
         agent: "main"
-        comment: "Service GPT créé avec prompt journalistique spécialisé mais quota API OpenAI épuisé (Error 429 - insufficient_quota). Clé API valide mais sans crédit."
+        comment: "Test échantillon 30s: capture audio réussie (180KB) mais transcription Whisper trop lente sur cette machine (>2min pour 30s audio). GPT fonctionne parfaitement en amont."
 
   - task: "Système de suivi détaillé des étapes"
     implemented: true
