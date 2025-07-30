@@ -1570,6 +1570,319 @@ class GuadeloupeMediaAPITester:
         except Exception as e:
             return self.log_test("GPT Fallback System", False, f"- Error: {str(e)}")
 
+    def test_gpt_sentiment_analyze_enriched(self):
+        """Test POST /api/sentiment/analyze - New enriched format with Guadeloupe contextual analysis"""
+        guadeloupe_test_texts = [
+            "Guy Losbar annonce de nouveaux investissements pour le développement durable en Guadeloupe",
+            "Le Conseil Départemental vote le budget pour soutenir les familles en difficulté", 
+            "Grave accident de la route en Guadeloupe, plusieurs blessés dans un état critique",
+            "Excellent festival de musique créole à Pointe-à-Pitre ! L'ambiance était formidable"
+        ]
+        
+        for i, test_text in enumerate(guadeloupe_test_texts):
+            try:
+                data = {'text': test_text}
+                response = self.session.post(f"{self.base_url}/api/sentiment/analyze", data=data)
+                success = response.status_code == 200
+                
+                if success:
+                    response_data = response.json()
+                    if response_data.get('success'):
+                        sentiment = response_data.get('sentiment', {})
+                        
+                        # Check for enriched format sections
+                        has_basic_sentiment = 'polarity' in sentiment and 'score' in sentiment
+                        has_contextual_analysis = 'analysis_details' in sentiment and 'guadeloupe_context' in sentiment['analysis_details']
+                        has_stakeholders = 'personalities_mentioned' in sentiment.get('analysis_details', {}) or 'institutions_mentioned' in sentiment.get('analysis_details', {})
+                        has_thematic_breakdown = 'themes' in sentiment.get('analysis_details', {}) and 'emotions' in sentiment.get('analysis_details', {})
+                        has_recommendations = 'recommendations' in sentiment.get('analysis_details', {})
+                        
+                        # Check for GPT method
+                        method = sentiment.get('analysis_details', {}).get('method', '')
+                        is_gpt_method = 'gpt' in method.lower()
+                        
+                        # Check for personality/institution detection
+                        personalities = sentiment.get('analysis_details', {}).get('personalities_mentioned', [])
+                        institutions = sentiment.get('analysis_details', {}).get('institutions_mentioned', [])
+                        
+                        guy_losbar_detected = any('Guy Losbar' in str(p) for p in personalities) if 'Guy Losbar' in test_text else True
+                        cd_detected = any('Conseil' in str(i) or 'CD971' in str(i) for i in institutions) if 'Conseil Départemental' in test_text else True
+                        
+                        enriched_format_score = sum([has_basic_sentiment, has_contextual_analysis, has_stakeholders, has_thematic_breakdown, has_recommendations])
+                        
+                        if enriched_format_score >= 4 and is_gpt_method and guy_losbar_detected and cd_detected:
+                            details = f"- Text {i+1}: enriched format {enriched_format_score}/5, method={method}, personalities={len(personalities)}, institutions={len(institutions)}"
+                        else:
+                            success = False
+                            details = f"- Text {i+1} FAILED: format={enriched_format_score}/5, gpt={is_gpt_method}, guy_losbar={guy_losbar_detected}, cd={cd_detected}"
+                    else:
+                        success = False
+                        details = f"- Text {i+1} API returned success=False: {response_data.get('error', 'Unknown error')}"
+                else:
+                    details = f"- Text {i+1} Status: {response.status_code}"
+                
+                self.log_test(f"GPT Sentiment Analyze Enriched - Text {i+1}", success, details)
+            except Exception as e:
+                self.log_test(f"GPT Sentiment Analyze Enriched - Text {i+1}", False, f"- Error: {str(e)}")
+
+    def test_gpt_sentiment_analyze_quick(self):
+        """Test POST /api/sentiment/analyze/quick - Compact and fast format"""
+        try:
+            test_text = "Guy Losbar présente le nouveau budget du Conseil Départemental pour l'éducation en Guadeloupe"
+            data = {'text': test_text}
+            response = self.session.post(f"{self.base_url}/api/sentiment/analyze/quick", data=data)
+            success = response.status_code == 200
+            
+            if success:
+                response_data = response.json()
+                if response_data.get('success'):
+                    sentiment = response_data.get('sentiment', {})
+                    
+                    # Check for compact format (should have basic fields but be faster)
+                    has_polarity = 'polarity' in sentiment
+                    has_score = 'score' in sentiment
+                    has_method = 'analysis_details' in sentiment and 'method' in sentiment['analysis_details']
+                    
+                    method = sentiment.get('analysis_details', {}).get('method', '')
+                    is_gpt_method = 'gpt' in method.lower()
+                    
+                    # Quick format should still be comprehensive but optimized
+                    if has_polarity and has_score and has_method and is_gpt_method:
+                        details = f"- Quick format working: polarity={sentiment['polarity']}, score={sentiment['score']}, method={method}"
+                    else:
+                        success = False
+                        details = f"- Quick format incomplete: polarity={has_polarity}, score={has_score}, method={method}"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {response_data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("GPT Sentiment Analyze Quick", success, details)
+        except Exception as e:
+            return self.log_test("GPT Sentiment Analyze Quick", False, f"- Error: {str(e)}")
+
+    def test_gpt_sentiment_articles_analysis(self):
+        """Test GET /api/sentiment/articles - Article analysis with GPT"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/sentiment/articles")
+            success = response.status_code == 200
+            
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    summary = data.get('summary', {})
+                    articles = data.get('articles', [])
+                    
+                    # Check for GPT analysis method
+                    analysis_method = summary.get('analysis_method', '')
+                    is_gpt_method = 'gpt' in analysis_method.lower()
+                    
+                    # Check article sentiment analysis quality
+                    analyzed_articles = [a for a in articles if 'sentiment' in a]
+                    articles_with_themes = [a for a in analyzed_articles if a.get('sentiment', {}).get('analysis_details', {}).get('themes')]
+                    articles_with_emotions = [a for a in analyzed_articles if a.get('sentiment', {}).get('analysis_details', {}).get('emotions')]
+                    
+                    total_articles = summary.get('total_articles', 0)
+                    sentiment_distribution = summary.get('sentiment_distribution', {})
+                    
+                    if is_gpt_method and total_articles >= 0 and len(articles_with_themes) > 0:
+                        details = f"- GPT articles analysis: method={analysis_method}, total={total_articles}, with_themes={len(articles_with_themes)}, with_emotions={len(articles_with_emotions)}"
+                    else:
+                        success = False
+                        details = f"- GPT articles analysis failed: method={analysis_method}, total={total_articles}, analyzed={len(analyzed_articles)}"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("GPT Sentiment Articles Analysis", success, details)
+        except Exception as e:
+            return self.log_test("GPT Sentiment Articles Analysis", False, f"- Error: {str(e)}")
+
+    def test_gpt_sentiment_stats_enabled(self):
+        """Test GET /api/sentiment/stats - Verify that the service is now enabled"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/sentiment/stats")
+            success = response.status_code == 200
+            
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    service_info = data.get('service_info', {})
+                    service_enabled = service_info.get('service_enabled', False)
+                    analysis_method = service_info.get('analysis_method', '')
+                    
+                    # Check that SENTIMENT_ENABLED is True and GPT is used
+                    is_gpt_enabled = 'gpt' in analysis_method.lower()
+                    
+                    # Check for "Service d'analyse de sentiment non disponible" message should NOT appear
+                    error_message = data.get('error', '')
+                    no_unavailable_message = 'non disponible' not in error_message.lower()
+                    
+                    if service_enabled and is_gpt_enabled and no_unavailable_message:
+                        details = f"- Service enabled: {service_enabled}, method: {analysis_method}, no error messages"
+                    else:
+                        success = False
+                        details = f"- Service issues: enabled={service_enabled}, gpt_method={is_gpt_enabled}, error='{error_message}'"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("GPT Sentiment Stats Enabled", success, details)
+        except Exception as e:
+            return self.log_test("GPT Sentiment Stats Enabled", False, f"- Error: {str(e)}")
+
+    def test_gpt_sentiment_personality_detection(self):
+        """Test detection of personalities (Guy Losbar) and institutions (CD971, Conseil Départemental)"""
+        test_cases = [
+            {
+                'text': "Guy Losbar présente les nouveaux projets du Conseil Départemental",
+                'expected_personalities': ['Guy Losbar'],
+                'expected_institutions': ['Conseil Départemental']
+            },
+            {
+                'text': "Le CD971 vote le budget 2025 pour soutenir les familles guadeloupéennes",
+                'expected_personalities': [],
+                'expected_institutions': ['CD971']
+            }
+        ]
+        
+        for i, test_case in enumerate(test_cases):
+            try:
+                data = {'text': test_case['text']}
+                response = self.session.post(f"{self.base_url}/api/sentiment/analyze", data=data)
+                success = response.status_code == 200
+                
+                if success:
+                    response_data = response.json()
+                    if response_data.get('success'):
+                        sentiment = response_data.get('sentiment', {})
+                        analysis_details = sentiment.get('analysis_details', {})
+                        
+                        personalities = analysis_details.get('personalities_mentioned', [])
+                        institutions = analysis_details.get('institutions_mentioned', [])
+                        
+                        # Check personality detection
+                        personality_detected = True
+                        for expected_personality in test_case['expected_personalities']:
+                            if not any(expected_personality in str(p) for p in personalities):
+                                personality_detected = False
+                                break
+                        
+                        # Check institution detection  
+                        institution_detected = True
+                        for expected_institution in test_case['expected_institutions']:
+                            if not any(expected_institution in str(i) for i in institutions):
+                                institution_detected = False
+                                break
+                        
+                        if personality_detected and institution_detected:
+                            details = f"- Case {i+1}: personalities={personalities}, institutions={institutions}"
+                        else:
+                            success = False
+                            details = f"- Case {i+1} FAILED: personalities_ok={personality_detected}, institutions_ok={institution_detected}"
+                    else:
+                        success = False
+                        details = f"- Case {i+1} API returned success=False: {response_data.get('error', 'Unknown error')}"
+                else:
+                    details = f"- Case {i+1} Status: {response.status_code}"
+                
+                self.log_test(f"GPT Personality Detection - Case {i+1}", success, details)
+            except Exception as e:
+                self.log_test(f"GPT Personality Detection - Case {i+1}", False, f"- Error: {str(e)}")
+
+    def test_gpt_sentiment_urgency_recommendations(self):
+        """Test analysis of urgency and recommendations"""
+        test_cases = [
+            {
+                'text': "Grave accident de la route en Guadeloupe, plusieurs blessés dans un état critique",
+                'expected_urgency': ['moyen', 'élevé'],  # Should be medium or high urgency
+                'should_have_recommendations': True
+            },
+            {
+                'text': "Excellent festival de musique créole à Pointe-à-Pitre ! L'ambiance était formidable",
+                'expected_urgency': ['faible'],  # Should be low urgency
+                'should_have_recommendations': False  # May or may not have recommendations
+            }
+        ]
+        
+        for i, test_case in enumerate(test_cases):
+            try:
+                data = {'text': test_case['text']}
+                response = self.session.post(f"{self.base_url}/api/sentiment/analyze", data=data)
+                success = response.status_code == 200
+                
+                if success:
+                    response_data = response.json()
+                    if response_data.get('success'):
+                        sentiment = response_data.get('sentiment', {})
+                        analysis_details = sentiment.get('analysis_details', {})
+                        
+                        urgency_level = analysis_details.get('urgency_level', 'faible')
+                        recommendations = analysis_details.get('recommendations', [])
+                        alerts = analysis_details.get('alerts', [])
+                        
+                        # Check urgency level
+                        urgency_correct = urgency_level in test_case['expected_urgency']
+                        
+                        # Check recommendations presence
+                        has_recommendations = len(recommendations) > 0
+                        recommendations_ok = has_recommendations if test_case['should_have_recommendations'] else True
+                        
+                        if urgency_correct and recommendations_ok:
+                            details = f"- Case {i+1}: urgency={urgency_level}, recommendations={len(recommendations)}, alerts={len(alerts)}"
+                        else:
+                            success = False
+                            details = f"- Case {i+1} FAILED: urgency={urgency_level} (expected {test_case['expected_urgency']}), recommendations={len(recommendations)}"
+                    else:
+                        success = False
+                        details = f"- Case {i+1} API returned success=False: {response_data.get('error', 'Unknown error')}"
+                else:
+                    details = f"- Case {i+1} Status: {response.status_code}"
+                
+                self.log_test(f"GPT Urgency & Recommendations - Case {i+1}", success, details)
+            except Exception as e:
+                self.log_test(f"GPT Urgency & Recommendations - Case {i+1}", False, f"- Error: {str(e)}")
+
+    def test_gpt_sentiment_guadeloupe_context(self):
+        """Test specific Guadeloupe context in responses"""
+        try:
+            test_text = "Le Conseil Départemental de la Guadeloupe investit dans l'éducation avec la construction de nouvelles écoles à Pointe-à-Pitre et Basse-Terre"
+            data = {'text': test_text}
+            response = self.session.post(f"{self.base_url}/api/sentiment/analyze", data=data)
+            success = response.status_code == 200
+            
+            if success:
+                response_data = response.json()
+                if response_data.get('success'):
+                    sentiment = response_data.get('sentiment', {})
+                    analysis_details = sentiment.get('analysis_details', {})
+                    
+                    guadeloupe_context = analysis_details.get('guadeloupe_context', '')
+                    themes = analysis_details.get('themes', [])
+                    main_domain = analysis_details.get('main_domain', '')
+                    local_relevance = analysis_details.get('local_relevance', '')
+                    
+                    # Check for Guadeloupe-specific context
+                    has_guadeloupe_context = len(guadeloupe_context) > 20 and 'guadeloupe' in guadeloupe_context.lower()
+                    has_education_theme = any('education' in str(theme).lower() for theme in themes)
+                    has_local_relevance = local_relevance in ['haute', 'moyenne']
+                    
+                    if has_guadeloupe_context and has_education_theme and has_local_relevance:
+                        details = f"- Guadeloupe context: {len(guadeloupe_context)} chars, themes={themes}, relevance={local_relevance}"
+                    else:
+                        success = False
+                        details = f"- Context insufficient: context_len={len(guadeloupe_context)}, education_theme={has_education_theme}, relevance={local_relevance}"
+                else:
+                    success = False
+                    details = f"- API returned success=False: {response_data.get('error', 'Unknown error')}"
+            else:
+                details = f"- Status: {response.status_code}"
+            return self.log_test("GPT Guadeloupe Context", success, details)
+        except Exception as e:
+            return self.log_test("GPT Guadeloupe Context", False, f"- Error: {str(e)}")
+
     def run_gpt_whisper_security_tests(self):
         """Run tests specifically for GPT + OpenAI Whisper system with security controls"""
         print("🔒 TESTING GPT + OPENAI WHISPER SYSTEM WITH SECURITY CONTROLS")
