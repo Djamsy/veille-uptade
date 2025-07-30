@@ -44,11 +44,54 @@ class TelegramAlertsService:
         except Exception as e:
             logger.error(f"❌ Erreur MongoDB: {e}")
         
-        # Configuration des mots-clés surveillés
+        # Configuration étendue des mots-clés surveillés
         self.monitored_keywords = [
-            "Guy Losbar", "Losbar", "guy losbar",
-            "Conseil Départemental Guadeloupe", "CD971", "cd971",
-            "Président conseil départemental"
+            # GÉNÉRIQUES INSTITUTIONNELS
+            "Conseil Départemental Guadeloupe", "Département Guadeloupe", "CD971", "cd971",
+            "Institution Guadeloupe", "Collectivité territoriale Guadeloupe",
+            "Président Conseil Départemental", "Assemblée départementale Guadeloupe",
+            "Élus départementaux Guadeloupe", "Session plénière Conseil Départemental",
+            
+            # PERSONNALITÉS POLITIQUES
+            "Guy Losbar", "Losbar", "guy losbar", "Jean-Philippe COURTOIS", "COURTOIS",
+            "jean-philippe courtois", "Majorité départementale Guadeloupe",
+            
+            # GOUVERNANCE ET DÉCISIONS
+            "Évolution institutionnelle Guadeloupe", "Congrès des élus Guadeloupe",
+            "Schéma départemental", "Décision du Conseil Départemental",
+            "Budget départemental Guadeloupe",
+            
+            # DOMAINES D'ACTION SOCIALE
+            "Action sociale Guadeloupe", "Aide sociale à l'enfance Guadeloupe",
+            "BRSA Guadeloupe", "PMI Guadeloupe", "Personnes âgées Guadeloupe",
+            "Insertion professionnelle Guadeloupe",
+            
+            # INFRASTRUCTURES ET SERVICES
+            "Routes départementales Guadeloupe", "Collèges Guadeloupe",
+            "Culture départementale Guadeloupe", "Sport départemental Guadeloupe",
+            "Environnement Conseil Départemental", "Tourisme et patrimoine Guadeloupe",
+            "Aménagement du territoire Guadeloupe",
+            
+            # PUBLICS CIBLES
+            "Jeunesse Guadeloupe", "Séniors Guadeloupe", "Publics fragiles Guadeloupe",
+            "Personnes en situation de handicap Guadeloupe",
+            "Familles monoparentales Guadeloupe",
+            
+            # DISPOSITIFS SPÉCIFIQUES
+            "Dispositif stArt Guadeloupe", "Koudmen Jeunes", "Village Départemental",
+            "Maison Départementale des Solidarités", "Plan santé solidarité Guadeloupe",
+            "Dispositif d'insertion BRSA", "Plan de résilience économique Guadeloupe",
+            
+            # STRUCTURES DÉPARTEMENTALES
+            "Maison Départementale des Personnes Handicapées", "MDPH Guadeloupe",
+            "Archives départementales Guadeloupe", "Médiathèques départementales",
+            "EHPAD départementaux", "Services sociaux départementaux",
+            
+            # ÉVÉNEMENTS ET COMMUNICATION
+            "Grand Forum Citoyen Guadeloupe", "Conférence de presse Conseil Départemental",
+            "Communiqué Conseil Départemental", "Evénement institutionnel Guadeloupe",
+            "Conseil de surveillance CHU Guadeloupe", "Visite de terrain Guy Losbar",
+            "Conseil départemental en action"
         ]
         
         # Dernière vérification pour éviter les doublons
