@@ -214,29 +214,258 @@ class FreeSummaryService:
         return "<br><br><hr><br>".join(all_summaries) if all_summaries else "<p>Aucune transcription valide.</p>"
 
     def create_daily_digest(self, articles: List[Dict], transcriptions: List[Dict]) -> str:
-        """Créer le digest quotidien complet"""
-        digest_parts = []
-        
-        # Header
-        today = datetime.now().strftime('%d/%m/%Y')
-        digest_parts.append(f"<h2>📰 Digest Quotidien - {today}</h2>")
-        
-        # Articles
-        if articles:
-            digest_parts.append("<h3>📰 Articles de Presse</h3>")
-            articles_summary = self.summarize_articles(articles)
-            digest_parts.append(articles_summary)
-        
-        # Transcriptions
-        if transcriptions:
-            digest_parts.append("<h3>📻 Transcriptions Radio</h3>")
-            transcriptions_summary = self.summarize_transcriptions(transcriptions)
-            digest_parts.append(transcriptions_summary)
-        
-        if not articles and not transcriptions:
-            digest_parts.append("<p>Aucune information disponible pour aujourd'hui.</p>")
-        
-        return "<br><br>".join(digest_parts)
+        """Créer le digest quotidien complet avec analyse de sentiment"""
+        try:
+            if not articles and not transcriptions:
+                return """
+                <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">
+                    <h2 style="color: #dc2626;">🏝️ Digest Guadeloupe - Aucun contenu disponible</h2>
+                    <p>Aucune information disponible pour aujourd'hui.</p>
+                </div>
+                """
+            
+            # Import du service de sentiment
+            try:
+                from sentiment_analysis_service import analyze_articles_sentiment
+                sentiment_enabled = True
+            except ImportError:
+                sentiment_enabled = False
+            
+            # Analyser le sentiment des articles si disponibles
+            sentiment_analysis = None
+            analyzed_articles = []
+            if sentiment_enabled and articles:
+                try:
+                    sentiment_result = analyze_articles_sentiment(articles)
+                    sentiment_analysis = sentiment_result.get('summary', {})
+                    analyzed_articles = sentiment_result.get('articles', articles)
+                except Exception as e:
+                    logger.warning(f"Erreur analyse sentiment pour digest: {e}")
+                    analyzed_articles = articles
+            else:
+                analyzed_articles = articles
+            
+            digest_html = f"""
+            <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6;">
+                <header style="text-align: center; border-bottom: 3px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px;">
+                    <h1 style="color: #1e40af; margin: 0; font-size: 28px;">🏝️ Digest Quotidien Guadeloupe</h1>
+                    <p style="color: #6b7280; font-size: 16px; margin: 10px 0 0 0;">
+                        {datetime.now().strftime('%A %d %B %Y')} • {len(articles) if articles else 0} articles analysés
+                    </p>
+                </header>
+            """
+            
+            # Section analyse de sentiment
+            if sentiment_analysis and sentiment_analysis.get('total_articles', 0) > 0:
+                distribution = sentiment_analysis.get('sentiment_distribution', {})
+                avg_score = sentiment_analysis.get('average_sentiment_score', 0)
+                patterns = sentiment_analysis.get('most_common_patterns', {})
+                
+                # Déterminer la tendance générale
+                if avg_score > 0.1:
+                    tendance = "🟢 Positive"
+                    couleur_tendance = "#16a34a"
+                elif avg_score < -0.1:
+                    tendance = "🔴 Négative"  
+                    couleur_tendance = "#dc2626"
+                else:
+                    tendance = "🟡 Neutre"
+                    couleur_tendance = "#ca8a04"
+                
+                digest_html += f"""
+                <section style="background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); border-left: 4px solid #3b82f6; padding: 25px; margin-bottom: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    <h2 style="color: #1e40af; margin-top: 0; font-size: 24px; display: flex; align-items: center;">
+                        📊 Analyse de Sentiment du Jour
+                    </h2>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                        <div style="text-align: center; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            <div style="font-size: 20px; font-weight: bold; color: {couleur_tendance}; margin-bottom: 5px;">{tendance}</div>
+                            <div style="color: #6b7280; font-size: 13px;">Tendance générale</div>
+                            <div style="font-size: 11px; color: #9ca3af; margin-top: 3px;">Score: {avg_score:.2f}</div>
+                        </div>
+                        
+                        <div style="text-align: center; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            <div style="font-size: 20px; font-weight: bold; color: #16a34a; margin-bottom: 5px;">😊 {distribution.get('positive', 0)}</div>
+                            <div style="color: #6b7280; font-size: 13px;">Articles positifs</div>
+                        </div>
+                        
+                        <div style="text-align: center; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            <div style="font-size: 20px; font-weight: bold; color: #dc2626; margin-bottom: 5px;">😟 {distribution.get('negative', 0)}</div>
+                            <div style="color: #6b7280; font-size: 13px;">Articles négatifs</div>
+                        </div>
+                        
+                        <div style="text-align: center; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            <div style="font-size: 20px; font-weight: bold; color: #6b7280; margin-bottom: 5px;">😐 {distribution.get('neutral', 0)}</div>
+                            <div style="color: #6b7280; font-size: 13px;">Articles neutres</div>
+                        </div>
+                    </div>
+                """
+                
+                # Patterns détectés
+                if patterns:
+                    top_patterns = list(patterns.items())[:4]
+                    digest_html += f"""
+                    <div style="margin-top: 20px;">
+                        <h4 style="color: #374151; margin-bottom: 12px; font-size: 16px;">🔍 Thèmes principaux détectés:</h4>
+                        <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                    """
+                    
+                    pattern_labels = {
+                        'événement_culturel': '🎭 Événements culturels',
+                        'météo_extrême': '🌪️ Météo extrême',
+                        'secteur_touristique': '🏖️ Tourisme',
+                        'mouvement_social': '✊ Mouvements sociaux',
+                        'secteur_économique': '💼 Économie',
+                        'situation_urgente': '🚨 Urgences'
+                    }
+                    
+                    for pattern, count in top_patterns:
+                        label = pattern_labels.get(pattern, pattern.replace('_', ' ').title())
+                        digest_html += f"""
+                        <span style="background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%); color: #3730a3; padding: 8px 12px; border-radius: 20px; font-size: 13px; font-weight: 500; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                            {label} ({count})
+                        </span>
+                        """
+                    
+                    digest_html += "</div></div>"
+                
+                digest_html += "</section>"
+            
+            # Articles par source avec sentiment
+            if analyzed_articles:
+                sources = {}
+                for article in analyzed_articles:
+                    source = article.get('source', 'Source inconnue')
+                    if source not in sources:
+                        sources[source] = []
+                    sources[source].append(article)
+                
+                # Trier les sources par nombre d'articles
+                sorted_sources = sorted(sources.items(), key=lambda x: len(x[1]), reverse=True)
+                
+                for source, source_articles in sorted_sources:
+                    digest_html += f"""
+                    <section style="margin-bottom: 35px;">
+                        <h2 style="color: #1e40af; border-bottom: 2px solid #e5e7eb; padding-bottom: 12px; margin-bottom: 20px; font-size: 22px; display: flex; align-items: center;">
+                            📰 {source} <span style="color: #6b7280; font-size: 16px; margin-left: 10px;">({len(source_articles)} articles)</span>
+                        </h2>
+                    """
+                    
+                    # Limiter à 8 articles par source pour le digest
+                    for i, article in enumerate(source_articles[:8]):
+                        title = article.get('title', 'Titre non disponible')
+                        url = article.get('url', '#')
+                        scraped_at = article.get('scraped_at', '')
+                        
+                        # Ajouter l'info de sentiment si disponible
+                        sentiment_info = ""
+                        if 'sentiment_summary' in article:
+                            sentiment = article['sentiment_summary']
+                            polarity = sentiment.get('polarity', 'neutral')
+                            score = sentiment.get('score', 0)
+                            
+                            if polarity == 'positive':
+                                sentiment_emoji = "😊"
+                                sentiment_color = "#16a34a"
+                            elif polarity == 'negative':
+                                sentiment_emoji = "😟"
+                                sentiment_color = "#dc2626"
+                            else:
+                                sentiment_emoji = "😐"
+                                sentiment_color = "#6b7280"
+                            
+                            sentiment_info = f"""
+                            <span style="background: {sentiment_color}15; color: {sentiment_color}; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; margin-left: 10px;">
+                                {sentiment_emoji} {polarity.title()} ({score:+.2f})
+                            </span>
+                            """
+                        
+                        # Alternating background colors
+                        bg_color = "#f9fafb" if i % 2 == 0 else "#ffffff"
+                        
+                        digest_html += f"""
+                        <div style="margin-bottom: 12px; padding: 18px; background: {bg_color}; border-radius: 10px; border-left: 3px solid #3b82f6; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: transform 0.2s;">
+                            <h4 style="margin: 0 0 10px 0; line-height: 1.4;">
+                                <a href="{url}" target="_blank" style="color: #1e40af; text-decoration: none; font-weight: 600; font-size: 16px;">
+                                    {title}
+                                </a>
+                                {sentiment_info}
+                            </h4>
+                            <p style="color: #6b7280; font-size: 13px; margin: 0; display: flex; align-items: center;">
+                                📅 {scraped_at[:16].replace('T', ' à ') if scraped_at else 'Date inconnue'}
+                            </p>
+                        </div>
+                        """
+                    
+                    digest_html += "</section>"
+            
+            # Transcriptions si disponibles
+            if transcriptions and len(transcriptions) > 0:
+                digest_html += f"""
+                <section style="margin-bottom: 35px;">
+                    <h2 style="color: #1e40af; border-bottom: 2px solid #e5e7eb; padding-bottom: 12px; margin-bottom: 20px; font-size: 22px;">
+                        📻 Transcriptions Radio <span style="color: #6b7280; font-size: 16px;">({len(transcriptions)})</span>
+                    </h2>
+                """
+                
+                for i, transcription in enumerate(transcriptions[:5]):  # Limiter à 5 transcriptions
+                    source = transcription.get('source', 'Radio')
+                    text = transcription.get('transcription_text', '')
+                    captured_at = transcription.get('captured_at', '')
+                    
+                    # Créer un résumé court
+                    summary = text[:200] + "..." if len(text) > 200 else text
+                    
+                    # Alternating background colors
+                    bg_color = "#fef3c7" if i % 2 == 0 else "#fef7e1"
+                    
+                    digest_html += f"""
+                    <div style="margin-bottom: 15px; padding: 18px; background: {bg_color}; border-radius: 10px; border-left: 3px solid #f59e0b; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                        <h4 style="margin: 0 0 10px 0; color: #92400e; font-size: 16px;">📻 {source}</h4>
+                        <p style="color: #451a03; margin: 0 0 10px 0; font-style: italic; line-height: 1.4;">
+                            {summary}
+                        </p>
+                        <p style="color: #78716c; font-size: 13px; margin: 0;">
+                            📅 {captured_at[:16].replace('T', ' à ') if captured_at else 'Date inconnue'}
+                        </p>
+                    </div>
+                    """
+                
+                digest_html += "</section>"
+            
+            # Footer avec informations détaillées
+            digest_html += f"""
+                <footer style="margin-top: 50px; padding-top: 25px; border-top: 2px solid #e5e7eb; text-align: center; background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%); border-radius: 10px; padding: 25px;">
+                    <div style="margin-bottom: 15px;">
+                        <h3 style="color: #1e40af; margin: 0 0 10px 0; font-size: 18px;">📊 Statistiques du Digest</h3>
+                        <div style="display: flex; justify-content: center; gap: 30px; flex-wrap: wrap;">
+                            <span style="color: #374151; font-weight: 500;">📰 {len(articles) if articles else 0} articles</span>
+                            <span style="color: #374151; font-weight: 500;">📻 {len(transcriptions) if transcriptions else 0} transcriptions</span>
+                            <span style="color: #374151; font-weight: 500;">🤖 Analyse sentiment: {'✅ Activée' if sentiment_enabled else '❌ Désactivée'}</span>
+                        </div>
+                    </div>
+                    <p style="color: #6b7280; font-size: 14px; margin: 10px 0;">
+                        📊 Digest généré automatiquement le {datetime.now().strftime('%d/%m/%Y à %H:%M')}
+                    </p>
+                    <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+                        🏝️ Veille média Guadeloupe • Analyse locale française • Cache intelligent
+                    </p>
+                </footer>
+            </div>
+            """
+            
+            return digest_html
+            
+        except Exception as e:
+            logger.error(f"Erreur création digest avec sentiment: {e}")
+            return f"""
+            <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">
+                <h2 style="color: #dc2626;">❌ Erreur lors de la création du digest</h2>
+                <p>Une erreur s'est produite: {str(e)}</p>
+                <p>Veuillez réessayer plus tard.</p>
+            </div>
+            """
 
 # Instance globale du service de résumé
 summary_service = FreeSummaryService()
