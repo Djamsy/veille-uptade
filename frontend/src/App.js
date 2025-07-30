@@ -974,6 +974,15 @@ function App() {
                 >
                   {backgroundTasks.capturing ? '⏳ Capture...' : '📻 Capturer Tout'}
                 </button>
+                <button
+                  onClick={() => {
+                    loadTranscriptionSections();
+                    loadTranscriptionStatus();
+                  }}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+                >
+                  🔄 Actualiser
+                </button>
                 <label className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors cursor-pointer">
                   📤 Upload Audio
                   <input type="file" accept="audio/*" onChange={uploadAudio} className="hidden" />
