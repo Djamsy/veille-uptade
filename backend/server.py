@@ -237,10 +237,45 @@ except Exception as e:
         print("🚨 MongoDB connection required in production - exiting")
         exit(1)
 
-# Démarrer les services
-start_scheduler()
+# Démarrer les services de manière robuste
+try:
+    start_scheduler()
+    print("✅ Scheduler démarré")
+except Exception as e:
+    print(f"⚠️ Erreur démarrage scheduler (non critique): {e}")
+
 if CACHE_ENABLED:
-    start_cache_service()
+    try:
+        start_cache_service()
+        print("✅ Cache service démarré")
+    except Exception as e:
+        print(f"⚠️ Erreur démarrage cache (non critique): {e}")
+
+# Health check au démarrage
+@app.on_event("startup")
+async def startup_event():
+    """Vérifications au démarrage de l'application"""
+    try:
+        # Test de connection MongoDB
+        client.admin.command('ping')
+        print("✅ MongoDB ping successful at startup")
+        
+        # Test basique des collections
+        articles_count = articles_collection.count_documents({})
+        print(f"✅ Articles collection accessible ({articles_count} documents)")
+        
+    except Exception as e:
+        print(f"⚠️ Startup health check warning: {e}")
+
+@app.on_event("shutdown") 
+async def shutdown_event():
+    """Nettoyage à l'arrêt de l'application"""
+    try:
+        if client:
+            client.close()
+        print("✅ MongoDB connection closed")
+    except Exception as e:
+        print(f"⚠️ Shutdown warning: {e}")
 
 @app.get("/")
 async def root():
