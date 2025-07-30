@@ -183,12 +183,10 @@ class RadioTranscriptionService:
                 }
                 
                 # Insérer en base
-                insert_result = self.transcriptions_collection.insert_one(transcription_record.copy())
+                record_for_db = transcription_record.copy()
+                insert_result = self.transcriptions_collection.insert_one(record_for_db)
                 
-                # Retirer l'ObjectId pour éviter les problèmes de sérialisation
-                if '_id' in transcription_record:
-                    del transcription_record['_id']
-                
+                # Le record original n'a pas d'ObjectId ajouté par MongoDB
                 result['success'] = True
                 result['transcription'] = transcription_record
                 
