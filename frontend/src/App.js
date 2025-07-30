@@ -1094,8 +1094,39 @@ function App() {
                   {transcriptionSections["7H Guadeloupe Première"]?.length > 0 ? (
                     transcriptionSections["7H Guadeloupe Première"].slice(0, 3).map(t => (
                       <div key={t.id} className="bg-gray-50 p-3 rounded-lg">
-                        <p className="text-sm text-gray-700 italic">"{t.transcription_text.substring(0, 100)}..."</p>
-                        <p className="text-xs text-gray-500 mt-1">
+                        {/* Résumé IA ou transcription brute */}
+                        <p className="text-sm text-gray-700 font-medium">
+                          {t.ai_summary || `"${t.transcription_text.substring(0, 100)}..."`}
+                        </p>
+                        
+                        {/* Mots-clés et sujets */}
+                        {t.ai_keywords && t.ai_keywords.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {t.ai_keywords.slice(0, 4).map((keyword, idx) => (
+                              <span key={idx} className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">
+                                {keyword}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        
+                        {/* Score de pertinence */}
+                        {t.ai_relevance_score && (
+                          <div className="flex items-center gap-2 mt-2">
+                            <div className="flex">
+                              {[1,2,3,4,5].map(star => (
+                                <span key={star} className={`text-xs ${
+                                  star <= (t.ai_relevance_score * 5) ? 'text-yellow-400' : 'text-gray-300'
+                                }`}>⭐</span>
+                              ))}
+                            </div>
+                            <span className="text-xs text-gray-500">
+                              Pertinence: {Math.round(t.ai_relevance_score * 100)}%
+                            </span>
+                          </div>
+                        )}
+                        
+                        <p className="text-xs text-gray-500 mt-2">
                           {new Date(t.captured_at || t.uploaded_at).toLocaleString('fr-FR')}
                         </p>
                       </div>
