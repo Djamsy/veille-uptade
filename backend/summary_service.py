@@ -18,26 +18,9 @@ logger = logging.getLogger(__name__)
 
 class FreeSummaryService:
     def __init__(self):
-        # Essayer de charger spaCy mais avec fallback gracieux
+        # Service de résumé sans dépendances lourdes (spaCy supprimé)
         self.nlp = None
-        try:
-            import spacy
-            # Essayer le modèle français d'abord
-            try:
-                self.nlp = spacy.load("fr_core_news_sm")
-                logger.info("✅ Modèle spaCy français chargé")
-            except OSError:
-                # Fallback sur le modèle anglais ou un modèle vide
-                try:
-                    self.nlp = spacy.load("en_core_web_sm")
-                    logger.info("✅ Modèle spaCy anglais chargé comme fallback")
-                except OSError:
-                    # Créer un modèle vide si aucun n'est disponible
-                    self.nlp = spacy.blank("fr")
-                    logger.info("✅ Modèle spaCy vide créé pour le français")
-        except ImportError:
-            logger.warning("⚠️ spaCy non disponible, utilisation des méthodes de base")
-            self.nlp = None
+        logger.info("✅ Service de résumé initialisé (mode allégé)")
         
         # Initialiser les summarizers
         self.textrank_summarizer = TextRankSummarizer()
