@@ -222,11 +222,14 @@ backend:
     file: "server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Added 4 sentiment analysis endpoints: /api/sentiment/articles, /api/sentiment/analyze, /api/sentiment/trends, /api/sentiment/stats"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: All 4 sentiment endpoints working. /api/sentiment/stats shows service enabled, /api/sentiment/analyze processes French text correctly, /api/sentiment/articles analyzes today's articles, /api/sentiment/trends provides 7-day analysis."
 
   - task: "API endpoints for articles"
     implemented: true
