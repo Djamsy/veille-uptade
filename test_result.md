@@ -343,13 +343,13 @@ metadata:
   backend_test_status: "completed"
 
 test_plan:
-  current_focus: ["Radio transcription system"]
-  stuck_tasks: ["Radio transcription system"]
+  current_focus: ["Radio transcription system", "PDF digest export"]
+  stuck_tasks: []
   test_all: false
   test_priority: "high_first"
   testing_completed: false
   last_test_date: "2025-07-30"
-  test_summary: "Radio transcription system has critical issues preventing testing. Backend hangs during startup cache warming phase. ffmpeg dependency was missing but now installed."
+  test_summary: "Fixed ObjectId serialization errors in radio transcription system. Added timeout mechanism for cache warming. Backend now starts correctly. Need to test radio capture and transcription functionality."
 
 agent_communication:
   - agent: "main"
