@@ -63,6 +63,15 @@ except ImportError as e:
     except ImportError:
         print("❌ Aucun service d'analyse de sentiment disponible")
 
+# Import du service asynchrone de sentiment
+try:
+    from async_sentiment_service import async_sentiment_service, analyze_text_async, get_text_sentiment_cached, get_sentiment_analysis_status
+    ASYNC_SENTIMENT_ENABLED = True
+    print("✅ Service d'analyse de sentiment asynchrone activé")
+except ImportError as e:
+    print(f"⚠️ Service d'analyse de sentiment asynchrone non disponible: {e}")
+    ASYNC_SENTIMENT_ENABLED = False
+
 # Import du service d'alertes Telegram
 try:
     from telegram_alerts_service import telegram_alerts
