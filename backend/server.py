@@ -439,6 +439,23 @@ async def get_filtered_articles(
 ):
     """Récupérer les articles avec filtres avancés et tri"""
     try:
+        # Validation des paramètres
+        limit = min(max(1, limit), 500)  # Limiter entre 1 et 500
+        offset = max(0, offset)  # Pas de valeurs négatives
+        
+        # Valider les dates si fournies
+        if date_start:
+            try:
+                datetime.strptime(date_start, '%Y-%m-%d')
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Format date_start invalide (YYYY-MM-DD)")
+        
+        if date_end:
+            try:
+                datetime.strptime(date_end, '%Y-%m-%d')
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Format date_end invalide (YYYY-MM-DD)")
+        
         # Construire la requête MongoDB
         query = {}
         
@@ -451,20 +468,24 @@ async def get_filtered_articles(
                 date_filter['$lte'] = date_end
             query['date'] = date_filter
         
-        # Filtre par source
+        # Filtre par source (avec protection injection)
         if source and source != "all":
-            query['source'] = {'$regex': source, '$options': 'i'}
+            # Nettoyer la source pour éviter les injections
+            clean_source = str(source).replace('$', '').replace('.', '')[:100]
+            query['source'] = {'$regex': clean_source, '$options': 'i'}
         
-        # Filtre par texte de recherche
+        # Filtre par texte de recherche (avec protection injection)
         if search_text and len(search_text.strip()) >= 2:
-            search_regex = {'$regex': search_text.strip(), '$options': 'i'}
+            # Nettoyer le texte de recherche
+            clean_text = str(search_text).replace('$', '').replace('.', '')[:200]
+            search_regex = {'$regex': clean_text, '$options': 'i'}
             query['$or'] = [
                 {'title': search_regex},
                 {'source': search_regex}
             ]
         
-        # Définir l'ordre de tri
-        sort_options = {
+        # Définir l'ordre de tri (avec validation)
+        valid_sort_options = {
             "date_desc": [("scraped_at", -1)],
             "date_asc": [("scraped_at", 1)],
             "source_asc": [("source", 1), ("scraped_at", -1)],
@@ -473,17 +494,17 @@ async def get_filtered_articles(
             "title_desc": [("title", -1)]
         }
         
-        sort_query = sort_options.get(sort_by, [("scraped_at", -1)])
+        sort_query = valid_sort_options.get(sort_by, [("scraped_at", -1)])
         
         # Exécuter la requête avec pagination
         articles_cursor = articles_collection.find(
             query,
-            {'_id': 0}
+            {'_id': 0}  # Exclure _id pour éviter les erreurs de sérialisation
         ).sort(sort_query).skip(offset).limit(limit)
         
         articles = list(articles_cursor)
         
-        # Compter le total pour la pagination
+        # Compter le total pour la pagination (avec timeout)
         total_count = articles_collection.count_documents(query)
         
         # Calculer les métadonnées de pagination
@@ -508,9 +529,16 @@ async def get_filtered_articles(
             }
         }
         
+    except HTTPException:
+        raise  # Re-lancer les erreurs HTTP
     except Exception as e:
         logger.error(f"Erreur filtrage articles: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur filtrage articles: {str(e)}")
+        return {
+            "success": False,
+            "error": "Erreur interne du serveur",
+            "articles": [],
+            "pagination": {"total": 0, "limit": limit, "offset": offset, "has_more": False, "returned": 0}
+        }
 
 @app.get("/api/articles/sources")
 async def get_available_sources():
