@@ -251,7 +251,12 @@ class RadioTranscriptionService:
                     result['error'] = "Échec de la transcription"
                     return result
                 
-                # 3. Sauvegarder en base de données avec section
+                # 3. Analyse intelligente de la transcription
+                logger.info("🧠 Analyse intelligente de la transcription...")
+                from transcription_analysis_service import analyze_transcription
+                analysis = analyze_transcription(transcription['text'], config['name'])
+                
+                # 4. Sauvegarder en base de données avec analyse
                 transcription_record = {
                     'id': f"{stream_key}_{int(time.time())}",
                     'stream_key': stream_key,
@@ -259,10 +264,22 @@ class RadioTranscriptionService:
                     'section': config['section'],
                     'description': config['description'],
                     'stream_url': config['url'],
+                    
+                    # Transcription brute
                     'transcription_text': transcription['text'],
                     'language': transcription['language'],
                     'duration_seconds': transcription['duration'],
                     'segments': transcription['segments'],
+                    
+                    # Analyse intelligente
+                    'ai_summary': analysis.get('summary', transcription['text']),
+                    'ai_key_sentences': analysis.get('key_sentences', []),
+                    'ai_main_topics': analysis.get('main_topics', []),
+                    'ai_keywords': analysis.get('keywords', []),
+                    'ai_relevance_score': analysis.get('relevance_score', 0.5),
+                    'ai_analysis_metadata': analysis.get('analysis_metadata', {}),
+                    
+                    # Métadonnées
                     'captured_at': datetime.now().isoformat(),
                     'date': datetime.now().strftime('%Y-%m-%d'),
                     'audio_size_bytes': os.path.getsize(audio_path) if os.path.exists(audio_path) else 0,
