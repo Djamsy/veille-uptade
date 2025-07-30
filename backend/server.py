@@ -250,24 +250,36 @@ async def get_articles_by_date(date: str):
 
 @app.post("/api/articles/scrape-now")
 async def scrape_articles_now():
-    """Lancer le scraping d'articles immédiatement avec timeout optimisé"""
+    """Lancer le scraping d'articles immédiatement avec vidage du cache"""
     try:
-        # Invalider le cache des articles
+        # 1. VIDER COMPLÈTEMENT LE CACHE avant scraping
         if CACHE_ENABLED:
-            cache_invalidate('articles')
+            logger.info("🗑️ Vidage complet du cache avant scraping...")
+            cache_invalidate()  # Vider tout le cache
+            intelligent_cache.cleanup_expired_cache()
         
-        # Lancer le scraping en arrière-plan pour éviter les timeouts
+        # 2. Lancer le scraping en arrière-plan pour éviter les timeouts
         import threading
         
         def scrape_async():
             try:
+                logger.info("🚀 Démarrage du scraping avec cache vidé...")
                 result = guadeloupe_scraper.scrape_all_sites()
-                # Sauvegarder le résultat dans le cache si disponible
+                
+                # 3. VIDER À NOUVEAU LE CACHE après scraping pour forcer refresh
                 if CACHE_ENABLED:
+                    logger.info("🗑️ Vidage du cache après scraping pour forcer refresh...")
+                    cache_invalidate('articles')  # Vider cache articles
+                    cache_invalidate('dashboard')  # Vider cache dashboard
+                    
+                    # Sauvegarder le résultat dans le cache
                     intelligent_cache.set_cached_data('last_scraping_result', result)
+                    
+                    logger.info("✅ Cache vidé et résultat scraping sauvegardé")
                 else:
                     # Stocker temporairement le résultat
                     setattr(app.state, 'last_scraping_result', result)
+                    
             except Exception as e:
                 error_result = {
                     'success': False,
@@ -278,6 +290,7 @@ async def scrape_articles_now():
                     intelligent_cache.set_cached_data('last_scraping_result', error_result)
                 else:
                     setattr(app.state, 'last_scraping_result', error_result)
+                logger.error(f"❌ Erreur lors du scraping: {e}")
         
         # Démarrer le scraping en arrière-plan
         scraping_thread = threading.Thread(target=scrape_async)
@@ -286,8 +299,9 @@ async def scrape_articles_now():
         
         return {
             "success": True, 
-            "message": "Scraping démarré en arrière-plan. Consultez les articles dans quelques minutes.",
-            "estimated_completion": "2-3 minutes"
+            "message": "Scraping démarré avec vidage du cache. Articles du jour disponibles dans quelques minutes.",
+            "estimated_completion": "2-3 minutes",
+            "cache_cleared": True
         }
         
     except Exception as e:
