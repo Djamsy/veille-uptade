@@ -24,7 +24,14 @@ from scheduler_service import veille_scheduler, start_scheduler
 
 # Import du cache avec fallback - Réactivé avec cache 24H
 
-# Import du service d'analyse de sentiment local
+# Import du service réseaux sociaux
+try:
+    from social_media_service import social_scraper
+    SOCIAL_MEDIA_ENABLED = True
+    print("✅ Service réseaux sociaux activé")
+except ImportError as e:
+    print(f"⚠️ Service réseaux sociaux non disponible: {e}")
+    SOCIAL_MEDIA_ENABLED = False
 try:
     from sentiment_analysis_service import local_sentiment_analyzer, analyze_articles_sentiment
     SENTIMENT_ENABLED = True
