@@ -327,3 +327,5 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: "Completed user requirements: 1) Modified dashboard/articles to show today-only data, 2) Implemented cache clearing on each scraping update, 3) Created comprehensive local sentiment analysis service with French dictionaries and Guadeloupe-specific patterns. Added 4 new sentiment analysis endpoints. Ready for comprehensive backend testing of all updated features."
+  - agent: "main"
+    message: "Completed frontend updates: 1) Moved search bar from header to dashboard above Actions Automatiques, 2) Updated loadTabData function to include search and comments data loading, 3) Enhanced useEffect to load specific data for search and comments tabs, 4) All search and comments functionality integrated. Ready for backend testing first, then frontend testing."
