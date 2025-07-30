@@ -577,7 +577,7 @@ function App() {
         {/* Dashboard */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
-            <h2 className="text-3xl font-bold text-white mb-6">📊 Vue d'ensemble - Guadeloupe</h2>
+            <h2 className="text-3xl font-bold mb-6" style={{ color: '#2c3e50' }}>📊 Vue d'ensemble - Guadeloupe</h2>
             
             <div className="stats-grid">
               <div className="stat-card">
