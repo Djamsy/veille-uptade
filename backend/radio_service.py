@@ -622,7 +622,7 @@ class RadioTranscriptionService:
             
             try:
                 # 2. Transcrire l'audio
-                transcription = self.transcribe_audio_file(audio_path)
+                transcription = self.transcribe_audio_file(audio_path, stream_key)
                 if not transcription:
                     result['error'] = "Échec de la transcription"
                     return result
