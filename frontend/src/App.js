@@ -653,7 +653,7 @@ function App() {
               <div className="mt-4">
                 <p className="text-sm text-gray-600 mb-2">Recherches populaires :</p>
                 <div className="flex flex-wrap gap-2">
-                  {['Guy Losbar', 'Conseil Départemental', 'CD971', 'Budget départemental', 'Education'].map((term) => (
+                  {['cd971', 'Guy Losbar', 'département guadeloupe', 'GUSR', 'Ary Chalus', 'Budget départemental'].map((term) => (
                     <button
                       key={term}
                       onClick={() => {
