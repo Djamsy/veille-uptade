@@ -975,19 +975,20 @@ class GuadeloupeMediaAPITester:
             if success:
                 response_data = response.json()
                 if response_data.get('success'):
-                    analysis = response_data.get('analysis', {})
-                    categories = analysis.get('categories', [])
-                    summary = analysis.get('summary', '')
+                    gpt_analysis = response_data.get('gpt_analysis', {})
+                    analysis_text = gpt_analysis.get('gpt_analysis', '') or gpt_analysis.get('summary', '')
+                    analysis_method = gpt_analysis.get('analysis_method', '')
                     
                     # Check for journalistic categories with emojis
                     expected_emojis = ['🏛️', '💼', '🌿']
-                    has_emojis = any(emoji in str(categories) for emoji in expected_emojis)
+                    has_emojis = any(emoji in analysis_text for emoji in expected_emojis)
+                    is_gpt_method = 'gpt' in analysis_method.lower()
                     
-                    if categories and summary and has_emojis:
-                        details = f"- GPT analysis successful: {len(categories)} categories, emojis: {has_emojis}"
+                    if analysis_text and has_emojis and is_gpt_method:
+                        details = f"- GPT analysis successful: method={analysis_method}, emojis: {has_emojis}, length={len(analysis_text)}"
                     else:
                         success = False
-                        details = f"- GPT analysis incomplete: categories={len(categories)}, emojis={has_emojis}"
+                        details = f"- GPT analysis incomplete: method={analysis_method}, emojis={has_emojis}, text_len={len(analysis_text)}"
                 else:
                     success = False
                     details = f"- API returned success=False: {response_data.get('error', 'Unknown error')}"
