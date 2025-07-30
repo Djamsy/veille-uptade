@@ -466,8 +466,8 @@ class TelegramAlertsService:
                 # Mettre à jour la dernière vérification
                 self.last_check_time = datetime.now()
                 
-                # Attendre 5 minutes avant la prochaine vérification
-                time.sleep(300)  # 5 minutes
+                # Attendre 2 minutes avant la prochaine vérification (plus fréquent pour le radio)
+                time.sleep(120)  # 2 minutes au lieu de 5
                 
             except Exception as e:
                 logger.error(f"❌ Erreur dans la boucle de surveillance: {e}")
