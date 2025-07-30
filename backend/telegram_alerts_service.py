@@ -417,13 +417,30 @@ class TelegramAlertsService:
             return []
 
     def format_guy_losbar_alert(self, mentions: List[Dict]) -> str:
-        """Formater une alerte pour les mentions de Guy Losbar"""
+        """Formater une alerte pour les mentions des mots-clés surveillés"""
         if not mentions:
             return ""
         
-        alert_parts = ["🚨 *ALERTE Guy Losbar*", ""]
+        # Séparer par priorité
+        high_priority_mentions = [m for m in mentions if m.get('priority') == 'high']
+        medium_priority_mentions = [m for m in mentions if m.get('priority') == 'medium']
         
-        for mention in mentions:
+        alert_parts = []
+        
+        # Titre dynamique selon la priorité
+        if high_priority_mentions:
+            alert_parts.extend(["🚨 *ALERTE PRIORITAIRE Guy Losbar*", ""])
+            mentions_to_show = high_priority_mentions[:3]  # Limiter pour Telegram
+        else:
+            alert_parts.extend(["📢 *ALERTE Conseil Départemental*", ""])
+            mentions_to_show = medium_priority_mentions[:3]
+        
+        for mention in mentions_to_show:
+            keywords_found = mention.get('keywords_found', [])
+            keywords_display = ", ".join(keywords_found[:3])  # Limiter l'affichage
+            if len(keywords_found) > 3:
+                keywords_display += f" (+{len(keywords_found)-3} autres)"
+            
             if mention['type'] == 'article':
                 source = mention['source']
                 title = mention['title']
@@ -432,6 +449,7 @@ class TelegramAlertsService:
                 alert_parts.append(f"📰 *Article* - {source}")
                 title_display = title[:100] + "..." if len(title) > 100 else title
                 alert_parts.append(f"📝 {title_display}")
+                alert_parts.append(f"🔍 Mots-clés: {keywords_display}")
                 if url:
                     alert_parts.append(f"🔗 [Lire l'article]({url})")
                 
@@ -439,22 +457,42 @@ class TelegramAlertsService:
                 platform = mention['platform']
                 author = mention['author']
                 content = mention['content']
-                engagement = mention['engagement']
+                engagement = mention.get('engagement', 0)
                 
                 emoji = "🐦" if platform == 'twitter' else "📱"
                 alert_parts.append(f"{emoji} *{platform.title()}* - @{author}")
                 alert_parts.append(f"💬 {content}")
+                alert_parts.append(f"🔍 Mots-clés: {keywords_display}")
                 if engagement > 0:
                     alert_parts.append(f"📊 {engagement} interactions")
                 
             elif mention['type'] == 'radio_transcription':
                 section = mention['section']
+                stream_name = mention.get('stream_name', section)
                 content = mention['content']
                 
-                alert_parts.append(f"📻 *Radio* - {section}")
+                alert_parts.append(f"📻 *Radio* - {stream_name}")
                 alert_parts.append(f"🎙️ {content}")
+                alert_parts.append(f"🔍 Mots-clés: {keywords_display}")
             
             alert_parts.append("")  # Ligne vide entre mentions
+        
+        # Résumé si plus de mentions
+        total_mentions = len(mentions)
+        if total_mentions > len(mentions_to_show):
+            remaining = total_mentions - len(mentions_to_show)
+            alert_parts.append(f"📋 +{remaining} autres mentions non affichées")
+            alert_parts.append("")
+        
+        # Priorité et timing
+        priority_info = f"🎯 Priorité haute: {len(high_priority_mentions)}" if high_priority_mentions else ""
+        if medium_priority_mentions and high_priority_mentions:
+            priority_info += f" | Normale: {len(medium_priority_mentions)}"
+        elif medium_priority_mentions:
+            priority_info = f"📝 Mentions normales: {len(medium_priority_mentions)}"
+        
+        if priority_info:
+            alert_parts.append(priority_info)
         
         current_time = datetime.now().strftime('%d/%m/%Y à %H:%M')
         alert_parts.append(f"⏰ Détecté le {current_time}")
