@@ -205,6 +205,36 @@ class IntelligentCache:
             # Nettoyer l'état de calcul
             self._cleanup_cache_locks(cache_key)
     
+    def cleanup_malformed_cache_keys(self):
+        """Nettoyer les clés de cache malformées"""
+        try:
+            # Nettoyer les clés mémoire malformées
+            malformed_keys = [k for k in self.cache_data.keys() if '_date:' in k or '_date_date' in k]
+            for key in malformed_keys:
+                if key in self.cache_data:
+                    del self.cache_data[key]
+                if key in self.cache_timestamps:
+                    del self.cache_timestamps[key]
+                if key in self.cache_locks:
+                    self.cache_locks[key].set()
+                    del self.cache_locks[key]
+            
+            # Nettoyer dans le cache persistant MongoDB
+            if self.cache_collection is not None:
+                try:
+                    result = self.cache_collection.delete_many({
+                        'cache_key': {'$regex': '(_date:|_date_date)'}
+                    })
+                    logger.info(f"🧹 {result.deleted_count} clés de cache malformées supprimées de MongoDB")
+                except Exception as e:
+                    logger.warning(f"Erreur nettoyage cache persistant malformé: {e}")
+            
+            if malformed_keys:
+                logger.info(f"🧹 {len(malformed_keys)} clés de cache malformées nettoyées: {malformed_keys}")
+                
+        except Exception as e:
+            logger.error(f"Erreur nettoyage clés malformées: {e}")
+
     def _cleanup_cache_locks(self, cache_key: str):
         """Nettoyer les locks et états de calcul pour éviter les deadlocks"""
         try:
