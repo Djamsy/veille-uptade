@@ -414,6 +414,28 @@ function App() {
     }
   }, [activeTab, selectedDate, autoSearchCompleted]);
 
+  // Effet pour les animations au scroll
+  useEffect(() => {
+    const observerOptions = {
+      threshold: 0.3,
+      rootMargin: '0px 0px -50px 0px'
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('revealed');
+        }
+      });
+    }, observerOptions);
+
+    // Observer tous les éléments avec la classe scroll-reveal
+    const elementsToReveal = document.querySelectorAll('.scroll-reveal');
+    elementsToReveal.forEach(el => observer.observe(el));
+
+    return () => observer.disconnect();
+  }, [activeTab]);
+
   // Actions optimisées avec traitement en arrière-plan
   const scrapeArticlesNow = async () => {
     if (backgroundTasks.scraping) return;
