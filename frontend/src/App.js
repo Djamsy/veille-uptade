@@ -1402,7 +1402,7 @@ function App() {
             {createFloatingElements()}
             
             {/* Header Story */}
-            <div className="story-header">
+            <div className="story-header scroll-reveal">
               <h1 className="story-title">
                 🏝️ Veille Média Guadeloupe
               </h1>
