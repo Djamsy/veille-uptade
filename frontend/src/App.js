@@ -1510,21 +1510,21 @@ function App() {
           </div>
         )}
 
-        {/* Articles avec filtres avancés */}
+        {/* Articles avec filtres avancés et animations */}
         {activeTab === 'articles' && (
-          <div className="animate-slide-in">
+          <div className="animate-fade-in-up">
             {/* Header avec filtres */}
             <div className="section-container">
-              <div className="section-header">
-                <h2 className="section-title">📰 Articles de Presse</h2>
-                <p className="section-subtitle">Filtrage et tri avancés des articles locaux</p>
+              <div className="section-header animate-fade-in-scale">
+                <h2 className="section-title animate-wave">📰 Articles de Presse</h2>
+                <p className="section-subtitle animate-fade-in-up animate-delay-200">Filtrage et tri avancés des articles locaux</p>
               </div>
 
-              {/* Interface de filtres */}
-              <div className="glass-card" style={{ padding: '2rem', marginBottom: '2rem' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+              {/* Interface de filtres avec animations */}
+              <div className="glass-card animate-fade-in-up animate-delay-300" style={{ padding: '2rem', marginBottom: '2rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }} className="stagger-children">
                   {/* Filtre par texte */}
-                  <div>
+                  <div className="filter-field animate-fade-in-left">
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#374151' }}>
                       Recherche
                     </label>
@@ -1538,7 +1538,7 @@ function App() {
                   </div>
 
                   {/* Filtre par source */}
-                  <div>
+                  <div className="filter-field animate-fade-in-left animate-delay-100">
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#374151' }}>
                       Source
                     </label>
@@ -1557,7 +1557,7 @@ function App() {
                   </div>
 
                   {/* Date de début */}
-                  <div>
+                  <div className="filter-field animate-fade-in-left animate-delay-200">
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#374151' }}>
                       Date début
                     </label>
@@ -1570,7 +1570,7 @@ function App() {
                   </div>
 
                   {/* Date de fin */}
-                  <div>
+                  <div className="filter-field animate-fade-in-left animate-delay-300">
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#374151' }}>
                       Date fin
                     </label>
@@ -1583,7 +1583,7 @@ function App() {
                   </div>
 
                   {/* Tri */}
-                  <div>
+                  <div className="filter-field animate-fade-in-left animate-delay-400">
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#374151' }}>
                       Trier par
                     </label>
@@ -1602,26 +1602,26 @@ function App() {
                   </div>
                 </div>
 
-                {/* Boutons d'action */}
-                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                {/* Boutons d'action avec animations */}
+                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }} className="stagger-children">
                   <button
                     onClick={() => applyFilters(filters)}
-                    className="glass-button primary"
+                    className="glass-button primary micro-bounce animate-bounce-in"
                     disabled={loading}
                   >
-                    🔍 Appliquer les filtres
+                    {loading ? <span className="animate-rotate">⏳</span> : '🔍'} Appliquer les filtres
                   </button>
                   <button
                     onClick={resetFilters}
-                    className="glass-button secondary"
+                    className="glass-button secondary micro-bounce animate-bounce-in animate-delay-100"
                   >
                     🔄 Réinitialiser
                   </button>
                 </div>
               </div>
 
-              {/* Résultats */}
-              <div className="glass-card" style={{ padding: '1.5rem' }}>
+              {/* Résultats avec animations */}
+              <div className="glass-card animate-fade-in-up animate-delay-600" style={{ padding: '1.5rem' }}>
                 {/* Métadonnées des résultats */}
                 <div style={{ 
                   display: 'flex', 
@@ -1632,19 +1632,19 @@ function App() {
                   background: 'rgba(59, 130, 246, 0.05)',
                   borderRadius: '8px',
                   border: '1px solid rgba(59, 130, 246, 0.1)'
-                }}>
-                  <span style={{ fontWeight: '500', color: '#1e40af' }}>
+                }} className="animate-slide-down">
+                  <span style={{ fontWeight: '500', color: '#1e40af' }} className="animate-count-up">
                     {pagination.total} articles trouvés
                   </span>
-                  <span style={{ color: '#6b7280', fontSize: '0.9rem' }}>
+                  <span style={{ color: '#6b7280', fontSize: '0.9rem' }} className="animate-fade-in-right">
                     Page {Math.floor(pagination.offset / 50) + 1}
                   </span>
                 </div>
 
-                {/* Liste des articles filtrés */}
-                <div className="articles-grid">
+                {/* Liste des articles filtrés avec animation en cascade */}
+                <div className="articles-grid stagger-children">
                   {filteredArticles.map((article, index) => (
-                    <div key={`${article.id || index}`} className="article-card">
+                    <div key={`${article.id || index}`} className="article-card animate-fade-in-scale" style={{ animationDelay: `${index * 0.05}s` }}>
                       <div className="article-content">
                         <h3 className="article-title">
                           <a 
@@ -1673,15 +1673,15 @@ function App() {
                   ))}
                 </div>
 
-                {/* Bouton charger plus */}
+                {/* Bouton charger plus avec animation */}
                 {pagination.hasMore && (
                   <div style={{ textAlign: 'center', marginTop: '2rem' }}>
                     <button
                       onClick={loadMoreArticles}
-                      className="glass-button secondary"
+                      className="glass-button secondary micro-bounce animate-bounce-in"
                       disabled={loading}
                     >
-                      {loading ? '⏳ Chargement...' : '📄 Charger plus d\'articles'}
+                      {loading ? <span className="animate-rotate">⏳</span> : '📄'} Charger plus d'articles
                     </button>
                   </div>
                 )}
