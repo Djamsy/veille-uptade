@@ -2173,6 +2173,214 @@ textarea {
   box-shadow: 0 12px 32px rgba(59, 130, 246, 0.15);
 }
 
+/* ================ ANIMATIONS SCROLL RÉSEAUX SOCIAUX ================ */
+
+/* Animations spécifiques pour l'Intelligence Sociale */
+.social-hero-header.scroll-reveal {
+  opacity: 0;
+  transform: translateY(-50px);
+  transition: all 1s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.social-hero-header.scroll-reveal.revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.social-hero-stats.scroll-reveal-scale {
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.3s;
+}
+
+.social-hero-stats.scroll-reveal-scale.revealed {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.social-actions-grid.scroll-reveal-left {
+  opacity: 0;
+  transform: translateX(-100px);
+  transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.social-actions-grid.scroll-reveal-left.revealed {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.modern-search-section.scroll-reveal-right {
+  opacity: 0;
+  transform: translateX(100px);
+  transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.modern-search-section.scroll-reveal-right.revealed {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Animation en cascade pour les tags de recherche */
+.search-tags.stagger-reveal > * {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.4s ease;
+}
+
+.search-tags.stagger-reveal.revealed > * {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.search-tags.stagger-reveal.revealed > *:nth-child(1) { transition-delay: 0.1s; }
+.search-tags.stagger-reveal.revealed > *:nth-child(2) { transition-delay: 0.2s; }
+.search-tags.stagger-reveal.revealed > *:nth-child(3) { transition-delay: 0.3s; }
+.search-tags.stagger-reveal.revealed > *:nth-child(4) { transition-delay: 0.4s; }
+.search-tags.stagger-reveal.revealed > *:nth-child(5) { transition-delay: 0.5s; }
+
+/* Animation en cascade pour les plateformes sociales */
+.social-platforms-grid.stagger-reveal > * {
+  opacity: 0;
+  transform: translateY(30px) scale(0.9);
+  transition: all 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.social-platforms-grid.stagger-reveal.revealed > * {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.social-platforms-grid.stagger-reveal.revealed > *:nth-child(1) { transition-delay: 0.1s; }
+.social-platforms-grid.stagger-reveal.revealed > *:nth-child(2) { transition-delay: 0.2s; }
+.social-platforms-grid.stagger-reveal.revealed > *:nth-child(3) { transition-delay: 0.3s; }
+.social-platforms-grid.stagger-reveal.revealed > *:nth-child(4) { transition-delay: 0.4s; }
+
+/* Animation pour l'analyse en temps réel */
+.realtime-analysis.scroll-reveal-scale {
+  opacity: 0;
+  transform: scale(0.8) translateY(30px);
+  transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.realtime-analysis.scroll-reveal-scale.revealed {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+.analysis-cards.stagger-reveal > * {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.analysis-cards.stagger-reveal.revealed > * {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.analysis-cards.stagger-reveal.revealed > *:nth-child(1) { transition-delay: 0.1s; }
+.analysis-cards.stagger-reveal.revealed > *:nth-child(2) { transition-delay: 0.2s; }
+.analysis-cards.stagger-reveal.revealed > *:nth-child(3) { transition-delay: 0.3s; }
+.analysis-cards.stagger-reveal.revealed > *:nth-child(4) { transition-delay: 0.4s; }
+
+/* Animations pour les résultats de recherche */
+.modern-search-results.scroll-reveal-left {
+  opacity: 0;
+  transform: translateX(-50px);
+  transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.modern-search-results.scroll-reveal-left.revealed {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.results-grid.stagger-reveal > * {
+  opacity: 0;
+  transform: translateY(20px) scale(0.95);
+  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.results-grid.stagger-reveal.revealed > * {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.results-grid.stagger-reveal.revealed > *:nth-child(1) { transition-delay: 0.1s; }
+.results-grid.stagger-reveal.revealed > *:nth-child(2) { transition-delay: 0.2s; }
+.results-grid.stagger-reveal.revealed > *:nth-child(3) { transition-delay: 0.3s; }
+.results-grid.stagger-reveal.revealed > *:nth-child(4) { transition-delay: 0.4s; }
+.results-grid.stagger-reveal.revealed > *:nth-child(5) { transition-delay: 0.5s; }
+.results-grid.stagger-reveal.revealed > *:nth-child(6) { transition-delay: 0.6s; }
+
+/* Animations pour les commentaires récents */
+.recent-comments-section.scroll-reveal-right {
+  opacity: 0;
+  transform: translateX(50px);
+  transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.recent-comments-section.scroll-reveal-right.revealed {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.comments-grid.stagger-reveal > * {
+  opacity: 0;
+  transform: translateX(30px);
+  transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.comments-grid.stagger-reveal.revealed > * {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.comments-grid.stagger-reveal.revealed > *:nth-child(odd) { transition-delay: 0.1s; }
+.comments-grid.stagger-reveal.revealed > *:nth-child(even) { transition-delay: 0.2s; }
+
+/* Animation pour l'état vide */
+.empty-state.scroll-reveal-scale {
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all 1s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.empty-state.scroll-reveal-scale.revealed {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Animation supplémentaire pour les éléments flottants */
+.empty-icon {
+  animation: gentle-float 3s ease-in-out infinite;
+}
+
+@keyframes gentle-float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+/* Hover effects améliorés avec les animations */
+.social-action-card:hover {
+  animation: gentle-pulse 0.6s ease-in-out;
+}
+
+@keyframes gentle-pulse {
+  0% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-5px) scale(1.02); }
+  100% { transform: translateY(-5px) scale(1); }
+}
+
+.platform-card:hover {
+  animation: platform-lift 0.3s ease-in-out forwards;
+}
+
+@keyframes platform-lift {
+  0% { transform: translateY(0) scale(1); }
+  100% { transform: translateY(-5px) scale(1.02); }
+}
+
 /* ================ RÉSEAUX SOCIAUX MODERNISÉS ================ */
 .modern-social-section {
   min-height: 100vh;
