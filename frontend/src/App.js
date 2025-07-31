@@ -1117,9 +1117,9 @@ function App() {
         </div>
       )}
 
-      {/* Navigation style Apple moderne avec support mobile */}
+      {/* Navigation style Apple moderne avec support mobile et animations */}
       <div className="content-section">
-        <nav className={`tab-navigation ${mobileMenuOpen ? 'mobile-open' : ''}`}>
+        <nav className={`tab-navigation ${mobileMenuOpen ? 'mobile-open' : ''} animate-fade-in-up animate-delay-200`}>
           {[
             { id: 'dashboard', name: 'Dashboard', icon: 'dashboard' },
             { id: 'search', name: 'Recherche', icon: 'search' },
@@ -1129,11 +1129,12 @@ function App() {
             { id: 'comments', name: 'Réseaux Sociaux', icon: 'social' },
             { id: 'transcription', name: 'Radio', icon: 'radio' },
             { id: 'digest', name: 'Digest', icon: 'digest' }
-          ].map((tab) => (
+          ].map((tab, index) => (
             <button
               key={tab.id}
               onClick={() => handleTabChange(tab.id)}
-              className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}
+              className={`tab-button ${activeTab === tab.id ? 'active' : ''} micro-bounce animate-fade-in-left`}
+              style={{ animationDelay: `${index * 0.1}s` }}
             >
               {tab.name}
             </button>
