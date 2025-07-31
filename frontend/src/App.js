@@ -3572,10 +3572,10 @@ function App() {
 
               {/* Analyse en temps réel */}
               {commentsAnalysis && commentsAnalysis.total_comments > 0 && (
-                <div className="realtime-analysis">
+                <div className="realtime-analysis scroll-reveal-scale">
                   <h3 className="analysis-title">📊 Analyse en Temps Réel</h3>
                   
-                  <div className="analysis-cards">
+                  <div className="analysis-cards stagger-reveal">
                     <div className="analysis-card sentiment-positive">
                       <div className="analysis-icon">😊</div>
                       <div className="analysis-content">
