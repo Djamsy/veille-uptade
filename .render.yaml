@@ -2,5 +2,5 @@ services:
   - type: static
     name: veille-media3
     env: static
-    buildCommand: cd frontend && yarn install && yarn build
+    buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: frontend/build
