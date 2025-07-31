@@ -3372,15 +3372,15 @@ function App() {
                 </p>
                 <div className="social-hero-stats">
                   <div className="hero-stat">
-                    <div className="hero-stat-value">{commentsAnalysis.total_comments || 0}</div>
+                    <div className="hero-stat-value">{(commentsAnalysis && commentsAnalysis.total_comments) || 0}</div>
                     <div className="hero-stat-label">Posts Analysés</div>
                   </div>
                   <div className="hero-stat">
-                    <div className="hero-stat-value">{socialStats.total_posts || 0}</div>
+                    <div className="hero-stat-value">{(socialStats && socialStats.total_posts) || 0}</div>
                     <div className="hero-stat-label">Posts Récents</div>
                   </div>
                   <div className="hero-stat">
-                    <div className="hero-stat-value">{socialStats.total_mentions || 0}</div>
+                    <div className="hero-stat-value">{(socialStats && socialStats.total_mentions) || 0}</div>
                     <div className="hero-stat-label">Mentions</div>
                   </div>
                 </div>
