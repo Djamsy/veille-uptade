@@ -1193,61 +1193,68 @@ function App() {
           </div>
         )}
 
-        {/* Dashboard moderne */}
+        {/* Dashboard moderne avec animations */}
         {activeTab === 'dashboard' && (
-          <div className="animate-slide-in">
+          <div className="animate-fade-in-up">
             <div className="section-container">
-              <div className="section-header">
-                <h2 className="section-title">Vue d'ensemble - Guadeloupe</h2>
-                <p className="section-subtitle">Monitoring des médias locaux en temps réel</p>
+              <div className="section-header animate-fade-in-scale">
+                <h2 className="section-title animate-wave">Vue d'ensemble - Guadeloupe</h2>
+                <p className="section-subtitle animate-fade-in-up animate-delay-200">Monitoring des médias locaux en temps réel</p>
               </div>
 
-              <div className="stats-container">
-                <div className="stat-card">
+              <div className="stats-container stagger-children">
+                <div className="stat-card animate-bounce-in">
                   <div className="stat-label">Articles Presse</div>
-                  <div className="stat-value">{dashboardStats.total_articles || 0}</div>
+                  <div className="stat-value animate-count-up">{dashboardStats.total_articles || 0}</div>
                   <div className="stat-sublabel">Aujourd'hui</div>
                 </div>
 
-                <div className="stat-card">
+                <div className="stat-card animate-bounce-in animate-delay-100">
                   <div className="stat-label">Digests</div>
-                  <div className="stat-value">{dashboardStats.total_digests || 0}</div>
+                  <div className="stat-value animate-count-up">{dashboardStats.total_digests || 0}</div>
                   <div className="stat-sublabel">Générés</div>
                 </div>
 
-                <div className="stat-card">
+                <div className="stat-card animate-bounce-in animate-delay-200">
                   <div className="stat-label">Cache Performance</div>
-                  <div className="stat-value">{Math.round((dashboardStats.cache_hits / Math.max(dashboardStats.cache_total, 1)) * 100) || 0}%</div>
+                  <div className="stat-value animate-count-up">{Math.round((dashboardStats.cache_hits / Math.max(dashboardStats.cache_total, 1)) * 100) || 0}%</div>
                   <div className="stat-sublabel">Efficacité</div>
                 </div>
 
-                <div className="stat-card">
+                <div className="stat-card animate-bounce-in animate-delay-300">
                   <div className="stat-label">Transcriptions</div>
-                  <div className="stat-value">{dashboardStats.total_transcriptions || 0}</div>
+                  <div className="stat-value animate-count-up">{dashboardStats.total_transcriptions || 0}</div>
                   <div className="stat-sublabel">Radio</div>
                 </div>
               </div>
             </div>
 
-            {/* Résultats de recherche automatique */}
+            {/* Résultats de recherche automatique avec animations */}
             {autoSearchCompleted && Object.keys(autoSearchResults).length > 0 && (
-              <div className="glass-card animate-slide-in" style={{ padding: '2rem' }}>
-                <h3 className="section-title" style={{ fontSize: '1.5rem', marginBottom: '2rem' }}>
+              <div className="glass-card animate-slide-down animate-delay-400" style={{ padding: '2rem' }}>
+                <h3 className="section-title animate-fade-in-left" style={{ fontSize: '1.5rem', marginBottom: '2rem' }}>
                   📈 Veille Automatique - Sujets Prioritaires
                 </h3>
                 <div style={{ 
                   display: 'grid', 
                   gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
                   gap: '1rem' 
-                }}>
-                  {Object.entries(autoSearchResults).map(([subject, result]) => (
-                    <div key={subject} className="glass-card" style={{ padding: '1rem' }}>
+                }} className="stagger-children">
+                  {Object.entries(autoSearchResults).map(([subject, result], index) => (
+                    <div 
+                      key={subject} 
+                      className="glass-card animate-fade-in-scale micro-bounce" 
+                      style={{ 
+                        padding: '1rem',
+                        animationDelay: `${index * 0.1}s`
+                      }}
+                    >
                       <h4 className="font-semibold mb-2" style={{ color: '#2c3e50' }}>{subject}</h4>
                       {result.error ? (
-                        <p className="text-sm" style={{ color: '#e74c3c' }}>Erreur</p>
+                        <p className="text-sm animate-attention" style={{ color: '#e74c3c' }}>Erreur</p>
                       ) : (
                         <div className="text-sm" style={{ color: '#34495e' }}>
-                          <p>📰 {result.articles_count || 0} articles</p>
+                          <p className="animate-fade-in-up">📰 {result.articles_count || 0} articles</p>
                           <p>💬 {result.social_posts_count || 0} posts</p>
                           <p className="font-medium" style={{ color: '#2c3e50' }}>Total: {result.total_results || 0}</p>
                         </div>
