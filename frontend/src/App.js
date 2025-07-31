@@ -2373,19 +2373,35 @@ function App() {
                     <div className="p-6 space-y-4">
                       {searchResults.articles.map((article, index) => (
                         <div key={index} className="border-l-4 border-blue-500 pl-4">
-                          <h4 className="font-semibold text-gray-800">
-                            <a 
-                              href={article.url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="hover:text-blue-600 transition-colors"
-                            >
-                              {article.title}
-                            </a>
-                          </h4>
-                          <p className="text-sm text-gray-600 mt-1">
-                            {article.source} • {new Date(article.scraped_at).toLocaleDateString('fr-FR')}
-                          </p>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                            <SourceLogo source={article.source} size={32} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <h4 className="font-semibold text-gray-800">
+                                <a 
+                                  href={article.url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="hover:text-blue-600 transition-colors"
+                                >
+                                  {article.title}
+                                </a>
+                              </h4>
+                              <p className="text-sm text-gray-600 mt-1">
+                                <span style={{
+                                  background: getSiteLogo(article.source).bg,
+                                  color: getSiteLogo(article.source).color,
+                                  padding: '0.25rem 0.5rem',
+                                  borderRadius: 'var(--radius-sm)',
+                                  fontSize: '0.75rem',
+                                  fontWeight: '500',
+                                  marginRight: '0.5rem'
+                                }}>
+                                  {article.source}
+                                </span>
+                                • {new Date(article.scraped_at).toLocaleDateString('fr-FR')}
+                              </p>
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>
