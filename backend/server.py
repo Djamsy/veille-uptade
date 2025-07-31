@@ -662,7 +662,76 @@ async def get_articles_by_date(date: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur récupération articles: {str(e)}")
 
-# Duplicate route removed - functionality preserved in first definition
+@app.post("/api/articles/clean-duplicates")
+async def clean_duplicate_articles():
+    """Nettoyer les doublons existants dans la base de données"""
+    try:
+        logger.info("🧹 Nettoyage des doublons demandé via API")
+        
+        # Utiliser le scraper pour nettoyer les doublons
+        scraper = guadeloupe_scraper
+        result = scraper.clean_duplicate_articles()
+        
+        return {
+            "success": True,
+            "result": result,
+            "message": f"Nettoyage terminé: {result.get('removed_count', 0)} doublons supprimés"
+        }
+        
+    except Exception as e:
+        logger.error(f"Erreur nettoyage doublons API: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+@app.get("/api/articles/duplicate-stats")
+async def get_duplicate_statistics():
+    """Obtenir des statistiques sur les doublons potentiels"""
+    try:
+        collection = guadeloupe_scraper.articles_collection
+        
+        # Statistiques générales
+        total_articles = collection.count_documents({})
+        
+        # Articles avec URLs dupliquées
+        url_duplicates = list(collection.aggregate([
+            {"$group": {"_id": "$url", "count": {"$sum": 1}}},
+            {"$match": {"count": {"$gt": 1}}},
+            {"$count": "total"}
+        ]))
+        
+        # Articles sans URL (potentiellement problématiques)
+        no_url_count = collection.count_documents({"url": {"$exists": False}})
+        
+        # Articles récents (7 derniers jours)
+        from datetime import datetime, timedelta
+        week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+        recent_count = collection.count_documents({"date": {"$gte": week_ago}})
+        
+        # Répartition par source
+        sources_stats = list(collection.aggregate([
+            {"$group": {"_id": "$source", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}}
+        ]))
+        
+        return {
+            "success": True,
+            "statistics": {
+                "total_articles": total_articles,
+                "url_duplicates": url_duplicates[0]['total'] if url_duplicates else 0,
+                "articles_without_url": no_url_count,
+                "recent_articles_count": recent_count,
+                "articles_by_source": sources_stats
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Erreur statistiques doublons: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
 
 @app.get("/api/articles/scrape-status")
 async def get_scrape_status():
