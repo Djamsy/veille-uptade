@@ -1883,6 +1883,165 @@ class GuadeloupeMediaAPITester:
         except Exception as e:
             return self.log_test("GPT Guadeloupe Context", False, f"- Error: {str(e)}")
 
+    def test_articles_loading_issue(self):
+        """Comprehensive test for articles loading issue reported by user"""
+        print("\n🔍 TESTING ARTICLES LOADING ISSUE - User Report: 'Les articles ne chargent pas sur le frontend'")
+        print("-" * 80)
+        
+        # Test 1: Articles API endpoint
+        try:
+            response = self.session.get(f"{self.base_url}/api/articles")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    articles = data.get('articles', [])
+                    count = data.get('count', 0)
+                    
+                    # Check article structure
+                    if articles and len(articles) > 0:
+                        first_article = articles[0]
+                        required_fields = ['id', 'title', 'source', 'url', 'scraped_at', 'date']
+                        missing_fields = [field for field in required_fields if field not in first_article]
+                        
+                        if not missing_fields:
+                            details = f"- ✅ {count} articles loaded with all required fields: {required_fields}"
+                        else:
+                            success = False
+                            details = f"- ❌ Articles missing fields: {missing_fields}. Available fields: {list(first_article.keys())}"
+                    else:
+                        success = False
+                        details = f"- ❌ No articles returned (count: {count})"
+                else:
+                    success = False
+                    details = f"- ❌ API returned success=False: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- ❌ HTTP Status: {response.status_code}"
+            self.log_test("Articles API Endpoint (/api/articles)", success, details)
+        except Exception as e:
+            self.log_test("Articles API Endpoint (/api/articles)", False, f"- ❌ Error: {str(e)}")
+        
+        # Test 2: Dashboard stats
+        try:
+            response = self.session.get(f"{self.base_url}/api/dashboard-stats")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    stats = data.get('stats', {})
+                    today_articles = stats.get('today_articles', 0)
+                    total_articles = stats.get('total_articles', 0)
+                    
+                    if today_articles > 0:
+                        details = f"- ✅ Dashboard shows {today_articles} articles today (total: {total_articles})"
+                    else:
+                        success = False
+                        details = f"- ❌ No articles in database: today={today_articles}, total={total_articles}"
+                else:
+                    success = False
+                    details = f"- ❌ Dashboard API failed: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- ❌ HTTP Status: {response.status_code}"
+            self.log_test("Dashboard Stats (/api/dashboard-stats)", success, details)
+        except Exception as e:
+            self.log_test("Dashboard Stats (/api/dashboard-stats)", False, f"- ❌ Error: {str(e)}")
+        
+        # Test 3: Articles count verification
+        try:
+            response = self.session.get(f"{self.base_url}/api/articles")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    articles = data.get('articles', [])
+                    count = data.get('count', 0)
+                    
+                    # Verify count matches actual articles
+                    actual_count = len(articles)
+                    count_matches = count == actual_count
+                    
+                    if count_matches and count > 0:
+                        details = f"- ✅ Article count verified: API reports {count}, actual articles: {actual_count}"
+                    elif count_matches and count == 0:
+                        success = False
+                        details = f"- ❌ No articles in database (both API count and actual count are 0)"
+                    else:
+                        success = False
+                        details = f"- ❌ Count mismatch: API reports {count}, actual articles: {actual_count}"
+                else:
+                    success = False
+                    details = f"- ❌ API failed: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- ❌ HTTP Status: {response.status_code}"
+            self.log_test("Articles Count Verification", success, details)
+        except Exception as e:
+            self.log_test("Articles Count Verification", False, f"- ❌ Error: {str(e)}")
+        
+        # Test 4: Articles structure validation
+        try:
+            response = self.session.get(f"{self.base_url}/api/articles")
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                if data.get('success'):
+                    articles = data.get('articles', [])
+                    
+                    if articles:
+                        # Check first 3 articles for structure
+                        structure_issues = []
+                        required_fields = ['id', 'title', 'source', 'url', 'scraped_at', 'date']
+                        
+                        for i, article in enumerate(articles[:3]):
+                            for field in required_fields:
+                                if field not in article:
+                                    structure_issues.append(f"Article {i+1} missing '{field}'")
+                                elif not article[field]:
+                                    structure_issues.append(f"Article {i+1} has empty '{field}'")
+                        
+                        if not structure_issues:
+                            # Check data types and formats
+                            sample_article = articles[0]
+                            details = f"- ✅ Structure valid. Sample: title='{sample_article.get('title', '')[:50]}...', source='{sample_article.get('source', '')}', date='{sample_article.get('date', '')}'"
+                        else:
+                            success = False
+                            details = f"- ❌ Structure issues: {structure_issues[:3]}"  # Show first 3 issues
+                    else:
+                        success = False
+                        details = f"- ❌ No articles to validate structure"
+                else:
+                    success = False
+                    details = f"- ❌ API failed: {data.get('error', 'Unknown error')}"
+            else:
+                details = f"- ❌ HTTP Status: {response.status_code}"
+            self.log_test("Articles Structure Validation", success, details)
+        except Exception as e:
+            self.log_test("Articles Structure Validation", False, f"- ❌ Error: {str(e)}")
+        
+        # Test 5: Error checking - look for 500 errors
+        endpoints_to_check = [
+            "/api/articles",
+            "/api/dashboard-stats", 
+            "/api/articles/sources",
+            "/api/articles/filtered"
+        ]
+        
+        server_errors = []
+        for endpoint in endpoints_to_check:
+            try:
+                response = self.session.get(f"{self.base_url}{endpoint}")
+                if response.status_code >= 500:
+                    server_errors.append(f"{endpoint}: {response.status_code}")
+            except Exception as e:
+                server_errors.append(f"{endpoint}: Exception - {str(e)}")
+        
+        if not server_errors:
+            self.log_test("Server Error Check (500s)", True, "- ✅ No 500 errors found on key endpoints")
+        else:
+            self.log_test("Server Error Check (500s)", False, f"- ❌ Server errors found: {server_errors}")
+        
+        print("-" * 80)
+        print("🔍 ARTICLES LOADING ISSUE TESTING COMPLETED")
+
     # ==================== NEW FILTERING & ANALYTICS TESTS ====================
     
     def test_articles_filtered_endpoint(self):
