@@ -2552,26 +2552,6 @@ function App() {
                   {searchLoading ? '⏳ Recherche...' : '🔍 Rechercher'}
                 </button>
               </div>
-              
-              {/* Suggestions populaires */}
-              <div className="mt-4">
-                <p className="text-sm text-gray-600 mb-2">Recherches populaires :</p>
-                <div className="flex flex-wrap gap-2">
-                  {['cd971', 'Guy Losbar', 'département guadeloupe', 'GUSR', 'Ary Chalus', 'Budget départemental'].map((term) => (
-                    <button
-                      key={term}
-                      onClick={() => {
-                        setSearchQuery(term);
-                        handleSearch(term);
-                      }}
-                      className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full text-sm transition-colors"
-                    >
-                      {term}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
 
             {/* Résultats de recherche */}
             {searchResults && (
