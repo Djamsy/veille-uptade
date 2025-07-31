@@ -1732,7 +1732,7 @@ function App() {
             </div>
 
             <div className="article-list">
-              {articles.map(article => (
+              {filteredArticles.map(article => (
                 <article key={article.id} className="article-card-narrative scroll-reveal">
                   {/* Header avec logo et titre narratif */}
                   <header className="article-header-narrative">
