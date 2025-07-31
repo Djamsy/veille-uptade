@@ -3391,7 +3391,7 @@ function App() {
             <div className="social-dashboard">
               
               {/* Actions principales */}
-              <div className="social-actions-grid">
+              <div className="social-actions-grid scroll-reveal-left">
                 <div className="social-action-card social-action-primary">
                   <div className="social-action-icon">🔍</div>
                   <div className="social-action-content">
