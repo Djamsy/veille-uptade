@@ -3670,7 +3670,7 @@ function App() {
 
               {/* État vide modernisé */}
               {(!comments || comments.length === 0) && !socialSearchResults && (
-                <div className="empty-state">
+                <div className="empty-state scroll-reveal-scale">
                   <div className="empty-icon">🌐</div>
                   <h3>Démarrez la surveillance sociale</h3>
                   <p>Lancez le scraping pour collecter et analyser les données des réseaux sociaux guadeloupéens</p>
