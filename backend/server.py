@@ -743,18 +743,6 @@ async def get_duplicate_statistics():
             "error": str(e)
         }
 
-@app.get("/api/articles/scrape-status")
-async def get_scrape_status():
-    """Récupérer le statut du dernier scraping"""
-    try:
-        last_result = intelligent_cache.get_cached_data('last_scraping_result')
-        if last_result:
-            return {"success": True, "result": last_result}
-        else:
-            return {"success": False, "message": "Aucun scraping récent"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur statut scraping: {str(e)}")
-
 # ==================== TRANSCRIPTION ENDPOINTS ====================
 
 @app.get("/api/transcriptions")
