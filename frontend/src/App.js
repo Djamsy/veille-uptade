@@ -3571,7 +3571,7 @@ function App() {
               </div>
 
               {/* Analyse en temps réel */}
-              {commentsAnalysis.total_comments > 0 && (
+              {commentsAnalysis && commentsAnalysis.total_comments > 0 && (
                 <div className="realtime-analysis">
                   <h3 className="analysis-title">📊 Analyse en Temps Réel</h3>
                   
