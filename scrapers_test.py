@@ -11,7 +11,7 @@ import time
 from datetime import datetime
 
 class ScrapersAPITester:
-    def __init__(self, base_url="https://a0cf0419-f055-4e25-b209-04f98074de7d.preview.emergentagent.com"):
+    def __init__(self, base_url="https://bb8f662d-6347-4222-9f33-1c130098c9a0.preview.emergentagent.com"):
         self.base_url = base_url
         self.tests_run = 0
         self.tests_passed = 0
