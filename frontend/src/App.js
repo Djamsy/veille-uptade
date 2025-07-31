@@ -3362,7 +3362,7 @@ function App() {
             {createFloatingElements()}
             
             {/* Header moderne avec gradient */}
-            <div className="social-hero-header">
+            <div className="social-hero-header scroll-reveal">
               <div className="social-hero-content">
                 <h1 className="social-hero-title">
                   🌐 Intelligence Sociale
@@ -3370,7 +3370,7 @@ function App() {
                 <p className="social-hero-subtitle">
                   Surveillance et analyse avancée des réseaux sociaux guadeloupéens
                 </p>
-                <div className="social-hero-stats">
+                <div className="social-hero-stats scroll-reveal-scale">
                   <div className="hero-stat">
                     <div className="hero-stat-value">{(commentsAnalysis && commentsAnalysis.total_comments) || 0}</div>
                     <div className="hero-stat-label">Posts Analysés</div>
