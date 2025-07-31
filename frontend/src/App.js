@@ -1742,40 +1742,76 @@ function App() {
 
             <div className="article-list">
               {articles.map(article => (
-                <article key={article.id} className="article-item">
-                  {/* Header avec logo et titre */}
-                  <header className="article-information" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                    <SourceLogo source={article.source} size={40} />
+                <article key={article.id} className="article-card-narrative scroll-reveal">
+                  {/* Header avec logo et titre narratif */}
+                  <header className="article-header-narrative">
+                    <SourceLogo source={article.source} size={48} className="source-logo-narrative" />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <a href={article.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
-                        {article.title}
-                      </a>
+                      <h3 className="article-title" style={{ 
+                        margin: 0, 
+                        lineHeight: '1.4',
+                        fontSize: '1.1rem',
+                        fontWeight: '600'
+                      }}>
+                        <a href={article.url} target="_blank" rel="noopener noreferrer" style={{ 
+                          textDecoration: 'none', 
+                          color: 'inherit', 
+                          display: 'block',
+                          transition: 'color 0.3s ease'
+                        }}>
+                          {article.title}
+                        </a>
+                      </h3>
                     </div>
                   </header>
                   
-                  {/* Résumé de l'article */}
-                  <div className="article-explication">
+                  {/* Résumé de l'article avec style narratif */}
+                  <div className="article-explication" style={{
+                    fontSize: '0.95rem',
+                    lineHeight: '1.6',
+                    color: 'var(--text-secondary)',
+                    marginBottom: '1rem'
+                  }}>
                     {article.summary || article.ai_summary || "Résumé non disponible"}
                   </div>
 
-                  {/* Métadonnées et actions */}
-                  <footer className="article-meta">
-                    <span className="article-source" style={{
-                      background: getSiteLogo(article.source).bg,
-                      color: getSiteLogo(article.source).color,
-                      padding: '0.25rem 0.5rem',
-                      borderRadius: 'var(--radius-sm)',
-                      fontSize: '0.75rem',
-                      fontWeight: '500'
-                    }}>{article.source}</span>
-                    <span className="article-date">
-                      {new Date(article.published_at || article.scraped_at).toLocaleDateString('fr-FR', {
-                        day: 'numeric',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </span>
+                  {/* Métadonnées avec logos et animations */}
+                  <footer className="article-meta" style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '1rem',
+                    flexWrap: 'wrap',
+                    marginBottom: '1rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <span className="article-source" style={{
+                        background: getSiteLogo(article.source).bg,
+                        color: getSiteLogo(article.source).color,
+                        padding: '0.375rem 0.75rem',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: '0.8rem',
+                        fontWeight: '600',
+                        border: `1px solid ${getSiteLogo(article.source).borderColor}`
+                      }}>
+                        {article.source}
+                      </span>
+                      <span className="article-date" style={{
+                        color: 'var(--text-muted)',
+                        fontSize: '0.8rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.25rem'
+                      }}>
+                        <span className="floating-element" style={{ fontSize: '0.7rem' }}>🕒</span>
+                        {new Date(article.published_at || article.scraped_at).toLocaleDateString('fr-FR', {
+                          day: 'numeric',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                    </div>
                     {article.sentiment_score && (
                       <span className={`article-sentiment ${
                         article.sentiment_score > 0.1 
@@ -1783,19 +1819,45 @@ function App() {
                           : article.sentiment_score < -0.1 
                             ? 'negative' 
                             : 'neutral'
-                      }`}>
-                        {article.sentiment_score > 0.1 ? 'Positif' : article.sentiment_score < -0.1 ? 'Négatif' : 'Neutre'}
+                      }`} style={{
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: '0.75rem',
+                        fontWeight: '500'
+                      }}>
+                        {article.sentiment_score > 0.1 ? '😊 Positif' : article.sentiment_score < -0.1 ? '😞 Négatif' : '😐 Neutre'}
                       </span>
                     )}
                   </footer>
 
-                  {/* Actions sur l'article */}
-                  <div className="article-actions">
-                    <a href={article.url} target="_blank" rel="noopener noreferrer" className="article-action-btn">
+                  {/* Actions sur l'article avec style narratif */}
+                  <div className="article-actions" style={{
+                    display: 'flex',
+                    gap: '0.75rem',
+                    flexWrap: 'wrap'
+                  }}>
+                    <a 
+                      href={article.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="glass-button primary"
+                      style={{ 
+                        fontSize: '0.85rem',
+                        padding: '0.5rem 1rem'
+                      }}
+                    >
+                      <span className="floating-element">📖</span>
                       Lire l'article
                     </a>
                     {article.ai_summary && (
-                      <button className="article-action-btn">
+                      <button 
+                        className="glass-button secondary"
+                        style={{ 
+                          fontSize: '0.85rem',
+                          padding: '0.5rem 1rem'
+                        }}
+                      >
+                        <span className="floating-element">🤖</span>
                         Résumé IA
                       </button>
                     )}
