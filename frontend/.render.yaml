@@ -1,7 +1,6 @@
 services:
   - type: web
-    name: veille-frontend
+    name: veille-media
     env: static
-    buildCommand: yarn install && yarn build
-    staticPublishPath: frontend/public
-    rootDir: frontend
+    buildCommand: yarn install --no-frozen-lockfile && yarn build
+    publishDir: build
