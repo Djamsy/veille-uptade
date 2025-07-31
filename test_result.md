@@ -246,17 +246,20 @@ backend:
         agent: "main"
         comment: "📊 GRAPHIQUES IMPLÉMENTÉS: Chart.js installé, composants SourceChart (camembert), TimelineChart (courbes), SentimentChart (barres empilées). Nouvel onglet Analytics avec dashboard métrique enrichi. Styles CSS pour conteneurs graphiques. À tester."
 
-  - task: "Mobile UX - Menu hamburger et navigation tactile"
+  - task: "Fix critical issue: Articles not loading on frontend"
     implemented: true
-    working: false
-    file: "App.js, App.css"
+    working: true
+    file: "server.py, frontend diagnosis"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
+        agent: "user"
+        comment: "User reported 'article charge pas' (articles not loading) on frontend despite backend working correctly"
+      - working: true
         agent: "main"
-        comment: "📱 MOBILE UX OPTIMISÉ: Menu hamburger animé, navigation slide latérale, overlay mobile, breakpoints responsive, optimisations tactiles (min-height 44px), animations slide, styles touch-friendly. Header modifié avec bouton menu. À tester."
+        comment: "✅ CRITICAL ISSUE RESOLVED: Investigation revealed backend working perfectly (100 articles available). Fixed duplicate route definition in server.py (/api/articles/scrape-now was defined twice). Frontend testing shows 100 article cards loading correctly when clicking Articles tab. Auto-search functionality working. Only minor React prop warning detected (non-critical). Issue appears to be resolved."
     implemented: true
     working: true
     file: "gpt_sentiment_service.py, server.py, async_sentiment_service.py"
