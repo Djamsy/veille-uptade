@@ -648,6 +648,28 @@ async def get_scrape_status():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur statut scraping: {str(e)}")
 
+@app.get("/api/articles/scrape-status")
+async def get_scrape_status():
+    """Obtenir le statut du dernier scraping"""
+    try:
+        # Récupérer depuis le cache ou l'état de l'app
+        if CACHE_ENABLED:
+            last_result = intelligent_cache.get_cached_data('last_scraping_result')
+        else:
+            last_result = getattr(app.state, 'last_scraping_result', None)
+        
+        if last_result:
+            return last_result
+        else:
+            return {
+                "success": True, 
+                "message": "Aucun scraping récent trouvé",
+                "scraped_at": "Non disponible"
+            }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+# Route paramétrée à la fin pour éviter les conflits avec les routes spécifiques
 @app.get("/api/articles/{date}")
 async def get_articles_by_date(date: str):
     """Récupérer les articles d'une date spécifique avec cache"""
