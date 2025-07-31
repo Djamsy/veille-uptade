@@ -1573,11 +1573,14 @@ function App() {
             <div className="article-list">
               {articles.map(article => (
                 <article key={article.id} className="article-item">
-                  {/* Titre de l'article */}
-                  <header className="article-information">
-                    <a href={article.url} target="_blank" rel="noopener noreferrer">
-                      {article.title}
-                    </a>
+                  {/* Header avec logo et titre */}
+                  <header className="article-information" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                    <SourceLogo source={article.source} size={40} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <a href={article.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+                        {article.title}
+                      </a>
+                    </div>
                   </header>
                   
                   {/* Résumé de l'article */}
@@ -1587,7 +1590,14 @@ function App() {
 
                   {/* Métadonnées et actions */}
                   <footer className="article-meta">
-                    <span className="article-source">{article.source}</span>
+                    <span className="article-source" style={{
+                      background: getSiteLogo(article.source).bg,
+                      color: getSiteLogo(article.source).color,
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: '0.75rem',
+                      fontWeight: '500'
+                    }}>{article.source}</span>
                     <span className="article-date">
                       {new Date(article.published_at || article.scraped_at).toLocaleDateString('fr-FR', {
                         day: 'numeric',
