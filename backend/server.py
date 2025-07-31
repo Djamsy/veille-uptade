@@ -695,7 +695,7 @@ async def clean_duplicate_articles():
             "error": str(e)
         }
 
-@app.get("/api/articles/duplicate-stats")
+@app.get("/api/admin/duplicate-stats")
 async def get_duplicate_statistics():
     """Obtenir des statistiques sur les doublons potentiels"""
     try:
