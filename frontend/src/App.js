@@ -251,39 +251,48 @@ function App() {
     }
   };
 
-  // Fonction pour obtenir le logo d'un site
+  // Fonction pour obtenir le logo d'un site (version corrigée)
   const getSiteLogo = (source) => {
     const sourceMap = {
       'France-Antilles Guadeloupe': {
-        logo: 'https://www.guadeloupe.franceantilles.fr/sites/all/themes/fa_guadeloupe/logo.png',
+        logo: `https://www.google.com/s2/favicons?domain=guadeloupe.franceantilles.fr&sz=64`,
         fallback: 'FA',
-        color: 'var(--france-antilles-color)',
-        bg: 'rgba(229, 62, 62, 0.1)'
+        color: '#dc2626',
+        bg: 'rgba(220, 38, 38, 0.1)',
+        borderColor: 'rgba(220, 38, 38, 0.3)'
       },
       'RCI Guadeloupe': {
-        logo: 'https://www.rci.fm/sites/all/themes/rci/logo.png',
+        logo: `https://www.google.com/s2/favicons?domain=rci.fm&sz=64`,
         fallback: 'RCI',
-        color: 'var(--rci-color)',
-        bg: 'rgba(49, 130, 206, 0.1)'
+        color: '#2563eb',
+        bg: 'rgba(37, 99, 235, 0.1)',
+        borderColor: 'rgba(37, 99, 235, 0.3)'
       },
       'La 1ère Guadeloupe': {
-        logo: 'https://la1ere.francetvinfo.fr/sites/regions_outremer/files/styles/top_big/public/assets/images/2016/11/29/logo_la_1ere_guadeloupe.png',
+        logo: `https://www.google.com/s2/favicons?domain=la1ere.francetvinfo.fr&sz=64`,
         fallback: '1ère',
-        color: 'var(--la-premiere-color)',
-        bg: 'rgba(56, 161, 105, 0.1)'
+        color: '#059669',
+        bg: 'rgba(5, 150, 105, 0.1)',
+        borderColor: 'rgba(5, 150, 105, 0.3)'
       },
       'KaribInfo': {
-        logo: 'https://www.karibinfo.com/sites/all/themes/karibinfo/logo.png',
+        logo: `https://www.google.com/s2/favicons?domain=karibinfo.com&sz=64`,
         fallback: 'KI',
-        color: 'var(--karibinfo-color)',
-        bg: 'rgba(237, 137, 54, 0.1)'
+        color: '#ea580c',
+        bg: 'rgba(234, 88, 12, 0.1)',
+        borderColor: 'rgba(234, 88, 12, 0.3)'
       }
     };
 
     // Recherche flexible par nom de source
     const sourceKey = Object.keys(sourceMap).find(key => 
       source.toLowerCase().includes(key.toLowerCase()) || 
-      key.toLowerCase().includes(source.toLowerCase())
+      key.toLowerCase().includes(source.toLowerCase()) ||
+      source.toLowerCase().includes('france') && key.includes('France') ||
+      source.toLowerCase().includes('rci') && key.includes('RCI') ||
+      source.toLowerCase().includes('première') && key.includes('1ère') ||
+      source.toLowerCase().includes('1ere') && key.includes('1ère') ||
+      source.toLowerCase().includes('karib') && key.includes('Karib')
     );
 
     if (sourceKey) {
@@ -294,55 +303,76 @@ function App() {
     return {
       logo: null,
       fallback: source.substring(0, 2).toUpperCase(),
-      color: 'var(--text-muted)',
-      bg: 'rgba(148, 163, 184, 0.1)'
+      color: '#6b7280',
+      bg: 'rgba(107, 114, 128, 0.1)',
+      borderColor: 'rgba(107, 114, 128, 0.3)'
     };
   };
 
-  // Composant Logo pour les sources
+  // Composant Logo pour les sources (version améliorée)
   const SourceLogo = ({ source, size = 32 }) => {
     const [imageError, setImageError] = useState(false);
+    const [imageLoaded, setImageLoaded] = useState(false);
     const siteInfo = getSiteLogo(source);
 
     const logoStyle = {
       width: `${size}px`,
       height: `${size}px`,
-      borderRadius: 'var(--radius-md)',
+      borderRadius: '6px',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      fontSize: `${size * 0.4}px`,
+      fontSize: `${Math.max(size * 0.3, 10)}px`,
       fontWeight: '600',
       flexShrink: 0,
-      border: '1px solid var(--border-light)'
+      border: `1.5px solid ${siteInfo.borderColor}`,
+      background: siteInfo.bg,
+      color: siteInfo.color,
+      position: 'relative',
+      overflow: 'hidden',
+      transition: 'all 0.2s ease'
     };
 
     if (siteInfo.logo && !imageError) {
       return (
-        <img
-          src={siteInfo.logo}
-          alt={`Logo ${source}`}
-          style={{
-            ...logoStyle,
-            objectFit: 'contain'
-          }}
-          onError={() => setImageError(true)}
-          loading="lazy"
-        />
+        <div style={logoStyle}>
+          <img
+            src={siteInfo.logo}
+            alt={`Logo ${source}`}
+            style={{
+              width: '80%',
+              height: '80%',
+              objectFit: 'contain',
+              display: imageLoaded ? 'block' : 'none'
+            }}
+            onLoad={() => setImageLoaded(true)}
+            onError={() => setImageError(true)}
+            loading="lazy"
+          />
+          {/* Fallback pendant le chargement */}
+          {!imageLoaded && !imageError && (
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: `${Math.max(size * 0.3, 10)}px`,
+              fontWeight: '600'
+            }}>
+              {siteInfo.fallback}
+            </div>
+          )}
+        </div>
       );
     }
 
-    // Fallback avec initiales
+    // Fallback avec initiales stylisées
     return (
-      <div
-        style={{
-          ...logoStyle,
-          background: siteInfo.bg,
-          color: siteInfo.color
-        }}
-        title={source}
-      >
-        {siteInfo.fallback}
+      <div style={logoStyle} title={source}>
+        <span style={{ letterSpacing: '-1px' }}>
+          {siteInfo.fallback}
+        </span>
       </div>
     );
   };
