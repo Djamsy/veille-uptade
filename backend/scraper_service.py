@@ -780,24 +780,37 @@ class GuadeloupeScraper:
                 articles = self.scrape_page(config['url'], site_key, max_retries=2)
                 
                 if articles:
-                    # Sauvegarder en base de données
+                    # Sauvegarder en base de données avec vérification de doublons
                     saved_count = 0
+                    duplicate_count = 0
+                    
                     for article in articles:
                         try:
-                            self.articles_collection.update_one(
-                                {'id': article['id']},
-                                {'$set': article},
-                                upsert=True
-                            )
-                            saved_count += 1
+                            # Ajouter timestamp de scraping
+                            article['scraped_at'] = datetime.now().isoformat()
+                            
+                            # Vérifier les doublons avant sauvegarde
+                            if not self.is_duplicate_article(article):
+                                self.articles_collection.update_one(
+                                    {'id': article['id']},
+                                    {'$set': article},
+                                    upsert=True
+                                )
+                                saved_count += 1
+                            else:
+                                duplicate_count += 1
+                                logger.debug(f"Article dupliqué ignoré: {article.get('title', 'Sans titre')[:50]}...")
+                                
                         except Exception as e:
                             logger.warning(f"Erreur sauvegarde article: {e}")
                     
-                    all_articles.extend(articles)
+                    all_articles.extend([a for a in articles if not self.is_duplicate_article(a)])
                     results['articles_by_site'][site_key] = saved_count
+                    results['duplicates_by_site'] = results.get('duplicates_by_site', {})
+                    results['duplicates_by_site'][site_key] = duplicate_count
                     results['sites_scraped'] += 1
                     
-                    logger.info(f"✅ {config['name']}: {saved_count} articles sauvegardés")
+                    logger.info(f"✅ {config['name']}: {saved_count} articles sauvegardés, {duplicate_count} doublons ignorés")
                 else:
                     error_msg = f"Aucun article trouvé sur {config['name']}"
                     results['errors'].append(error_msg)
