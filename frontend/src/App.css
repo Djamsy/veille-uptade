@@ -2116,14 +2116,8 @@ textarea {
 }
 
 .data-flow::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--accent-color), transparent);
-  animation: dataFlow 3s linear infinite;
+  /* Animation désactivée pour UI douce */
+  display: none;
 }
 
 /* Animation de background subtile pour le dashboard */
