@@ -1589,7 +1589,7 @@ function App() {
                       setActiveTab('search');
                     }}
                     disabled={searchLoading}
-                    className="glass-button primary pulse-glow"
+                    className="glass-button primary"
                     style={{ padding: '1rem 2rem', fontSize: '1.1rem' }}
                   >
                     {searchLoading ? (
