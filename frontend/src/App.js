@@ -3356,258 +3356,332 @@ function App() {
 
 
         {/* Page Commentaires */}
+        {/* Section Réseaux Sociaux - VERSION MODERNISÉE */}
         {activeTab === 'comments' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold" style={{ color: '#2c3e50' }}>💬 Réseaux Sociaux</h2>
-              <div className="flex gap-2">
-                <button
-                  onClick={startSocialScraping}
-                  className="glass-button primary"
-                >
-                  📱 Scraper Réseaux
-                </button>
-                <button
-                  onClick={analyzeComments}
-                  className="glass-button success"
-                >
-                  📊 Analyser Sentiment
-                </button>
+          <div className="modern-social-section">
+            {createFloatingElements()}
+            
+            {/* Header moderne avec gradient */}
+            <div className="social-hero-header">
+              <div className="social-hero-content">
+                <h1 className="social-hero-title">
+                  🌐 Intelligence Sociale
+                </h1>
+                <p className="social-hero-subtitle">
+                  Surveillance et analyse avancée des réseaux sociaux guadeloupéens
+                </p>
+                <div className="social-hero-stats">
+                  <div className="hero-stat">
+                    <div className="hero-stat-value">{commentsAnalysis.total_comments || 0}</div>
+                    <div className="hero-stat-label">Posts Analysés</div>
+                  </div>
+                  <div className="hero-stat">
+                    <div className="hero-stat-value">{socialStats.total_posts || 0}</div>
+                    <div className="hero-stat-label">Posts Récents</div>
+                  </div>
+                  <div className="hero-stat">
+                    <div className="hero-stat-value">{socialStats.total_mentions || 0}</div>
+                    <div className="hero-stat-label">Mentions</div>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Barre de recherche spécifique aux réseaux sociaux */}
-            <div className="glass-card">
-              <h3 className="text-lg font-bold mb-4" style={{ color: '#2c3e50' }}>🔍 Recherche sur les Réseaux Sociaux</h3>
+            {/* Tableau de bord des réseaux sociaux */}
+            <div className="social-dashboard">
               
-              {/* Erreur de recherche sociale */}
-              {socialSearchError && (
-                <div className="alert error mb-4">
-                  <span>{socialSearchError}</span>
-                  <button onClick={() => setSocialSearchError(null)} className="hover:opacity-75" style={{ color: '#e74c3c' }}>✕</button>
+              {/* Actions principales */}
+              <div className="social-actions-grid">
+                <div className="social-action-card social-action-primary">
+                  <div className="social-action-icon">🔍</div>
+                  <div className="social-action-content">
+                    <h3>Surveillance Active</h3>
+                    <p>Surveiller les mentions et hashtags</p>
+                    <button 
+                      onClick={startSocialScraping}
+                      className="social-action-btn"
+                    >
+                      📱 Démarrer Scraping
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="social-action-card social-action-success">
+                  <div className="social-action-icon">🧠</div>
+                  <div className="social-action-content">
+                    <h3>Analyse Sentiment</h3>
+                    <p>Intelligence artificielle des émotions</p>
+                    <button 
+                      onClick={analyzeComments}
+                      className="social-action-btn"
+                    >
+                      📊 Analyser Maintenant
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="social-action-card social-action-info">
+                  <div className="social-action-icon">📈</div>
+                  <div className="social-action-content">
+                    <h3>Tendances</h3>
+                    <p>Sujets populaires et viraux</p>
+                    <button 
+                      onClick={() => handleSocialSearch('#Guadeloupe')}
+                      className="social-action-btn"
+                    >
+                      🔥 Voir Tendances
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Barre de recherche modernisée */}
+              <div className="modern-search-section">
+                <div className="search-header">
+                  <h3 className="search-title">🎯 Recherche Intelligente</h3>
+                  <div className="search-tags">
+                    {['#Guadeloupe', 'politique', 'économie', 'culture', 'sport'].map((tag) => (
+                      <button 
+                        key={tag}
+                        onClick={() => {
+                          setSocialSearchQuery(tag);
+                          handleSocialSearch(tag);
+                        }}
+                        className="search-tag"
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="modern-search-bar">
+                  <div className="search-input-wrapper">
+                    <input
+                      type="text"
+                      placeholder="Rechercher des sujets, hashtags, personnalités..."
+                      value={socialSearchQuery}
+                      onChange={(e) => setSocialSearchQuery(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          handleSocialSearch(socialSearchQuery);
+                        }
+                      }}
+                      className="modern-search-input"
+                    />
+                    <button 
+                      onClick={() => handleSocialSearch(socialSearchQuery)}
+                      disabled={socialSearchLoading}
+                      className="search-btn"
+                    >
+                      {socialSearchLoading ? '⏳' : '🔍'}
+                    </button>
+                  </div>
+                </div>
+                
+                {socialSearchError && (
+                  <div className="search-error">
+                    <span>⚠️ {socialSearchError}</span>
+                    <button onClick={() => setSocialSearchError(null)}>✕</button>
+                  </div>
+                )}
+              </div>
+
+              {/* Plateformes sociales avec métriques */}
+              <div className="social-platforms-grid">
+                <div className="platform-card platform-facebook">
+                  <div className="platform-header">
+                    <div className="platform-icon">📘</div>
+                    <div className="platform-info">
+                      <h4>Facebook</h4>
+                      <span className="platform-status">Actif</span>
+                    </div>
+                  </div>
+                  <div className="platform-metrics">
+                    <div className="metric">
+                      <span className="metric-value">{socialStats.facebook_posts || 0}</span>
+                      <span className="metric-label">Posts</span>
+                    </div>
+                    <div className="metric">
+                      <span className="metric-value">{socialStats.facebook_engagement || 0}</span>
+                      <span className="metric-label">Engagement</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="platform-card platform-twitter">
+                  <div className="platform-header">
+                    <div className="platform-icon">🐦</div>
+                    <div className="platform-info">
+                      <h4>X (Twitter)</h4>
+                      <span className="platform-status">Actif</span>
+                    </div>
+                  </div>
+                  <div className="platform-metrics">
+                    <div className="metric">
+                      <span className="metric-value">{socialStats.twitter_posts || 0}</span>
+                      <span className="metric-label">Tweets</span>
+                    </div>
+                    <div className="metric">
+                      <span className="metric-value">{socialStats.twitter_retweets || 0}</span>
+                      <span className="metric-label">RT</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="platform-card platform-instagram">
+                  <div className="platform-header">
+                    <div className="platform-icon">📸</div>
+                    <div className="platform-info">
+                      <h4>Instagram</h4>
+                      <span className="platform-status">En cours</span>
+                    </div>
+                  </div>
+                  <div className="platform-metrics">
+                    <div className="metric">
+                      <span className="metric-value">{socialStats.instagram_posts || 0}</span>
+                      <span className="metric-label">Posts</span>
+                    </div>
+                    <div className="metric">
+                      <span className="metric-value">{socialStats.instagram_stories || 0}</span>
+                      <span className="metric-label">Stories</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="platform-card platform-youtube">
+                  <div className="platform-header">
+                    <div className="platform-icon">📺</div>
+                    <div className="platform-info">
+                      <h4>YouTube</h4>
+                      <span className="platform-status">Bientôt</span>
+                    </div>
+                  </div>
+                  <div className="platform-metrics">
+                    <div className="metric">
+                      <span className="metric-value">{socialStats.youtube_videos || 0}</span>
+                      <span className="metric-label">Vidéos</span>
+                    </div>
+                    <div className="metric">
+                      <span className="metric-value">{socialStats.youtube_views || 0}</span>
+                      <span className="metric-label">Vues</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Analyse en temps réel */}
+              {commentsAnalysis.total_comments > 0 && (
+                <div className="realtime-analysis">
+                  <h3 className="analysis-title">📊 Analyse en Temps Réel</h3>
+                  
+                  <div className="analysis-cards">
+                    <div className="analysis-card sentiment-positive">
+                      <div className="analysis-icon">😊</div>
+                      <div className="analysis-content">
+                        <div className="analysis-value">{Math.round((commentsAnalysis.sentiment_positive || 0) * 100)}%</div>
+                        <div className="analysis-label">Sentiment Positif</div>
+                      </div>
+                    </div>
+                    
+                    <div className="analysis-card sentiment-neutral">
+                      <div className="analysis-icon">😐</div>
+                      <div className="analysis-content">
+                        <div className="analysis-value">{Math.round((commentsAnalysis.sentiment_neutral || 0) * 100)}%</div>
+                        <div className="analysis-label">Sentiment Neutre</div>
+                      </div>
+                    </div>
+                    
+                    <div className="analysis-card sentiment-negative">
+                      <div className="analysis-icon">😞</div>
+                      <div className="analysis-content">
+                        <div className="analysis-value">{Math.round((commentsAnalysis.sentiment_negative || 0) * 100)}%</div>
+                        <div className="analysis-label">Sentiment Négatif</div>
+                      </div>
+                    </div>
+                    
+                    <div className="analysis-card topics">
+                      <div className="analysis-icon">🏷️</div>
+                      <div className="analysis-content">
+                        <div className="analysis-value">{commentsAnalysis.top_topics?.length || 0}</div>
+                        <div className="analysis-label">Sujets Populaires</div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
-              <div className="flex gap-4 flex-col md:flex-row">
-                <div className="flex-1">
-                  <input
-                    type="text"
-                    placeholder="Rechercher un sujet spécifique sur les réseaux sociaux..."
-                    value={socialSearchQuery}
-                    onChange={(e) => setSocialSearchQuery(e.target.value)}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        handleSocialSearch(socialSearchQuery);
-                      }
-                    }}
-                    className="glass-input"
-                    disabled={socialSearchLoading}
-                  />
-                </div>
-                <button
-                  onClick={() => handleSocialSearch(socialSearchQuery)}
-                  disabled={socialSearchLoading || socialSearchQuery.trim().length < 2}
-                  className="glass-button primary"
-                >
-                  {socialSearchLoading ? '⏳ Recherche...' : '🔍 Rechercher & Scraper'}
-                </button>
-              </div>
-              
-              {/* Suggestions de recherche sociale */}
-              <div className="mt-4">
-                <p className="text-sm mb-2" style={{ color: '#7f8c8d' }}>Suggestions de recherche :</p>
-                <div className="flex flex-wrap gap-2">
-                  {['Politique Guadeloupe', 'Éducation 971', 'Santé départementale', 'Transports publics', 'Environnement Antilles'].map((term) => (
-                    <button
-                      key={term}
-                      onClick={() => {
-                        setSocialSearchQuery(term);
-                        handleSocialSearch(term);
-                      }}
-                      className="glass-button"
-                      style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}
-                      disabled={socialSearchLoading}
-                    >
-                      {term}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Résultats de recherche sociale */}
-            {socialSearchResults && (
-              <div className="glass-card">
-                <h3 className="text-lg font-bold mb-4" style={{ color: '#2c3e50' }}>
-                  📊 Résultats pour "{socialSearchResults.query}" ({socialSearchResults.total_results})
-                </h3>
-                
-                {socialSearchResults.social_posts && socialSearchResults.social_posts.length > 0 ? (
-                  <div className="space-y-4">
-                    {socialSearchResults.social_posts.map((post, index) => (
-                      <div key={index} className="article-card">
-                        <div className="flex justify-between items-start mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="article-source">
-                              {post.platform === 'twitter' ? '🐦 Twitter' : 
-                               post.platform === 'facebook' ? '👥 Facebook' : 
-                               post.platform === 'instagram' ? '📸 Instagram' : '📱 Social'}
-                            </span>
-                            <span className="text-sm" style={{ color: '#7f8c8d' }}>
-                              @{post.author || 'Anonyme'}
-                            </span>
-                          </div>
-                          <span className="text-xs" style={{ color: '#7f8c8d' }}>
-                            {new Date(post.created_at).toLocaleDateString('fr-FR')}
-                          </span>
+              {/* Résultats de recherche modernisés */}
+              {socialSearchResults && (
+                <div className="modern-search-results">
+                  <div className="results-header">
+                    <h3>🎯 Résultats : "{socialSearchResults.query}"</h3>
+                    <div className="results-count">{socialSearchResults.total_results} résultats</div>
+                  </div>
+                  
+                  <div className="results-grid">
+                    {socialSearchResults.posts && socialSearchResults.posts.map((post, index) => (
+                      <div key={index} className="result-card">
+                        <div className="result-header">
+                          <div className="result-platform">{post.platform}</div>
+                          <div className="result-date">{new Date(post.date).toLocaleDateString()}</div>
                         </div>
-                        
-                        <p className="mb-3" style={{ color: '#2c3e50' }}>
-                          {post.content}
-                        </p>
-                        
-                        {post.engagement && (
-                          <div className="flex gap-4 text-sm" style={{ color: '#7f8c8d' }}>
-                            <span>❤️ {post.engagement.likes || 0}</span>
-                            <span>🔄 {post.engagement.retweets || 0}</span>
-                            <span>💬 {post.engagement.replies || 0}</span>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <div className="text-4xl mb-2">🔍</div>
-                    <p style={{ color: '#7f8c8d' }}>Aucun résultat trouvé pour cette recherche</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Statistiques des réseaux sociaux */}
-            {socialStats && Object.keys(socialStats).length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-white p-4 rounded-lg shadow">
-                  <h3 className="text-lg font-semibold text-gray-800">Total Posts</h3>
-                  <p className="text-2xl font-bold text-blue-600">{socialStats.total_today || 0}</p>
-                </div>
-                <div className="bg-white p-4 rounded-lg shadow">
-                  <h3 className="text-lg font-semibold text-gray-800">Twitter</h3>
-                  <p className="text-2xl font-bold text-blue-400">{socialStats.by_platform?.twitter || 0}</p>
-                </div>
-                <div className="bg-white p-4 rounded-lg shadow">
-                  <h3 className="text-lg font-semibold text-gray-800">Facebook</h3>
-                  <p className="text-2xl font-bold text-blue-800">{socialStats.by_platform?.facebook || 0}</p>
-                </div>
-                <div className="bg-white p-4 rounded-lg shadow">
-                  <h3 className="text-lg font-semibold text-gray-800">Instagram</h3>
-                  <p className="text-2xl font-bold text-pink-500">{socialStats.by_platform?.instagram || 0}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Analyse de sentiment par entité */}
-            {commentsAnalysis && (
-              <div className="bg-white rounded-xl shadow-lg">
-                <div className="p-6 border-b border-gray-200">
-                  <h3 className="text-lg font-bold text-gray-800">
-                    📊 Analyse Sentiment par Entité ({commentsAnalysis.total_comments} commentaires analysés)
-                  </h3>
-                </div>
-                <div className="p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {Object.entries(commentsAnalysis.by_entity || {}).map(([entity, data]) => (
-                      <div key={entity} className="border border-gray-200 rounded-lg p-4">
-                        <h4 className="font-semibold text-gray-800 mb-2">{entity}</h4>
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span>Mentions:</span>
-                            <span className="font-medium">{data.total_mentions}</span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span>Sentiment moyen:</span>
-                            <span className={`font-medium ${
-                              data.average_sentiment > 0.1 ? 'text-green-600' : 
-                              data.average_sentiment < -0.1 ? 'text-red-600' : 'text-gray-600'
-                            }`}>
-                              {data.average_sentiment > 0.1 ? '😊' : data.average_sentiment < -0.1 ? '😟' : '😐'} 
-                              {data.average_sentiment.toFixed(3)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-xs">
-                            <span className="text-green-600">+{data.sentiment_distribution.positive}</span>
-                            <span className="text-red-600">-{data.sentiment_distribution.negative}</span>
-                            <span className="text-gray-600">={data.sentiment_distribution.neutral}</span>
-                          </div>
+                        <div className="result-content">
+                          <p>{post.content}</p>
+                        </div>
+                        <div className="result-metrics">
+                          <span className="metric">👍 {post.likes || 0}</span>
+                          <span className="metric">💬 {post.comments || 0}</span>
+                          <span className="metric">🔄 {post.shares || 0}</span>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Liste des commentaires */}
-            <div className="bg-white rounded-xl shadow-lg">
-              <div className="p-6 border-b border-gray-200">
-                <h3 className="text-lg font-bold text-gray-800">
-                  💬 Commentaires Récents ({comments.length})
-                </h3>
-              </div>
-              <div className="p-6">
-                {comments.length > 0 ? (
-                  <div className="space-y-4 max-h-96 overflow-y-auto">
+              {/* Commentaires récents avec design moderne */}
+              {comments && comments.length > 0 && (
+                <div className="recent-comments-section">
+                  <h3 className="comments-title">💬 Commentaires Récents ({comments.length})</h3>
+                  
+                  <div className="comments-grid">
                     {comments.map((comment, index) => (
-                      <div key={index} className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-gray-800">@{comment.author}</span>
-                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                              {comment.platform}
-                            </span>
-                            {comment.demo_data && (
-                              <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
-                                DEMO
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-gray-500">
-                            <span>{new Date(comment.created_at).toLocaleDateString('fr-FR')}</span>
-                            {comment.sentiment_summary && (
-                              <span className={`px-2 py-1 rounded ${
-                                comment.sentiment_summary.polarity === 'positive' ? 'bg-green-100 text-green-800' :
-                                comment.sentiment_summary.polarity === 'negative' ? 'bg-red-100 text-red-800' :
-                                'bg-gray-100 text-gray-800'
-                              }`}>
-                                {comment.sentiment_summary.polarity === 'positive' ? '😊' : 
-                                 comment.sentiment_summary.polarity === 'negative' ? '😟' : '😐'}
-                                {comment.sentiment_summary.score?.toFixed(2)}
-                              </span>
-                            )}
+                      <div key={index} className="modern-comment-card">
+                        <div className="comment-header">
+                          <div className="comment-platform">{comment.platform || 'Social'}</div>
+                          <div className="comment-sentiment">
+                            {comment.sentiment === 'positive' ? '😊' : 
+                             comment.sentiment === 'negative' ? '😞' : '😐'}
                           </div>
                         </div>
-                        <p className="text-gray-700 mb-2">{comment.content}</p>
-                        <div className="flex items-center gap-4 text-xs text-gray-500">
-                          <span>❤️ {comment.engagement?.total || 0}</span>
-                          <span>🔑 {comment.keyword_searched}</span>
-                          {comment.political_figure && (
-                            <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                              👤 {comment.political_figure}
-                            </span>
-                          )}
+                        <div className="comment-content">
+                          <p>{comment.content}</p>
+                        </div>
+                        <div className="comment-footer">
+                          <span className="comment-date">{new Date(comment.date).toLocaleDateString()}</span>
+                          <span className="comment-score">Score: {comment.sentiment_score || 0}</span>
                         </div>
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <div className="text-center py-12 text-gray-500">
-                    <div className="text-6xl mb-4">💬</div>
-                    <p className="text-xl">Aucun commentaire disponible</p>
-                    <p>Lancez le scraping des réseaux sociaux pour récupérer des données</p>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
+
+              {/* État vide modernisé */}
+              {(!comments || comments.length === 0) && !socialSearchResults && (
+                <div className="empty-state">
+                  <div className="empty-icon">🌐</div>
+                  <h3>Démarrez la surveillance sociale</h3>
+                  <p>Lancez le scraping pour collecter et analyser les données des réseaux sociaux guadeloupéens</p>
+                  <button 
+                    onClick={startSocialScraping}
+                    className="empty-action-btn"
+                  >
+                    🚀 Commencer l'analyse
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
