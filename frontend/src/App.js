@@ -3579,7 +3579,7 @@ function App() {
                     <div className="analysis-card sentiment-positive">
                       <div className="analysis-icon">😊</div>
                       <div className="analysis-content">
-                        <div className="analysis-value">{Math.round((commentsAnalysis.sentiment_positive || 0) * 100)}%</div>
+                        <div className="analysis-value">{Math.round(((commentsAnalysis && commentsAnalysis.sentiment_positive) || 0) * 100)}%</div>
                         <div className="analysis-label">Sentiment Positif</div>
                       </div>
                     </div>
