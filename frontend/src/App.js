@@ -1405,204 +1405,312 @@ function App() {
           </div>
         )}
 
-        {/* Dashboard moderne avec animations */}
+        {/* Dashboard Narratif avec animations continues */}
         {activeTab === 'dashboard' && (
-          <div className="animate-fade-in-up">
-            <div className="section-container">
-              <div className="section-header animate-fade-in-scale">
-                <h2 className="section-title animate-wave">Vue d'ensemble - Guadeloupe</h2>
-                <p className="section-subtitle animate-fade-in-up animate-delay-200">Monitoring des médias locaux en temps réel</p>
-              </div>
-
-              <div className="stats-container stagger-children">
-                <div className="stat-card animate-bounce-in">
-                  <div className="stat-label">Articles Presse</div>
-                  <div className="stat-value animate-count-up">{dashboardStats.total_articles || 0}</div>
-                  <div className="stat-sublabel">Aujourd'hui</div>
-                </div>
-
-                <div className="stat-card animate-bounce-in animate-delay-100">
-                  <div className="stat-label">Digests</div>
-                  <div className="stat-value animate-count-up">{dashboardStats.total_digests || 0}</div>
-                  <div className="stat-sublabel">Générés</div>
-                </div>
-
-                <div className="stat-card animate-bounce-in animate-delay-200">
-                  <div className="stat-label">Cache Performance</div>
-                  <div className="stat-value animate-count-up">{Math.round((dashboardStats.cache_hits / Math.max(dashboardStats.cache_total, 1)) * 100) || 0}%</div>
-                  <div className="stat-sublabel">Efficacité</div>
-                </div>
-
-                <div className="stat-card animate-bounce-in animate-delay-300">
-                  <div className="stat-label">Transcriptions</div>
-                  <div className="stat-value animate-count-up">{dashboardStats.total_transcriptions || 0}</div>
-                  <div className="stat-sublabel">Radio</div>
-                </div>
-              </div>
+          <div className="narrative-section dashboard-container">
+            {createFloatingElements()}
+            
+            {/* Header Story */}
+            <div className="story-header scroll-reveal">
+              <h1 className="story-title">
+                🏝️ Veille Média Guadeloupe
+              </h1>
+              <p className="story-subtitle">
+                Découvrez l'actualité guadeloupéenne à travers une surveillance intelligente des médias locaux.
+                Suivez le pouls de votre territoire en temps réel.
+              </p>
             </div>
 
-            {/* Résultats de recherche automatique avec animations */}
-            {autoSearchCompleted && Object.keys(autoSearchResults).length > 0 && (
-              <div className="glass-card animate-slide-down animate-delay-400" style={{ padding: '2rem' }}>
-                <h3 className="section-title animate-fade-in-left" style={{ fontSize: '1.5rem', marginBottom: '2rem' }}>
-                  📈 Veille Automatique - Sujets Prioritaires
-                </h3>
-                <div style={{ 
+            {/* Stats narratives */}
+            {Object.keys(dashboardStats).length > 0 && (
+              <div className="scroll-reveal-scale">
+                <div className="stagger-reveal" style={{ 
                   display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
-                  gap: '1rem' 
-                }} className="stagger-children">
-                  {Object.entries(autoSearchResults).map(([subject, result], index) => (
-                    <div 
-                      key={subject} 
-                      className="glass-card animate-fade-in-scale micro-bounce" 
-                      style={{ 
-                        padding: '1rem',
-                        animationDelay: `${index * 0.1}s`
-                      }}
-                    >
-                      <h4 className="font-semibold mb-2" style={{ color: '#2c3e50' }}>{subject}</h4>
-                      {result.error ? (
-                        <p className="text-sm animate-attention" style={{ color: '#e74c3c' }}>Erreur</p>
-                      ) : (
-                        <div className="text-sm" style={{ color: '#34495e' }}>
-                          <p className="animate-fade-in-up">📰 {result.articles_count || 0} articles</p>
-                          <p>💬 {result.social_posts_count || 0} posts</p>
-                          <p className="font-medium" style={{ color: '#2c3e50' }}>Total: {result.total_results || 0}</p>
-                        </div>
-                      )}
-                      <button
-                        onClick={() => {
-                          setSearchQuery(subject);
-                          handleSearch(subject);
-                          setActiveTab('search');
-                        }}
-                        className="glass-button primary"
-                        style={{ marginTop: '0.5rem', padding: '0.5rem 1rem', fontSize: '0.8rem' }}
-                      >
-                        🔍 Voir détails
-                      </button>
-                    </div>
-                  ))}
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
+                  gap: '2rem', 
+                  marginBottom: '4rem' 
+                }}>
+                  <div className="stat-card-narrative pulse-glow data-flow">
+                    <div className="stat-value">{dashboardStats.articles_today || dashboardStats.total_articles || 0}</div>
+                    <div className="stat-label">Articles du Jour</div>
+                    <div className="stat-sublabel">Actualités fraîches</div>
+                  </div>
+                  
+                  <div className="stat-card-narrative pulse-glow">
+                    <div className="stat-value">{dashboardStats.total_articles || 0}</div>
+                    <div className="stat-label">Total Articles</div>
+                    <div className="stat-sublabel">Base de données</div>
+                  </div>
+                  
+                  <div className="stat-card-narrative pulse-glow">
+                    <div className="stat-value">{dashboardStats.active_sources || 4}</div>
+                    <div className="stat-label">Sources Actives</div>
+                    <div className="stat-sublabel">Médias surveillés</div>
+                  </div>
+                  
+                  <div className="stat-card-narrative pulse-glow data-flow">
+                    <div className="stat-value">{dashboardStats.transcriptions_today || dashboardStats.total_transcriptions || 0}</div>
+                    <div className="stat-label">Transcriptions</div>
+                    <div className="stat-sublabel">Contenus audio</div>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Barre de recherche */}
-            <div className="glass-card">
-              <h3 className="text-xl font-bold mb-4" style={{ color: '#2c3e50' }}>Recherche Rapide</h3>
-              <div className="flex gap-4 flex-col md:flex-row">
-                <div className="flex-1">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Rechercher Guy Losbar, CD971, articles..."
-                      value={searchQuery}
-                      onChange={(e) => {
-                        setSearchQuery(e.target.value);
-                        if (e.target.value.length >= 2) {
-                          loadSearchSuggestions(e.target.value);
-                        }
-                      }}
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter') {
-                          handleSearch(searchQuery);
-                          setActiveTab('search');
-                        }
-                      }}
-                      className="glass-input pl-10"
-                    />
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <svg className="w-5 h-5 text-white opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                      </svg>
-                    </div>
-                    
-                    {/* Suggestions de recherche */}
-                    {searchSuggestions.length > 0 && searchQuery.length >= 2 && (
-                      <div className="absolute top-full left-0 w-full mt-1 glass-card z-50">
-                        {searchSuggestions.map((suggestion, index) => (
-                          <button
-                            key={index}
-                            onClick={() => {
-                              setSearchQuery(suggestion);
-                              handleSearch(suggestion);
-                              setActiveTab('search');
-                              setSearchSuggestions([]);
-                            }}
-                            className="w-full text-left px-4 py-2 hover:bg-white hover:bg-opacity-10 first:rounded-t-lg last:rounded-b-lg"
-                            style={{ color: '#2c3e50' }}
-                          >
-                            {suggestion}
-                          </button>
-                        ))}
+            {/* Résultats de recherche automatique avec logos */}
+            {autoSearchCompleted && Object.keys(autoSearchResults).length > 0 && (
+              <div className="scroll-reveal-left" style={{ marginBottom: '4rem' }}>
+                <div className="content-block">
+                  <div className="content-block-header">
+                    <h3 className="content-block-title">🎯 Surveillance Prioritaire</h3>
+                    <span className="filter-badge">Automatique</span>
+                  </div>
+                  <div className="stagger-reveal" style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+                    gap: '1.5rem' 
+                  }}>
+                    {Object.entries(autoSearchResults).map(([subject, result], index) => (
+                      <div
+                        key={subject}
+                        className="article-card-narrative"
+                        style={{ animationDelay: `${index * 0.1}s` }}
+                      >
+                        <h4 className="font-semibold mb-2" style={{ color: '#2c3e50', fontSize: '1.1rem' }}>
+                          {subject}
+                        </h4>
+                        {result.error ? (
+                          <p className="text-sm" style={{ color: '#e74c3c' }}>Erreur de surveillance</p>
+                        ) : (
+                          <div className="text-sm" style={{ color: '#34495e' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                              <span>📰</span>
+                              <span>{result.articles_count || 0} articles</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                              <span>💬</span>
+                              <span>{result.social_posts_count || 0} posts sociaux</span>
+                            </div>
+                            <div className="font-medium" style={{ color: '#2c3e50', fontSize: '1rem' }}>
+                              Total: {result.total_results || 0} mentions
+                            </div>
+                          </div>
+                        )}
+                        <button
+                          onClick={() => {
+                            setSearchQuery(subject);
+                            handleSearch(subject);
+                            setActiveTab('search');
+                          }}
+                          className="glass-button primary"
+                          style={{ 
+                            marginTop: '1rem', 
+                            padding: '0.5rem 1rem', 
+                            fontSize: '0.85rem',
+                            width: '100%'
+                          }}
+                        >
+                          🔍 Explorer
+                        </button>
                       </div>
-                    )}
+                    ))}
                   </div>
                 </div>
-                <button
-                  onClick={() => {
-                    handleSearch(searchQuery);
-                    setActiveTab('search');
-                  }}
-                  disabled={searchLoading}
-                  className="glass-button primary"
-                >
-                  {searchLoading ? '⏳' : '🔍'} Rechercher
-                </button>
               </div>
-              
-              {/* Suggestions populaires */}
-              <div className="mt-4">
-                <p className="text-sm mb-2" style={{ color: '#7f8c8d' }}>Recherches populaires :</p>
-                <div className="flex flex-wrap gap-2">
-                  {['cd971', 'Guy Losbar', 'département guadeloupe', 'GUSR', 'Ary Chalus', 'Budget départemental'].map((term) => (
-                    <button
-                      key={term}
-                      onClick={() => {
-                        setSearchQuery(term);
-                        handleSearch(term);
-                        setActiveTab('search');
-                      }}
-                      className="glass-button"
-                      style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}
-                    >
-                      {term}
-                    </button>
-                  ))}
+            )}
+
+            {/* Barre de recherche narrative */}
+            <div className="scroll-reveal-right">
+              <div className="content-block" style={{ 
+                background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%)',
+                border: '1px solid rgba(59, 130, 246, 0.2)',
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
+                <div className="background-pulse" style={{ 
+                  position: 'absolute', 
+                  top: 0, 
+                  left: 0, 
+                  right: 0, 
+                  bottom: 0, 
+                  zIndex: -1 
+                }} />
+                <h3 className="text-xl font-bold mb-4" style={{ color: '#2c3e50' }}>
+                  🔍 Recherche Intelligente
+                </h3>
+                <div className="flex gap-4 flex-col md:flex-row">
+                  <div className="flex-1">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Rechercher Guy Losbar, CD971, actualités..."
+                        value={searchQuery}
+                        onChange={(e) => {
+                          setSearchQuery(e.target.value);
+                          if (e.target.value.length >= 2) {
+                            loadSearchSuggestions(e.target.value);
+                          }
+                        }}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            handleSearch(searchQuery);
+                            setActiveTab('search');
+                          }
+                        }}
+                        className="glass-input pl-12"
+                        style={{ fontSize: '1.1rem', padding: '1rem 1rem 1rem 3rem' }}
+                      />
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <svg className="w-6 h-6 text-blue-500 floating-element" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                      </div>
+                      
+                      {/* Suggestions améliorées */}
+                      {searchSuggestions.length > 0 && searchQuery.length >= 2 && (
+                        <div className="absolute top-full left-0 w-full mt-2 content-block z-50" style={{ 
+                          boxShadow: '0 25px 50px rgba(0,0,0,0.15)',
+                          borderRadius: 'var(--radius-xl)'
+                        }}>
+                          {searchSuggestions.map((suggestion, index) => (
+                            <button
+                              key={index}
+                              onClick={() => {
+                                setSearchQuery(suggestion);
+                                handleSearch(suggestion);
+                                setActiveTab('search');
+                                setSearchSuggestions([]);
+                              }}
+                              className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-all duration-200 first:rounded-t-xl last:rounded-b-xl"
+                              style={{ color: '#2c3e50', borderBottom: index < searchSuggestions.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none' }}
+                            >
+                              <span className="mr-2">🔍</span>
+                              {suggestion}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      handleSearch(searchQuery);
+                      setActiveTab('search');
+                    }}
+                    disabled={searchLoading}
+                    className="glass-button primary pulse-glow"
+                    style={{ padding: '1rem 2rem', fontSize: '1.1rem' }}
+                  >
+                    {searchLoading ? (
+                      <span className="animate-rotate">⏳</span>
+                    ) : (
+                      <span className="floating-element">🚀</span>
+                    )} 
+                    Rechercher
+                  </button>
+                </div>
+                
+                {/* Suggestions populaires avec animations */}
+                <div className="mt-6">
+                  <p className="text-sm mb-3" style={{ color: '#7f8c8d', fontWeight: '600' }}>
+                    Sujets populaires :
+                  </p>
+                  <div className="stagger-reveal">
+                    <div className="flex flex-wrap gap-2">
+                      {['cd971', 'Guy Losbar', 'département guadeloupe', 'GUSR', 'Ary Chalus', 'Budget départemental', 'Environnement', 'Tourisme'].map((term, index) => (
+                        <button
+                          key={term}
+                          onClick={() => {
+                            setSearchQuery(term);
+                            handleSearch(term);
+                            setActiveTab('search');
+                          }}
+                          className="glass-button secondary floating-element"
+                          style={{ 
+                            padding: '0.6rem 1.2rem', 
+                            fontSize: '0.9rem',
+                            animationDelay: `${index * 0.5}s`
+                          }}
+                        >
+                          {term}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="glass-card animate-fade-in-up animate-delay-500">
-              <h3 className="text-xl font-bold mb-4 animate-fade-in-left" style={{ color: '#2c3e50' }}>🚀 Actions Automatiques</h3>
-              <div className="actions-grid stagger-children">
-                <button
-                  onClick={scrapeArticlesNow}
-                  disabled={backgroundTasks.scraping}
-                  className={`glass-button ${backgroundTasks.scraping ? 'animate-pulse' : 'primary'} micro-bounce`}
-                >
-                  {backgroundTasks.scraping ? <span className="animate-rotate">⏳</span> : '📰'} 
-                  {backgroundTasks.scraping ? 'Scraping...' : 'Scraper Articles'}
-                </button>
-                <button
-                  onClick={captureRadioNow}
-                  disabled={backgroundTasks.capturing}
-                  className={`glass-button ${backgroundTasks.capturing ? 'animate-pulse' : 'success'} micro-bounce`}
-                >
-                  {backgroundTasks.capturing ? <span className="animate-rotate">⏳</span> : '📻'} 
-                  {backgroundTasks.capturing ? 'Capture...' : 'Capturer Radio'}
-                </button>
-                <button
-                  onClick={createDigestNow}
-                  className="glass-button primary micro-bounce"
-                >
-                  📄 Créer Digest
-                </button>
-                <label className="glass-button success cursor-pointer text-center micro-bounce">
-                  🎤 Upload Audio
-                  <input type="file" accept="audio/*" onChange={uploadAudio} className="hidden" />
-                </label>
+            {/* Actions automatiques avec animations */}
+            <div className="scroll-reveal" style={{ marginTop: '4rem' }}>
+              <div className="content-block">
+                <h3 className="text-xl font-bold mb-4" style={{ color: '#2c3e50' }}>
+                  🚀 Actions Automatiques
+                </h3>
+                <div className="stagger-reveal" style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+                  gap: '1.5rem' 
+                }}>
+                  <button
+                    onClick={scrapeArticlesNow}
+                    disabled={backgroundTasks.scraping}
+                    className={`stat-card-narrative ${backgroundTasks.scraping ? 'pulse-glow' : ''}`}
+                    style={{ cursor: 'pointer', border: backgroundTasks.scraping ? '2px solid var(--accent-color)' : '1px solid var(--border-color)' }}
+                  >
+                    <div className="stat-value" style={{ fontSize: '2rem', marginBottom: '1rem' }}>
+                      {backgroundTasks.scraping ? (
+                        <span className="animate-rotate">⏳</span>
+                      ) : (
+                        <span className="floating-element">📰</span>
+                      )}
+                    </div>
+                    <div className="stat-label">
+                      {backgroundTasks.scraping ? 'Scraping en cours...' : 'Scraper Articles'}
+                    </div>
+                    <div className="stat-sublabel">Récupérer les dernières actualités</div>
+                  </button>
+                  
+                  <button
+                    onClick={captureRadioNow}
+                    disabled={backgroundTasks.capturing}
+                    className={`stat-card-narrative ${backgroundTasks.capturing ? 'pulse-glow' : ''}`}
+                    style={{ cursor: 'pointer', border: backgroundTasks.capturing ? '2px solid var(--success-color)' : '1px solid var(--border-color)' }}
+                  >
+                    <div className="stat-value" style={{ fontSize: '2rem', marginBottom: '1rem' }}>
+                      {backgroundTasks.capturing ? (
+                        <span className="animate-rotate">⏳</span>
+                      ) : (
+                        <span className="floating-element">📻</span>
+                      )}
+                    </div>
+                    <div className="stat-label">
+                      {backgroundTasks.capturing ? 'Capture en cours...' : 'Capturer Radio'}
+                    </div>
+                    <div className="stat-sublabel">Enregistrer les émissions</div>
+                  </button>
+                  
+                  <button
+                    onClick={createDigestNow}
+                    className="stat-card-narrative"
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <div className="stat-value" style={{ fontSize: '2rem', marginBottom: '1rem' }}>
+                      <span className="floating-element">📄</span>
+                    </div>
+                    <div className="stat-label">Créer Digest</div>
+                    <div className="stat-sublabel">Résumé quotidien intelligent</div>
+                  </button>
+                  
+                  <label className="stat-card-narrative cursor-pointer" style={{ cursor: 'pointer' }}>
+                    <div className="stat-value" style={{ fontSize: '2rem', marginBottom: '1rem' }}>
+                      <span className="floating-element">🎤</span>
+                    </div>
+                    <div className="stat-label">Upload Audio</div>
+                    <div className="stat-sublabel">Analyser un fichier audio</div>
+                    <input type="file" accept="audio/*" onChange={uploadAudio} className="hidden" />
+                  </label>
+                </div>
               </div>
             </div>
           </div>
