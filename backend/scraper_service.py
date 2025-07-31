@@ -579,6 +579,181 @@ class GuadeloupeScraper:
             logger.error(f"❌ Erreur scraping {config['name']}: {e}")
             return []
 
+    def is_duplicate_article(self, new_article: Dict[str, Any]) -> bool:
+        """
+        Détection avancée de doublons d'articles
+        Vérifie plusieurs critères : ID, URL, titre similaire, contenu similaire
+        """
+        try:
+            # 1. Vérification par ID (déjà unique)
+            if self.articles_collection.find_one({'id': new_article['id']}):
+                logger.debug(f"Doublon détecté par ID: {new_article['id']}")
+                return True
+            
+            # 2. Vérification par URL exacte
+            if new_article.get('url') and self.articles_collection.find_one({'url': new_article['url']}):
+                logger.debug(f"Doublon détecté par URL: {new_article['url']}")
+                return True
+            
+            # 3. Vérification par titre similaire (même source, même date)
+            if new_article.get('title'):
+                # Rechercher des articles de la même source et date
+                same_source_date = self.articles_collection.find({
+                    'source': new_article.get('source'),
+                    'date': new_article.get('date')
+                })
+                
+                for existing_article in same_source_date:
+                    if existing_article.get('title'):
+                        # Calculer la similarité des titres (seuil 85%)
+                        similarity = SequenceMatcher(None, 
+                            new_article['title'].lower().strip(),
+                            existing_article['title'].lower().strip()
+                        ).ratio()
+                        
+                        if similarity > 0.85:
+                            logger.debug(f"Doublon détecté par titre similaire ({similarity:.2%}): {new_article['title'][:50]}...")
+                            return True
+            
+            # 4. Vérification par hash du contenu (si disponible)
+            if new_article.get('content'):
+                content_hash = hashlib.md5(
+                    new_article['content'].encode('utf-8', errors='ignore')
+                ).hexdigest()
+                
+                if self.articles_collection.find_one({'content_hash': content_hash}):
+                    logger.debug(f"Doublon détecté par hash contenu: {content_hash}")
+                    return True
+                
+                # Ajouter le hash pour les futures vérifications
+                new_article['content_hash'] = content_hash
+            
+            return False
+            
+        except Exception as e:
+            logger.warning(f"Erreur vérification doublon: {e}")
+            return False
+
+    def normalize_title(self, title: str) -> str:
+        """Normalise un titre pour une meilleure comparaison"""
+        if not title:
+            return ""
+        
+        # Supprimer la ponctuation excessive, espaces multiples
+        normalized = re.sub(r'[^\w\s]', ' ', title.lower())
+        normalized = re.sub(r'\s+', ' ', normalized).strip()
+        return normalized
+
+    def clean_duplicate_articles(self) -> Dict[str, Any]:
+        """
+        Nettoie les doublons existants dans la base de données
+        Garde le plus récent en cas de doublons
+        """
+        try:
+            logger.info("🧹 Démarrage du nettoyage des doublons...")
+            
+            # Grouper par URL et titre similaire
+            pipeline = [
+                {
+                    "$group": {
+                        "_id": {
+                            "url": "$url",
+                            "source": "$source"
+                        },
+                        "articles": {"$push": "$$ROOT"},
+                        "count": {"$sum": 1}
+                    }
+                },
+                {
+                    "$match": {"count": {"$gt": 1}}
+                }
+            ]
+            
+            duplicates_by_url = list(self.articles_collection.aggregate(pipeline))
+            removed_count = 0
+            
+            for group in duplicates_by_url:
+                articles = group['articles']
+                # Garder le plus récent (par date de scraping ou _id)
+                articles_sorted = sorted(articles, 
+                    key=lambda x: x.get('scraped_at', x.get('_id')), 
+                    reverse=True
+                )
+                
+                # Supprimer tous sauf le plus récent
+                for article_to_remove in articles_sorted[1:]:
+                    self.articles_collection.delete_one({'_id': article_to_remove['_id']})
+                    removed_count += 1
+                    logger.debug(f"Doublon supprimé: {article_to_remove.get('title', 'Sans titre')[:50]}...")
+            
+            # Nettoyer aussi par titre similaire
+            title_duplicates = self._find_similar_titles()
+            removed_count += title_duplicates
+            
+            logger.info(f"🧹 Nettoyage terminé: {removed_count} doublons supprimés")
+            
+            return {
+                'success': True,
+                'removed_count': removed_count,
+                'message': f"{removed_count} doublons supprimés avec succès"
+            }
+            
+        except Exception as e:
+            logger.error(f"Erreur nettoyage doublons: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'removed_count': 0
+            }
+
+    def _find_similar_titles(self) -> int:
+        """Trouve et supprime les articles avec des titres très similaires"""
+        try:
+            # Récupérer tous les articles récents (7 derniers jours)
+            from datetime import timedelta
+            week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+            
+            recent_articles = list(self.articles_collection.find({
+                'date': {'$gte': week_ago}
+            }).sort('scraped_at', -1))
+            
+            removed_count = 0
+            processed_ids = set()
+            
+            for i, article1 in enumerate(recent_articles):
+                if article1['_id'] in processed_ids:
+                    continue
+                    
+                for j, article2 in enumerate(recent_articles[i+1:], i+1):
+                    if article2['_id'] in processed_ids:
+                        continue
+                    
+                    # Comparer les titres si même source
+                    if (article1.get('source') == article2.get('source') and 
+                        article1.get('title') and article2.get('title')):
+                        
+                        similarity = SequenceMatcher(None,
+                            self.normalize_title(article1['title']),
+                            self.normalize_title(article2['title'])
+                        ).ratio()
+                        
+                        if similarity > 0.90:  # 90% de similarité
+                            # Garder le plus récent
+                            older_article = (article2 if article1.get('scraped_at', '') > article2.get('scraped_at', '') 
+                                           else article1)
+                            
+                            self.articles_collection.delete_one({'_id': older_article['_id']})
+                            processed_ids.add(older_article['_id'])
+                            removed_count += 1
+                            
+                            logger.debug(f"Titre similaire supprimé ({similarity:.2%}): {older_article.get('title', '')[:50]}...")
+            
+            return removed_count
+            
+        except Exception as e:
+            logger.warning(f"Erreur détection titres similaires: {e}")
+            return 0
+
     def scrape_all_sites(self) -> Dict[str, Any]:
         """Scraper tous les sites de Guadeloupe - Version simplifiée et robuste"""
         logger.info("🚀 Début du scraping des sites guadeloupéens...")
