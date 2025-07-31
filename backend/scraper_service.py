@@ -14,6 +14,8 @@ import logging
 import concurrent.futures
 from urllib.parse import urljoin, urlparse
 import re
+import hashlib
+from difflib import SequenceMatcher
 
 # Configuration logging
 logging.basicConfig(level=logging.INFO)
