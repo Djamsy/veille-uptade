@@ -1848,7 +1848,7 @@ function App() {
                           padding: '0.5rem 1rem'
                         }}
                       >
-                        <span className="floating-element">🤖</span>
+                        <span className="">🤖</span>
                         Résumé IA
                       </button>
                     )}
