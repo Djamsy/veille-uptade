@@ -309,7 +309,407 @@ function App() {
     };
   };
 
-  // Composant Logo pour les sources (version améliorée et plus robuste)
+  // Composant amélioré pour l'analyse de sentiment avec recommandations
+  const EnhancedSentimentAnalysis = ({ analysis }) => {
+    if (!analysis) return null;
+
+    const getSentimentConfig = (polarity) => {
+      const configs = {
+        positive: {
+          color: '#10b981',
+          bgColor: 'rgba(16, 185, 129, 0.1)',
+          borderColor: 'rgba(16, 185, 129, 0.3)',
+          emoji: '😊',
+          label: 'Positif',
+          textColor: '#059669'
+        },
+        negative: {
+          color: '#ef4444',
+          bgColor: 'rgba(239, 68, 68, 0.1)',
+          borderColor: 'rgba(239, 68, 68, 0.3)',
+          emoji: '😞',
+          label: 'Négatif',
+          textColor: '#dc2626'
+        },
+        neutral: {
+          color: '#6b7280',
+          bgColor: 'rgba(107, 114, 128, 0.1)',
+          borderColor: 'rgba(107, 114, 128, 0.3)',
+          emoji: '😐',
+          label: 'Neutre',
+          textColor: '#4b5563'
+        }
+      };
+      return configs[polarity] || configs.neutral;
+    };
+
+    const getRecommendations = (analysis) => {
+      const recommendations = [];
+      const { basic_sentiment, contextual_analysis } = analysis;
+      
+      // Recommandations basées sur le sentiment
+      if (basic_sentiment.polarity === 'negative' && basic_sentiment.confidence > 0.7) {
+        recommendations.push({
+          type: 'alert',
+          priority: 'high',
+          icon: '⚠️',
+          title: 'Surveillance Renforcée',
+          action: 'Surveiller l\'évolution de cette actualité et préparer une réponse si nécessaire'
+        });
+      }
+      
+      if (basic_sentiment.polarity === 'positive' && basic_sentiment.confidence > 0.7) {
+        recommendations.push({
+          type: 'opportunity',
+          priority: 'medium',
+          icon: '📈',
+          title: 'Opportunité de Communication',
+          action: 'Capitaliser sur cette actualité positive pour améliorer l\'image'
+        });
+      }
+      
+      // Recommandations basées sur l'urgence
+      if (contextual_analysis.urgency_level === 'high') {
+        recommendations.push({
+          type: 'urgent',
+          priority: 'high',
+          icon: '🚨',
+          title: 'Action Immédiate',
+          action: 'Préparer une réponse dans les 2-4 heures prochaines'
+        });
+      }
+      
+      // Recommandations basées sur l'impact local
+      if (contextual_analysis.local_impact) {
+        recommendations.push({
+          type: 'local',
+          priority: 'medium',
+          icon: '🏝️',
+          title: 'Impact Local Identifié',
+          action: 'Informer les services concernés et préparer une communication locale'
+        });
+      }
+      
+      // Recommandations basées sur les parties prenantes
+      if (analysis.stakeholders.personalities.length > 0) {
+        recommendations.push({
+          type: 'stakeholder',
+          priority: 'medium',
+          icon: '👥',
+          title: 'Personnalités Impliquées',
+          action: 'Coordonner avec les équipes de communication des personnalités mentionnées'
+        });
+      }
+      
+      if (recommendations.length === 0) {
+        recommendations.push({
+          type: 'monitor',
+          priority: 'low',
+          icon: '👁️',
+          title: 'Surveillance Standard',
+          action: 'Continuer la surveillance normale de cette actualité'
+        });
+      }
+      
+      return recommendations;
+    };
+
+    const config = getSentimentConfig(analysis.basic_sentiment.polarity);
+    const recommendations = getRecommendations(analysis);
+    const confidencePercent = Math.round(analysis.basic_sentiment.confidence * 100);
+    
+    return (
+      <div className="enhanced-sentiment-container">
+        {/* Header avec score principal */}
+        <div className="sentiment-header" style={{
+          background: config.bgColor,
+          border: `2px solid ${config.borderColor}`,
+          borderRadius: '16px',
+          padding: '2rem',
+          marginBottom: '2rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '2rem'
+        }}>
+          <div className="sentiment-emoji" style={{
+            fontSize: '4rem',
+            background: `linear-gradient(135deg, ${config.color}, ${config.color}aa)`,
+            borderRadius: '50%',
+            width: '100px',
+            height: '100px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: `0 8px 32px ${config.color}40`
+          }}>
+            {config.emoji}
+          </div>
+          
+          <div className="sentiment-details" style={{ flex: 1 }}>
+            <h3 style={{ 
+              margin: 0, 
+              fontSize: '2rem', 
+              fontWeight: '700',
+              color: config.textColor,
+              marginBottom: '0.5rem'
+            }}>
+              Sentiment {config.label}
+            </h3>
+            
+            <div className="sentiment-metrics" style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+              gap: '1rem',
+              marginTop: '1rem'
+            }}>
+              <div className="metric">
+                <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem' }}>Score</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: '600', color: config.textColor }}>
+                  {analysis.basic_sentiment.score > 0 ? '+' : ''}{analysis.basic_sentiment.score}
+                </div>
+              </div>
+              
+              <div className="metric">
+                <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem' }}>Confiance</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: '600', color: config.textColor }}>
+                  {confidencePercent}%
+                </div>
+              </div>
+              
+              <div className="metric">
+                <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem' }}>Intensité</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: '600', color: config.textColor }}>
+                  {analysis.basic_sentiment.intensity}
+                </div>
+              </div>
+              
+              <div className="metric">
+                <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem' }}>Urgence</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: '600', color: config.textColor }}>
+                  {analysis.contextual_analysis.urgency_level}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Recommandations d'actions */}
+        <div className="recommendations-section" style={{ marginBottom: '2rem' }}>
+          <h4 style={{ 
+            fontSize: '1.5rem', 
+            fontWeight: '600', 
+            color: '#1f2937', 
+            marginBottom: '1rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}>
+            💡 Recommandations d'Actions
+          </h4>
+          
+          <div className="recommendations-grid" style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+            gap: '1rem'
+          }}>
+            {recommendations.map((rec, index) => {
+              const priorityColors = {
+                high: { bg: 'rgba(239, 68, 68, 0.1)', border: '#ef4444', text: '#dc2626' },
+                medium: { bg: 'rgba(245, 158, 11, 0.1)', border: '#f59e0b', text: '#d97706' },
+                low: { bg: 'rgba(59, 130, 246, 0.1)', border: '#3b82f6', text: '#2563eb' }
+              };
+              const colors = priorityColors[rec.priority];
+              
+              return (
+                <div key={index} className="recommendation-card" style={{
+                  background: colors.bg,
+                  border: `2px solid ${colors.border}40`,
+                  borderRadius: '12px',
+                  padding: '1.5rem',
+                  transition: 'all 0.3s ease'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '1rem'
+                  }}>
+                    <div style={{
+                      fontSize: '2rem',
+                      flexShrink: 0
+                    }}>
+                      {rec.icon}
+                    </div>
+                    
+                    <div style={{ flex: 1 }}>
+                      <h5 style={{
+                        margin: 0,
+                        fontSize: '1.1rem',
+                        fontWeight: '600',
+                        color: colors.text,
+                        marginBottom: '0.5rem'
+                      }}>
+                        {rec.title}
+                      </h5>
+                      
+                      <p style={{
+                        margin: 0,
+                        fontSize: '0.9rem',
+                        color: '#4b5563',
+                        lineHeight: '1.5'
+                      }}>
+                        {rec.action}
+                      </p>
+                      
+                      <div style={{
+                        marginTop: '0.75rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        padding: '0.25rem 0.75rem',
+                        background: colors.border + '20',
+                        borderRadius: '20px',
+                        fontSize: '0.75rem',
+                        fontWeight: '600',
+                        color: colors.text,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em'
+                      }}>
+                        Priorité {rec.priority === 'high' ? 'Haute' : rec.priority === 'medium' ? 'Moyenne' : 'Basse'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        
+        {/* Détails contextuels */}
+        {analysis.contextual_analysis.guadeloupe_relevance && (
+          <div className="contextual-details" style={{
+            background: 'rgba(59, 130, 246, 0.05)',
+            border: '1px solid rgba(59, 130, 246, 0.2)',
+            borderRadius: '12px',
+            padding: '1.5rem',
+            marginBottom: '1rem'
+          }}>
+            <h5 style={{
+              margin: 0,
+              fontSize: '1.2rem',
+              fontWeight: '600',
+              color: '#2563eb',
+              marginBottom: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              🏝️ Contexte Guadeloupéen
+            </h5>
+            
+            <p style={{
+              margin: 0,
+              fontSize: '1rem',
+              color: '#1f2937',
+              lineHeight: '1.6',
+              marginBottom: '1rem'
+            }}>
+              {analysis.contextual_analysis.guadeloupe_relevance}
+            </p>
+            
+            {analysis.contextual_analysis.local_impact && (
+              <div style={{
+                padding: '1rem',
+                background: 'rgba(16, 185, 129, 0.1)',
+                border: '1px solid rgba(16, 185, 129, 0.2)',
+                borderRadius: '8px'
+              }}>
+                <strong style={{ color: '#059669' }}>Impact local identifié :</strong>
+                <span style={{ marginLeft: '0.5rem', color: '#1f2937' }}>
+                  {analysis.contextual_analysis.local_impact}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Parties prenantes */}
+        {(analysis.stakeholders.personalities.length > 0 || analysis.stakeholders.institutions.length > 0) && (
+          <div className="stakeholders-section" style={{
+            background: 'rgba(139, 92, 246, 0.05)',
+            border: '1px solid rgba(139, 92, 246, 0.2)',
+            borderRadius: '12px',
+            padding: '1.5rem'
+          }}>
+            <h5 style={{
+              margin: 0,
+              fontSize: '1.2rem',
+              fontWeight: '600',
+              color: '#7c3aed',
+              marginBottom: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              👥 Parties Prenantes Identifiées
+            </h5>
+            
+            {analysis.stakeholders.personalities.length > 0 && (
+              <div style={{ marginBottom: '1rem' }}>
+                <h6 style={{ 
+                  fontSize: '1rem', 
+                  fontWeight: '600', 
+                  color: '#4b5563', 
+                  marginBottom: '0.5rem' 
+                }}>
+                  Personnalités :
+                </h6>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  {analysis.stakeholders.personalities.map((person, i) => (
+                    <span key={i} style={{
+                      background: 'rgba(139, 92, 246, 0.2)',
+                      color: '#7c3aed',
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '20px',
+                      fontSize: '0.875rem',
+                      fontWeight: '500'
+                    }}>
+                      {person}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {analysis.stakeholders.institutions.length > 0 && (
+              <div>
+                <h6 style={{ 
+                  fontSize: '1rem', 
+                  fontWeight: '600', 
+                  color: '#4b5563', 
+                  marginBottom: '0.5rem' 
+                }}>
+                  Institutions :
+                </h6>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  {analysis.stakeholders.institutions.map((inst, i) => (
+                    <span key={i} style={{
+                      background: 'rgba(139, 92, 246, 0.2)',
+                      color: '#7c3aed',
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '20px',
+                      fontSize: '0.875rem',
+                      fontWeight: '500'
+                    }}>
+                      {inst}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
   const SourceLogo = ({ source, size = 32 }) => {
     const [imageError, setImageError] = useState(false);
     const [imageLoaded, setImageLoaded] = useState(false);
