@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: veille-frontend
+    env: static
+    buildCommand: yarn install && yarn build
+    staticPublishPath: frontend/public
+    rootDir: frontend
