@@ -2635,67 +2635,229 @@ function App() {
           </div>
         )}
 
-        {/* Digest Quotidien */}
+        {/* Digest Narratif avec animations de scroll */}
         {activeTab === 'digest' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-gray-800">📄 Digest Quotidien</h2>
-              <div className="flex gap-2">
-                <button
-                  onClick={createDigestNow}
-                  className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
-                >
-                  📄 Créer Digest
-                </button>
-                {digest && (
-                  <>
-                    <a
-                      href={`${BACKEND_URL}/api/digest/${selectedDate}/pdf`}
-                      className="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
-                    >
-                      📄 Télécharger PDF
-                    </a>
-                    <a
-                      href={`${BACKEND_URL}/api/digest/${selectedDate}/html`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
-                    >
-                      🔗 Version HTML
-                    </a>
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className="bg-white p-4 rounded-lg shadow-md">
-              <p className="text-sm text-gray-600">
-                <strong>Résumé automatique :</strong> Articles + Transcriptions radio formatés | 
-                <strong> Programmé :</strong> Tous les jours à 12H00 |
-                <strong> Cache :</strong> 15 minutes
+          <div className="narrative-section">
+            {createFloatingElements()}
+            
+            {/* Header Story pour Digest */}
+            <div className="story-header scroll-reveal">
+              <h1 className="story-title">
+                📄 Digest Quotidien
+              </h1>
+              <p className="story-subtitle">
+                Votre résumé intelligent de l'actualité guadeloupéenne. Synthèse automatique des articles de presse et transcriptions radio.
               </p>
             </div>
 
-            {digest ? (
-              <div className="bg-white p-6 rounded-xl shadow-lg">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-bold text-gray-800">
-                    Digest du {new Date(digest.date).toLocaleDateString('fr-FR')}
-                  </h3>
-                  <div className="text-sm text-gray-500">
-                    {digest.articles_count} articles • {digest.transcriptions_count} transcriptions
+            {/* Actions digest avec animations */}
+            <div className="scroll-reveal-scale" style={{ marginBottom: '4rem' }}>
+              <div className="content-block" style={{ 
+                background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(217, 70, 239, 0.1) 100%)',
+                border: '1px solid rgba(139, 92, 246, 0.2)' 
+              }}>
+                <div className="stagger-reveal" style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+                  gap: '1.5rem',
+                  marginBottom: '2rem'
+                }}>
+                  <button
+                    onClick={createDigestNow}
+                    className="stat-card-narrative pulse-glow"
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <div className="stat-value" style={{ fontSize: '2rem', marginBottom: '1rem' }}>
+                      <span className="floating-element">📝</span>
+                    </div>
+                    <div className="stat-label">Créer Digest</div>
+                    <div className="stat-sublabel">Générer le résumé du jour</div>
+                  </button>
+                  
+                  {digest && (
+                    <>
+                      <a
+                        href={`${BACKEND_URL}/api/digest/${selectedDate}/pdf`}
+                        className="stat-card-narrative"
+                        style={{ cursor: 'pointer', textDecoration: 'none', color: 'inherit' }}
+                      >
+                        <div className="stat-value" style={{ fontSize: '2rem', marginBottom: '1rem' }}>
+                          <span className="floating-element">📄</span>
+                        </div>
+                        <div className="stat-label">Télécharger PDF</div>
+                        <div className="stat-sublabel">Version imprimable</div>
+                      </a>
+                      
+                      <a
+                        href={`${BACKEND_URL}/api/digest/${selectedDate}/html`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="stat-card-narrative"
+                        style={{ cursor: 'pointer', textDecoration: 'none', color: 'inherit' }}
+                      >
+                        <div className="stat-value" style={{ fontSize: '2rem', marginBottom: '1rem' }}>
+                          <span className="floating-element">🔗</span>
+                        </div>
+                        <div className="stat-label">Version HTML</div>
+                        <div className="stat-sublabel">Consultation en ligne</div>
+                      </a>
+                    </>
+                  )}
+                </div>
+                
+                {/* Info technique avec style narratif */}
+                <div className="scroll-reveal" style={{ 
+                  background: 'rgba(255, 255, 255, 0.7)',
+                  backdropFilter: 'blur(10px)',
+                  borderRadius: 'var(--radius-xl)',
+                  padding: '1.5rem',
+                  border: '1px solid rgba(255, 255, 255, 0.2)'
+                }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span className="floating-element">🔄</span>
+                      <span style={{ color: '#6b7280', fontSize: '0.9rem' }}>
+                        <strong>Automatique:</strong> Articles + Transcriptions
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span className="floating-element">⏰</span>
+                      <span style={{ color: '#6b7280', fontSize: '0.9rem' }}>
+                        <strong>Programmé:</strong> Tous les jours à 12H00
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span className="floating-element">💾</span>
+                      <span style={{ color: '#6b7280', fontSize: '0.9rem' }}>
+                        <strong>Cache:</strong> 15 minutes
+                      </span>
+                    </div>
                   </div>
                 </div>
-                <div 
-                  className="prose max-w-none"
-                  dangerouslySetInnerHTML={{ __html: digest.digest_html }}
-                />
+              </div>
+            </div>
+
+            {/* Contenu du digest avec style narratif */}
+            {digest ? (
+              <div className="scroll-reveal-left">
+                <div className="digest-container">
+                  <div className="digest-content">
+                    {/* Header du digest */}
+                    <div className="scroll-reveal" style={{ textAlign: 'center', marginBottom: '3rem' }}>
+                      <h2 style={{ 
+                        fontSize: 'clamp(1.5rem, 3vw, 2.5rem)',
+                        fontWeight: '700',
+                        color: 'var(--text-primary)',
+                        marginBottom: '1rem'
+                      }}>
+                        Digest du {new Date(digest.date).toLocaleDateString('fr-FR', {
+                          weekday: 'long',
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric'
+                        })}
+                      </h2>
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'center', 
+                        gap: '2rem',
+                        flexWrap: 'wrap'
+                      }}>
+                        <div className="stagger-reveal">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)' }}>
+                            <span className="floating-element">📰</span>
+                            <span style={{ fontWeight: '600' }}>{digest.articles_count} articles</span>
+                          </div>
+                        </div>
+                        <div className="stagger-reveal">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)' }}>
+                            <span className="floating-element">📻</span>
+                            <span style={{ fontWeight: '600' }}>{digest.transcriptions_count} transcriptions</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Contenu du digest avec animations de scroll */}
+                    <div className="digest-section scroll-reveal">
+                      <div 
+                        className="prose max-w-none"
+                        style={{ 
+                          fontSize: '1.1rem',
+                          lineHeight: '1.8',
+                          color: 'var(--text-primary)'
+                        }}
+                        dangerouslySetInnerHTML={{ __html: digest.digest_html }}
+                      />
+                    </div>
+
+                    {/* Footer avec métadonnées */}
+                    <div className="scroll-reveal" style={{
+                      marginTop: '3rem',
+                      padding: '2rem',
+                      background: 'rgba(255, 255, 255, 0.5)',
+                      borderRadius: 'var(--radius-xl)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      textAlign: 'center'
+                    }}>
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'center', 
+                        gap: '1rem', 
+                        flexWrap: 'wrap',
+                        color: 'var(--text-muted)',
+                        fontSize: '0.9rem'
+                      }}>
+                        <span className="floating-element">🏝️</span>
+                        <span>Veille Média Guadeloupe</span>
+                        <span>•</span>
+                        <span>Généré automatiquement</span>
+                        <span>•</span>
+                        <span>{new Date().toLocaleTimeString('fr-FR')}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             ) : (
-              <div className="text-center py-12 text-gray-500">
-                <div className="text-6xl mb-4">📄</div>
-                <p className="text-xl">Aucun digest pour cette date</p>
-                <p>Cliquez sur "Créer Digest" pour générer le résumé</p>
+              /* État vide avec style narratif */
+              <div className="scroll-reveal-scale">
+                <div className="content-block" style={{ 
+                  textAlign: 'center', 
+                  padding: '4rem 2rem',
+                  background: 'linear-gradient(135deg, rgba(156, 163, 175, 0.1) 0%, rgba(209, 213, 219, 0.1) 100%)'
+                }}>
+                  <div className="floating-element" style={{ fontSize: '4rem', marginBottom: '2rem' }}>📄</div>
+                  <h3 style={{ 
+                    fontSize: 'clamp(1.25rem, 2.5vw, 2rem)', 
+                    fontWeight: '700', 
+                    color: 'var(--text-primary)', 
+                    marginBottom: '1rem' 
+                  }}>
+                    Aucun digest disponible
+                  </h3>
+                  <p style={{ 
+                    color: 'var(--text-secondary)', 
+                    fontSize: '1.1rem', 
+                    maxWidth: '500px', 
+                    margin: '0 auto 2rem' 
+                  }}>
+                    Le digest quotidien n'a pas encore été généré pour cette date. 
+                    Cliquez sur "Créer Digest" pour lancer la synthèse automatique.
+                  </p>
+                  <button
+                    onClick={createDigestNow}
+                    className="glass-button primary pulse-glow"
+                    style={{ 
+                      fontSize: '1.1rem', 
+                      padding: '1rem 2rem',
+                      margin: '1rem'
+                    }}
+                  >
+                    <span className="floating-element">✨</span>
+                    Générer le Digest
+                  </button>
+                </div>
               </div>
             )}
           </div>
