@@ -2120,6 +2120,59 @@ textarea {
   display: none;
 }
 
+/* ================ ANALYSE DE SENTIMENT AMÉLIORÉE ================ */
+.enhanced-sentiment-container {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.enhanced-sentiment-container .recommendation-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.enhanced-sentiment-container .metric {
+  text-align: center;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.enhanced-sentiment-container .sentiment-emoji {
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+@keyframes sentiment-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+/* Responsive design pour analyse sentiment */
+@media (max-width: 768px) {
+  .enhanced-sentiment-container .sentiment-header {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .enhanced-sentiment-container .recommendations-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ================ ADMIN DOUBLONS ================ */
+.admin-stats-card {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(16, 185, 129, 0.1));
+  border: 2px solid rgba(59, 130, 246, 0.2);
+  border-radius: 16px;
+  padding: 2rem;
+  transition: all 0.3s ease;
+}
+
+.admin-stats-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(59, 130, 246, 0.15);
+}
+
 /* Animation de background subtile pour le dashboard */
 .dashboard-container {
   position: relative;
