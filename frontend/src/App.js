@@ -1704,7 +1704,7 @@ function App() {
             
             <AppLogo size={48} />
             <div className="header-title-section">
-              <p className="header-subtitle-text">Intelligence artificielle • Surveillance médiatique • Guadeloupe</p>
+              <p className="app-subtitle">Intelligence artificielle • Surveillance médiatique • Guadeloupe</p>
             </div>
           </div>
           <div className="header-right">
