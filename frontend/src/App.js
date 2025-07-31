@@ -1364,30 +1364,32 @@ function App() {
               </div>
             </div>
 
-            <div className="glass-card">
-              <h3 className="text-xl font-bold mb-4" style={{ color: '#2c3e50' }}>🚀 Actions Automatiques</h3>
-              <div className="actions-grid">
+            <div className="glass-card animate-fade-in-up animate-delay-500">
+              <h3 className="text-xl font-bold mb-4 animate-fade-in-left" style={{ color: '#2c3e50' }}>🚀 Actions Automatiques</h3>
+              <div className="actions-grid stagger-children">
                 <button
                   onClick={scrapeArticlesNow}
                   disabled={backgroundTasks.scraping}
-                  className={`glass-button ${backgroundTasks.scraping ? '' : 'primary'}`}
+                  className={`glass-button ${backgroundTasks.scraping ? 'animate-pulse' : 'primary'} micro-bounce`}
                 >
-                  {backgroundTasks.scraping ? '⏳ Scraping...' : '📰 Scraper Articles'}
+                  {backgroundTasks.scraping ? <span className="animate-rotate">⏳</span> : '📰'} 
+                  {backgroundTasks.scraping ? 'Scraping...' : 'Scraper Articles'}
                 </button>
                 <button
                   onClick={captureRadioNow}
                   disabled={backgroundTasks.capturing}
-                  className={`glass-button ${backgroundTasks.capturing ? '' : 'success'}`}
+                  className={`glass-button ${backgroundTasks.capturing ? 'animate-pulse' : 'success'} micro-bounce`}
                 >
-                  {backgroundTasks.capturing ? '⏳ Capture...' : '📻 Capturer Radio'}
+                  {backgroundTasks.capturing ? <span className="animate-rotate">⏳</span> : '📻'} 
+                  {backgroundTasks.capturing ? 'Capture...' : 'Capturer Radio'}
                 </button>
                 <button
                   onClick={createDigestNow}
-                  className="glass-button primary"
+                  className="glass-button primary micro-bounce"
                 >
                   📄 Créer Digest
                 </button>
-                <label className="glass-button success cursor-pointer text-center">
+                <label className="glass-button success cursor-pointer text-center micro-bounce">
                   🎤 Upload Audio
                   <input type="file" accept="audio/*" onChange={uploadAudio} className="hidden" />
                 </label>
