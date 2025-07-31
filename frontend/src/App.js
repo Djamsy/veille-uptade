@@ -1794,7 +1794,7 @@ function App() {
                         alignItems: 'center',
                         gap: '0.25rem'
                       }}>
-                        <span className="floating-element" style={{ fontSize: '0.7rem' }}>🕒</span>
+                        <span className="" style={{ fontSize: '0.7rem' }}>🕒</span>
                         {new Date(article.published_at || article.scraped_at).toLocaleDateString('fr-FR', {
                           day: 'numeric',
                           month: 'short',
