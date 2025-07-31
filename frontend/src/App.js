@@ -3740,18 +3740,196 @@ function App() {
                 </div>
               )}
 
-              {/* État vide modernisé */}
+              {/* État vide modernisé avec données de démonstration */}
               {(!comments || comments.length === 0) && !socialSearchResults && (
-                <div className="empty-state scroll-reveal-scale">
-                  <div className="empty-icon">🌐</div>
-                  <h3>Démarrez la surveillance sociale</h3>
-                  <p>Lancez le scraping pour collecter et analyser les données des réseaux sociaux guadeloupéens</p>
-                  <button 
-                    onClick={startSocialScraping}
-                    className="empty-action-btn"
-                  >
-                    🚀 Commencer l'analyse
-                  </button>
+                <div className="social-demo-section">
+                  {/* Démonstration avec des commentaires d'exemple */}
+                  <div className="recent-comments-section scroll-reveal-right">
+                    <h3 className="comments-title">💬 Aperçu des Commentaires Réseaux Sociaux</h3>
+                    
+                    <div className="comments-grid stagger-reveal">
+                      {/* Commentaire exemple Facebook */}
+                      <div className="modern-comment-card">
+                        <div className="comment-header">
+                          <div className="comment-source-info">
+                            <SourceLogo source="Facebook" size={40} />
+                            <div className="comment-platform-details">
+                              <span className="comment-platform-name">Facebook</span>
+                              <span className="comment-date">31 juil., 14:30</span>
+                            </div>
+                          </div>
+                          <div className="comment-sentiment-badge" style={{
+                            background: 'rgba(16, 185, 129, 0.15)',
+                            color: '#059669',
+                            border: '1px solid rgba(16, 185, 129, 0.3)'
+                          }}>
+                            <span className="sentiment-emoji">😊</span>
+                            <span className="sentiment-label">Positif</span>
+                          </div>
+                        </div>
+
+                        <div className="comment-content">
+                          <p>Excellente initiative pour la protection de l'environnement en Guadeloupe ! 🌴 Les nouvelles mesures pour les plages sont très bien pensées.</p>
+                        </div>
+
+                        <div className="comment-footer">
+                          <div className="comment-metrics">
+                            <span className="metric-item">
+                              <span className="metric-icon">📊</span>
+                              <span className="metric-label">Score: 0.85</span>
+                            </span>
+                            <span className="metric-item">
+                              <span className="metric-icon">👍</span>
+                              <span className="metric-label">24</span>
+                            </span>
+                            <span className="metric-item">
+                              <span className="metric-icon">💬</span>
+                              <span className="metric-label">8</span>
+                            </span>
+                            <span className="metric-item">
+                              <span className="metric-icon">🔄</span>
+                              <span className="metric-label">12</span>
+                            </span>
+                          </div>
+                          
+                          <div className="comment-tags">
+                            <span className="comment-tag">#environnement</span>
+                            <span className="comment-tag">#guadeloupe</span>
+                            <span className="comment-tag">#écologie</span>
+                          </div>
+                        </div>
+
+                        <div className="trending-indicator">
+                          <span className="trending-icon">🔥</span>
+                          <span className="trending-label">Tendance</span>
+                        </div>
+                      </div>
+
+                      {/* Commentaire exemple Twitter */}
+                      <div className="modern-comment-card">
+                        <div className="comment-header">
+                          <div className="comment-source-info">
+                            <SourceLogo source="X (Twitter)" size={40} />
+                            <div className="comment-platform-details">
+                              <span className="comment-platform-name">X (Twitter)</span>
+                              <span className="comment-date">31 juil., 12:15</span>
+                            </div>
+                          </div>
+                          <div className="comment-sentiment-badge" style={{
+                            background: 'rgba(107, 114, 128, 0.15)',
+                            color: '#4b5563',
+                            border: '1px solid rgba(107, 114, 128, 0.3)'
+                          }}>
+                            <span className="sentiment-emoji">😐</span>
+                            <span className="sentiment-label">Neutre</span>
+                          </div>
+                        </div>
+
+                        <div className="comment-content">
+                          <p>Info importante sur les transports publics en #Guadeloupe. Les nouveaux horaires de bus sont disponibles sur le site de la collectivité.</p>
+                        </div>
+
+                        <div className="comment-footer">
+                          <div className="comment-metrics">
+                            <span className="metric-item">
+                              <span className="metric-icon">📊</span>
+                              <span className="metric-label">Score: 0.02</span>
+                            </span>
+                            <span className="metric-item">
+                              <span className="metric-icon">👍</span>
+                              <span className="metric-label">5</span>
+                            </span>
+                            <span className="metric-item">
+                              <span className="metric-icon">💬</span>
+                              <span className="metric-label">3</span>
+                            </span>
+                            <span className="metric-item">
+                              <span className="metric-icon">🔄</span>
+                              <span className="metric-label">7</span>
+                            </span>
+                          </div>
+                          
+                          <div className="comment-tags">
+                            <span className="comment-tag">#transport</span>
+                            <span className="comment-tag">#info</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Commentaire exemple Instagram */}
+                      <div className="modern-comment-card">
+                        <div className="comment-header">
+                          <div className="comment-source-info">
+                            <SourceLogo source="Instagram" size={40} />
+                            <div className="comment-platform-details">
+                              <span className="comment-platform-name">Instagram</span>
+                              <span className="comment-date">31 juil., 10:45</span>
+                            </div>
+                          </div>
+                          <div className="comment-sentiment-badge" style={{
+                            background: 'rgba(239, 68, 68, 0.15)',
+                            color: '#dc2626',
+                            border: '1px solid rgba(239, 68, 68, 0.3)'
+                          }}>
+                            <span className="sentiment-emoji">😞</span>
+                            <span className="sentiment-label">Négatif</span>
+                          </div>
+                        </div>
+
+                        <div className="comment-content">
+                          <p>Déçu par les coupures d'eau répétées dans le secteur de Basse-Terre... Quand est-ce que ça va s'améliorer ? 😤</p>
+                        </div>
+
+                        <div className="comment-footer">
+                          <div className="comment-metrics">
+                            <span className="metric-item">
+                              <span className="metric-icon">📊</span>
+                              <span className="metric-label">Score: -0.65</span>
+                            </span>
+                            <span className="metric-item">
+                              <span className="metric-icon">👍</span>
+                              <span className="metric-label">15</span>
+                            </span>
+                            <span className="metric-item">
+                              <span className="metric-icon">💬</span>
+                              <span className="metric-label">22</span>
+                            </span>
+                            <span className="metric-item">
+                              <span className="metric-icon">🔄</span>
+                              <span className="metric-label">8</span>
+                            </span>
+                          </div>
+                          
+                          <div className="comment-tags">
+                            <span className="comment-tag">#eau</span>
+                            <span className="comment-tag">#basseterre</span>
+                            <span className="comment-tag">#service</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="load-more-section">
+                      <button 
+                        onClick={startSocialScraping}
+                        className="load-more-btn"
+                      >
+                        🚀 Lancer la surveillance réelle
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="empty-state scroll-reveal-scale">
+                    <div className="empty-icon">🌐</div>
+                    <h3>Démarrez la surveillance sociale</h3>
+                    <p>Lancez le scraping pour collecter et analyser les vraies données des réseaux sociaux guadeloupéens</p>
+                    <button 
+                      onClick={startSocialScraping}
+                      className="empty-action-btn"
+                    >
+                      🚀 Commencer l'analyse
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
