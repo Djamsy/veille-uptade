@@ -1421,25 +1421,25 @@ function App() {
                   gap: '2rem', 
                   marginBottom: '4rem' 
                 }}>
-                  <div className="stat-card-narrative pulse-glow data-flow">
+                  <div className="stat-card-narrative">
                     <div className="stat-value">{dashboardStats.articles_today || dashboardStats.total_articles || 0}</div>
                     <div className="stat-label">Articles du Jour</div>
                     <div className="stat-sublabel">Actualités fraîches</div>
                   </div>
                   
-                  <div className="stat-card-narrative pulse-glow">
+                  <div className="stat-card-narrative">
                     <div className="stat-value">{dashboardStats.total_articles || 0}</div>
                     <div className="stat-label">Total Articles</div>
                     <div className="stat-sublabel">Base de données</div>
                   </div>
                   
-                  <div className="stat-card-narrative pulse-glow">
+                  <div className="stat-card-narrative">
                     <div className="stat-value">{dashboardStats.active_sources || 4}</div>
                     <div className="stat-label">Sources Actives</div>
                     <div className="stat-sublabel">Médias surveillés</div>
                   </div>
                   
-                  <div className="stat-card-narrative pulse-glow data-flow">
+                  <div className="stat-card-narrative">
                     <div className="stat-value">{dashboardStats.transcriptions_today || dashboardStats.total_transcriptions || 0}</div>
                     <div className="stat-label">Transcriptions</div>
                     <div className="stat-sublabel">Contenus audio</div>
