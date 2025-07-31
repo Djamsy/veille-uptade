@@ -3640,7 +3640,7 @@ function App() {
                 </div>
               )}
 
-              {/* Commentaires récents avec design moderne */}
+              {/* Commentaires récents avec design moderne et logos */}
               {comments && comments.length > 0 && (
                 <div className="recent-comments-section scroll-reveal-right">
                   <h3 className="comments-title">💬 Commentaires Récents ({comments.length})</h3>
@@ -3648,22 +3648,94 @@ function App() {
                   <div className="comments-grid stagger-reveal">
                     {comments.map((comment, index) => (
                       <div key={index} className="modern-comment-card">
+                        {/* Header avec logo de la source */}
                         <div className="comment-header">
-                          <div className="comment-platform">{comment.platform || 'Social'}</div>
-                          <div className="comment-sentiment">
-                            {comment.sentiment === 'positive' ? '😊' : 
-                             comment.sentiment === 'negative' ? '😞' : '😐'}
+                          <div className="comment-source-info">
+                            <SourceLogo source={comment.platform || 'Social'} size={40} />
+                            <div className="comment-platform-details">
+                              <span className="comment-platform-name">{comment.platform || 'Social Media'}</span>
+                              <span className="comment-date">{new Date(comment.date).toLocaleDateString('fr-FR', {
+                                day: 'numeric',
+                                month: 'short',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}</span>
+                            </div>
+                          </div>
+                          <div className="comment-sentiment-badge">
+                            <span className="sentiment-emoji">
+                              {comment.sentiment === 'positive' ? '😊' : 
+                               comment.sentiment === 'negative' ? '😞' : '😐'}
+                            </span>
+                            <span className="sentiment-label">
+                              {comment.sentiment === 'positive' ? 'Positif' : 
+                               comment.sentiment === 'negative' ? 'Négatif' : 'Neutre'}
+                            </span>
                           </div>
                         </div>
+
+                        {/* Contenu du commentaire */}
                         <div className="comment-content">
                           <p>{comment.content}</p>
                         </div>
+
+                        {/* Footer avec métriques */}
                         <div className="comment-footer">
-                          <span className="comment-date">{new Date(comment.date).toLocaleDateString()}</span>
-                          <span className="comment-score">Score: {comment.sentiment_score || 0}</span>
+                          <div className="comment-metrics">
+                            <span className="metric-item">
+                              <span className="metric-icon">📊</span>
+                              <span className="metric-label">Score: {comment.sentiment_score ? Number(comment.sentiment_score).toFixed(2) : '0.00'}</span>
+                            </span>
+                            {comment.engagement && (
+                              <>
+                                <span className="metric-item">
+                                  <span className="metric-icon">👍</span>
+                                  <span className="metric-label">{comment.engagement.likes || 0}</span>
+                                </span>
+                                <span className="metric-item">
+                                  <span className="metric-icon">💬</span>
+                                  <span className="metric-label">{comment.engagement.replies || 0}</span>
+                                </span>
+                                <span className="metric-item">
+                                  <span className="metric-icon">🔄</span>
+                                  <span className="metric-label">{comment.engagement.shares || 0}</span>
+                                </span>
+                              </>
+                            )}
+                          </div>
+                          
+                          {/* Tags et catégories si disponibles */}
+                          {comment.tags && comment.tags.length > 0 && (
+                            <div className="comment-tags">
+                              {comment.tags.slice(0, 3).map((tag, i) => (
+                                <span key={i} className="comment-tag">#{tag}</span>
+                              ))}
+                            </div>
+                          )}
                         </div>
+
+                        {/* Indicateur de tendance */}
+                        {comment.trending && (
+                          <div className="trending-indicator">
+                            <span className="trending-icon">🔥</span>
+                            <span className="trending-label">Tendance</span>
+                          </div>
+                        )}
                       </div>
                     ))}
+                  </div>
+
+                  {/* Bouton pour charger plus de commentaires */}
+                  <div className="load-more-section">
+                    <button 
+                      onClick={() => {
+                        // Fonction pour charger plus de commentaires
+                        console.log('Charger plus de commentaires');
+                      }}
+                      className="load-more-btn"
+                    >
+                      📄 Charger plus de commentaires
+                    </button>
                   </div>
                 </div>
               )}
