@@ -1450,13 +1450,13 @@ function App() {
 
             {/* Résultats de recherche automatique avec logos */}
             {autoSearchCompleted && Object.keys(autoSearchResults).length > 0 && (
-              <div className="scroll-reveal-left" style={{ marginBottom: '4rem' }}>
+              <div className="" style={{ marginBottom: '4rem' }}>
                 <div className="content-block">
                   <div className="content-block-header">
                     <h3 className="content-block-title">🎯 Surveillance Prioritaire</h3>
                     <span className="filter-badge">Automatique</span>
                   </div>
-                  <div className="stagger-reveal" style={{ 
+                  <div className="" style={{ 
                     display: 'grid', 
                     gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
                     gap: '1.5rem' 
