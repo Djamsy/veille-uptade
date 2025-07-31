@@ -1872,6 +1872,495 @@ textarea {
   }
 }
 
+/* =========================== ANIMATIONS MODERNES =========================== */
+
+/* Animations d'entrée pour les éléments */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideInFromTop {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes wave {
+  0%, 60%, 100% {
+    transform: initial;
+  }
+  30% {
+    transform: translateY(-15px);
+  }
+}
+
+/* Classes d'animation utilitaires */
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.animate-fade-in-left {
+  animation: fadeInLeft 0.5s ease-out forwards;
+}
+
+.animate-fade-in-right {
+  animation: fadeInRight 0.5s ease-out forwards;
+}
+
+.animate-fade-in-scale {
+  animation: fadeInScale 0.4s ease-out forwards;
+}
+
+.animate-slide-in-top {
+  animation: slideInFromTop 0.8s ease-out forwards;
+}
+
+.animate-bounce-in {
+  animation: bounceIn 0.6s ease-out forwards;
+}
+
+.animate-pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200px 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.animate-rotate {
+  animation: rotate 1s linear infinite;
+}
+
+.animate-wave {
+  animation: wave 2s ease-in-out infinite;
+}
+
+/* Délais d'animation pour effet cascade */
+.animate-delay-100 { animation-delay: 0.1s; }
+.animate-delay-200 { animation-delay: 0.2s; }
+.animate-delay-300 { animation-delay: 0.3s; }
+.animate-delay-400 { animation-delay: 0.4s; }
+.animate-delay-500 { animation-delay: 0.5s; }
+
+/* Animations de transition entre onglets */
+.tab-content-enter {
+  opacity: 0;
+  transform: translateX(30px);
+}
+
+.tab-content-enter-active {
+  opacity: 1;
+  transform: translateX(0);
+  transition: all 0.3s ease-out;
+}
+
+.tab-content-exit {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.tab-content-exit-active {
+  opacity: 0;
+  transform: translateX(-30px);
+  transition: all 0.3s ease-out;
+}
+
+/* Animations sur les boutons */
+.glass-button {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s;
+}
+
+.glass-button:hover::before {
+  left: 100%;
+}
+
+.glass-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+}
+
+.glass-button:active {
+  transform: translateY(0);
+  transition: transform 0.1s;
+}
+
+/* Animations sur les cartes d'articles */
+.article-card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateY(0);
+}
+
+.article-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+}
+
+.article-card:hover .article-title {
+  color: var(--accent-color);
+  transition: color 0.3s ease;
+}
+
+/* Animation sur les stats */
+.stat-card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.stat-card:hover {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 15px 30px rgba(0,0,0,0.1);
+}
+
+.stat-value {
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover .stat-value {
+  color: var(--accent-color);
+  transform: scale(1.1);
+}
+
+/* Animation loading skeleton */
+.loading-skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-md);
+}
+
+/* Animations sur la navigation */
+.tab-button {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.tab-button::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 0;
+  height: 3px;
+  background: var(--accent-color);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateX(-50%);
+}
+
+.tab-button.active::after {
+  width: 100%;
+}
+
+.tab-button:hover {
+  transform: translateY(-2px);
+  background: rgba(var(--accent-color-rgb), 0.1);
+}
+
+/* Animation du header */
+.glass-header {
+  animation: slideInFromTop 0.6s ease-out;
+}
+
+.header-title {
+  animation: fadeInLeft 0.8s ease-out 0.2s both;
+}
+
+.header-subtitle {
+  animation: fadeInRight 0.8s ease-out 0.4s both;
+}
+
+/* Animations des graphiques */
+.chart-container {
+  animation: fadeInScale 0.6s ease-out;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.chart-container:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+}
+
+/* Animation des filtres */
+.filter-container {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+.filter-field {
+  transition: all 0.3s ease;
+}
+
+.filter-field:hover {
+  transform: translateY(-2px);
+}
+
+.glass-input:focus {
+  transform: scale(1.02);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Animation de chargement pour les données */
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(var(--accent-color-rgb), 0.3);
+  border-top: 4px solid var(--accent-color);
+  border-radius: 50%;
+  animation: rotate 1s linear infinite;
+  margin: 20px auto;
+}
+
+.loading-dots::after {
+  content: '';
+  animation: wave 1.4s ease-in-out infinite;
+}
+
+.loading-dots::before {
+  content: '⏳';
+  animation: wave 1.4s ease-in-out infinite;
+}
+
+/* Animation d'apparition progressive pour les listes */
+.stagger-children > * {
+  opacity: 0;
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.stagger-children > *:nth-child(1) { animation-delay: 0.1s; }
+.stagger-children > *:nth-child(2) { animation-delay: 0.2s; }
+.stagger-children > *:nth-child(3) { animation-delay: 0.3s; }
+.stagger-children > *:nth-child(4) { animation-delay: 0.4s; }
+.stagger-children > *:nth-child(5) { animation-delay: 0.5s; }
+.stagger-children > *:nth-child(6) { animation-delay: 0.6s; }
+
+/* Animation pour les notifications/messages */
+.notification {
+  animation: slideInRight 0.5s ease-out;
+  transition: all 0.3s ease;
+}
+
+.notification.exit {
+  animation: slideOutRight 0.3s ease-in;
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+/* Animation du menu mobile */
+.mobile-menu-button:hover .hamburger-icon {
+  transform: scale(1.1);
+}
+
+.tab-navigation.mobile-open {
+  animation: slideInLeft 0.3s ease-out;
+}
+
+/* Animations de micro-interactions */
+.micro-bounce {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.micro-bounce:active {
+  transform: scale(0.95);
+}
+
+/* Animation pour les tooltips */
+.tooltip {
+  animation: fadeInScale 0.2s ease-out;
+  transform-origin: bottom center;
+}
+
+/* Scroll animations */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(50px);
+  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.scroll-reveal.revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Performance optimizations */
+.animate-gpu {
+  transform: translateZ(0);
+  will-change: transform, opacity;
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* =========================== ANIMATIONS SPÉCIALES =========================== */
+
+/* Animation de compteur pour les statistiques */
+@keyframes countUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-count-up {
+  animation: countUp 0.8s ease-out forwards;
+}
+
+/* Animation de pulsation pour les éléments importants */
+.animate-attention {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Animation de glissement pour les alertes */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-down {
+  animation: slideDown 0.5s ease-out forwards;
+}
+
 /* =========================== ANIMATIONS POUR MOBILE =========================== */
 @keyframes slideInLeft {
   from {
