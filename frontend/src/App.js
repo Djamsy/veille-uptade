@@ -2717,7 +2717,7 @@ function App() {
                 }}>
                   <button
                     onClick={createDigestNow}
-                    className="stat-card-narrative pulse-glow"
+                    className="stat-card-narrative"
                     style={{ cursor: 'pointer' }}
                   >
                     <div className="stat-value" style={{ fontSize: '2rem', marginBottom: '1rem' }}>
