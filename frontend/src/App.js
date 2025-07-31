@@ -3436,10 +3436,10 @@ function App() {
               </div>
 
               {/* Barre de recherche modernisée */}
-              <div className="modern-search-section">
+              <div className="modern-search-section scroll-reveal-right">
                 <div className="search-header">
                   <h3 className="search-title">🎯 Recherche Intelligente</h3>
-                  <div className="search-tags">
+                  <div className="search-tags stagger-reveal">
                     {['#Guadeloupe', 'politique', 'économie', 'culture', 'sport'].map((tag) => (
                       <button 
                         key={tag}
