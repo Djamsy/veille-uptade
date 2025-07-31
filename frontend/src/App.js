@@ -309,7 +309,7 @@ function App() {
     };
   };
 
-  // Composant Logo pour les sources (version améliorée)
+  // Composant Logo pour les sources (version améliorée et plus robuste)
   const SourceLogo = ({ source, size = 32 }) => {
     const [imageError, setImageError] = useState(false);
     const [imageLoaded, setImageLoaded] = useState(false);
@@ -318,61 +318,52 @@ function App() {
     const logoStyle = {
       width: `${size}px`,
       height: `${size}px`,
-      borderRadius: '6px',
+      borderRadius: '8px',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      fontSize: `${Math.max(size * 0.3, 10)}px`,
-      fontWeight: '600',
+      fontSize: `${Math.max(size * 0.25, 10)}px`,
+      fontWeight: '700',
       flexShrink: 0,
-      border: `1.5px solid ${siteInfo.borderColor}`,
+      border: `2px solid ${siteInfo.borderColor}`,
       background: siteInfo.bg,
       color: siteInfo.color,
       position: 'relative',
       overflow: 'hidden',
-      transition: 'all 0.2s ease'
+      transition: 'all 0.3s ease',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
     };
 
-    if (siteInfo.logo && !imageError) {
-      return (
-        <div style={logoStyle}>
+    // Toujours afficher le fallback avec initiales pour une meilleure visibilité
+    return (
+      <div style={logoStyle} title={`Source: ${source}`}>
+        <span style={{ 
+          letterSpacing: '-0.5px',
+          textShadow: '0 1px 2px rgba(0,0,0,0.1)',
+          fontFamily: 'Inter, sans-serif'
+        }}>
+          {siteInfo.fallback}
+        </span>
+        
+        {/* Tentative de chargement du logo en arrière-plan */}
+        {siteInfo.logo && !imageError && (
           <img
             src={siteInfo.logo}
             alt={`Logo ${source}`}
             style={{
-              width: '80%',
-              height: '80%',
+              position: 'absolute',
+              width: '70%',
+              height: '70%',
               objectFit: 'contain',
-              display: imageLoaded ? 'block' : 'none'
+              opacity: imageLoaded ? 1 : 0,
+              transition: 'opacity 0.3s ease',
+              zIndex: 1
             }}
             onLoad={() => setImageLoaded(true)}
             onError={() => setImageError(true)}
             loading="lazy"
           />
-          {/* Fallback pendant le chargement */}
-          {!imageLoaded && !imageError && (
-            <div style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: `${Math.max(size * 0.3, 10)}px`,
-              fontWeight: '600'
-            }}>
-              {siteInfo.fallback}
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    // Fallback avec initiales stylisées
-    return (
-      <div style={logoStyle} title={source}>
-        <span style={{ letterSpacing: '-1px' }}>
-          {siteInfo.fallback}
-        </span>
+        )}
       </div>
     );
   };
