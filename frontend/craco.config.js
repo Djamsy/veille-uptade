@@ -1,46 +1,32 @@
-// Load configuration from environment or config file
 const path = require('path');
 
-// Environment variable overrides
-const config = {
-  disableHotReload: process.env.DISABLE_HOT_RELOAD === 'true',
-};
+// Optionnel : désactiver le hot reload via variable d’environnement
+const disableHotReload = process.env.DISABLE_HOT_RELOAD === 'true';
 
 module.exports = {
   webpack: {
-    alias: {
-      '@': path.resolve(__dirname, 'src'),
-    },
     configure: (webpackConfig) => {
-      
-      // Disable hot reload completely if environment variable is set
-      if (config.disableHotReload) {
-        // Remove hot reload related plugins
-        webpackConfig.plugins = webpackConfig.plugins.filter(plugin => {
-          return !(plugin.constructor.name === 'HotModuleReplacementPlugin');
-        });
-        
-        // Disable watch mode
-        webpackConfig.watch = false;
-        webpackConfig.watchOptions = {
-          ignored: /.*/, // Ignore all files
-        };
-      } else {
-        // Add ignored patterns to reduce watched directories
-        webpackConfig.watchOptions = {
-          ...webpackConfig.watchOptions,
-          ignored: [
-            '**/node_modules/**',
-            '**/.git/**',
-            '**/build/**',
-            '**/dist/**',
-            '**/coverage/**',
-            '**/public/**',
-          ],
-        };
+      // 🔧 Bloque tout usage de eval (important pour Render)
+      webpackConfig.devtool = false;
+
+      // ❌ Supprime HotModuleReplacementPlugin si hot reload désactivé
+      if (disableHotReload) {
+        webpackConfig.plugins = webpackConfig.plugins.filter(
+          plugin => plugin.constructor.name !== 'HotModuleReplacementPlugin'
+        );
       }
-      
+
       return webpackConfig;
     },
   },
+  devServer: (devServerConfig) => {
+    // Optionnel : Empêche le hot reload en local aussi
+    if (disableHotReload) {
+      devServerConfig.hot = false;
+      devServerConfig.liveReload = false;
+      devServerConfig.watchFiles = [];
+    }
+
+    return devServerConfig;
+  }
 };
