@@ -3587,7 +3587,7 @@ function App() {
                     <div className="analysis-card sentiment-neutral">
                       <div className="analysis-icon">😐</div>
                       <div className="analysis-content">
-                        <div className="analysis-value">{Math.round((commentsAnalysis.sentiment_neutral || 0) * 100)}%</div>
+                        <div className="analysis-value">{Math.round(((commentsAnalysis && commentsAnalysis.sentiment_neutral) || 0) * 100)}%</div>
                         <div className="analysis-label">Sentiment Neutre</div>
                       </div>
                     </div>
@@ -3595,7 +3595,7 @@ function App() {
                     <div className="analysis-card sentiment-negative">
                       <div className="analysis-icon">😞</div>
                       <div className="analysis-content">
-                        <div className="analysis-value">{Math.round((commentsAnalysis.sentiment_negative || 0) * 100)}%</div>
+                        <div className="analysis-value">{Math.round(((commentsAnalysis && commentsAnalysis.sentiment_negative) || 0) * 100)}%</div>
                         <div className="analysis-label">Sentiment Négatif</div>
                       </div>
                     </div>
@@ -3603,7 +3603,7 @@ function App() {
                     <div className="analysis-card topics">
                       <div className="analysis-icon">🏷️</div>
                       <div className="analysis-content">
-                        <div className="analysis-value">{commentsAnalysis.top_topics?.length || 0}</div>
+                        <div className="analysis-value">{(commentsAnalysis && commentsAnalysis.top_topics && commentsAnalysis.top_topics.length) || 0}</div>
                         <div className="analysis-label">Sujets Populaires</div>
                       </div>
                     </div>
