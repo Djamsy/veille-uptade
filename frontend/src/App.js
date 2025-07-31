@@ -1759,25 +1759,65 @@ function App() {
                   </span>
                 </div>
 
-                {/* Liste des articles filtrés avec animation en cascade */}
+                {/* Liste des articles filtrés avec logos et animation en cascade */}
                 <div className="articles-grid stagger-children">
                   {filteredArticles.map((article, index) => (
                     <div key={`${article.id || index}`} className="article-card animate-fade-in-scale" style={{ animationDelay: `${index * 0.05}s` }}>
                       <div className="article-content">
-                        <h3 className="article-title">
-                          <a 
-                            href={article.url} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            style={{ textDecoration: 'none', color: 'inherit' }}
-                          >
-                            {article.title}
-                          </a>
-                        </h3>
+                        {/* Header avec logo */}
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'flex-start', 
+                          gap: '0.75rem', 
+                          marginBottom: '0.75rem' 
+                        }}>
+                          <SourceLogo source={article.source} size={40} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <h3 className="article-title" style={{ 
+                              margin: 0, 
+                              lineHeight: '1.4',
+                              fontSize: '1rem' 
+                            }}>
+                              <a 
+                                href={article.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                style={{ textDecoration: 'none', color: 'inherit' }}
+                              >
+                                {article.title}
+                              </a>
+                            </h3>
+                          </div>
+                        </div>
                         
-                        <div className="article-meta">
-                          <span className="article-source">{article.source}</span>
-                          <span className="article-date">
+                        {/* Metadata enrichie */}
+                        <div className="article-meta" style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '0.5rem',
+                          flexWrap: 'wrap'
+                        }}>
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem'
+                          }}>
+                            <span className="article-source" style={{
+                              background: getSiteLogo(article.source).bg,
+                              color: getSiteLogo(article.source).color,
+                              padding: '0.25rem 0.5rem',
+                              borderRadius: 'var(--radius-sm)',
+                              fontSize: '0.75rem',
+                              fontWeight: '500'
+                            }}>
+                              {article.source}
+                            </span>
+                          </div>
+                          <span className="article-date" style={{
+                            color: 'var(--text-muted)',
+                            fontSize: '0.75rem'
+                          }}>
                             {new Date(article.scraped_at).toLocaleDateString('fr-FR', {
                               day: 'numeric',
                               month: 'short',
