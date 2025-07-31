@@ -1,6 +1,0 @@
-services:
-  - type: static
-    name: veille-media3
-    env: static
-    buildCommand: yarn install && yarn build
-    staticPublishPath: build
