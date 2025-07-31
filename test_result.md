@@ -218,6 +218,9 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ TESTED: All new filtering and analytics endpoints fully operational. Fixed route ordering issue (moved specific routes before parameterized /api/articles/{date}). GET /api/articles/filtered works with all parameters (date_start, date_end, source, search_text, sort_by, limit, offset) returning proper pagination and filters_applied. GET /api/articles/sources returns 4 sources with counts. All 4 analytics endpoints working: articles-by-source (Chart.js pie format), articles-timeline (Chart.js line format), sentiment-by-source (Chart.js stacked bar format), dashboard-metrics (structured metrics). MongoDB aggregation pipelines optimized. Pagination logic correct with has_more flag. All sort options working (date_desc, date_asc, source_asc, title_asc). Test results: 11/11 passed."
+      - working: true
+        agent: "testing"
+        comment: "✅ ARTICLES LOADING ISSUE RESOLVED: Comprehensive testing shows all articles endpoints working perfectly. /api/articles returns 100 articles with all required fields (id, title, source, url, scraped_at, date). /api/dashboard-stats shows 186 articles today. All 4 scrapers working (RCI Guadeloupe, KaribInfo, France-Antilles Guadeloupe, La 1ère Guadeloupe). No 500 errors detected. Article structure validation passed. Backend is NOT the cause of frontend loading issues."
 
   - task: "Frontend - Filtres et tri articles"
     implemented: true
