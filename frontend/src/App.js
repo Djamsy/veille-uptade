@@ -540,27 +540,89 @@ function App() {
     }
   }, [activeTab, selectedDate, autoSearchCompleted]);
 
-  // Effet pour les animations au scroll
+  // Effet pour les animations au scroll avec approche narrative
   useEffect(() => {
     const observerOptions = {
-      threshold: 0.3,
+      threshold: 0.1,
+      rootMargin: '0px 0px -100px 0px'
+    };
+
+    const staggerObserverOptions = {
+      threshold: 0.2,
       rootMargin: '0px 0px -50px 0px'
     };
 
+    // Observer pour les éléments simples
     const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry, index) => {
+        if (entry.isIntersecting) {
+          setTimeout(() => {
+            entry.target.classList.add('revealed');
+          }, index * 100); // Délai progressif
+        }
+      });
+    }, observerOptions);
+
+    // Observer pour les groupes d'éléments en cascade
+    const staggerObserver = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
           entry.target.classList.add('revealed');
         }
       });
-    }, observerOptions);
+    }, staggerObserverOptions);
 
-    // Observer tous les éléments avec la classe scroll-reveal
-    const elementsToReveal = document.querySelectorAll('.scroll-reveal');
+    // Observer tous les éléments avec animations de scroll
+    const elementsToReveal = document.querySelectorAll('.scroll-reveal, .scroll-reveal-left, .scroll-reveal-right, .scroll-reveal-scale');
+    const staggerElements = document.querySelectorAll('.stagger-reveal');
+    
     elementsToReveal.forEach(el => observer.observe(el));
+    staggerElements.forEach(el => staggerObserver.observe(el));
 
-    return () => observer.disconnect();
+    // Cleanup
+    return () => {
+      observer.disconnect();
+      staggerObserver.disconnect();
+    };
   }, [activeTab]);
+
+  // Effet pour les animations continues
+  useEffect(() => {
+    // Animation de données en temps réel pour le dashboard
+    const dataFlowInterval = setInterval(() => {
+      const dataFlowElements = document.querySelectorAll('.data-flow');
+      dataFlowElements.forEach(el => {
+        el.style.animation = 'none';
+        setTimeout(() => {
+          el.style.animation = 'dataFlow 3s linear infinite';
+        }, Math.random() * 2000);
+      });
+    }, 5000);
+
+    return () => clearInterval(dataFlowInterval);
+  }, [activeTab]);
+
+  // Fonction pour créer des éléments flottants
+  const createFloatingElements = () => {
+    return Array.from({ length: 3 }, (_, i) => (
+      <div
+        key={i}
+        className="floating-element"
+        style={{
+          position: 'absolute',
+          width: '8px',
+          height: '8px',
+          borderRadius: '50%',
+          background: `linear-gradient(45deg, var(--accent-color), var(--success-color))`,
+          top: `${20 + i * 30}%`,
+          left: `${10 + i * 20}%`,
+          animationDelay: `${i * 2}s`,
+          opacity: 0.6,
+          zIndex: -1
+        }}
+      />
+    ));
+  };
 
   // Actions optimisées avec traitement en arrière-plan
   const scrapeArticlesNow = async () => {
