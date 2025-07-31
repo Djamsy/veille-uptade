@@ -1493,7 +1493,7 @@ function App() {
                             handleSearch(subject);
                             setActiveTab('search');
                           }}
-                          className="glass-button primary"
+                          className="glass-button primary pulse-glow"
                           style={{ 
                             marginTop: '1rem', 
                             padding: '0.5rem 1rem', 
