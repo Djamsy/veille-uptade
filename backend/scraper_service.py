@@ -824,8 +824,9 @@ class GuadeloupeScraper:
                 results['errors'].append(error_msg)
                 logger.error(error_msg)
         
-        # Finaliser les résultats
+        # Finaliser les résultats avec statistiques de doublons
         results['total_articles'] = len(all_articles)
+        results['total_duplicates'] = sum(results.get('duplicates_by_site', {}).values())
         results['articles'] = all_articles
         results['execution_time_seconds'] = round(time.time() - start_time, 2)
         
@@ -837,7 +838,9 @@ class GuadeloupeScraper:
         except (ImportError, Exception) as e:
             logger.warning(f"Erreur invalidation cache: {e}")
         
-        # Statistiques finales
+        # Statistiques finales avec doublons
+        logger.info(f"📊 Scraping terminé: {results['total_articles']} articles uniques, "
+                   f"{results['total_duplicates']} doublons évités en {results['execution_time_seconds']}s")
         logger.info(f"📊 Scraping terminé: {results['total_articles']} articles de {results['sites_scraped']}/{len(self.sites_config)} sites en {results['execution_time_seconds']}s")
         
         return results
