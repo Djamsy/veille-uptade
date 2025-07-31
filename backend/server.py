@@ -672,7 +672,7 @@ async def get_articles_by_date(date: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur récupération articles: {str(e)}")
 
-@app.post("/api/articles/clean-duplicates")
+@app.post("/api/admin/clean-duplicates")
 async def clean_duplicate_articles():
     """Nettoyer les doublons existants dans la base de données"""
     try:
