@@ -3120,231 +3120,322 @@ function App() {
           </div>
         )}
 
-        {/* Digest Narratif avec animations de scroll */}
+        {/* Digest Narratif avec blocs structurés */}
         {activeTab === 'digest' && (
-          <div className="narrative-section">
+          <div className="digest-narrative-section">
             {createFloatingElements()}
             
-            {/* Header Story pour Digest */}
-            <div className="story-header scroll-reveal">
-              <h1 className="story-title">
-                📄 Digest Quotidien
-              </h1>
-              <p className="story-subtitle">
-                Votre résumé intelligent de l'actualité guadeloupéenne. Synthèse automatique des articles de presse et transcriptions radio.
-              </p>
+            {/* Header du digest */}
+            <div className="digest-hero-header scroll-reveal">
+              <div className="digest-hero-content">
+                <h1 className="digest-hero-title">📄 Digest Quotidien</h1>
+                <p className="digest-hero-subtitle">Synthèse intelligente des actualités guadeloupéennes</p>
+                <div className="digest-hero-date">
+                  {new Date().toLocaleDateString('fr-FR', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </div>
+              </div>
             </div>
 
-            {/* Actions digest avec animations */}
-            <div className="scroll-reveal-scale" style={{ marginBottom: '4rem' }}>
-              <div className="content-block" style={{ 
-                background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(217, 70, 239, 0.1) 100%)',
-                border: '1px solid rgba(139, 92, 246, 0.2)' 
-              }}>
-                <div className="stagger-reveal" style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
-                  gap: '1.5rem',
-                  marginBottom: '2rem'
-                }}>
-                  <button
-                    onClick={createDigestNow}
-                    className="stat-card-narrative"
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <div className="stat-value" style={{ fontSize: '2rem', marginBottom: '1rem' }}>
-                      <span className="floating-element">📝</span>
-                    </div>
-                    <div className="stat-label">Créer Digest</div>
-                    <div className="stat-sublabel">Générer le résumé du jour</div>
-                  </button>
-                  
-                  {digest && (
-                    <>
-                      <a
-                        href={`${BACKEND_URL}/api/digest/${selectedDate}/pdf`}
-                        className="stat-card-narrative"
-                        style={{ cursor: 'pointer', textDecoration: 'none', color: 'inherit' }}
-                      >
-                        <div className="stat-value" style={{ fontSize: '2rem', marginBottom: '1rem' }}>
-                          <span className="floating-element">📄</span>
+            <div className="digest-content">
+              {/* Section Transcriptions Radio */}
+              <div className="digest-section scroll-reveal-left">
+                <div className="digest-section-header">
+                  <div className="section-icon">🎙️</div>
+                  <div className="section-info">
+                    <h2 className="section-title">Transcriptions Radio</h2>
+                    <p className="section-subtitle">Analyses des émissions radiophoniques</p>
+                  </div>
+                  <div className="section-count">
+                    {transcriptions ? transcriptions.length : 2} transcriptions
+                  </div>
+                </div>
+
+                <div className="transcription-blocks">
+                  {/* Bloc de démonstration 1 - RCI */}
+                  <div className="transcription-block scroll-reveal">
+                    <div className="transcription-header">
+                      <div className="transcription-source">
+                        <div className="source-badge radio">
+                          <span className="source-icon">📻</span>
+                          <span className="source-name">RCI Guadeloupe</span>
                         </div>
-                        <div className="stat-label">Télécharger PDF</div>
-                        <div className="stat-sublabel">Version imprimable</div>
-                      </a>
+                        <div className="transcription-time">14:30</div>
+                      </div>
+                      <div className="transcription-status">
+                        <span className="status-live">🔴 EN DIRECT</span>
+                      </div>
+                    </div>
+
+                    <div className="transcription-content">
+                      <h3 className="transcription-title">Journal de 14h30 - Actualités Politiques</h3>
                       
-                      <a
-                        href={`${BACKEND_URL}/api/digest/${selectedDate}/html`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="stat-card-narrative"
-                        style={{ cursor: 'pointer', textDecoration: 'none', color: 'inherit' }}
-                      >
-                        <div className="stat-value" style={{ fontSize: '2rem', marginBottom: '1rem' }}>
-                          <span className="floating-element">🔗</span>
+                      <div className="key-info-blocks">
+                        <div className="info-block subjects">
+                          <div className="block-header">
+                            <span className="block-icon">📋</span>
+                            <span className="block-title">Sujets Principaux</span>
+                          </div>
+                          <div className="block-content">
+                            <span className="subject-tag">Budget départemental</span>
+                            <span className="subject-tag">Réforme territoriale</span>
+                            <span className="subject-tag">Transports publics</span>
+                          </div>
                         </div>
-                        <div className="stat-label">Version HTML</div>
-                        <div className="stat-sublabel">Consultation en ligne</div>
-                      </a>
-                    </>
-                  )}
-                </div>
-                
-                {/* Info technique avec style narratif */}
-                <div className="scroll-reveal" style={{ 
-                  background: 'rgba(255, 255, 255, 0.7)',
-                  backdropFilter: 'blur(10px)',
-                  borderRadius: 'var(--radius-xl)',
-                  padding: '1.5rem',
-                  border: '1px solid rgba(255, 255, 255, 0.2)'
-                }}>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span className="floating-element">🔄</span>
-                      <span style={{ color: '#6b7280', fontSize: '0.9rem' }}>
-                        <strong>Automatique:</strong> Articles + Transcriptions
-                      </span>
+
+                        <div className="info-block personalities">
+                          <div className="block-header">
+                            <span className="block-icon">👥</span>
+                            <span className="block-title">Personnalités</span>
+                          </div>
+                          <div className="block-content">
+                            <span className="personality-tag">Guy Losbar</span>
+                            <span className="personality-tag">Ary Chalus</span>
+                          </div>
+                        </div>
+
+                        <div className="info-block events">
+                          <div className="block-header">
+                            <span className="block-icon">📅</span>
+                            <span className="block-title">Événements</span>
+                          </div>
+                          <div className="block-content">
+                            <div className="event-item">
+                              <span className="event-date">Aujourd'hui</span>
+                              <span className="event-title">Session plénière CD971</span>
+                            </div>
+                            <div className="event-item">
+                              <span className="event-date">Demain</span>
+                              <span className="event-title">Conseil communautaire</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="info-block sentiment">
+                          <div className="block-header">
+                            <span className="block-icon">📊</span>
+                            <span className="block-title">Sentiment</span>
+                          </div>
+                          <div className="block-content">
+                            <div className="sentiment-indicator">
+                              <span className="sentiment-emoji">😐</span>
+                              <span className="sentiment-label">Neutre</span>
+                              <span className="sentiment-score">0.15</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="transcription-extract">
+                        <div className="extract-header">
+                          <span className="extract-icon">💬</span>
+                          <span className="extract-title">Extrait Principal</span>
+                        </div>
+                        <div className="extract-content">
+                          <p>"Le président du Conseil départemental Guy Losbar s'est exprimé ce matin sur l'évolution du budget 2025. Les priorités restent le développement économique et l'amélioration des services publics..."</p>
+                        </div>
+                      </div>
+
+                      <div className="transcription-footer">
+                        <div className="transcription-metrics">
+                          <span className="metric-item">
+                            <span className="metric-icon">⏱️</span>
+                            <span className="metric-value">28min</span>
+                          </span>
+                          <span className="metric-item">
+                            <span className="metric-icon">📝</span>
+                            <span className="metric-value">1,850 mots</span>
+                          </span>
+                          <span className="metric-item">
+                            <span className="metric-icon">🎯</span>
+                            <span className="metric-value">97% confiance</span>
+                          </span>
+                        </div>
+                        <div className="transcription-actions">
+                          <button className="action-btn secondary">
+                            <span>📄</span> Transcription complète
+                          </button>
+                          <button className="action-btn primary">
+                            <span>🧠</span> Analyser avec IA
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span className="floating-element">⏰</span>
-                      <span style={{ color: '#6b7280', fontSize: '0.9rem' }}>
-                        <strong>Programmé:</strong> Tous les jours à 12H00
-                      </span>
+                  </div>
+
+                  {/* Bloc de démonstration 2 - Radio Caraïbes */}
+                  <div className="transcription-block scroll-reveal">
+                    <div className="transcription-header">
+                      <div className="transcription-source">
+                        <div className="source-badge radio">
+                          <span className="source-icon">📻</span>
+                          <span className="source-name">Radio Caraïbes</span>
+                        </div>
+                        <div className="transcription-time">12:00</div>
+                      </div>
+                      <div className="transcription-status">
+                        <span className="status-completed">✅ TRAITÉ</span>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span className="floating-element">💾</span>
-                      <span style={{ color: '#6b7280', fontSize: '0.9rem' }}>
-                        <strong>Cache:</strong> 15 minutes
-                      </span>
+
+                    <div className="transcription-content">
+                      <h3 className="transcription-title">Flash Info Midi - Économie Locale</h3>
+                      
+                      <div className="key-info-blocks">
+                        <div className="info-block subjects">
+                          <div className="block-header">
+                            <span className="block-icon">📋</span>
+                            <span className="block-title">Sujets Principaux</span>
+                          </div>
+                          <div className="block-content">
+                            <span className="subject-tag">Tourisme</span>
+                            <span className="subject-tag">Agriculture</span>
+                            <span className="subject-tag">Innovation</span>
+                          </div>
+                        </div>
+
+                        <div className="info-block personalities">
+                          <div className="block-header">
+                            <span className="block-icon">👥</span>
+                            <span className="block-title">Personnalités</span>
+                          </div>
+                          <div className="block-content">
+                            <span className="personality-tag">Directeur CCI</span>
+                            <span className="personality-tag">Président CGPME</span>
+                          </div>
+                        </div>
+
+                        <div className="info-block events">
+                          <div className="block-header">
+                            <span className="block-icon">📅</span>
+                            <span className="block-title">Événements</span>
+                          </div>
+                          <div className="block-content">
+                            <div className="event-item">
+                              <span className="event-date">Cette semaine</span>
+                              <span className="event-title">Salon de l'innovation</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="info-block sentiment">
+                          <div className="block-header">
+                            <span className="block-icon">📊</span>
+                            <span className="block-title">Sentiment</span>
+                          </div>
+                          <div className="block-content">
+                            <div className="sentiment-indicator">
+                              <span className="sentiment-emoji">😊</span>
+                              <span className="sentiment-label">Positif</span>
+                              <span className="sentiment-score">0.72</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="transcription-extract">
+                        <div className="extract-header">
+                          <span className="extract-icon">💬</span>
+                          <span className="extract-title">Extrait Principal</span>
+                        </div>
+                        <div className="extract-content">
+                          <p>"Les chiffres du tourisme sont encourageants pour cette saison. L'innovation dans le secteur agricole ouvre de nouvelles perspectives d'emploi pour les jeunes guadeloupéens..."</p>
+                        </div>
+                      </div>
+
+                      <div className="transcription-footer">
+                        <div className="transcription-metrics">
+                          <span className="metric-item">
+                            <span className="metric-icon">⏱️</span>
+                            <span className="metric-value">15min</span>
+                          </span>
+                          <span className="metric-item">
+                            <span className="metric-icon">📝</span>
+                            <span className="metric-value">980 mots</span>
+                          </span>
+                          <span className="metric-item">
+                            <span className="metric-icon">🎯</span>
+                            <span className="metric-value">92% confiance</span>
+                          </span>
+                        </div>
+                        <div className="transcription-actions">
+                          <button className="action-btn secondary">
+                            <span>📄</span> Transcription complète
+                          </button>
+                          <button className="action-btn primary">
+                            <span>🧠</span> Analyser avec IA
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Section Articles du Jour */}
+              <div className="digest-section scroll-reveal-right">
+                <div className="digest-section-header">
+                  <div className="section-icon">📰</div>
+                  <div className="section-info">
+                    <h2 className="section-title">Articles du Jour</h2>
+                    <p className="section-subtitle">Actualités des médias locaux</p>
+                  </div>
+                  <div className="section-count">
+                    {filteredArticles.length} articles
+                  </div>
+                </div>
+
+                <div className="articles-digest-grid">
+                  {filteredArticles.slice(0, 6).map((article, index) => (
+                    <div key={index} className="article-digest-card scroll-reveal">
+                      <div className="article-digest-header">
+                        <SourceLogo source={article.source} size={32} />
+                        <div className="article-meta">
+                          <span className="article-source-name">{article.source}</span>
+                          <span className="article-time">{new Date(article.date).toLocaleTimeString('fr-FR', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}</span>
+                        </div>
+                      </div>
+                      <h4 className="article-digest-title">{article.title}</h4>
+                      <p className="article-digest-summary">
+                        {article.content ? article.content.substring(0, 120) + '...' : 'Résumé non disponible'}
+                      </p>
+                      <div className="article-digest-footer">
+                        <span className="article-category">{article.category || 'Actualités'}</span>
+                        <button className="read-more-btn">Lire →</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Section Actions */}
+              <div className="digest-actions scroll-reveal-scale">
+                <button 
+                  onClick={createDigestNow}
+                  className="digest-action-btn primary"
+                >
+                  <span>📊</span> Générer Rapport Complet
+                </button>
+                <button 
+                  className="digest-action-btn secondary"
+                >
+                  <span>📱</span> Partager Digest
+                </button>
+                <a
+                  href={`${BACKEND_URL}/api/digest/${selectedDate}/pdf`}
+                  className="digest-action-btn tertiary"
+                >
+                  <span>📄</span> Télécharger PDF
+                </a>
               </div>
             </div>
-
-            {/* Contenu du digest avec style narratif */}
-            {digest ? (
-              <div className="scroll-reveal-left">
-                <div className="digest-container">
-                  <div className="digest-content">
-                    {/* Header du digest */}
-                    <div className="scroll-reveal" style={{ textAlign: 'center', marginBottom: '3rem' }}>
-                      <h2 style={{ 
-                        fontSize: 'clamp(1.5rem, 3vw, 2.5rem)',
-                        fontWeight: '700',
-                        color: 'var(--text-primary)',
-                        marginBottom: '1rem'
-                      }}>
-                        Digest du {new Date(digest.date).toLocaleDateString('fr-FR', {
-                          weekday: 'long',
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric'
-                        })}
-                      </h2>
-                      <div style={{ 
-                        display: 'flex', 
-                        justifyContent: 'center', 
-                        gap: '2rem',
-                        flexWrap: 'wrap'
-                      }}>
-                        <div className="stagger-reveal">
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)' }}>
-                            <span className="floating-element">📰</span>
-                            <span style={{ fontWeight: '600' }}>{digest.articles_count} articles</span>
-                          </div>
-                        </div>
-                        <div className="stagger-reveal">
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)' }}>
-                            <span className="floating-element">📻</span>
-                            <span style={{ fontWeight: '600' }}>{digest.transcriptions_count} transcriptions</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Contenu du digest avec animations de scroll */}
-                    <div className="digest-section scroll-reveal">
-                      <div 
-                        className="prose max-w-none"
-                        style={{ 
-                          fontSize: '1.1rem',
-                          lineHeight: '1.8',
-                          color: 'var(--text-primary)'
-                        }}
-                        dangerouslySetInnerHTML={{ __html: digest.digest_html }}
-                      />
-                    </div>
-
-                    {/* Footer avec métadonnées */}
-                    <div className="scroll-reveal" style={{
-                      marginTop: '3rem',
-                      padding: '2rem',
-                      background: 'rgba(255, 255, 255, 0.5)',
-                      borderRadius: 'var(--radius-xl)',
-                      border: '1px solid rgba(255, 255, 255, 0.2)',
-                      textAlign: 'center'
-                    }}>
-                      <div style={{ 
-                        display: 'flex', 
-                        justifyContent: 'center', 
-                        gap: '1rem', 
-                        flexWrap: 'wrap',
-                        color: 'var(--text-muted)',
-                        fontSize: '0.9rem'
-                      }}>
-                        <span className="floating-element">🏝️</span>
-                        <span>Veille Média Guadeloupe</span>
-                        <span>•</span>
-                        <span>Généré automatiquement</span>
-                        <span>•</span>
-                        <span>{new Date().toLocaleTimeString('fr-FR')}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              /* État vide avec style narratif */
-              <div className="scroll-reveal-scale">
-                <div className="content-block" style={{ 
-                  textAlign: 'center', 
-                  padding: '4rem 2rem',
-                  background: 'linear-gradient(135deg, rgba(156, 163, 175, 0.1) 0%, rgba(209, 213, 219, 0.1) 100%)'
-                }}>
-                  <div className="floating-element" style={{ fontSize: '4rem', marginBottom: '2rem' }}>📄</div>
-                  <h3 style={{ 
-                    fontSize: 'clamp(1.25rem, 2.5vw, 2rem)', 
-                    fontWeight: '700', 
-                    color: 'var(--text-primary)', 
-                    marginBottom: '1rem' 
-                  }}>
-                    Aucun digest disponible
-                  </h3>
-                  <p style={{ 
-                    color: 'var(--text-secondary)', 
-                    fontSize: '1.1rem', 
-                    maxWidth: '500px', 
-                    margin: '0 auto 2rem' 
-                  }}>
-                    Le digest quotidien n'a pas encore été généré pour cette date. 
-                    Cliquez sur "Créer Digest" pour lancer la synthèse automatique.
-                  </p>
-                  <button
-                    onClick={createDigestNow}
-                    className="glass-button primary pulse-glow"
-                    style={{ 
-                      fontSize: '1.1rem', 
-                      padding: '1rem 2rem',
-                      margin: '1rem'
-                    }}
-                  >
-                    <span className="floating-element">✨</span>
-                    Générer le Digest
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
