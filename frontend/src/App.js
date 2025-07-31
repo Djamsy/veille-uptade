@@ -1704,7 +1704,6 @@ function App() {
             
             <AppLogo size={48} />
             <div className="header-title-section">
-              <h1 className="header-title animate-wave">🏝️ Veille Média Guadeloupe</h1>
               <p className="header-subtitle-text">Intelligence artificielle • Surveillance médiatique • Guadeloupe</p>
             </div>
           </div>
