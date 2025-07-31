@@ -3613,13 +3613,13 @@ function App() {
 
               {/* Résultats de recherche modernisés */}
               {socialSearchResults && (
-                <div className="modern-search-results">
+                <div className="modern-search-results scroll-reveal-left">
                   <div className="results-header">
                     <h3>🎯 Résultats : "{socialSearchResults.query}"</h3>
                     <div className="results-count">{socialSearchResults.total_results} résultats</div>
                   </div>
                   
-                  <div className="results-grid">
+                  <div className="results-grid stagger-reveal">
                     {socialSearchResults.posts && socialSearchResults.posts.map((post, index) => (
                       <div key={index} className="result-card">
                         <div className="result-header">
