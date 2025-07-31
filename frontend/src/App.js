@@ -1165,7 +1165,7 @@ function App() {
           </div>
         )}
 
-        {/* Loading overlay - Style Apple */}
+        {/* Loading overlay animé - Style Apple */}
         {loading && (
           <div style={{
             position: 'fixed',
@@ -1179,16 +1179,18 @@ function App() {
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 9999
-          }}>
-            <div className="glass-card animate-fade-in" style={{ padding: '2rem', textAlign: 'center' }}>
-              <div className="animate-pulse" style={{ 
+          }} className="animate-fade-in-scale">
+            <div className="glass-card animate-bounce-in" style={{ padding: '2rem', textAlign: 'center' }}>
+              <div className="loading-spinner" style={{ 
                 width: '40px', 
                 height: '40px', 
                 background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', 
                 borderRadius: '50%',
-                margin: '0 auto 1rem'
+                margin: '0 auto 1rem',
+                border: '4px solid rgba(59, 130, 246, 0.3)',
+                borderTop: '4px solid #3b82f6'
               }}></div>
-              <p style={{ color: '#e2e8f0' }}>Traitement en cours...</p>
+              <p style={{ color: '#e2e8f0' }} className="animate-pulse">Traitement en cours...</p>
             </div>
           </div>
         )}
