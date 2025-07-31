@@ -1035,13 +1035,13 @@ function App() {
 
   return (
     <div className="app">
-      {/* Header style Apple moderne */}
-      <header className="glass-header">
+      {/* Header style Apple moderne avec animations */}
+      <header className="glass-header animate-slide-in-top">
         <div className="header-content">
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             {/* Menu hamburger mobile */}
             <button 
-              className="mobile-menu-button"
+              className="mobile-menu-button micro-bounce"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label="Menu"
             >
@@ -1053,12 +1053,12 @@ function App() {
             </button>
             
             <div>
-              <h1 className="header-title">
+              <h1 className="header-title animate-wave">
                 🏝️ Veille Média Guadeloupe
               </h1>
             </div>
           </div>
-          <div className="header-subtitle">
+          <div className="header-subtitle animate-fade-in-right animate-delay-300">
             Dernière MAJ: {new Date().toLocaleDateString('fr-FR', { 
               day: 'numeric', 
               month: 'short', 
