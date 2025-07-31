@@ -309,6 +309,55 @@ function App() {
     };
   };
 
+  // Logo de l'application Veille Média Guadeloupe
+  const AppLogo = ({ size = 40 }) => {
+    return (
+      <div 
+        className="app-logo"
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+          borderRadius: '12px',
+          background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: `${Math.max(size * 0.4, 14)}px`,
+          fontWeight: '700',
+          color: 'white',
+          boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
+          transition: 'all 0.3s ease',
+          position: 'relative',
+          overflow: 'hidden'
+        }}
+        title="Veille Média Guadeloupe"
+      >
+        {/* Icône Guadeloupe stylisée */}
+        <span style={{
+          background: 'linear-gradient(45deg, #ffffff, #e0e7ff)',
+          backgroundClip: 'text',
+          webkitBackgroundClip: 'text',
+          webkitTextFillColor: 'transparent',
+          fontFamily: 'Inter, sans-serif',
+          letterSpacing: '-1px'
+        }}>
+          🏝️
+        </span>
+        
+        {/* Effet de brillance */}
+        <div style={{
+          position: 'absolute',
+          top: '0',
+          left: '-100%',
+          width: '100%',
+          height: '100%',
+          background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)',
+          animation: 'logo-shine 3s ease-in-out infinite'
+        }} />
+      </div>
+    );
+  };
+
   // Composant amélioré pour l'analyse de sentiment avec recommandations
   const EnhancedSentimentAnalysis = ({ analysis }) => {
     if (!analysis) return null;
