@@ -3642,10 +3642,10 @@ function App() {
 
               {/* Commentaires récents avec design moderne */}
               {comments && comments.length > 0 && (
-                <div className="recent-comments-section">
+                <div className="recent-comments-section scroll-reveal-right">
                   <h3 className="comments-title">💬 Commentaires Récents ({comments.length})</h3>
                   
-                  <div className="comments-grid">
+                  <div className="comments-grid stagger-reveal">
                     {comments.map((comment, index) => (
                       <div key={index} className="modern-comment-card">
                         <div className="comment-header">
