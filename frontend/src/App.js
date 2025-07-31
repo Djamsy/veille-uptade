@@ -1414,8 +1414,8 @@ function App() {
 
             {/* Stats narratives */}
             {Object.keys(dashboardStats).length > 0 && (
-              <div className="scroll-reveal-scale">
-                <div className="stagger-reveal" style={{ 
+              <div className="">
+                <div className="" style={{ 
                   display: 'grid', 
                   gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
                   gap: '2rem', 
