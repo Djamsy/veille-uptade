@@ -1646,7 +1646,7 @@ function App() {
                   <button
                     onClick={scrapeArticlesNow}
                     disabled={backgroundTasks.scraping}
-                    className={`stat-card-narrative ${backgroundTasks.scraping ? 'pulse-glow' : ''}`}
+                    className={`stat-card-narrative`}
                     style={{ cursor: 'pointer', border: backgroundTasks.scraping ? '2px solid var(--accent-color)' : '1px solid var(--border-color)' }}
                   >
                     <div className="stat-value" style={{ fontSize: '2rem', marginBottom: '1rem' }}>
