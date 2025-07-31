@@ -10,7 +10,7 @@ import json
 from datetime import datetime
 
 class CriticalServicesAPITester:
-    def __init__(self, base_url="https://bb8f662d-6347-4222-9f33-1c130098c9a0.preview.emergentagent.com"):
+    def __init__(self, base_url="https://b9e38495-b671-4911-bb12-068861be0baf.preview.emergentagent.com"):
         self.base_url = base_url
         self.tests_run = 0
         self.tests_passed = 0
