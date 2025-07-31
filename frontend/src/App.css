@@ -2114,7 +2114,8 @@ textarea {
 }
 
 .floating-element {
-  animation: floatingElements 6s ease-in-out infinite;
+  /* Animation floating désactivée pour préférer animation background */
+  /* animation: floatingElements 6s ease-in-out infinite; */
 }
 
 .background-pulse {
