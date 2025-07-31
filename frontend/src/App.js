@@ -1690,35 +1690,39 @@ function App() {
           </div>
         )}
 
-        {/* Analytics et graphiques */}
+        {/* Analytics et graphiques avec animations */}
         {activeTab === 'analytics' && (
-          <div className="animate-slide-in">
+          <div className="animate-fade-in-up">
             <div className="section-container">
-              <div className="section-header">
-                <h2 className="section-title">📊 Analytics Visuels</h2>
-                <p className="section-subtitle">Analyses graphiques et métriques avancées</p>
+              <div className="section-header animate-fade-in-scale">
+                <h2 className="section-title animate-wave">📊 Analytics Visuels</h2>
+                <p className="section-subtitle animate-fade-in-up animate-delay-200">Analyses graphiques et métriques avancées</p>
               </div>
 
-              {/* Métriques du dashboard enrichies */}
+              {/* Métriques du dashboard enrichies avec animations */}
               {analyticsData.dashboardMetrics && (
-                <div className="stats-container" style={{ marginBottom: '3rem' }}>
-                  {Object.entries(analyticsData.dashboardMetrics.metrics).map(([key, metric]) => (
-                    <div key={key} className="stat-card enhanced">
+                <div className="stats-container stagger-children" style={{ marginBottom: '3rem' }}>
+                  {Object.entries(analyticsData.dashboardMetrics.metrics).map(([key, metric], index) => (
+                    <div 
+                      key={key} 
+                      className="stat-card enhanced animate-bounce-in" 
+                      style={{ animationDelay: `${index * 0.1}s` }}
+                    >
                       <div className="stat-label">{metric.label}</div>
-                      <div className="stat-value">
+                      <div className="stat-value animate-count-up">
                         {metric.value}
                         {metric.evolution_pct && (
                           <span style={{ 
                             fontSize: '0.7rem', 
                             color: metric.evolution_pct > 0 ? '#10b981' : '#ef4444',
                             marginLeft: '0.5rem'
-                          }}>
+                          }} className="animate-pulse">
                             {metric.evolution_pct > 0 ? '↗' : '↘'} {Math.abs(metric.evolution_pct)}%
                           </span>
                         )}
                       </div>
                       {metric.evolution !== undefined && (
-                        <div className="stat-sublabel">
+                        <div className="stat-sublabel animate-fade-in-up">
                           {metric.evolution >= 0 ? '+' : ''}{metric.evolution} vs hier
                         </div>
                       )}
@@ -1727,19 +1731,19 @@ function App() {
                 </div>
               )}
 
-              {/* Graphiques */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem' }}>
+              {/* Graphiques avec animations en cascade */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem' }} className="stagger-children">
                 
                 {/* Graphique: Articles par source */}
                 {analyticsData.sourceChart && (
-                  <div className="glass-card" style={{ padding: '2rem' }}>
-                    <h3 style={{ marginBottom: '1.5rem', color: '#1f2937', fontSize: '1.25rem' }}>
+                  <div className="glass-card chart-container animate-fade-in-scale" style={{ padding: '2rem' }}>
+                    <h3 style={{ marginBottom: '1.5rem', color: '#1f2937', fontSize: '1.25rem' }} className="chart-title animate-fade-in-left">
                       📊 Articles par Source
                     </h3>
-                    <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="chart-wrapper">
                       <SourceChart data={analyticsData.sourceChart.chart_data} />
                     </div>
-                    <div style={{ marginTop: '1rem', textAlign: 'center', color: '#6b7280', fontSize: '0.9rem' }}>
+                    <div style={{ marginTop: '1rem', textAlign: 'center', color: '#6b7280', fontSize: '0.9rem' }} className="chart-caption animate-fade-in-up">
                       {analyticsData.sourceChart.total_articles} articles • {analyticsData.sourceChart.period}
                     </div>
                   </div>
@@ -1747,14 +1751,14 @@ function App() {
 
                 {/* Graphique: Évolution temporelle */}
                 {analyticsData.timelineChart && (
-                  <div className="glass-card" style={{ padding: '2rem' }}>
-                    <h3 style={{ marginBottom: '1.5rem', color: '#1f2937', fontSize: '1.25rem' }}>
+                  <div className="glass-card chart-container animate-fade-in-scale animate-delay-100" style={{ padding: '2rem' }}>
+                    <h3 style={{ marginBottom: '1.5rem', color: '#1f2937', fontSize: '1.25rem' }} className="chart-title animate-fade-in-left">
                       📈 Évolution Temporelle
                     </h3>
-                    <div style={{ height: '300px' }}>
+                    <div style={{ height: '300px' }} className="chart-wrapper">
                       <TimelineChart data={analyticsData.timelineChart.chart_data} />
                     </div>
-                    <div style={{ marginTop: '1rem', textAlign: 'center', color: '#6b7280', fontSize: '0.9rem' }}>
+                    <div style={{ marginTop: '1rem', textAlign: 'center', color: '#6b7280', fontSize: '0.9rem' }} className="chart-caption animate-fade-in-up">
                       {analyticsData.timelineChart.total_articles} articles • {analyticsData.timelineChart.period}
                     </div>
                   </div>
@@ -1762,34 +1766,34 @@ function App() {
 
                 {/* Graphique: Sentiment par source */}
                 {analyticsData.sentimentChart && analyticsData.sentimentChart.chart_data.labels.length > 0 && (
-                  <div className="glass-card" style={{ padding: '2rem' }}>
-                    <h3 style={{ marginBottom: '1.5rem', color: '#1f2937', fontSize: '1.25rem' }}>
+                  <div className="glass-card chart-container animate-fade-in-scale animate-delay-200" style={{ padding: '2rem' }}>
+                    <h3 style={{ marginBottom: '1.5rem', color: '#1f2937', fontSize: '1.25rem' }} className="chart-title animate-fade-in-left">
                       💭 Sentiment par Source
                     </h3>
-                    <div style={{ height: '300px' }}>
+                    <div style={{ height: '300px' }} className="chart-wrapper">
                       <SentimentChart data={analyticsData.sentimentChart.chart_data} />
                     </div>
-                    <div style={{ marginTop: '1rem', textAlign: 'center', color: '#6b7280', fontSize: '0.9rem' }}>
+                    <div style={{ marginTop: '1rem', textAlign: 'center', color: '#6b7280', fontSize: '0.9rem' }} className="chart-caption animate-fade-in-up">
                       {analyticsData.sentimentChart.analyzed_articles} articles analysés
                     </div>
                   </div>
                 )}
 
-                {/* Informations sur les données */}
-                <div className="glass-card" style={{ padding: '2rem' }}>
-                  <h3 style={{ marginBottom: '1.5rem', color: '#1f2937', fontSize: '1.25rem' }}>
+                {/* Informations sur les données avec animation */}
+                <div className="glass-card animate-fade-in-scale animate-delay-300" style={{ padding: '2rem' }}>
+                  <h3 style={{ marginBottom: '1.5rem', color: '#1f2937', fontSize: '1.25rem' }} className="animate-fade-in-left">
                     ℹ️ Informations
                   </h3>
-                  <div style={{ color: '#4b5563', lineHeight: '1.6' }}>
-                    <p style={{ marginBottom: '1rem' }}>
+                  <div style={{ color: '#4b5563', lineHeight: '1.6' }} className="stagger-children">
+                    <p style={{ marginBottom: '1rem' }} className="animate-fade-in-up">
                       <strong>Sources de données :</strong> Articles extraits automatiquement des principaux 
                       médias guadeloupéens (France-Antilles, RCI, La 1ère, KaribInfo).
                     </p>
-                    <p style={{ marginBottom: '1rem' }}>
+                    <p style={{ marginBottom: '1rem' }} className="animate-fade-in-up animate-delay-100">
                       <strong>Fréquence de mise à jour :</strong> Scraping automatique quotidien, 
                       cache intelligent 24H.
                     </p>
-                    <p>
+                    <p className="animate-fade-in-up animate-delay-200">
                       <strong>Analyse de sentiment :</strong> Traitement local des titres avec 
                       dictionnaires français et patterns Guadeloupe.
                     </p>
@@ -1797,11 +1801,11 @@ function App() {
                   
                   <button
                     onClick={loadAnalyticsData}
-                    className="glass-button primary"
+                    className="glass-button primary micro-bounce animate-bounce-in animate-delay-400"
                     style={{ marginTop: '1.5rem' }}
                     disabled={loading}
                   >
-                    {loading ? '⏳ Actualisation...' : '🔄 Actualiser les données'}
+                    {loading ? <span className="animate-rotate">⏳</span> : '🔄'} Actualiser les données
                   </button>
                 </div>
               </div>
