@@ -1837,7 +1837,7 @@ function App() {
                         padding: '0.5rem 1rem'
                       }}
                     >
-                      <span className="floating-element">📖</span>
+                      <span className="">📖</span>
                       Lire l'article
                     </a>
                     {article.ai_summary && (
