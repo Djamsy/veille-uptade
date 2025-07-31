@@ -251,6 +251,102 @@ function App() {
     }
   };
 
+  // Fonction pour obtenir le logo d'un site
+  const getSiteLogo = (source) => {
+    const sourceMap = {
+      'France-Antilles Guadeloupe': {
+        logo: 'https://www.guadeloupe.franceantilles.fr/sites/all/themes/fa_guadeloupe/logo.png',
+        fallback: 'FA',
+        color: 'var(--france-antilles-color)',
+        bg: 'rgba(229, 62, 62, 0.1)'
+      },
+      'RCI Guadeloupe': {
+        logo: 'https://www.rci.fm/sites/all/themes/rci/logo.png',
+        fallback: 'RCI',
+        color: 'var(--rci-color)',
+        bg: 'rgba(49, 130, 206, 0.1)'
+      },
+      'La 1ère Guadeloupe': {
+        logo: 'https://la1ere.francetvinfo.fr/sites/regions_outremer/files/styles/top_big/public/assets/images/2016/11/29/logo_la_1ere_guadeloupe.png',
+        fallback: '1ère',
+        color: 'var(--la-premiere-color)',
+        bg: 'rgba(56, 161, 105, 0.1)'
+      },
+      'KaribInfo': {
+        logo: 'https://www.karibinfo.com/sites/all/themes/karibinfo/logo.png',
+        fallback: 'KI',
+        color: 'var(--karibinfo-color)',
+        bg: 'rgba(237, 137, 54, 0.1)'
+      }
+    };
+
+    // Recherche flexible par nom de source
+    const sourceKey = Object.keys(sourceMap).find(key => 
+      source.toLowerCase().includes(key.toLowerCase()) || 
+      key.toLowerCase().includes(source.toLowerCase())
+    );
+
+    if (sourceKey) {
+      return sourceMap[sourceKey];
+    }
+
+    // Fallback générique
+    return {
+      logo: null,
+      fallback: source.substring(0, 2).toUpperCase(),
+      color: 'var(--text-muted)',
+      bg: 'rgba(148, 163, 184, 0.1)'
+    };
+  };
+
+  // Composant Logo pour les sources
+  const SourceLogo = ({ source, size = 32 }) => {
+    const [imageError, setImageError] = useState(false);
+    const siteInfo = getSiteLogo(source);
+
+    const logoStyle = {
+      width: `${size}px`,
+      height: `${size}px`,
+      borderRadius: 'var(--radius-md)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: `${size * 0.4}px`,
+      fontWeight: '600',
+      flexShrink: 0,
+      border: '1px solid var(--border-light)'
+    };
+
+    if (siteInfo.logo && !imageError) {
+      return (
+        <img
+          src={siteInfo.logo}
+          alt={`Logo ${source}`}
+          style={{
+            ...logoStyle,
+            objectFit: 'contain'
+          }}
+          onError={() => setImageError(true)}
+          loading="lazy"
+        />
+      );
+    }
+
+    // Fallback avec initiales
+    return (
+      <div
+        style={{
+          ...logoStyle,
+          background: siteInfo.bg,
+          color: siteInfo.color
+        }}
+        title={source}
+      >
+        {siteInfo.fallback}
+      </div>
+    );
+  };
+
   // Fonction utilitaire pour les appels API avec timeout et gestion d'erreur
   const apiCall = async (url, options = {}) => {
     const controller = new AbortController();
