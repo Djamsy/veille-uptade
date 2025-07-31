@@ -1665,7 +1665,7 @@ function App() {
                   <button
                     onClick={captureRadioNow}
                     disabled={backgroundTasks.capturing}
-                    className={`stat-card-narrative ${backgroundTasks.capturing ? 'pulse-glow' : ''}`}
+                    className={`stat-card-narrative`}
                     style={{ cursor: 'pointer', border: backgroundTasks.capturing ? '2px solid var(--success-color)' : '1px solid var(--border-color)' }}
                   >
                     <div className="stat-value" style={{ fontSize: '2rem', marginBottom: '1rem' }}>
