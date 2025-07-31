@@ -2552,6 +2552,7 @@ function App() {
                   {searchLoading ? '⏳ Recherche...' : '🔍 Rechercher'}
                 </button>
               </div>
+            </div>
 
             {/* Résultats de recherche */}
             {searchResults && (
