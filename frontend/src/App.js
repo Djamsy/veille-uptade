@@ -1688,7 +1688,7 @@ function App() {
       {/* Header style Apple moderne avec animations */}
       <header className="glass-header animate-slide-in-top">
         <div className="header-content">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div className="header-left">
             {/* Menu hamburger mobile */}
             <button 
               className="mobile-menu-button micro-bounce"
@@ -1702,19 +1702,21 @@ function App() {
               </div>
             </button>
             
-            <div>
-              <h1 className="header-title animate-wave">
-                🏝️ Veille Média Guadeloupe
-              </h1>
+            <AppLogo size={48} />
+            <div className="header-title-section">
+              <h1 className="header-title animate-wave">🏝️ Veille Média Guadeloupe</h1>
+              <p className="header-subtitle-text">Intelligence artificielle • Surveillance médiatique • Guadeloupe</p>
             </div>
           </div>
-          <div className="header-subtitle animate-fade-in-right animate-delay-300">
-            Dernière MAJ: {new Date().toLocaleDateString('fr-FR', { 
-              day: 'numeric', 
-              month: 'short', 
-              hour: '2-digit', 
-              minute: '2-digit' 
-            })}
+          <div className="header-right">
+            <span className="header-last-update animate-fade-in-right animate-delay-300">
+              Dernière MAJ: {new Date().toLocaleDateString('fr-FR', { 
+                day: 'numeric', 
+                month: 'short', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              })}
+            </span>
           </div>
         </div>
       </header>
