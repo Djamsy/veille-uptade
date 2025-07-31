@@ -1920,6 +1920,75 @@ textarea {
   }
 }
 
+/* =========================== NARRATIVE SCROLL ANIMATIONS =========================== */
+
+/* Parallax et scroll-driven animations */
+@keyframes narrativeEntry {
+  0% {
+    opacity: 0;
+    transform: translateY(60px) scale(0.95);
+    filter: blur(5px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes storyReveal {
+  0% {
+    opacity: 0;
+    transform: translateX(-50px) rotateY(-15deg);
+    filter: saturate(0.5);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) rotateY(0deg);
+    filter: saturate(1);
+  }
+}
+
+@keyframes floatingElements {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  33% {
+    transform: translateY(-10px) rotate(1deg);
+  }
+  66% {
+    transform: translateY(5px) rotate(-1deg);
+  }
+}
+
+@keyframes backgroundPulse {
+  0%, 100% {
+    background-position: 0% 50%;
+    opacity: 0.1;
+  }
+  50% {
+    background-position: 100% 50%;
+    opacity: 0.15;
+  }
+}
+
+@keyframes dataFlow {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
 /* =========================== ANIMATIONS MODERNES =========================== */
 
 /* Animations d'entrée pour les éléments */
