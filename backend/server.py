@@ -662,65 +662,7 @@ async def get_articles_by_date(date: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur récupération articles: {str(e)}")
 
-@app.post("/api/articles/scrape-now")
-async def scrape_articles_now():
-    """Lancer le scraping d'articles immédiatement avec vidage du cache"""
-    try:
-        # 1. VIDER COMPLÈTEMENT LE CACHE avant scraping
-        if CACHE_ENABLED:
-            logger.info("🗑️ Vidage complet du cache avant scraping...")
-            cache_invalidate()  # Vider tout le cache
-            intelligent_cache.cleanup_expired_cache()
-        
-        # 2. Lancer le scraping en arrière-plan pour éviter les timeouts
-        import threading
-        
-        def scrape_async():
-            try:
-                logger.info("🚀 Démarrage du scraping avec cache vidé...")
-                result = guadeloupe_scraper.scrape_all_sites()
-                
-                # 3. VIDER À NOUVEAU LE CACHE après scraping pour forcer refresh
-                if CACHE_ENABLED:
-                    logger.info("🗑️ Vidage du cache après scraping pour forcer refresh...")
-                    cache_invalidate('articles')  # Vider cache articles
-                    cache_invalidate('dashboard')  # Vider cache dashboard
-                    
-                    # Sauvegarder le résultat dans le cache
-                    intelligent_cache.set_cached_data('last_scraping_result', result)
-                    
-                    logger.info("✅ Cache vidé et résultat scraping sauvegardé")
-                else:
-                    # Stocker temporairement le résultat
-                    setattr(app.state, 'last_scraping_result', result)
-                    
-            except Exception as e:
-                error_result = {
-                    'success': False,
-                    'error': str(e),
-                    'scraped_at': datetime.now().isoformat()
-                }
-                if CACHE_ENABLED:
-                    intelligent_cache.set_cached_data('last_scraping_result', error_result)
-                else:
-                    setattr(app.state, 'last_scraping_result', error_result)
-                logger.error(f"❌ Erreur lors du scraping: {e}")
-        
-        # Démarrer le scraping en arrière-plan
-        scraping_thread = threading.Thread(target=scrape_async)
-        scraping_thread.daemon = True
-        scraping_thread.start()
-        
-        return {
-            "success": True, 
-            "message": "Scraping démarré avec vidage du cache. Articles du jour disponibles dans quelques minutes.",
-            "estimated_completion": "2-3 minutes",
-            "cache_cleared": True
-        }
-        
-    except Exception as e:
-        print(f"Erreur scraping: {e}")
-        return {"success": False, "error": str(e)}
+# Duplicate route removed - functionality preserved in first definition
 
 @app.get("/api/articles/scrape-status")
 async def get_scrape_status():
