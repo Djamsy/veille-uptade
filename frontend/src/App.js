@@ -3499,11 +3499,11 @@ function App() {
                   </div>
                   <div className="platform-metrics">
                     <div className="metric">
-                      <span className="metric-value">{socialStats.facebook_posts || 0}</span>
+                      <span className="metric-value">{(socialStats && socialStats.facebook_posts) || 0}</span>
                       <span className="metric-label">Posts</span>
                     </div>
                     <div className="metric">
-                      <span className="metric-value">{socialStats.facebook_engagement || 0}</span>
+                      <span className="metric-value">{(socialStats && socialStats.facebook_engagement) || 0}</span>
                       <span className="metric-label">Engagement</span>
                     </div>
                   </div>
