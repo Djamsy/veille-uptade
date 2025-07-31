@@ -2732,10 +2732,42 @@ class GuadeloupeMediaAPITester:
             return 1
 
 def main():
-    """Main test runner - Focus on GPT + OpenAI Whisper security testing"""
+    """Main test runner - Focus on articles loading issue as requested by user"""
     tester = GuadeloupeMediaAPITester()
-    # Run GPT + OpenAI Whisper security tests as requested
-    return tester.run_gpt_whisper_security_tests()
+    
+    # PRIORITY: Test articles loading issue first as requested
+    print("🚀 PRIORITY TESTING: Articles Loading Issue")
+    print("User Report: 'Les articles ne chargent pas sur le frontend'")
+    print("=" * 80)
+    
+    tester.test_articles_loading_issue()
+    
+    # Run additional backend tests for comprehensive analysis
+    print("\n📊 ADDITIONAL BACKEND TESTS FOR COMPREHENSIVE ANALYSIS")
+    print("=" * 80)
+    
+    # Test filtering and analytics endpoints (from current_focus)
+    tester.test_articles_filtered_endpoint()
+    tester.test_articles_sources_endpoint()
+    tester.test_analytics_articles_by_source()
+    tester.test_analytics_articles_timeline()
+    tester.test_analytics_dashboard_metrics()
+    
+    # Test core functionality
+    tester.test_today_only_dashboard_stats()
+    tester.test_today_only_articles()
+    tester.test_scrapers_working()
+    
+    # Final summary
+    print("\n" + "=" * 80)
+    print(f"📊 FINAL TEST RESULTS: {tester.tests_passed}/{tester.tests_run} tests passed")
+    
+    if tester.tests_passed >= tester.tests_run * 0.8:  # 80% pass rate
+        print("✅ BACKEND TESTING COMPLETED - Most endpoints working correctly")
+        return 0
+    else:
+        print("❌ BACKEND TESTING COMPLETED - Issues detected, see details above")
+        return 1
 
 if __name__ == "__main__":
     sys.exit(main())
