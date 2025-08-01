@@ -1,22 +1,16 @@
 import os
 import logging
 from datetime import datetime
-from typing import Any, Dict
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-
 from pymongo import MongoClient
 import certifi
+from dotenv import load_dotenv
 
-# Charger .env si utilisé
-try:
-    from dotenv import load_dotenv
-
-    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
-except ImportError:
-    pass
+# Charger .env local (si présent)
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 
 # === Logging ===
 logging.basicConfig(level=logging.INFO)
@@ -24,7 +18,7 @@ logger = logging.getLogger("veille_media_backend")
 
 # === App ===
 app = FastAPI()
-start_time = datetime.utcnow()
+START_TIME = datetime.utcnow()
 
 app.add_middleware(
     CORSMiddleware,
@@ -52,101 +46,27 @@ def get_mongo_client():
         logger.error(f"Erreur de connexion MongoDB: {e}")
         return None
 
-
 mongo_client = get_mongo_client()
-db = None
-if mongo_client:
+db = mongo_client.get_default_database() if mongo_client else None
+
+# === Import des services (fallbacks tolérés) ===
+def safe_import(module: str, symbol: str):
     try:
-        db = mongo_client.get_default_database()
-    except Exception:
-        pass
+        mod = __import__(module, fromlist=[symbol])
+        return getattr(mod, symbol)
+    except ImportError as e:
+        logger.warning(f"{symbol} non disponible depuis {module}: {e}")
+        return None
 
-# === Import des services avec fallbacks ===
-
-# Scraper / radio / résumé / PDF / transcription
+# Exemple : scraper (utilisé plus bas)
+guadeloupe_scraper = None
 try:
     from .scraper_service import guadeloupe_scraper
 except ImportError as e:
     logger.warning(f"scraper_service non disponible: {e}")
     guadeloupe_scraper = None
 
-try:
-    from .radio_service import radio_service
-except ImportError as e:
-    logger.warning(f"radio_service non disponible: {e}")
-    radio_service = None
-
-try:
-    from .summary_service import summary_service
-except ImportError as e:
-    logger.warning(f"summary_service non disponible: {e}")
-    summary_service = None
-
-try:
-    from .pdf_service import pdf_digest_service
-except ImportError as e:
-    logger.warning(f"pdf_digest_service non disponible: {e}")
-    pdf_digest_service = None
-
-try:
-    from .transcription_analysis_service import transcription_analyzer
-except ImportError as e:
-    logger.warning(f"transcription_analysis_service non disponible: {e}")
-    transcription_analyzer = None
-
-# Scheduler
-try:
-    from .scheduler_service import veille_scheduler, start_scheduler
-
-    SCHEDULER_AVAILABLE = True
-except ImportError as e:
-    logger.warning(f"scheduler_service non disponible: {e}")
-    veille_scheduler = None
-    start_scheduler = None
-    SCHEDULER_AVAILABLE = False
-
-# Réseaux sociaux moderne / fallback
-SOCIAL_MEDIA_ENABLED = False
-modern_social_scraper = None
-social_scraper = None
-try:
-    from .modern_social_service import modern_social_scraper
-
-    social_scraper = modern_social_scraper
-    SOCIAL_MEDIA_ENABLED = True
-    logger.info("✅ Service réseaux sociaux MODERNE activé")
-except ImportError as e:
-    logger.warning(f"Service réseaux sociaux moderne non disponible: {e}")
-    try:
-        from .social_media_service import social_scraper
-
-        modern_social_scraper = social_scraper
-        SOCIAL_MEDIA_ENABLED = True
-        logger.info("✅ Fallback: Service réseaux sociaux classique activé")
-    except ImportError as e2:
-        logger.error(f"Aucun service réseaux sociaux disponible: {e2}")
-        modern_social_scraper = None
-        social_scraper = None
-
-# Sentiment GPT avec fallback local
-SENTIMENT_ENABLED = False
-try:
-    from .gpt_sentiment_service import gpt_sentiment_analyzer, analyze_articles_sentiment
-
-    SENTIMENT_ENABLED = True
-    logger.info("✅ Service d'analyse de sentiment GPT activé")
-except ImportError as e:
-    logger.warning(f"Service d'analyse de sentiment GPT non disponible: {e}")
-    try:
-        from .sentiment_analysis_service import local_sentiment_analyzer, analyze_articles_sentiment
-
-        gpt_sentiment_analyzer = local_sentiment_analyzer
-        SENTIMENT_ENABLED = True
-        logger.info("✅ Fallback: Service de sentiment local activé")
-    except ImportError as e2:
-        logger.error(f"Aucun service de sentiment disponible: {e2}")
-
-# Sentiment asynchrone avec stubs
+# Sentiment asynchrone router + fallback pour que les endpoints existent même si service absent
 ASYNC_SENTIMENT_ENABLED = False
 try:
     from .async_sentiment_service import (
@@ -155,37 +75,20 @@ try:
         get_text_sentiment_cached,
         get_sentiment_analysis_status,
     )
-
     ASYNC_SENTIMENT_ENABLED = True
     logger.info("✅ Service d'analyse de sentiment asynchrone activé")
 except ImportError as e:
-    logger.warning(f"Service d'analyse de sentiment asynchrone non disponible: {e}")
-    async_sentiment_service = None
+    logger.warning(f"Service async sentiment non dispo: {e}")
 
-    def analyze_text_async(*args, **kwargs):
-        return None
+# Inclusion des routes
+try:
+    from .sentiment_routes import router as sentiment_router
+    app.include_router(sentiment_router)
+    logger.info("✅ sentiment_routes inclus")
+except Exception as e:
+    logger.warning(f"Impossible d'inclure sentiment_routes: {e}")
 
-    def get_text_sentiment_cached(*args, **kwargs):
-        return None
-
-    def get_sentiment_analysis_status(*args, **kwargs):
-        return None
-
-
-# === Startup ===
-@app.on_event("startup")
-async def on_startup():
-    if SCHEDULER_AVAILABLE and start_scheduler:
-        try:
-            start_scheduler()
-            logger.info("Scheduler démarré.")
-        except Exception as e:
-            logger.error(f"Erreur du scheduler: {e}")
-    else:
-        logger.info("Scheduler non disponible ou non démarré.")
-
-
-# === Routes ===
+# === Routes de base ===
 @app.get("/", tags=["health"])
 def root():
     return {
@@ -193,27 +96,29 @@ def root():
         "timestamp": datetime.utcnow().isoformat(),
     }
 
-
 @app.get("/health", tags=["health"])
 def health():
+    uptime = (datetime.utcnow() - START_TIME).total_seconds()
+    status = {
+        "mongo_connected": bool(mongo_client),
+        "async_sentiment": ASYNC_SENTIMENT_ENABLED,
+        "environment": ENVIRONMENT,
+        "uptime_seconds": uptime,
+    }
+    return {"status": status}
+
+@app.get("/scrape/manual", tags=["scraping"])
+def run_scraper():
+    if not guadeloupe_scraper:
+        raise HTTPException(status_code=500, detail="Scraper service non disponible")
     try:
-        uptime = (datetime.utcnow() - start_time).total_seconds()
-        status = {
-            "mongo_connected": bool(mongo_client),
-            "sentiment_gpt": globals().get("SENTIMENT_ENABLED", False),
-            "async_sentiment": globals().get("ASYNC_SENTIMENT_ENABLED", False),
-            "social_media": globals().get("SOCIAL_MEDIA_ENABLED", False),
-            "scheduler": globals().get("SCHEDULER_AVAILABLE", False),
-            "environment": globals().get("ENVIRONMENT", None),
-            "uptime_seconds": uptime,
-        }
-        return {"status": status}
-    except Exception:
-        logger.exception("Erreur dans /health")
-        raise
+        result = guadeloupe_scraper.run()  # adapte si la signature diffère
+        return {"status": "ok", "result": result}
+    except Exception as e:
+        logger.error(f"Erreur scraping: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-
-# === Global error handler ===
+# === Gestion globale des erreurs ===
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.exception(f"Erreur non gérée: {exc}")
