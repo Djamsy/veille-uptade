@@ -33,3 +33,4 @@ dist
 *token.json*
 *credentials.json*
 backend/.env
+backend/.env
