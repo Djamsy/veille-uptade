@@ -38,6 +38,8 @@ sumy==0.11.0
 pandas==2.1.4
 numpy==1.25.2
 python-dateutil==2.8.2
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
 
 # Pour le scraping (versions spécifiques pour stabilité production)
 snscrape==0.7.0.20230622
