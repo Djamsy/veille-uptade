@@ -1,17 +1,10 @@
+// src/PrivateApp.js
 import React, { useState, useEffect } from 'react';
 import './App.css';
 import {
   Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  LineElement,
-  PointElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler
+  CategoryScale, LinearScale, BarElement, LineElement,
+  PointElement, ArcElement, Title, Tooltip, Legend, Filler
 } from 'chart.js';
 import { Bar, Line, Doughnut } from 'react-chartjs-2';
 
@@ -330,7 +323,7 @@ function prettySummary(raw) {
   return paragraphs.map(p => `<p>${p}</p>`).join("");
 }
 // --- End helper ---
-function App() {
+function PrivateApp() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [dashboardStats, setDashboardStats] = useState({});
   // ... (tous les autres useState / useEffect ici, à l’intérieur de App)
@@ -4353,4 +4346,4 @@ const [analyticsData, setAnalyticsData] = useState({
   );
 }
 
-export default App;
+export default PrivateApp;
