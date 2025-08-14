@@ -66,7 +66,12 @@ class GuadeloupeScraper:
                 dbname = os.environ.get("MONGO_DB_NAME", "veille_media")
 
             self.db = self.client[dbname]
-            self.articles_collection = self.db["articles"]
+
+            # ✅ Collection par défaut alignée avec le front
+            collection_name = os.environ.get("ARTICLES_COLLECTION", "articles_guadeloupe")
+            self.articles_collection = self.db[collection_name]
+            logger.info(f"🗄️  Collection d'articles: {collection_name}")
+
         except Exception as e:
             logger.error(f"❌ Erreur connection MongoDB pour scraper: {e}")
             raise
@@ -186,7 +191,7 @@ class GuadeloupeScraper:
         prefixes = ["LIRE AUSSI:", "VOIR AUSSI:", "À LIRE:", "VIDÉO:", "PHOTO:", "EN DIRECT:", "BREAKING:", "URGENT:"]
         for p in prefixes:
             if title.upper().startswith(p):
-                title = title[len(p) :].strip()
+                title = title[len(p):].strip()
         return title
 
     def normalize_title(self, title: str) -> str:
@@ -194,6 +199,10 @@ class GuadeloupeScraper:
             return ""
         normalized = re.sub(r"[^\w\s]", " ", title.lower())
         return re.sub(r"\s+", " ", normalized).strip()
+
+    def make_id(self, site_key: str, url: str) -> str:
+        """ID stable et déterministe basé sur l'URL."""
+        return f"{site_key}_{hashlib.md5(url.encode('utf-8')).hexdigest()}"
 
     def is_valid_article_url(self, url: str, base_domain: str) -> bool:
         if not url:
@@ -257,7 +266,7 @@ class GuadeloupeScraper:
                     if len(title) > 10:
                         articles.append(
                             {
-                                "id": f"rci_{hash(full_url)}",
+                                "id": self.make_id("rci", full_url),
                                 "title": title,
                                 "url": full_url,
                                 "source": "RCI Guadeloupe",
@@ -308,7 +317,7 @@ class GuadeloupeScraper:
                     if 10 < len(title) < 200:
                         articles.append(
                             {
-                                "id": f"france_antilles_{hash(full_url)}",
+                                "id": self.make_id("france_antilles", full_url),
                                 "title": title,
                                 "url": full_url,
                                 "source": "France-Antilles Guadeloupe",
@@ -350,7 +359,7 @@ class GuadeloupeScraper:
                     if len(title) > 10:
                         articles.append(
                             {
-                                "id": f"la1ere_{hash(full_url)}",
+                                "id": self.make_id("la1ere", full_url),
                                 "title": title,
                                 "url": full_url,
                                 "source": "La 1ère Guadeloupe",
@@ -401,7 +410,7 @@ class GuadeloupeScraper:
                     if 10 < len(title) < 200:
                         articles.append(
                             {
-                                "id": f"karibinfo_{hash(full_url)}",
+                                "id": self.make_id("karibinfo", full_url),
                                 "title": title,
                                 "url": full_url,
                                 "source": "KaribInfo",
@@ -475,7 +484,7 @@ class GuadeloupeScraper:
                             continue
                         articles.append(
                             {
-                                "id": f"{site_key}_{hash(full_url)}",
+                                "id": self.make_id(site_key, full_url),
                                 "title": title,
                                 "url": full_url,
                                 "source": config["name"],
@@ -568,7 +577,7 @@ class GuadeloupeScraper:
             for i, a1 in enumerate(recent):
                 if a1["_id"] in processed:
                     continue
-                for a2 in recent[i + 1 :]:
+                for a2 in recent[i + 1:]:
                     if a2["_id"] in processed:
                         continue
                     if a1.get("source") == a2.get("source") and a1.get("title") and a2.get("title"):
@@ -625,6 +634,7 @@ class GuadeloupeScraper:
                 results["duplicates_by_site"][site_key] = dups
                 results["sites_scraped"] += 1
 
+                # on n'ajoute que les non-doublons au récapitulatif
                 all_articles.extend([x for x in arts if not self.is_duplicate_article(x)])
                 logger.info(f"✅ {cfg['name']}: {saved} sauvegardés, {dups} doublons ignorés")
                 time.sleep(2)
@@ -646,11 +656,19 @@ class GuadeloupeScraper:
         results["articles"] = all_articles
         results["execution_time_seconds"] = round(time.time() - start, 2)
 
-        # Invalidation du cache
+        # Invalidation du cache si dispo
         try:
-            from .cache_service import cache_invalidate
-            cache_invalidate("articles")
-            logger.info("🗑️ Cache articles invalidé")
+            try:
+                from backend.cache_service import cache_invalidate  # type: ignore
+            except Exception:
+                try:
+                    from cache_service import cache_invalidate  # type: ignore
+                except Exception:
+                    cache_invalidate = None  # type: ignore
+
+            if cache_invalidate:
+                cache_invalidate("articles")
+                logger.info("🗑️ Cache articles invalidé")
         except Exception as e:
             logger.warning(f"Erreur invalidation cache: {e}")
 
@@ -673,10 +691,20 @@ class GuadeloupeScraper:
 
     def get_todays_articles(self) -> List[Dict[str, Any]]:
         today = datetime.now().strftime("%Y-%m-%d")
-        return list(self.articles_collection.find({"date": today}, {"_id": 0}).sort("scraped_at", -1).limit(100))
+        return list(
+            self.articles_collection
+            .find({"date": today}, {"_id": 0})
+            .sort("scraped_at", -1)
+            .limit(100)
+        )
 
     def get_articles_by_date(self, date_str: str) -> List[Dict[str, Any]]:
-        return list(self.articles_collection.find({"date": date_str}, {"_id": 0}).sort("scraped_at", -1).limit(100))
+        return list(
+            self.articles_collection
+            .find({"date": date_str}, {"_id": 0})
+            .sort("scraped_at", -1)
+            .limit(100)
+        )
 
     def get_scraping_stats(self) -> Dict[str, Any]:
         try:
