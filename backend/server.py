@@ -4,7 +4,7 @@ import os
 import logging
 import importlib
 from datetime import datetime
-from typing import Optional, Iterable
+from typing import Optional, Iterable, Union
 
 from fastapi import FastAPI, Request, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
@@ -103,24 +103,37 @@ def get_db():
 # ======================
 # Helpers d'import
 # ======================
-def include_router_safely(module_candidates: Iterable[str], attr_name: str, prefix: Optional[str] = None):
+def include_router_safely(
+    module_candidates: Union[str, Iterable[str]],
+    attr_name: str,
+    prefix: Optional[str] = None,
+) -> bool:
     """
-    Essaie plusieurs chemins de module (ex: ["backend.api_routes", "api_routes"])
-    et inclut router si trouvé.
+    Essaie un ou plusieurs chemins de module (ex: "backend.api_routes" ou ["backend.api_routes","api_routes"])
+    et inclut le router si trouvé.
     """
+    if isinstance(module_candidates, (str, bytes)):
+        candidates = [module_candidates]
+    else:
+        candidates = list(module_candidates)
+
     last_err: Optional[Exception] = None
-    for module_path in module_candidates:
+    for module_path in candidates:
         try:
             module = importlib.import_module(module_path)
             router = getattr(module, attr_name)
             app.include_router(router, prefix=prefix or "")
-            logger.info("✅ Router '%s' importé depuis %s %s",
-                        attr_name, module_path, f"(prefix={prefix})" if prefix else "")
-            return
+            logger.info(
+                "✅ Router '%s' importé depuis %s %s",
+                attr_name, module_path, f"(prefix={prefix})" if prefix else ""
+            )
+            return True
         except Exception as e:
             last_err = e
-    logger.warning("⚠️ Impossible d'inclure '%s' depuis %s : %s",
-                   attr_name, list(module_candidates), last_err)
+            logger.warning("⚠️ Échec import %s depuis %s : %s", attr_name, module_path, e)
+
+    logger.warning("⚠️ Impossible d'inclure '%s' depuis %s : %s", attr_name, candidates, last_err)
+    return False
 
 def route_registered(path: str) -> bool:
     for r in app.router.routes:
@@ -131,10 +144,11 @@ def route_registered(path: str) -> bool:
 # ======================
 # Inclusion des routeurs
 # ======================
+include_router_safely(["backend.auth_routes", "auth_routes"], "router", prefix="/api")
 include_router_safely(["backend.api_routes", "api_routes"], "router", prefix="/api")
 include_router_safely(["backend.sentiment_routes", "sentiment_routes"], "router", prefix="/api")
-include_router_safely(["backend.digest_routes", "digest_routes"], "router")  # mettez le prefix dans le fichier si besoin
-include_router_safely(["backend.analytics_routes", "analytics_routes"], "router")
+include_router_safely(["backend.digest_routes", "digest_routes"], "router", prefix="/api")
+include_router_safely(["backend.analytics_routes", "analytics_routes"], "router", prefix="/api")
 include_router_safely(["backend.social_routes", "social_routes"], "router", prefix="/api/social")
 
 # --- Transcriptions : accepte module avec ou sans prefix interne
@@ -154,7 +168,10 @@ if _transcription_router:
         logger.info("✅ transcription_routes inclus (prefix interne: %s)", internal_prefix)
     else:
         app.include_router(_transcription_router, prefix="/api/transcriptions")
-        logger.info("✅ transcription_routes inclus sous /api/transcriptions (prefix interne: %s)", internal_prefix or "<none>")
+        logger.info(
+            "✅ transcription_routes inclus sous /api/transcriptions (prefix interne: %s)",
+            internal_prefix or "<none>",
+        )
 else:
     logger.warning("⚠️ Ajout des endpoints mock /api/transcriptions/* (transcription_routes non chargé)")
 
@@ -215,7 +232,7 @@ if not route_registered("/api/analytics/dashboard-metrics"):
             "last_updated": datetime.utcnow().isoformat() + "Z",
         }
 
-# Sources & articles (placeholders très simples)
+# Sources & articles (placeholders très simples, compatibles front)
 if not route_registered("/api/articles/sources"):
     @app.get("/api/articles/sources", tags=["articles"])
     async def articles_sources():
@@ -224,7 +241,7 @@ if not route_registered("/api/articles/sources"):
 if not route_registered("/api/articles"):
     @app.get("/api/articles", tags=["articles"])
     async def articles_list():
-        return {"success": True, "items": []}
+        return {"success": True, "articles": []}
 
 if not route_registered("/api/search"):
     @app.get("/api/search", tags=["search"])
