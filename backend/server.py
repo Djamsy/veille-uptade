@@ -4,8 +4,7 @@ import os
 import logging
 import importlib
 from datetime import datetime
-from typing import Optional
-# en haut, avec les imports
+from typing import Optional, Iterable
 
 from fastapi import FastAPI, Request, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,9 +13,11 @@ from pymongo import MongoClient
 import certifi
 from dotenv import load_dotenv
 
-# === Chargement .env (local d'abord, sinon parent) ===
-if os.getenv("ENVIRONMENT", "development") != "production":
-    # Dev : charge depuis .env local
+# =====================================================================
+# Chargement .env (en dev uniquement : Render fournit les vars en prod)
+# =====================================================================
+ENVIRONMENT = os.environ.get("ENVIRONMENT", "development").lower()
+if ENVIRONMENT != "production":
     _CURRENT_DIR = os.path.dirname(__file__)
     LOCAL_ENV = os.path.join(_CURRENT_DIR, ".env")
     PARENT_ENV = os.path.abspath(os.path.join(_CURRENT_DIR, "..", ".env"))
@@ -25,28 +26,40 @@ if os.getenv("ENVIRONMENT", "development") != "production":
     elif os.path.exists(PARENT_ENV):
         load_dotenv(dotenv_path=PARENT_ENV, override=True)
 
-# Ensuite récupère tes variables normalement
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "").split(",")
-# === Config de base ===
-ENVIRONMENT = os.environ.get("ENVIRONMENT", "development").lower()
+# ==================
+# Variables d'env
+# ==================
 VERSION = os.environ.get("VERSION", "dev")
 MONGO_URL = os.environ.get("MONGO_URL", "").strip()
 MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME", "").strip()
 
-_allowed_origins_env = os.environ.get("ALLOWED_ORIGINS", "*")
-if ENVIRONMENT == "production" and _allowed_origins_env.strip() in ("", "*"):
-    raise RuntimeError("ALLOWED_ORIGINS doit être défini explicitement en production")
-ALLOWED_ORIGINS = ["*"] if (_allowed_origins_env.strip() == "*" and ENVIRONMENT != "production") else [
-    o.strip() for o in _allowed_origins_env.split(",") if o.strip()
-]
+def _split_list(v: str) -> list[str]:
+    return [x.strip().rstrip("/") for x in v.split(",") if x.strip()]
 
-# === Logging ===
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [%(name)s] %(message)s")
+_allowed_origins_env = os.environ.get("ALLOWED_ORIGINS", "*").strip()
+if ENVIRONMENT == "production" and _allowed_origins_env in ("", "*"):
+    raise RuntimeError("ALLOWED_ORIGINS doit être défini explicitement en production")
+
+ALLOWED_ORIGINS = (
+    ["*"]
+    if (_allowed_origins_env == "*" and ENVIRONMENT != "production")
+    else _split_list(_allowed_origins_env)
+)
+
+# =========
+# Logging
+# =========
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
 logger = logging.getLogger("veille_media_backend")
 logger.info("🔧 Lancement backend (env=%s, version=%s)", ENVIRONMENT, VERSION)
-logger.info("CORS: %s", ALLOWED_ORIGINS)
+logger.info("CORS allow_origins=%s", ALLOWED_ORIGINS)
 
-# === App FastAPI (UNE SEULE INSTANCE) ===
+# =========
+# FastAPI
+# =========
 app = FastAPI(title="Veille Média Guadeloupe API", version=VERSION)
 START_TIME = datetime.utcnow()
 
@@ -57,7 +70,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# === MongoDB ===
+
+# ======================
+# Connexion MongoDB
+# ======================
 def get_mongo_client() -> Optional[MongoClient]:
     if not MONGO_URL:
         logger.warning("MONGO_URL non défini.")
@@ -72,7 +88,7 @@ def get_mongo_client() -> Optional[MongoClient]:
         logger.info("✅ Connexion à MongoDB OK")
         return client
     except Exception as e:
-        logger.error(f"Erreur connexion MongoDB: {e}")
+        logger.error("Erreur connexion MongoDB: %s", e)
         return None
 
 mongo_client: Optional[MongoClient] = get_mongo_client()
@@ -82,116 +98,63 @@ if ENVIRONMENT == "production" and not mongo_client:
 def get_db():
     if not mongo_client:
         raise RuntimeError("Client MongoDB non disponible")
-    if MONGO_DB_NAME:
-        return mongo_client[MONGO_DB_NAME]
-    return mongo_client.get_default_database()
+    return mongo_client[MONGO_DB_NAME] if MONGO_DB_NAME else mongo_client.get_default_database()
 
-# === Import sécurisé de routeurs ===
-def include_router_safely(module_path: str, attr_name: str, prefix: Optional[str] = None):
-    try:
-        module = importlib.import_module(module_path)
-        router = getattr(module, attr_name)
-        app.include_router(router, prefix=prefix or "")
-        logger.info("✅ Router %s depuis %s %s",
-                    attr_name, module_path, f"avec prefix {prefix}" if prefix else "")
-    except Exception as e:
-        logger.warning("⚠️ Impossible d'inclure %s depuis %s: %s", attr_name, module_path, e)
+# ======================
+# Helpers d'import
+# ======================
+def include_router_safely(module_candidates: Iterable[str], attr_name: str, prefix: Optional[str] = None):
+    """
+    Essaie plusieurs chemins de module (ex: ["backend.api_routes", "api_routes"])
+    et inclut router si trouvé.
+    """
+    last_err: Optional[Exception] = None
+    for module_path in module_candidates:
+        try:
+            module = importlib.import_module(module_path)
+            router = getattr(module, attr_name)
+            app.include_router(router, prefix=prefix or "")
+            logger.info("✅ Router '%s' importé depuis %s %s",
+                        attr_name, module_path, f"(prefix={prefix})" if prefix else "")
+            return
+        except Exception as e:
+            last_err = e
+    logger.warning("⚠️ Impossible d'inclure '%s' depuis %s : %s",
+                   attr_name, list(module_candidates), last_err)
 
-# Inclure les routeurs applicatifs avec les bons préfixes
-# - api_routes doit vivre sous /api
-# - sentiment_routes aussi sous /api (il expose /sentiment/...)
-# - transcription_routes si tu l'as, sous /api/transcriptions (ou /api selon ton fichier)
-include_router_safely("backend.api_routes", "router", prefix="/api")
-include_router_safely("backend.sentiment_routes", "router", prefix="/api")
-include_router_safely("backend.digest_routes", "router")
-include_router_safely("backend.analytics_routes", "router")
-
-# --- Fallback /api/analytics/* endpoints if analytics router isn't available ---
-def _route_registered(path: str) -> bool:
+def route_registered(path: str) -> bool:
     for r in app.router.routes:
         if getattr(r, "path", None) == path:
             return True
     return False
 
-if not _route_registered("/api/analytics/articles-by-source"):
-    from datetime import datetime as _dt  # alias to avoid shadowing
+# ======================
+# Inclusion des routeurs
+# ======================
+include_router_safely(["backend.api_routes", "api_routes"], "router", prefix="/api")
+include_router_safely(["backend.sentiment_routes", "sentiment_routes"], "router", prefix="/api")
+include_router_safely(["backend.digest_routes", "digest_routes"], "router")  # mettez le prefix dans le fichier si besoin
+include_router_safely(["backend.analytics_routes", "analytics_routes"], "router")
+include_router_safely(["backend.social_routes", "social_routes"], "router", prefix="/api/social")
 
-    @app.get("/api/analytics/articles-by-source", tags=["analytics"])
-    async def analytics_articles_by_source():
-        payload = {
-            "labels": [
-                "France-Antilles Guadeloupe",
-                "RCI Guadeloupe",
-                "La 1ère Guadeloupe",
-                "KaribInfo",
-            ],
-            "series": [12, 9, 7, 4],
-        }
-        return {"success": True, **payload, "data": payload}
-
-    @app.get("/api/analytics/articles-timeline", tags=["analytics"])
-    async def analytics_articles_timeline():
-        payload = {
-            "labels": [
-                "2025-08-10",
-                "2025-08-11",
-                "2025-08-12",
-                "2025-08-13",
-                "2025-08-14",
-                "2025-08-15",
-                "2025-08-16",
-            ],
-            "series": [5, 7, 6, 9, 8, 10, 11],
-        }
-        return {"success": True, **payload, "data": payload}
-
-    @app.get("/api/analytics/sentiment-by-source", tags=["analytics"])
-    async def analytics_sentiment_by_source():
-        payload = {
-            "labels": [
-                "France-Antilles Guadeloupe",
-                "RCI Guadeloupe",
-                "La 1ère Guadeloupe",
-                "KaribInfo",
-            ],
-            "positive": [6, 5, 3, 2],
-            "neutral": [4, 3, 3, 1],
-            "negative": [2, 1, 1, 1],
-        }
-        return {"success": True, **payload, "data": payload}
-
-    @app.get("/api/analytics/dashboard-metrics", tags=["analytics"])
-    async def analytics_dashboard_metrics():
-        payload = {
-            "totals": {"articles": 32, "sources": 4, "comments": 18},
-            "last_updated": _dt.utcnow().isoformat() + "Z",
-        }
-        return {"success": True, **payload, "data": payload}
-
-include_router_safely("backend.social_routes", "router", prefix="/api/social")
-
-# --- Transcription routes (robuste: import package ou module local) ---
+# --- Transcriptions : accepte module avec ou sans prefix interne
+_transcription_router = None
 try:
-    from backend.transcription_routes import router as transcription_router  # type: ignore
+    from backend.transcription_routes import router as _transcription_router  # type: ignore
 except Exception:
     try:
-        from transcription_routes import router as transcription_router  # type: ignore
+        from transcription_routes import router as _transcription_router  # type: ignore
     except Exception as e:
-        transcription_router = None  # type: ignore
         logger.warning("⚠️ transcription_routes introuvable: %s", e)
 
-if transcription_router:
-    # Évite le double préfixe si le router a déjà un prefix interne
-    internal_prefix = getattr(transcription_router, "prefix", "") or ""
+if _transcription_router:
+    internal_prefix = getattr(_transcription_router, "prefix", "") or ""
     if internal_prefix.startswith("/api/transcriptions"):
-        app.include_router(transcription_router)  # déjà préfixé dans le module
+        app.include_router(_transcription_router)
         logger.info("✅ transcription_routes inclus (prefix interne: %s)", internal_prefix)
     else:
-        app.include_router(transcription_router, prefix="/api/transcriptions")
-        logger.info(
-            "✅ transcription_routes inclus sous /api/transcriptions (prefix interne: %s)",
-            internal_prefix or "<none>",
-        )
+        app.include_router(_transcription_router, prefix="/api/transcriptions")
+        logger.info("✅ transcription_routes inclus sous /api/transcriptions (prefix interne: %s)", internal_prefix or "<none>")
 else:
     logger.warning("⚠️ Ajout des endpoints mock /api/transcriptions/* (transcription_routes non chargé)")
 
@@ -205,11 +168,7 @@ else:
             "success": True,
             "status": {
                 "sections": {},
-                "global_status": {
-                    "any_in_progress": False,
-                    "total_sections": 0,
-                    "active_sections": 0,
-                },
+                "global_status": {"any_in_progress": False, "total_sections": 0, "active_sections": 0},
             },
         }
 
@@ -217,14 +176,97 @@ else:
     def _mock_capture_now(section: str = "", duration: int = 0):
         raise HTTPException(status_code=503, detail="transcription_routes non chargé")
 
-# === Services optionnels (scraper) ===
-try:
-    from .scraper_service import guadeloupe_scraper  # type: ignore
-except Exception as e:
-    logger.warning("⚠️ scraper_service non disponible: %s", e)
-    guadeloupe_scraper = None  # type: ignore
+# ======================
+# Fallbacks utiles si routers absents
+# ======================
+# Analytics (exemples)
+if not route_registered("/api/analytics/articles-by-source"):
+    @app.get("/api/analytics/articles-by-source", tags=["analytics"])
+    async def analytics_articles_by_source():
+        payload = {"labels": ["France-Antilles", "RCI", "La 1ère", "KaribInfo"], "series": [12, 9, 7, 4]}
+        return {"success": True, **payload, "data": payload}
 
-# === Health / Root ===
+if not route_registered("/api/analytics/articles-timeline"):
+    @app.get("/api/analytics/articles-timeline", tags=["analytics"])
+    async def analytics_articles_timeline():
+        payload = {
+            "labels": ["2025-08-10", "2025-08-11", "2025-08-12", "2025-08-13", "2025-08-14", "2025-08-15", "2025-08-16"],
+            "series": [5, 7, 6, 9, 8, 10, 11],
+        }
+        return {"success": True, **payload, "data": payload}
+
+if not route_registered("/api/analytics/sentiment-by-source"):
+    @app.get("/api/analytics/sentiment-by-source", tags=["analytics"])
+    async def analytics_sentiment_by_source():
+        payload = {
+            "labels": ["France-Antilles", "RCI", "La 1ère", "KaribInfo"],
+            "positive": [6, 5, 3, 2],
+            "neutral": [4, 3, 3, 1],
+            "negative": [2, 1, 1, 1],
+        }
+        return {"success": True, **payload, "data": payload}
+
+if not route_registered("/api/analytics/dashboard-metrics"):
+    @app.get("/api/analytics/dashboard-metrics", tags=["analytics"])
+    async def analytics_dashboard_metrics():
+        return {
+            "success": True,
+            "totals": {"articles": 32, "sources": 4, "comments": 18},
+            "last_updated": datetime.utcnow().isoformat() + "Z",
+        }
+
+# Sources & articles (placeholders très simples)
+if not route_registered("/api/articles/sources"):
+    @app.get("/api/articles/sources", tags=["articles"])
+    async def articles_sources():
+        return {"success": True, "sources": ["France-Antilles", "RCI", "La 1ère", "KaribInfo"]}
+
+if not route_registered("/api/articles"):
+    @app.get("/api/articles", tags=["articles"])
+    async def articles_list():
+        return {"success": True, "items": []}
+
+if not route_registered("/api/search"):
+    @app.get("/api/search", tags=["search"])
+    async def search(q: str = ""):
+        return {"success": True, "query": q, "results": []}
+
+if not route_registered("/api/search/suggestions"):
+    @app.get("/api/search/suggestions", tags=["search"])
+    async def search_suggestions(q: str = ""):
+        return {"success": True, "query": q, "suggestions": []}
+
+# ======================
+# Scraper optionnel
+# ======================
+try:
+    # si démarré via `uvicorn backend.server:app`, l'import relatif suffit
+    from .scraper_service import guadeloupe_scraper  # type: ignore
+except Exception:
+    try:
+        from backend.scraper_service import guadeloupe_scraper  # type: ignore
+    except Exception as e:
+        logger.warning("⚠️ scraper_service non disponible: %s", e)
+        guadeloupe_scraper = None  # type: ignore
+
+@app.post("/api/articles/scrape-now", tags=["scraping"])
+def scrape_now(payload: dict = Body(default={})):
+    if not guadeloupe_scraper:
+        raise HTTPException(status_code=500, detail="Scraper service non disponible")
+    try:
+        result = guadeloupe_scraper.run()
+        return {"success": True, "message": "Scraping lancé", "result": result}
+    except Exception as e:
+        logger.error("Erreur scraping: %s", e)
+        raise HTTPException(status_code=500, detail="Erreur interne lors du scraping")
+
+@app.get("/api/articles/scrape-status", tags=["scraping"])
+def scrape_status():
+    return {"success": True, "result": {"success": None, "progress": "running"}}
+
+# ======================
+# Health & root
+# ======================
 @app.get("/", tags=["health"])
 def root():
     return {
@@ -244,24 +286,9 @@ def health():
         }
     }
 
-# === Scraping (aligné au front) ===
-@app.post("/api/articles/scrape-now", tags=["scraping"])
-def scrape_now(payload: dict = Body(default={})):
-    if not guadeloupe_scraper:
-        raise HTTPException(status_code=500, detail="Scraper service non disponible")
-    try:
-        result = guadeloupe_scraper.run()
-        return {"success": True, "message": "Scraping lancé", "result": result}
-    except Exception as e:
-        logger.error(f"Erreur scraping: {e}")
-        raise HTTPException(status_code=500, detail="Erreur interne lors du scraping")
-
-@app.get("/api/articles/scrape-status", tags=["scraping"])
-def scrape_status():
-    # Placeholder simple pour éviter 404 côté front
-    return {"success": True, "result": {"success": None, "progress": "running"}}
-
-# === Shutdown propre ===
+# ======================
+# Shutdown & erreurs
+# ======================
 @app.on_event("shutdown")
 def shutdown_event():
     if mongo_client:
@@ -271,7 +298,6 @@ def shutdown_event():
         except Exception:
             logger.warning("Échec fermeture MongoDB")
 
-# === Gestion globale des erreurs ===
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.exception("Erreur non gérée: %s", exc)
