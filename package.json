@@ -1,4 +1,20 @@
 {
+  "name": "veille-media3",
+  "version": "0.1.0",
+  "homepage": "https://Djamsy.github.io/veille-media3",
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "dependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "react-scripts": "5.0.1"
+  },
   "devDependencies": {
     "gh-pages": "^6.3.0"
   }

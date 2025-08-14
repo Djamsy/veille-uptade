@@ -1,288 +1,286 @@
+# backend/scheduler_service.py
 """
-Service de programmation automatique des tâches
-Scraping à 10H et capture radio à 7H
+Scheduler central (APScheduler) pour la Veille Média
+- Scraping : toutes les heures (minute=0)
+- Capture radio : 7h locales
+- Digest : 12h locales
+- Nettoyage cache : 2h locales
+- Endpoints d'admin : /api/scheduler/status, /api/scheduler/run-job/{job_id}
+- Garde anti-chevauchement + démarrage unique
 """
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
-import atexit
-import logging
-from datetime import datetime
-from pymongo import MongoClient
+
 import os
+import logging
+from datetime import datetime, timedelta
+from typing import List, Dict, Any, Optional
 
-# Import des services
-try:
-    from scraper_service import guadeloupe_scraper
-    from radio_service import radio_service
-    from summary_service import summary_service
-except ImportError as e:
-    logging.error(f"Erreur import services: {e}")
+from fastapi import APIRouter, HTTPException
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+from apscheduler.job import Job
+import asyncio
 
-# Configuration logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from pymongo import MongoClient
+import certifi
 
-class VeilleScheduler:
-    def __init__(self):
-        self.scheduler = BackgroundScheduler()
-        
-        # MongoDB connection pour logs
-        MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-        self.client = MongoClient(MONGO_URL)
-        self.db = self.client.veille_media
-        self.logs_collection = self.db.scheduler_logs
-        
-        # Configuration des jobs
-        self.setup_jobs()
-        
-    def log_job_execution(self, job_name: str, success: bool, details: str = ""):
-        """Logger l'exécution d'un job"""
-        log_entry = {
-            'job_name': job_name,
-            'success': success,
-            'details': details,
-            'timestamp': datetime.now().isoformat(),
-            'date': datetime.now().strftime('%Y-%m-%d')
-        }
-        
-        self.logs_collection.insert_one(log_entry)
-        
-        if success:
-            logger.info(f"✅ Job {job_name} réussi: {details}")
-        else:
-            logger.error(f"❌ Job {job_name} échoué: {details}")
+logger = logging.getLogger("scheduler_service")
+logger.setLevel(logging.INFO)
 
-    def job_scrape_articles(self):
-        """Job de scraping des articles à 10H"""
-        try:
-            logger.info("🚀 Début du job de scraping articles...")
-            result = guadeloupe_scraper.scrape_all_sites()
-            
-            if result['success']:
-                details = f"{result['total_articles']} articles de {result['sites_scraped']} sites"
-                self.log_job_execution("scrape_articles", True, details)
-            else:
-                self.log_job_execution("scrape_articles", False, f"Erreurs: {result['errors']}")
-                
-        except Exception as e:
-            self.log_job_execution("scrape_articles", False, str(e))
+# ---- Config de base ----
+TIMEZONE = os.environ.get("TIMEZONE", "UTC")
+RUN_SCHEDULER = os.environ.get("RUN_SCHEDULER", "1") == "1"
+MONGO_URL = os.environ.get("MONGO_URL", "").strip() or "mongodb://localhost:27017"
 
-    def job_capture_radio(self):
-        """Job de capture radio à 7H"""
-        try:
-            logger.info("🚀 Début du job de capture radio...")
-            result = radio_service.capture_all_streams()
-            
-            if result['success']:
-                details = f"{result['streams_success']} flux capturés sur {result['streams_processed']}"
-                self.log_job_execution("capture_radio", True, details)
-            else:
-                self.log_job_execution("capture_radio", False, f"Erreurs: {result['errors']}")
-                
-        except Exception as e:
-            self.log_job_execution("capture_radio", False, str(e))
-
-    def job_clean_cache_24h(self):
-        """Job de nettoyage du cache après 24H"""
-        try:
-            logger.info("🧹 Début du job de nettoyage du cache 24H...")
-            
-            # Import du service de cache
-            try:
-                from cache_service import intelligent_cache
-                
-                # Nettoyer le cache expiré
-                cleaned_count = intelligent_cache.cleanup_expired_cache()
-                
-                details = f"Cache nettoyé: {cleaned_count} entrées expirées supprimées"
-                self.log_job_execution("clean_cache_24h", True, details)
-                
-                # Envoyer une alerte Telegram si service disponible
-                try:
-                    from telegram_alerts_service import telegram_alerts
-                    if telegram_alerts.bot:
-                        message = f"🧹 *Nettoyage Cache Automatique*\n\n✅ {cleaned_count} entrées expirées supprimées\n⏰ {datetime.now().strftime('%d/%m/%Y à %H:%M')}"
-                        telegram_alerts.send_alert_sync(message)
-                except:
-                    pass  # Ignore si Telegram non disponible
-                
-            except ImportError:
-                self.log_job_execution("clean_cache_24h", False, "Service de cache non disponible")
-                
-        except Exception as e:
-            self.log_job_execution("clean_cache_24h", False, str(e))
-
-    def job_create_daily_digest(self):
-        """Job de création du digest quotidien à 12H"""
-        try:
-            logger.info("🚀 Début du job de création du digest...")
-            
-            # Récupérer les données du jour
-            articles = guadeloupe_scraper.get_todays_articles()
-            transcriptions = radio_service.get_todays_transcriptions()
-            
-            # Créer le digest
-            digest_html = summary_service.create_daily_digest(articles, transcriptions)
-            
-            # Sauvegarder le digest
-            digest_record = {
-                'id': f"digest_{datetime.now().strftime('%Y%m%d')}",
-                'date': datetime.now().strftime('%Y-%m-%d'),
-                'digest_html': digest_html,
-                'articles_count': len(articles),
-                'transcriptions_count': len(transcriptions),
-                'created_at': datetime.now().isoformat()
-            }
-            
-            self.db.daily_digests.update_one(
-                {'id': digest_record['id']},
-                {'$set': digest_record},
-                upsert=True
-            )
-            
-            details = f"Digest créé: {len(articles)} articles, {len(transcriptions)} transcriptions"
-            self.log_job_execution("create_digest", True, details)
-            
-            # Envoyer alerte Telegram pour le digest
-            try:
-                from telegram_alerts_service import telegram_alerts
-                if telegram_alerts.bot:
-                    digest_message = f"""📊 *DIGEST QUOTIDIEN CRÉÉ*
-
-📰 Articles: {len(articles)}
-📻 Transcriptions: {len(transcriptions)}
-📄 Digest généré avec succès
-
-🕛 Créé le {datetime.now().strftime('%d/%m/%Y à %H:%M')}"""
-                    
-                    telegram_alerts.send_alert_sync(digest_message)
-            except:
-                pass  # Ignore si Telegram non disponible
-            
-        except Exception as e:
-            self.log_job_execution("create_digest", False, str(e))
-
-    def setup_jobs(self):
-        """Configurer les tâches programmées"""
-        
-        # Job scraping articles TOUTES LES HEURES (au lieu de 10H seulement)
-        self.scheduler.add_job(
-            func=self.job_scrape_articles,
-            trigger=CronTrigger(minute=0),  # Toutes les heures à la minute 0
-            id='scrape_articles',
-            name='Scraping Articles Horaire',
-            replace_existing=True,
-            max_instances=1
-        )
-        
-        # Job capture radio à 7H00 tous les jours
-        self.scheduler.add_job(
-            func=self.job_capture_radio,
-            trigger=CronTrigger(hour=7, minute=0),
-            id='capture_radio',
-            name='Capture Radio 7H',
-            replace_existing=True,
-            max_instances=1
-        )
-        
-        # Job création digest à 12H00 tous les jours
-        self.scheduler.add_job(
-            func=self.job_create_daily_digest,
-            trigger=CronTrigger(hour=12, minute=0),
-            id='create_digest',
-            name='Digest Quotidien 12H',
-            replace_existing=True,
-            max_instances=1
-        )
-        
-        # Job nettoyage cache après 24H (tous les jours à 2H du matin)
-        self.scheduler.add_job(
-            func=self.job_clean_cache_24h,
-            trigger=CronTrigger(hour=2, minute=0),
-            id='clean_cache_24h',
-            name='Nettoyage Cache 24H',
-            replace_existing=True,
-            max_instances=1
-        )
-        
-        logger.info("📅 Jobs programmés configurés:")
-        logger.info("   - Scraping articles: TOUTES LES HEURES")
-        logger.info("   - Capture radio: 7H00")
-        logger.info("   - Digest quotidien: 12H00")
-        logger.info("   - Nettoyage cache: 2H00 (après 24H)")
-
-    def start(self):
-        """Démarrer le scheduler"""
-        try:
-            self.scheduler.start()
-            logger.info("✅ Scheduler démarré")
-            
-            # Log de démarrage
-            self.log_job_execution("scheduler_start", True, "Scheduler démarré avec succès")
-            
-        except Exception as e:
-            logger.error(f"❌ Erreur démarrage scheduler: {e}")
-            self.log_job_execution("scheduler_start", False, str(e))
-
-    def stop(self):
-        """Arrêter le scheduler"""
-        self.scheduler.shutdown()
-        logger.info("🛑 Scheduler arrêté")
-
-    def get_job_status(self):
-        """Obtenir le statut des jobs"""
-        jobs = []
-        for job in self.scheduler.get_jobs():
-            jobs.append({
-                'id': job.id,
-                'name': job.name,
-                'next_run': job.next_run_time.isoformat() if job.next_run_time else None,
-                'trigger': str(job.trigger)
-            })
-        return jobs
-
-    def get_recent_logs(self, limit: int = 20):
-        """Récupérer les logs récents"""
-        logs = list(self.logs_collection.find({}, {'_id': 0}).sort('timestamp', -1).limit(limit))
-        return logs
-
-    def run_job_manually(self, job_id: str):
-        """Exécuter un job manuellement"""
-        try:
-            if job_id == 'scrape_articles':
-                self.job_scrape_articles()
-            elif job_id == 'capture_radio':
-                self.job_capture_radio()
-            elif job_id == 'create_digest':
-                self.job_create_daily_digest()
-            else:
-                raise ValueError(f"Job ID inconnu: {job_id}")
-            
-            return {"success": True, "message": f"Job {job_id} exécuté manuellement"}
-            
-        except Exception as e:
-            return {"success": False, "message": str(e)}
-
-# Instance globale du scheduler
-veille_scheduler = VeilleScheduler()
-
-# Démarrage automatique
-def start_scheduler():
-    """Démarrer le scheduler au démarrage de l'application"""
-    veille_scheduler.start()
-    
-    # Arrêt propre à la fermeture
-    atexit.register(lambda: veille_scheduler.stop())
-
-if __name__ == "__main__":
-    # Test du scheduler
-    start_scheduler()
-    
-    # Maintenir le programme en vie
+# Connexion Mongo (pour logs + gardes DB)
+def _get_db():
     try:
-        import time
-        while True:
-            time.sleep(60)
-    except KeyboardInterrupt:
-        logger.info("Arrêt manuel du scheduler")
-        veille_scheduler.stop()
+        client = MongoClient(MONGO_URL, tlsCAFile=certifi.where()) if MONGO_URL.startswith("mongodb+srv") else MongoClient(MONGO_URL)
+        client.admin.command("ping")
+        return client.get_default_database() or client["veille_media"]
+    except Exception as e:
+        logger.warning(f"Mongo non disponible pour le scheduler: {e}")
+        return None
+
+_db = _get_db()
+_logs = _db.scheduler_logs if _db else None
+_transcriptions = _db.radio_transcriptions if _db else None
+
+# ---- État & Locks ----
+_scheduler: Optional[AsyncIOScheduler] = None
+_started_flag: bool = False
+
+_scrape_lock = asyncio.Lock()
+_capture_lock = asyncio.Lock()
+_digest_lock = asyncio.Lock()
+_cache_lock = asyncio.Lock()
+
+# ---- Utils ----
+def _log_job(job_name: str, success: bool, details: str = ""):
+    entry = {
+        "job_name": job_name,
+        "success": success,
+        "details": details,
+        "timestamp": datetime.utcnow().isoformat(),
+        "date": datetime.utcnow().strftime("%Y-%m-%d"),
+    }
+    if _logs := _logs:
+        try:
+            _logs.insert_one(entry)
+        except Exception:
+            pass
+    (logger.info if success else logger.error)(f"[{job_name}] {'OK' if success else 'KO'} - {details}")
+
+def _lazy_imports():
+    """Import paresseux des services pour éviter les imports au chargement module (et reloader)."""
+    scraper = radio = summary = None
+    try:
+        from backend.scraper_service import guadeloupe_scraper as scraper  # type: ignore
+    except Exception as e:
+        logger.warning(f"Scraper service indisponible: {e}")
+    try:
+        # Si tu utilises encore radio_service classique :
+        from backend.radio_service import radio_service as radio  # type: ignore
+    except Exception:
+        radio = None
+    try:
+        from backend.summary_service import summary_service as summary  # type: ignore
+    except Exception:
+        summary = None
+    return scraper, radio, summary
+
+def _is_recent_capture_in_progress(max_age_min: int = 15) -> bool:
+    """Garde DB : existe-t-il une capture radio 'in_progress' récente ?"""
+    if not _transcriptions:
+        return False
+    try:
+        since = (datetime.utcnow() - timedelta(minutes=max_age_min)).isoformat()
+        found = _transcriptions.find_one({"status": "in_progress", "captured_at": {"$gte": since}})
+        return bool(found)
+    except Exception:
+        return False
+
+# ---- Jobs ----
+async def job_scrape_articles():
+    if _scrape_lock.locked():
+        logger.info("⏭️ Scrape ignoré (lock actif)")
+        return
+    async with _scrape_lock:
+        scraper, _, _ = _lazy_imports()
+        if not scraper or not hasattr(scraper, "scrape_all_sites"):
+            _log_job("scrape_articles", False, "Service scraper non disponible")
+            return
+        try:
+            logger.info("🚀 Scrape articles (horaire)")
+            # appel potentiellement bloquant => exécuter en thread
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(None, scraper.scrape_all_sites)
+            if result and result.get("success"):
+                details = f"{result.get('total_articles', 0)} articles | {result.get('sites_scraped', 0)} sites"
+                _log_job("scrape_articles", True, details)
+            else:
+                _log_job("scrape_articles", False, f"Réponse invalide: {result}")
+        except Exception as e:
+            _log_job("scrape_articles", False, str(e))
+
+async def job_capture_radio():
+    if _capture_lock.locked():
+        logger.info("⏭️ Capture ignorée (lock actif)")
+        return
+    # garde DB pour éviter chevauchement cross-process
+    if _is_recent_capture_in_progress():
+        logger.info("⏭️ Capture ignorée (déjà en cours selon DB)")
+        return
+    async with _capture_lock:
+        _, radio, _ = _lazy_imports()
+        # Si tu as migré vers des routes de capture, appelle-les ici (via fonction interne) au lieu de radio_service
+        if not radio or not hasattr(radio, "capture_all_streams"):
+            _log_job("capture_radio", False, "Service radio non disponible")
+            return
+        try:
+            logger.info("🎙️ Capture radio planifiée (7h)")
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(None, radio.capture_all_streams)
+            if result and result.get("success"):
+                details = f"{result.get('streams_success', 0)}/{result.get('streams_processed', 0)} flux"
+                _log_job("capture_radio", True, details)
+            else:
+                _log_job("capture_radio", False, f"Réponse invalide: {result}")
+        except Exception as e:
+            _log_job("capture_radio", False, str(e))
+
+async def job_create_daily_digest():
+    if _digest_lock.locked():
+        logger.info("⏭️ Digest ignoré (lock actif)")
+        return
+    async with _digest_lock:
+        scraper, radio, summary = _lazy_imports()
+        if not (scraper and radio and summary):
+            _log_job("create_digest", False, "Services requis indisponibles")
+            return
+        try:
+            logger.info("📰 Création digest (12h)")
+            loop = asyncio.get_running_loop()
+            articles = await loop.run_in_executor(None, getattr(scraper, "get_todays_articles", lambda: []) )
+            trans = await loop.run_in_executor(None, getattr(radio, "get_todays_transcriptions", lambda: []) )
+            digest_html = await loop.run_in_executor(None, lambda: summary.create_daily_digest(articles, trans))
+            if _db:
+                _db.daily_digests.update_one(
+                    {"id": f"digest_{datetime.utcnow().strftime('%Y%m%d')}"},
+                    {"$set": {
+                        "date": datetime.utcnow().strftime("%Y-%m-%d"),
+                        "digest_html": digest_html,
+                        "articles_count": len(articles),
+                        "transcriptions_count": len(trans),
+                        "created_at": datetime.utcnow().isoformat(),
+                    }},
+                    upsert=True
+                )
+            _log_job("create_digest", True, f"{len(articles)} articles / {len(trans)} transcriptions")
+        except Exception as e:
+            _log_job("create_digest", False, str(e))
+
+async def job_clean_cache_24h():
+    if _cache_lock.locked():
+        logger.info("⏭️ Nettoyage cache ignoré (lock actif)")
+        return
+    async with _cache_lock:
+        try:
+            logger.info("🧹 Nettoyage cache (2h)")
+            # import paresseux
+            try:
+                from backend.cache_service import intelligent_cache  # type: ignore
+            except Exception as e:
+                _log_job("clean_cache_24h", False, f"cache_service indisponible: {e}")
+                return
+            loop = asyncio.get_running_loop()
+            cleaned = await loop.run_in_executor(None, intelligent_cache.cleanup_expired_cache)
+            _log_job("clean_cache_24h", True, f"{cleaned} entrées expirées supprimées")
+        except Exception as e:
+            _log_job("clean_cache_24h", False, str(e))
+
+# ---- Création / attache du scheduler ----
+def _ensure_scheduler() -> AsyncIOScheduler:
+    global _scheduler, _started_flag
+    if _scheduler:
+        return _scheduler
+    _scheduler = AsyncIOScheduler(timezone=TIMEZONE, job_defaults={
+        "coalesce": True,
+        "max_instances": 1,
+        "misfire_grace_time": 60,
+    })
+    # Jobs (cron en TZ configurée)
+    _scheduler.add_job(job_scrape_articles, CronTrigger(minute=0), id="scrape_articles", replace_existing=True)
+    _scheduler.add_job(job_capture_radio,  CronTrigger(hour=7, minute=0), id="capture_radio", replace_existing=True)
+    _scheduler.add_job(job_create_daily_digest, CronTrigger(hour=12, minute=0), id="create_digest", replace_existing=True)
+    _scheduler.add_job(job_clean_cache_24h, CronTrigger(hour=2, minute=0), id="clean_cache_24h", replace_existing=True)
+    return _scheduler
+
+def attach_scheduler(app) -> None:
+    """
+    Appelé depuis server.py (on_startup) pour démarrer UNE SEULE instance.
+    """
+    global _started_flag
+    if not RUN_SCHEDULER:
+        logger.info("⏸️ RUN_SCHEDULER=0 → scheduler désactivé")
+        return
+    if getattr(app.state, "scheduler_started", False):
+        logger.info("↩️ Scheduler déjà attaché")
+        return
+    sched = _ensure_scheduler()
+    if not sched.running:
+        sched.start()
+        logger.info("✅ Scheduler démarré")
+    app.state.scheduler = sched
+    app.state.scheduler_started = True
+
+def stop_scheduler(app=None) -> None:
+    global _scheduler
+    if _scheduler and _scheduler.running:
+        _scheduler.shutdown(wait=False)
+        logger.info("🛑 Scheduler arrêté")
+    if app is not None:
+        app.state.scheduler_started = False
+
+# ---- API Router (admin) ----
+router = APIRouter()
+
+def _job_info(j: Job) -> Dict[str, Any]:
+    return {
+        "id": j.id,
+        "name": j.name,
+        "next_run_time": j.next_run_time.isoformat() if j.next_run_time else None,
+        "trigger": str(j.trigger),
+    }
+
+@router.get("/status", tags=["scheduler"])
+def scheduler_status():
+    sched = _ensure_scheduler()
+    jobs = [_job_info(j) for j in sched.get_jobs()]
+    return {"running": sched.running, "timezone": TIMEZONE, "jobs": jobs}
+
+@router.post("/run-job/{job_id}", tags=["scheduler"])
+async def run_job(job_id: str):
+    job_map = {
+        "scrape_articles": job_scrape_articles,
+        "capture_radio": job_capture_radio,
+        "create_digest": job_create_daily_digest,
+        "clean_cache_24h": job_clean_cache_24h,
+    }
+    func = job_map.get(job_id)
+    if not func:
+        raise HTTPException(status_code=404, detail=f"Job inconnu: {job_id}")
+    await func()
+    return {"success": True, "message": f"Job {job_id} exécuté"}
+
+@router.post("/toggle", tags=["scheduler"])
+def toggle(enable: bool):
+    sched = _ensure_scheduler()
+    if enable:
+        if not sched.running:
+            sched.start()
+            logger.info("▶️ Scheduler relancé via /toggle")
+    else:
+        if sched.running:
+            sched.shutdown(wait=False)
+            logger.info("⏹️ Scheduler stoppé via /toggle")
+    return {"running": sched.running}

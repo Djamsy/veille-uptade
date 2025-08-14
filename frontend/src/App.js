@@ -29,6 +29,79 @@ ChartJS.register(
   Filler
 );
 
+// --- Helpers affichage IA (normalisation + markdown léger) ---
+const escapeHtml = (s) =>
+  String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[ch]));
+
+// Ajoute des sauts de ligne quand GPT renvoie tout sur une seule ligne
+const normalizeAIText = (raw) => {
+  if (!raw) return "";
+  let t = String(raw).trim();
+
+  // Si pas (ou peu) de retours à la ligne, on en crée avant chaque **Bloc** et puces
+  const fewBreaks = (t.match(/\n/g) || []).length < 2;
+  if (fewBreaks) {
+    // retour avant chaque **XXX** (sauf si tout au début)
+    t = t.replace(/(\s+)?\*\*([^\*]+)\*\*/g, (m, sp, title, i) => `${i ? "\n" : ""}**${title}**`);
+    // transformer " - " et puces en vraies lignes
+    t = t.replace(/\s[-–—]\s+/g, "\n- ");
+    t = t.replace(/[•▪︎▫︎►▶︎◆■□]\s*/g, () => `\n- `);
+  }
+
+  // Normalisations douces
+  t = t
+    .replace(/\r/g, "")
+    .replace(/\n{3,}/g, "\n\n")               // pas plus de 1 ligne vide
+    .replace(/^\s*-\s*/gm, "• ");             // puces visuelles
+  return t;
+};
+
+// Rendu HTML simple (titres ###, **gras**, lignes et puces)
+const renderAIText = (text) => {
+  const input = normalizeAIText(text);
+  let html = escapeHtml(input);
+
+  // Titres
+  html = html.replace(/^###\s+(.*)$/gm, '<div class="ai-h3">$1</div>');
+  html = html.replace(/^##\s+(.*)$/gm,  '<div class="ai-h2">$1</div>');
+  html = html.replace(/^#\s+(.*)$/gm,   '<div class="ai-h1">$1</div>');
+
+  // Gras
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+  // Puces (lignes commençant par • )
+  html = html.replace(/^(?:•\s+.*)$/gm, (line) =>
+    `<div class="ai-li">${line.replace(/^•\s+/, "")}</div>`);
+
+  // Paragraphes + sauts
+  html = html.replace(/\n{2,}/g, '</p><p>');
+  html = html.replace(/\n/g, '<br/>');
+  html = `<p>${html}</p>`;
+
+  return (
+    <div
+      className="ai-markdown"
+      style={{ lineHeight: 1.8, whiteSpace: 'normal', color: '#1f2937' }}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
+};
+
+// --- Global styles to improve AI text readability (paragraphs, spacing, bullets) ---
+const GlobalStyles = () => (
+  <style>{`
+    .transcription-explication,
+    .extract-content,
+    .article-explication {
+      white-space: pre-line;
+      line-height: 1.7;
+    }
+    .ai-summary p { margin: 0 0 0.75rem 0; line-height: 1.7; }
+    .ai-markdown .ai-li { margin-left: 1rem; }
+    .ai-markdown strong { font-weight: 700; }
+  `}</style>
+);
+
 // Composants graphiques
 const SourceChart = ({ data }) => {
   const options = {
@@ -67,7 +140,6 @@ const SourceChart = ({ data }) => {
       }
     }
   };
-
   return <Doughnut data={data} options={options} />;
 };
 
@@ -163,11 +235,105 @@ const SentimentChart = ({ data }) => {
   return <Bar data={data} options={options} />;
 };
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+
+
+// --- Analytics normalization and safe defaults ---
+const EMPTY_DATASETS = [{ label: 'Aucune donnée', data: [] }];
+const EMPTY_ANALYTICS = {
+  labels: [],
+  series: [],
+  datasets: EMPTY_DATASETS,
+  data: { labels: [], series: [], datasets: EMPTY_DATASETS }
+};
+
+function normalizeAnalytics(resp) {
+  const r = (resp && (resp.data || resp)) || {};
+  // Try common label keys
+  const labels =
+    Array.isArray(r.labels) ? r.labels :
+    Array.isArray(r.dates) ? r.dates :
+    [];
+
+  // Build a generic "series" (single array of numbers) for simple charts
+  let series = [];
+  if (Array.isArray(r.series) && r.series.every(v => typeof v === 'number')) {
+    series = r.series;
+  } else if (Array.isArray(r.counts)) {
+    series = r.counts;
+  } else if (Array.isArray(r.values)) {
+    series = r.values;
+  } else if (Array.isArray(r.datasets) && Array.isArray(r.datasets[0]?.data)) {
+    series = r.datasets[0].data;
+  } else {
+    series = new Array(labels.length).fill(0);
+  }
+
+  // Always expose a datasets array for Chart.js
+  const datasets = Array.isArray(r.datasets) && r.datasets.length > 0
+    ? r.datasets
+    : [{ label: r.label || 'Valeurs', data: series }];
+
+  return {
+    labels,
+    series,
+    datasets,
+    data: { labels, series, datasets } // mirror under data.* for frontends that expect it
+  };
+}
+// --- End analytics normalization ---
+
+// --- Reaction prediction normalization (safe defaults) ---
+const DEFAULT_REACTION = {
+  overall_reaction: 'neutral',
+  breakdown: { positive: 0, neutral: 1, negative: 0 },
+  confidence: 0,
+  model: 'local-baseline',
+  note: null,
+};
+
+function normalizeReactionResponse(json) {
+  const p = json?.prediction ?? json ?? {};
+  return {
+    overall_reaction: p?.overall_reaction ?? DEFAULT_REACTION.overall_reaction,
+    breakdown: {
+      positive: Number(p?.breakdown?.positive ?? 0),
+      neutral: Number(p?.breakdown?.neutral ?? 1),
+      negative: Number(p?.breakdown?.negative ?? 0),
+    },
+    confidence: Number.isFinite(p?.confidence) ? p.confidence : DEFAULT_REACTION.confidence,
+    model: p?.model ?? DEFAULT_REACTION.model,
+    note: p?.note ?? null,
+  };
+}
+// --- End reaction prediction normalization ---
+// --- Helper: format AI summaries into readable HTML ---
+function prettySummary(raw) {
+  if (!raw) return "";
+  let s = String(raw).replace(/\r/g, "").trim();
+
+  // Supprimer les titres markdown (### ...)
+  s = s.replace(/(^|\n)\s*#{1,6}\s*/g, "\n\n");
+
+  // Saut de ligne avant les sections en gras
+  s = s.replace(/(\*\*[^*][^*]+\*\*)/g, (m) => `\n\n${m} `);
+
+  // Tirets → tirets longs
+  s = s.replace(/\s-\s/g, " — ");
+
+  // **gras** → <strong>
+  s = s.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+
+  // Paragraphes
+  const paragraphs = s.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+  return paragraphs.map(p => `<p>${p}</p>`).join("");
+}
+// --- End helper ---
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [dashboardStats, setDashboardStats] = useState({});
+  // ... (tous les autres useState / useEffect ici, à l’intérieur de App)
   const [articles, setArticles] = useState([]);
   const [transcriptions, setTranscriptions] = useState([]);
   const [digest, setDigest] = useState(null);
@@ -211,7 +377,7 @@ function App() {
   const [sentimentText, setSentimentText] = useState('');
   const [sentimentResult, setSentimentResult] = useState(null);
   const [sentimentLoading, setSentimentLoading] = useState(false);
-  const [reactionPrediction, setReactionPrediction] = useState(null);
+  const [reactionPrediction, setReactionPrediction] = useState(DEFAULT_REACTION);
   const [predictionLoading, setPredictionLoading] = useState(false);
   const [sentimentMode, setSentimentMode] = useState('sync'); // 'sync' ou 'async'
 
@@ -225,13 +391,13 @@ function App() {
   });
   const [availableSources, setAvailableSources] = useState([]);
   const [filteredArticles, setFilteredArticles] = useState([]);
-  const [pagination, setPagination] = useState({ total: 0, offset: 0, hasMore: false });
-  const [analyticsData, setAnalyticsData] = useState({
-    sourceChart: null,
-    timelineChart: null,
-    sentimentChart: null,
-    dashboardMetrics: null
-  });
+const [pagination, setPagination] = useState({ total: 0, offset: 0, returned: 0, hasMore: false });
+const [analyticsData, setAnalyticsData] = useState({
+  sourceChart: EMPTY_ANALYTICS,
+  timelineChart: EMPTY_ANALYTICS,
+  sentimentChart: EMPTY_ANALYTICS,
+  dashboardMetrics: {}
+});
   const [showAnalytics, setShowAnalytics] = useState(false);
   
   // États pour le mobile
@@ -1113,50 +1279,32 @@ function App() {
   };
 
   const captureRadioNow = async () => {
-    if (backgroundTasks.capturing) return;
-    
-    setBackgroundTasks(prev => ({ ...prev, capturing: true }));
-    
-    try {
-      const response = await apiCall(`${BACKEND_URL}/api/transcriptions/capture-now`, { method: 'POST' });
-      
-      if (response.success) {
-        alert(`✅ ${response.message}`);
-        
-        // Vérifier le statut périodiquement
-        const checkStatus = async () => {
-          try {
-            const statusData = await apiCall(`${BACKEND_URL}/api/transcriptions/capture-status`);
-            if (statusData.success && statusData.result) {
-              const result = statusData.result;
-              if (result.success !== undefined) {
-                // Capture terminée
-                setBackgroundTasks(prev => ({ ...prev, capturing: false }));
-                if (result.success) {
-                  alert(`🎉 Capture terminée ! ${result.streams_success} flux traités`);
-                  loadTabData('transcription', null, true);
-                  loadDashboardStats();
-                } else {
-                  alert(`⚠️ Capture terminée avec erreurs: ${result.error}`);
-                }
-                return;
-              }
-            }
-            // Continuer à vérifier
-            setTimeout(checkStatus, 15000); // Vérifier toutes les 15 secondes
-          } catch (error) {
-            console.error('Erreur vérification statut capture:', error);
-            setBackgroundTasks(prev => ({ ...prev, capturing: false }));
-          }
-        };
-        
-        setTimeout(checkStatus, 15000); // Première vérification après 15s
-      }
-    } catch (error) {
-      alert(`❌ Erreur capture: ${error.message}`);
-      setBackgroundTasks(prev => ({ ...prev, capturing: false }));
+  if (backgroundTasks.capturing) return;
+  
+  setBackgroundTasks(prev => ({ ...prev, capturing: true }));
+  
+  try {
+    // Par défaut on lance RCI (tu pourras ajouter un sélecteur)
+    const res = await apiCall(`${BACKEND_URL}/api/transcriptions/capture-now?section=rci`, { method: 'POST' });
+    if (res.success) {
+      alert(`✅ ${res.message}`);
+      // rafraîchis vite le statut puis recharges sections/statuts plus tard
+      setTimeout(() => {
+        loadTranscriptionStatus();
+      }, 1000);
+      setTimeout(() => {
+        loadTranscriptionSections();
+        loadTranscriptionStatus();
+      }, 180000); // 3 minutes
+    } else {
+      alert(`❌ Erreur: ${res.error || 'Erreur inconnue'}`);
     }
-  };
+  } catch (error) {
+    alert(`❌ Erreur capture: ${error.message}`);
+  } finally {
+    setBackgroundTasks(prev => ({ ...prev, capturing: false }));
+  }
+};
 
   // Charger les transcriptions par sections
   const loadTranscriptionSections = async () => {
@@ -1522,25 +1670,31 @@ function App() {
     }
 
     setPredictionLoading(true);
-    setReactionPrediction(null);
+    // Ne jamais remettre l'état à null pour éviter les accès undefined dans le rendu
     setError(null);
 
     try {
       const response = await apiCall(`${BACKEND_URL}/api/sentiment/predict-reaction`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           text: sentimentText.trim(),
           context: { source: 'frontend_test' }
         })
       });
 
-      if (response.success) {
-        setReactionPrediction(response.prediction);
+      if (response?.success) {
+        // Normalise toujours la réponse pour garantir la présence des champs
+        const normalized = normalizeReactionResponse(response);
+        setReactionPrediction(normalized);
       } else {
-        setError(`Erreur prédiction réaction: ${response.error}`);
+        // En cas d'erreur API, garder un objet sûr avec valeurs par défaut
+        setReactionPrediction(DEFAULT_REACTION);
+        setError(`Erreur prédiction réaction: ${response?.error || 'Réponse invalide'}`);
       }
     } catch (error) {
+      // En cas d'exception réseau/JSON, garder un objet sûr
+      setReactionPrediction(DEFAULT_REACTION);
       setError(`Erreur prédiction réaction: ${error.message}`);
     } finally {
       setPredictionLoading(false);
@@ -1589,7 +1743,13 @@ function App() {
         } else {
           setFilteredArticles(prev => [...prev, ...response.articles]);
         }
-        setPagination(response.pagination);
+                       const safePagination = {
+          total: response.pagination?.total ?? 0,
+          offset: response.pagination?.offset ?? 0,
+          returned: response.pagination?.returned ?? (response.articles?.length ?? 0),
+          hasMore: response.pagination?.hasMore ?? false
+        };
+        setPagination(safePagination);
       }
     } catch (error) {
       setError(`Erreur filtrage articles: ${error.message}`);
@@ -1610,10 +1770,10 @@ function App() {
       ]);
       
       setAnalyticsData({
-        sourceChart: sourceData.success ? sourceData : null,
-        timelineChart: timelineData.success ? timelineData : null,
-        sentimentChart: sentimentData.success ? sentimentData : null,
-        dashboardMetrics: metricsData.success ? metricsData : null
+        sourceChart: sourceData?.success ? normalizeAnalytics(sourceData) : EMPTY_ANALYTICS,
+        timelineChart: timelineData?.success ? normalizeAnalytics(timelineData) : EMPTY_ANALYTICS,
+        sentimentChart: sentimentData?.success ? normalizeAnalytics(sentimentData) : EMPTY_ANALYTICS,
+        dashboardMetrics: metricsData?.success ? (metricsData.data || metricsData.metrics || metricsData) : {}
       });
       
     } catch (error) {
@@ -1644,8 +1804,9 @@ function App() {
 
   // Charger plus d'articles (pagination)
   const loadMoreArticles = () => {
-    if (pagination.hasMore && !loading) {
-      loadFilteredArticles(filters, pagination.offset + pagination.returned);
+              if (pagination?.hasMore && !loading) {
+      const nextOffset = (pagination?.offset ?? 0) + (pagination?.returned ?? 0);
+      loadFilteredArticles(filters, nextOffset);
     }
   };
 
@@ -1685,6 +1846,7 @@ function App() {
 
   return (
     <div className="app">
+      <GlobalStyles />
       {/* Header style Apple moderne avec animations */}
       <header className="glass-header animate-slide-in-top">
         <div className="header-content">
@@ -1861,17 +2023,18 @@ function App() {
                 Suivez le pouls de votre territoire en temps réel.
               </p>
             </div>
-
-            {/* Stats narratives */}
-            {Object.keys(dashboardStats).length > 0 && (
-              <div className="">
-                <div className="" style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
-                  gap: '2rem', 
-                  marginBottom: '4rem' 
-                }}>
-                  <div className="stat-card-narrative">
+{/* Stats narratives */}
+{Object.keys(dashboardStats || {}).length > 0 && (
+  <div
+    className=""
+    style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+      gap: '2rem',
+      marginBottom: '4rem'
+    }}
+  >
+    <div className="stat-card-narrative">
                     <div className="stat-value">{dashboardStats.articles_today || dashboardStats.total_articles || 0}</div>
                     <div className="stat-label">Articles du Jour</div>
                     <div className="stat-sublabel">Actualités fraîches</div>
@@ -1889,14 +2052,13 @@ function App() {
                     <div className="stat-sublabel">Médias surveillés</div>
                   </div>
                   
-                  <div className="stat-card-narrative">
-                    <div className="stat-value">{dashboardStats.transcriptions_today || dashboardStats.total_transcriptions || 0}</div>
-                    <div className="stat-label">Transcriptions</div>
-                    <div className="stat-sublabel">Contenus audio</div>
-                  </div>
-                </div>
-              </div>
-            )}
+      <div className="stat-card-narrative">
+        <div className="stat-value">{dashboardStats.transcriptions_today || dashboardStats.total_transcriptions || 0}</div>
+        <div className="stat-label">Transcriptions</div>
+        <div className="stat-sublabel">Contenus audio</div>
+      </div>
+  </div>
+)}
 
             {/* Résultats de recherche automatique avec logos */}
             {autoSearchCompleted && Object.keys(autoSearchResults).length > 0 && (
@@ -2309,7 +2471,7 @@ function App() {
               {articles.length === 0 && !loading && (
                 <div className="articles-empty-state">
                   <div className="articles-empty-icon">
-                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWith="1.5">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                       <polyline points="14,2 14,8 20,8"/>
                       <line x1="16" y1="13" x2="8" y2="13"/>
@@ -2374,17 +2536,14 @@ function App() {
                       Source
                     </label>
                     <select
-                      value={filters.source}
-                      onChange={(e) => setFilters({...filters, source: e.target.value})}
-                      className="glass-input"
-                    >
-                      <option value="all">Toutes les sources</option>
-                      {availableSources.map(source => (
-                        <option key={source.name} value={source.name}>
-                          {source.name} ({source.count})
-                        </option>
-                      ))}
-                    </select>
+  value={filters.sortBy}
+  onChange={(e) => setFilters({ ...filters, sortBy: e.target.value })}
+  className="glass-input"
+>
+  <option value="date">Date</option>
+  <option value="source">Source</option>
+  <option value="sentiment">Sentiment</option>
+</select>
                   </div>
 
                   {/* Date de début */}
@@ -2929,7 +3088,7 @@ function App() {
                   ))
                 )}
                 
-                {Object.values(transcriptionSections).every(section => !section || section.length === 0) && (
+                {Object.values(transcriptionSections || {}).every(section => !section || section.length === 0) && (
                   <div className="glass-card" style={{ padding: '3rem', textAlign: 'center' }}>
                     <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📻</div>
                     <p style={{ color: '#6b7280', fontSize: '1.1rem' }}>Aucune transcription disponible</p>
@@ -3150,228 +3309,82 @@ function App() {
                     <p className="section-subtitle">Analyses des émissions radiophoniques</p>
                   </div>
                   <div className="section-count">
-                    {transcriptions ? transcriptions.length : 2} transcriptions
+                    {Object.values(transcriptionSections || {}).reduce((acc, arr) => acc + (arr?.length || 0), 0)} transcriptions
                   </div>
                 </div>
 
                 <div className="transcription-blocks">
-                  {/* Bloc de démonstration 1 - RCI */}
-                  <div className="transcription-block scroll-reveal">
-                    <div className="transcription-header">
-                      <div className="transcription-source">
-                        <div className="source-badge radio">
-                          <span className="source-icon">📻</span>
-                          <span className="source-name">RCI Guadeloupe</span>
-                        </div>
-                        <div className="transcription-time">14:30</div>
-                      </div>
-                      <div className="transcription-status">
-                        <span className="status-live">🔴 EN DIRECT</span>
-                      </div>
-                    </div>
+                  {(() => {
+                    const all = Object.values(transcriptionSections || {}).flat();
+                    const items = all
+                      .slice()
+                      .sort((a, b) => new Date(b.captured_at || b.uploaded_at || 0) - new Date(a.captured_at || a.uploaded_at || 0))
+                      .slice(0, 4);
 
-                    <div className="transcription-content">
-                      <h3 className="transcription-title">Journal de 14h30 - Actualités Politiques</h3>
-                      
-                      <div className="key-info-blocks">
-                        <div className="info-block subjects">
-                          <div className="block-header">
-                            <span className="block-icon">📋</span>
-                            <span className="block-title">Sujets Principaux</span>
-                          </div>
-                          <div className="block-content">
-                            <span className="subject-tag">Budget départemental</span>
-                            <span className="subject-tag">Réforme territoriale</span>
-                            <span className="subject-tag">Transports publics</span>
-                          </div>
+                    if (items.length === 0) {
+                      return (
+                        <div className="glass-card" style={{ padding: '2rem', textAlign: 'center' }}>
+                          <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>📻</div>
+                          <p style={{ color: '#6b7280' }}>Aucune transcription aujourd'hui</p>
                         </div>
+                      );
+                    }
 
-                        <div className="info-block personalities">
-                          <div className="block-header">
-                            <span className="block-icon">👥</span>
-                            <span className="block-title">Personnalités</span>
-                          </div>
-                          <div className="block-content">
-                            <span className="personality-tag">Guy Losbar</span>
-                            <span className="personality-tag">Ary Chalus</span>
-                          </div>
-                        </div>
+                    const methodLabel = (m) => (m === 'segmented_openai_whisper_api' ? '🎬 Segmenté' : '🎤 Simple');
 
-                        <div className="info-block events">
-                          <div className="block-header">
-                            <span className="block-icon">📅</span>
-                            <span className="block-title">Événements</span>
-                          </div>
-                          <div className="block-content">
-                            <div className="event-item">
-                              <span className="event-date">Aujourd'hui</span>
-                              <span className="event-title">Session plénière CD971</span>
+                    return items.map((t) => (
+                      <div key={t.id} className="transcription-block scroll-reveal">
+                        <div className="transcription-header">
+                          <div className="transcription-source">
+                            <div className="source-badge radio">
+                              <span className="source-icon">📻</span>
+                              <span className="source-name">{t.stream_name || t.section || 'Radio'}</span>
                             </div>
-                            <div className="event-item">
-                              <span className="event-date">Demain</span>
-                              <span className="event-title">Conseil communautaire</span>
+                            <div className="transcription-time">
+                              {new Date(t.captured_at || t.uploaded_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                             </div>
                           </div>
+                          <div className="transcription-status">
+                            <span className="status-completed">✅ TRAITÉ</span>
+                          </div>
                         </div>
 
-                        <div className="info-block sentiment">
-                          <div className="block-header">
-                            <span className="block-icon">📊</span>
-                            <span className="block-title">Sentiment</span>
+                        <div className="transcription-content">
+                          <h3 className="transcription-title">{t.section || t.stream_name}</h3>
+
+                          <div className="transcription-extract">
+                            <div className="extract-header">
+                              <span className="extract-icon">💬</span>
+                              <span className="extract-title">Extrait</span>
+                            </div>
+                            <div className="extract-content">
+                              <p>{t.gpt_analysis || t.ai_summary || (t.transcription_text ? `"${t.transcription_text.substring(0, 220)}..."` : '—')}</p>
+                            </div>
                           </div>
-                          <div className="block-content">
-                            <div className="sentiment-indicator">
-                              <span className="sentiment-emoji">😐</span>
-                              <span className="sentiment-label">Neutre</span>
-                              <span className="sentiment-score">0.15</span>
+
+                          <div className="transcription-footer">
+                            <div className="transcription-metrics">
+                              <span className="metric-item">
+                                <span className="metric-icon">🧩</span>
+                                <span className="metric-value">{methodLabel(t.transcription_method)}</span>
+                              </span>
+                              {t.segments_count ? (
+                                <span className="metric-item">
+                                  <span className="metric-icon">🎬</span>
+                                  <span className="metric-value">{t.segments_count} segments</span>
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="transcription-actions">
+                              <button className="action-btn secondary">
+                                <span>📄</span> Transcription
+                              </button>
                             </div>
                           </div>
                         </div>
                       </div>
-
-                      <div className="transcription-extract">
-                        <div className="extract-header">
-                          <span className="extract-icon">💬</span>
-                          <span className="extract-title">Extrait Principal</span>
-                        </div>
-                        <div className="extract-content">
-                          <p>"Le président du Conseil départemental Guy Losbar s'est exprimé ce matin sur l'évolution du budget 2025. Les priorités restent le développement économique et l'amélioration des services publics..."</p>
-                        </div>
-                      </div>
-
-                      <div className="transcription-footer">
-                        <div className="transcription-metrics">
-                          <span className="metric-item">
-                            <span className="metric-icon">⏱️</span>
-                            <span className="metric-value">28min</span>
-                          </span>
-                          <span className="metric-item">
-                            <span className="metric-icon">📝</span>
-                            <span className="metric-value">1,850 mots</span>
-                          </span>
-                          <span className="metric-item">
-                            <span className="metric-icon">🎯</span>
-                            <span className="metric-value">97% confiance</span>
-                          </span>
-                        </div>
-                        <div className="transcription-actions">
-                          <button className="action-btn secondary">
-                            <span>📄</span> Transcription complète
-                          </button>
-                          <button className="action-btn primary">
-                            <span>🧠</span> Analyser avec IA
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Bloc de démonstration 2 - Radio Caraïbes */}
-                  <div className="transcription-block scroll-reveal">
-                    <div className="transcription-header">
-                      <div className="transcription-source">
-                        <div className="source-badge radio">
-                          <span className="source-icon">📻</span>
-                          <span className="source-name">Radio Caraïbes</span>
-                        </div>
-                        <div className="transcription-time">12:00</div>
-                      </div>
-                      <div className="transcription-status">
-                        <span className="status-completed">✅ TRAITÉ</span>
-                      </div>
-                    </div>
-
-                    <div className="transcription-content">
-                      <h3 className="transcription-title">Flash Info Midi - Économie Locale</h3>
-                      
-                      <div className="key-info-blocks">
-                        <div className="info-block subjects">
-                          <div className="block-header">
-                            <span className="block-icon">📋</span>
-                            <span className="block-title">Sujets Principaux</span>
-                          </div>
-                          <div className="block-content">
-                            <span className="subject-tag">Tourisme</span>
-                            <span className="subject-tag">Agriculture</span>
-                            <span className="subject-tag">Innovation</span>
-                          </div>
-                        </div>
-
-                        <div className="info-block personalities">
-                          <div className="block-header">
-                            <span className="block-icon">👥</span>
-                            <span className="block-title">Personnalités</span>
-                          </div>
-                          <div className="block-content">
-                            <span className="personality-tag">Directeur CCI</span>
-                            <span className="personality-tag">Président CGPME</span>
-                          </div>
-                        </div>
-
-                        <div className="info-block events">
-                          <div className="block-header">
-                            <span className="block-icon">📅</span>
-                            <span className="block-title">Événements</span>
-                          </div>
-                          <div className="block-content">
-                            <div className="event-item">
-                              <span className="event-date">Cette semaine</span>
-                              <span className="event-title">Salon de l'innovation</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="info-block sentiment">
-                          <div className="block-header">
-                            <span className="block-icon">📊</span>
-                            <span className="block-title">Sentiment</span>
-                          </div>
-                          <div className="block-content">
-                            <div className="sentiment-indicator">
-                              <span className="sentiment-emoji">😊</span>
-                              <span className="sentiment-label">Positif</span>
-                              <span className="sentiment-score">0.72</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="transcription-extract">
-                        <div className="extract-header">
-                          <span className="extract-icon">💬</span>
-                          <span className="extract-title">Extrait Principal</span>
-                        </div>
-                        <div className="extract-content">
-                          <p>"Les chiffres du tourisme sont encourageants pour cette saison. L'innovation dans le secteur agricole ouvre de nouvelles perspectives d'emploi pour les jeunes guadeloupéens..."</p>
-                        </div>
-                      </div>
-
-                      <div className="transcription-footer">
-                        <div className="transcription-metrics">
-                          <span className="metric-item">
-                            <span className="metric-icon">⏱️</span>
-                            <span className="metric-value">15min</span>
-                          </span>
-                          <span className="metric-item">
-                            <span className="metric-icon">📝</span>
-                            <span className="metric-value">980 mots</span>
-                          </span>
-                          <span className="metric-item">
-                            <span className="metric-icon">🎯</span>
-                            <span className="metric-value">92% confiance</span>
-                          </span>
-                        </div>
-                        <div className="transcription-actions">
-                          <button className="action-btn secondary">
-                            <span>📄</span> Transcription complète
-                          </button>
-                          <button className="action-btn primary">
-                            <span>🧠</span> Analyser avec IA
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                    ));
+                  })()}
                 </div>
               </div>
 
@@ -4260,7 +4273,7 @@ function App() {
                 <div style={{ marginBottom: '2rem' }}>
                   <h4 style={{ color: '#8b5cf6', marginBottom: '1rem' }}>👥 Réactions par Segment de Population</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
-                    {Object.entries(reactionPrediction.population_reaction.by_demographic).map(([segment, data]) => (
+                    {Object.entries(reactionPrediction.population_reaction.by_demographic || {}).map(([segment, data]) => (
                       <div key={segment} style={{
                         padding: '1rem',
                         background: 'rgba(75, 85, 99, 0.1)',

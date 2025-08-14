@@ -12,6 +12,8 @@ from typing import List, Dict, Any, Optional
 import re
 import json
 from pymongo import MongoClient
+import feedparser
+from urllib.parse import quote_plus
 
 # Configuration logging
 logging.basicConfig(level=logging.INFO)
@@ -19,12 +21,33 @@ logger = logging.getLogger(__name__)
 
 class SocialMediaScraper:
     def __init__(self):
+        self.noapi_mode = os.environ.get('SOCIAL_NOAPI_MODE', 'true').lower() == 'true'
+
+        self.nitter_instances = [
+            "https://nitter.net",
+            "https://nitter.fdn.fr",
+            "https://nitter.privacy.com.de",
+            "https://nitter.poast.org",
+            "https://nitter.cz",
+        ]
+
+        # Flux Youtube publics (ajoute tes chaînes)
+        self.youtube_feeds = [
+            # "https://www.youtube.com/feeds/videos.xml?channel_id=UCxxxxxxxxxxxx",
+        ]
+
+        # Flux RSS locaux (presse / institutions)
+        self.rss_sources = [
+            "https://la1ere.francetvinfo.fr/guadeloupe/rss",
+            "https://www.franceantilles.fr/rss",
+        ]
         # MongoDB connection
         MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
         try:
             self.client = MongoClient(MONGO_URL)
             self.db = self.client.veille_media
             self.social_collection = self.db.social_media_posts
+            self.ensure_indexes()
             logger.info("✅ Connexion MongoDB réussie pour réseaux sociaux")
         except Exception as e:
             logger.error(f"❌ Erreur MongoDB: {e}")
@@ -45,6 +68,63 @@ class SocialMediaScraper:
         
         self.max_posts_per_keyword = 20
         self.rate_limit_delay = 2  # secondes entre les requêtes
+
+    def ensure_indexes(self):
+        """Créer des index Mongo utiles (id unique, dates, texte)."""
+        try:
+            self.social_collection.create_index([("id", 1)], unique=True)
+            self.social_collection.create_index([("date", 1)])
+            self.social_collection.create_index([("platform", 1)])
+            self.social_collection.create_index([("scraped_at", -1)])
+            self.social_collection.create_index([("keyword_searched", 1)])
+            # Index texte pour recherche plein-texte basique (si supporté)
+            try:
+                self.social_collection.create_index(
+                    [("content", "text"), ("author", "text")],
+                    name="content_text_idx"
+                )
+            except Exception as ie:
+                logger.warning(f"Index texte non créé (peut ne pas être supporté) : {ie}")
+        except Exception as e:
+            logger.warning(f"Création d'index échouée: {e}")
+
+    def search_posts(self, query: str, limit: int = 40) -> Dict[str, Any]:
+        """Recherche simple dans les posts enregistrés (content, author, keyword_searched)."""
+        q = (query or "").strip()
+        if not q:
+            return {"query": q, "total_results": 0, "posts": []}
+        try:
+            rx = re.compile(re.escape(q), re.IGNORECASE)
+            mongo_filter = {
+                "$or": [
+                    {"content": rx},
+                    {"author": rx},
+                    {"keyword_searched": rx},
+                ]
+            }
+            docs = list(
+                self.social_collection.find(mongo_filter, {"_id": 0})
+                .sort("scraped_at", -1)
+                .limit(int(limit) if limit else 40)
+            )
+            return {"query": q, "total_results": len(docs), "posts": docs}
+        except Exception as e:
+            logger.error(f"❌ Erreur recherche posts '{q}': {e}")
+            return {"query": q, "total_results": 0, "posts": [], "error": str(e)}
+
+    def start_scrape(self, keywords: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Démarrer un scraping immédiat et sauvegarder les posts en base."""
+        results = self.scrape_all_keywords(keywords)
+        posts = (
+            results.get("twitter", [])
+            + results.get("facebook", [])
+            + results.get("instagram", [])
+            + results.get("news", [])
+            + results.get("youtube", [])
+        )
+        saved = self.save_posts_to_db(posts)
+        results["saved"] = saved
+        return results
 
     def install_dependencies(self):
         """Installer les dépendances nécessaires (désactivé en production)"""
@@ -313,61 +393,73 @@ class SocialMediaScraper:
         """Scraper les réseaux sociaux pour récupérer de vrais commentaires - SANS données de démonstration"""
         if not keywords:
             keywords = self.keywords_guadeloupe[:3]
-        
+
         results = {
             'twitter': [],
             'facebook': [],
             'instagram': [],
+            'news': [],
+            'youtube': [],
             'total_posts': 0,
             'keywords_searched': keywords,
             'scraped_at': datetime.now().isoformat(),
             'demo_mode': False,
-            'note': 'Scraping réel uniquement'
+            'note': 'Scraping réel avec fallbacks sans API (Nitter/Flux RSS/YouTube)'
         }
-        
-        logger.info(f"🚀 Scraping réel pour {len(keywords)} mots-clés (sans données de démo)")
-        
-        # Scraper chaque plateforme
+
+        logger.info(f"🚀 Scraping pour {len(keywords)} mots-clés (noapi_mode={self.noapi_mode})")
+
         for keyword in keywords:
             try:
-                # Twitter
                 twitter_posts = self.scrape_twitter_keyword(keyword, self.max_posts_per_keyword)
                 results['twitter'].extend(twitter_posts)
                 logger.info(f"Twitter {keyword}: {len(twitter_posts)} posts")
-                
-                # Facebook (avec timeout plus court)
+
+                # Fallback Nitter si bloqué ou noapi_mode activé
+                if self.noapi_mode or len(twitter_posts) == 0:
+                    n_posts = self._try_nitter_search(keyword, max_items=20)
+                    if n_posts:
+                        logger.info(f"Nitter fallback {keyword}: +{len(n_posts)} posts")
+                        results['twitter'].extend(n_posts)
+
+                # News (Google News RSS) + sources locales
+                news_from_google = self.google_news_rss(keyword, limit=15)
+                results['news'].extend(news_from_google)
+                for rss in self.rss_sources:
+                    results['news'].extend(self.fetch_rss_feed(rss, platform_tag="news", keyword=keyword, limit=10))
+
+                # Facebook/Instagram (limités)
                 try:
                     facebook_posts = asyncio.run(self.scrape_facebook_keyword(keyword, 10))
                     results['facebook'].extend(facebook_posts)
-                    logger.info(f"Facebook {keyword}: {len(facebook_posts)} posts")
                 except Exception as fb_error:
                     logger.warning(f"Facebook scraping échoué pour {keyword}: {fb_error}")
-                
-                # Instagram (basique)
+
                 try:
                     instagram_posts = self.scrape_instagram_basic(keyword, 5)
                     results['instagram'].extend(instagram_posts)
-                    logger.info(f"Instagram {keyword}: {len(instagram_posts)} posts")
                 except Exception as ig_error:
                     logger.warning(f"Instagram scraping échoué pour {keyword}: {ig_error}")
-                
-                # Délai entre les mots-clés
+
                 time.sleep(self.rate_limit_delay)
-                
+
             except Exception as e:
                 logger.error(f"Erreur scraping pour {keyword}: {e}")
                 continue
-        
-        # Calculer totaux
-        results['total_posts'] = len(results['twitter']) + len(results['facebook']) + len(results['instagram'])
-        
-        logger.info(f"✅ Scraping terminé: {results['total_posts']} posts réels récupérés")
-        
-        # Si aucun résultat, indiquer pourquoi
+
+        # YouTube (global)
+        try:
+            results['youtube'] = self.scrape_youtube_basic()
+        except Exception as yerr:
+            logger.warning(f"YouTube feeds erreur: {yerr}")
+            results['youtube'] = []
+
+        results['total_posts'] = sum(len(results[k]) for k in ['twitter','facebook','instagram','news','youtube'])
+
         if results['total_posts'] == 0:
-            results['note'] = 'Aucun post trouvé - vérifier la disponibilité des plateformes et les mots-clés'
-            logger.warning("⚠️ Aucun post récupéré. APIs peut-être limitées ou mots-clés inadéquats.")
-        
+            results['note'] = 'Aucun post trouvé — X/Twitter peut bloquer; RSS/Nitter/YouTube ajoutés en fallback.'
+            logger.warning("⚠️ Aucun post récupéré. Vérifier les miroirs Nitter et les flux RSS.")
+
         return results
 
     def save_posts_to_db(self, posts: List[Dict[str, Any]]) -> int:
@@ -487,3 +579,78 @@ if __name__ == "__main__":
     all_posts = results['twitter'] + results['facebook'] + results['instagram']
     saved = social_scraper.save_posts_to_db(all_posts)
     print(f"Sauvegardés: {saved} posts")
+    def _normalize_post(self, *, pid, platform, keyword, content, author, url, created_at=None, extra=None):
+        data = {
+            "id": pid,
+            "platform": platform,
+            "keyword_searched": keyword,
+            "content": (content or "").strip(),
+            "author": author or "",
+            "author_followers": 0,
+            "created_at": created_at or datetime.now().isoformat(),
+            "engagement": {"likes": 0, "retweets": 0, "replies": 0, "comments": 0, "shares": 0, "total": 0},
+            "url": url,
+            "scraped_at": datetime.now().isoformat(),
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "is_reply": False,
+            "language": "fr",
+            "demo_data": False,
+        }
+        if extra:
+            data.update(extra)
+        return data
+
+    def fetch_rss_feed(self, url, platform_tag="news", keyword=None, limit=20):
+        items = []
+        feed = feedparser.parse(url)
+        if getattr(feed, "entries", None):
+            for e in feed.entries[:limit]:
+                link = getattr(e, "link", "")
+                title = getattr(e, "title", "")
+                summary = getattr(e, "summary", "")
+                published = getattr(e, "published", datetime.now().isoformat())
+                pid = f"{platform_tag}_{abs(hash((link or title) + (keyword or platform_tag)))}"
+                content = f"{title}\n{summary}".strip()
+                items.append(self._normalize_post(
+                    pid=pid, platform=platform_tag, keyword=keyword or platform_tag,
+                    content=content, author="", url=link or url, created_at=published
+                ))
+        return items
+
+    def google_news_rss(self, keyword, limit=20):
+        q = quote_plus(keyword)
+        url = f"https://news.google.com/rss/search?q={q}&hl=fr&gl=FR&ceid=FR:fr"
+        return self.fetch_rss_feed(url, platform_tag="news", keyword=keyword, limit=limit)
+
+    def _try_nitter_search(self, keyword, max_items=20):
+        posts = []
+        query = f'{keyword} (guadeloupe OR gwada OR 971 OR antilles)'
+        q = quote_plus(query)
+        for base in self.nitter_instances:
+            url = f"{base}/search/rss?f=tweets&amp;q={q}"
+            feed = feedparser.parse(url)
+            entries = getattr(feed, "entries", None)
+            if not entries:
+                continue
+            for entry in entries[:max_items]:
+                link = getattr(entry, "link", "")
+                title = getattr(entry, "title", "")
+                summary = getattr(entry, "summary", "")
+                author = getattr(entry, "author", "nitter")
+                published = getattr(entry, "published", datetime.now().isoformat())
+                content = f"{title}\n{summary}".strip()
+                pid = f"nitter_{abs(hash(link or content))}"
+                posts.append(self._normalize_post(
+                    pid=pid, platform="twitter", keyword=keyword,
+                    content=content, author=author, url=link or url, created_at=published,
+                    extra={"source": base}
+                ))
+            if posts:
+                break
+        return posts
+
+    def scrape_youtube_basic(self, limit_per_feed=8):
+        all_items = []
+        for feed_url in self.youtube_feeds:
+            all_items.extend(self.fetch_rss_feed(feed_url, platform_tag="youtube", keyword="youtube", limit=limit_per_feed))
+        return all_items

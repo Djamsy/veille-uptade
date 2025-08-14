@@ -190,6 +190,92 @@ Voici la transcription :"""
                 'message': f'Erreur test OpenAI: {str(e)}'
             }
 
+    def predict_reaction(self, text: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Prédit la réaction du public guadeloupéen à un texte.
+        Retourne un dict avec les clés:
+        - overall_reaction: "favorable" | "mitigé" | "tendu"
+        - risk_level: "low" | "medium" | "high"
+        - likely_discussion_channels: [str, ...]
+        - confidence: float 0..1
+        - reasoning: str
+        """
+        try:
+            if not text or len(text.strip()) < 5:
+                return {
+                    "overall_reaction": "mitigé",
+                    "risk_level": "medium",
+                    "likely_discussion_channels": ["Facebook", "X/Twitter"],
+                    "confidence": 0.5,
+                    "reasoning": "Texte trop court pour une analyse fiable."
+                }
+
+            if not self.client:
+                # Heuristique locale si pas de client OpenAI
+                tokens = text.lower().split()
+                pos = sum(w in {"bien","positif","succès","bonne","approuvé","excellent"} for w in tokens)
+                neg = sum(w in {"scandale","crise","tendu","grave","échec","colère"} for w in tokens)
+                if pos > neg:
+                    return {"overall_reaction":"favorable","risk_level":"low","likely_discussion_channels":["Facebook","X/Twitter"],"confidence":0.6,"reasoning":"Heuristique locale (pas d'API OpenAI)"}
+                elif neg > pos:
+                    return {"overall_reaction":"tendu","risk_level":"high","likely_discussion_channels":["Facebook","X/Twitter"],"confidence":0.65,"reasoning":"Heuristique locale (pas d'API OpenAI)"}
+                else:
+                    return {"overall_reaction":"mitigé","risk_level":"medium","likely_discussion_channels":["Facebook","X/Twitter"],"confidence":0.55,"reasoning":"Heuristique locale (pas d'API OpenAI)"}
+
+            system = (
+                "Tu es un analyste d'opinion publique en Guadeloupe. "
+                "Rends STRICTEMENT un JSON avec les clés: "
+                "overall_reaction (favorable|mitigé|tendu), "
+                "risk_level (low|medium|high), "
+                'likely_discussion_channels (liste courte de chaînes, ex: ["Facebook","X/Twitter"]), '
+                "confidence (0..1), reasoning (phrase courte)."
+            )
+            user = (
+                f"Texte à évaluer:\n{text}\n\n"
+                f"Contexte: {context or {}}"
+            )
+
+            resp = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role":"system","content":system},
+                          {"role":"user","content":user}],
+                temperature=0.2,
+                max_tokens=250,
+                timeout=30
+            )
+            raw = (resp.choices[0].message.content or "").strip()
+
+            import json
+            try:
+                data = json.loads(raw)
+            except Exception:
+                # Si le modèle ne renvoie pas un JSON strict, on fournit un repli propre
+                data = {
+                    "overall_reaction": "mitigé",
+                    "risk_level": "medium",
+                    "likely_discussion_channels": ["Facebook","X/Twitter"],
+                    "confidence": 0.6,
+                    "reasoning": "Sortie non-JSON, valeurs par défaut."
+                }
+
+            # Normalisation
+            return {
+                "overall_reaction": data.get("overall_reaction", "mitigé"),
+                "risk_level": data.get("risk_level", "medium"),
+                "likely_discussion_channels": data.get("likely_discussion_channels", ["Facebook","X/Twitter"]),
+                "confidence": float(data.get("confidence", 0.6)),
+                "reasoning": data.get("reasoning", "Analyse générée.")
+            }
+        except Exception as e:
+            logger.exception("Erreur predict_reaction")
+            return {
+                "overall_reaction": "mitigé",
+                "risk_level": "medium",
+                "likely_discussion_channels": ["Facebook","X/Twitter"],
+                "confidence": 0.5,
+                "reasoning": f"Fallback suite à erreur: {str(e)[:120]}"
+            }
+
 # Instance globale du service GPT
 gpt_analyzer = GPTAnalysisService()
 

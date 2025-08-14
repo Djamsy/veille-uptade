@@ -7,8 +7,6 @@ import logging
 import re
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-from pymongo import MongoClient
-import os
 
 # Imports conditionnels pour éviter les erreurs de déploiement
 try:
@@ -16,7 +14,6 @@ try:
     from sumy.nlp.tokenizers import Tokenizer
     from sumy.summarizers.text_rank import TextRankSummarizer  
     from sumy.summarizers.lex_rank import LexRankSummarizer
-    from sumy.nlp.stemmers import Stemmer
     SUMY_AVAILABLE = True
 except ImportError as e:
     logging.warning(f"Sumy not available: {e}. Using basic summarization.")
@@ -61,8 +58,6 @@ class FreeSummaryService:
 
     def _extract_sentences_basic(self, text: str, max_sentences: int) -> List[str]:
         """Extraction basique sans aucune dépendance lourde - PRODUCTION SAFE"""
-        import re
-        
         # Diviser en phrases avec regex
         sentences = re.split(r'[.!?]+', text)
         sentences = [s.strip() for s in sentences if len(s.strip()) > 20]
@@ -83,49 +78,14 @@ class FreeSummaryService:
         # Trier par score et retourner les meilleures
         scored_sentences.sort(key=lambda x: x[1], reverse=True)
         return [s[0] for s in scored_sentences[:max_sentences]]
-        
-        if len(sentences) <= max_sentences:
-            return sentences
-        
-        # Scoring basique
-        sentence_scores = {}
-        
-        for i, sentence in enumerate(sentences):
-            score = 0
-            
-            # Points pour les mots-clés de Guadeloupe
-            guadeloupe_keywords = ['guadeloupe', 'antilles', 'conseil', 'départemental', 'losbar', 'maire', 'région', 'guy']
-            for keyword in guadeloupe_keywords:
-                if keyword in sentence.lower():
-                    score += 3
-            
-            # Points pour la longueur (ni trop courte ni trop longue)
-            length = len(sentence.split())
-            if 10 <= length <= 30:
-                score += 2
-            
-            # Points pour la position (début = plus important)
-            if i < len(sentences) * 0.3:
-                score += 2
-            
-            # Points pour les mots importants
-            important_words = ['important', 'annonce', 'décision', 'nouveau', 'nouvelle', 'projet', 'développement']
-            for word in important_words:
-                if word in sentence.lower():
-                    score += 1
-            
-            sentence_scores[sentence] = score
-        
-        # Retourner les meilleures phrases
-        sorted_sentences = sorted(sentence_scores.items(), key=lambda x: x[1], reverse=True)
-        return [sent[0] for sent in sorted_sentences[:max_sentences]]
 
     def summarize_with_textrank(self, text: str, sentence_count: int = 2) -> str:
         """Résumer avec TextRank"""
         try:
+            if not SUMY_AVAILABLE or self.textrank_summarizer is None:
+                return ""
             parser = PlaintextParser.from_string(text, Tokenizer("french"))
             summary = self.textrank_summarizer(parser.document, sentence_count)
-            
             return " ".join([str(sentence) for sentence in summary])
         except Exception as e:
             logger.error(f"Erreur TextRank: {e}")
@@ -134,9 +94,10 @@ class FreeSummaryService:
     def summarize_with_lexrank(self, text: str, sentence_count: int = 2) -> str:
         """Résumer avec LexRank"""
         try:
+            if not SUMY_AVAILABLE or self.lexrank_summarizer is None:
+                return ""
             parser = PlaintextParser.from_string(text, Tokenizer("french"))
             summary = self.lexrank_summarizer(parser.document, sentence_count)
-            
             return " ".join([str(sentence) for sentence in summary])
         except Exception as e:
             logger.error(f"Erreur LexRank: {e}")
@@ -602,3 +563,382 @@ if __name__ == "__main__":
     result = summary_service.create_formatted_summary(test_text)
     print("Résumé formaté:")
     print(result)
+"""
+Service de résumé + Digest MongoDB (léger, production-safe)
+- Résumés HTML (FreeSummaryService)
+- Agrégation/persistance du Digest quotidien directement en base
+- Aucune dépendance lourde (spaCy/torch/transformers interdites)
+"""
+import os
+import logging
+import re
+from typing import List, Dict, Any, Optional
+from datetime import datetime
+from pymongo import MongoClient
+
+# --- Sumy (optionnel) ---------------------------------------------------------
+try:
+    from sumy.parsers.plaintext import PlaintextParser
+    from sumy.nlp.tokenizers import Tokenizer
+    from sumy.summarizers.text_rank import TextRankSummarizer
+    from sumy.summarizers.lex_rank import LexRankSummarizer
+    SUMY_AVAILABLE = True
+except ImportError as e:
+    logging.warning(f"Sumy not available: {e}. Using basic summarization.")
+    SUMY_AVAILABLE = False
+
+# --- Logging ------------------------------------------------------------------
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("backend.summary_service")
+
+# ==============================================================================
+#  A) SERVICE DE RÉSUMÉ LÉGER (identique à ton implémentation précédente)
+# ==============================================================================
+class FreeSummaryService:
+    def __init__(self):
+        """Initialiser le service de résumé en mode production sécurisé"""
+        self.nlp = None
+        logger.info("✅ Service de résumé initialisé (mode production allégé)")
+        if SUMY_AVAILABLE:
+            try:
+                self.textrank_summarizer = TextRankSummarizer()
+                self.lexrank_summarizer = LexRankSummarizer()
+                logger.info("✅ Sumy summarizers loaded")
+            except Exception as e:
+                logger.warning(f"Could not load sumy summarizers: {e}")
+                self.textrank_summarizer = None
+                self.lexrank_summarizer = None
+        else:
+            self.textrank_summarizer = None
+            self.lexrank_summarizer = None
+
+    def extract_key_sentences(self, text: str, max_sentences: int = 3) -> List[str]:
+        if not text or not text.strip():
+            return []
+        try:
+            return self._extract_sentences_basic(text, max_sentences)
+        except Exception as e:
+            logger.warning(f"Erreur extraction phrases clés: {e}")
+            return []
+
+    def _extract_sentences_basic(self, text: str, max_sentences: int) -> List[str]:
+        sentences = re.split(r'[.!?]+', text)
+        sentences = [s.strip() for s in sentences if len(s.strip()) > 20]
+        if not sentences:
+            return []
+        scored = []
+        for i, sentence in enumerate(sentences[:20]):
+            position_score = 1.0 - (i / max(1, len(sentences)))
+            length_score = min(len(sentence) / 100, 1.0)
+            total = (position_score * 0.6) + (length_score * 0.4)
+            scored.append((sentence, total))
+        scored.sort(key=lambda x: x[1], reverse=True)
+        return [s for s, _ in scored[:max_sentences]]
+
+    def summarize_with_textrank(self, text: str, sentence_count: int = 2) -> str:
+        try:
+            if not SUMY_AVAILABLE or self.textrank_summarizer is None:
+                return ""
+            parser = PlaintextParser.from_string(text, Tokenizer("french"))
+            summary = self.textrank_summarizer(parser.document, sentence_count)
+            return " ".join(str(s) for s in summary)
+        except Exception as e:
+            logger.error(f"Erreur TextRank: {e}")
+            return ""
+
+    def summarize_with_lexrank(self, text: str, sentence_count: int = 2) -> str:
+        try:
+            if not SUMY_AVAILABLE or self.lexrank_summarizer is None:
+                return ""
+            parser = PlaintextParser.from_string(text, Tokenizer("french"))
+            summary = self.lexrank_summarizer(parser.document, sentence_count)
+            return " ".join(str(s) for s in summary)
+        except Exception as e:
+            logger.error(f"Erreur LexRank: {e}")
+            return ""
+
+    def extract_title_from_text(self, text: str) -> str:
+        if not text or not text.strip():
+            return "Information"
+        sentences = text.split('.')
+        for sentence in sentences[:3]:
+            s = sentence.strip()
+            if 10 <= len(s) <= 80:
+                return s
+        words = text.split()
+        return " ".join(words[:8]) + "..." if len(words) > 8 else " ".join(words)
+
+    def create_formatted_summary(self, text: str, max_points: int = 5) -> str:
+        if not text or not text.strip():
+            return "<p>Aucun contenu à résumer.</p>"
+        try:
+            key_sentences = self.extract_key_sentences(text, max_points)
+            if not key_sentences:
+                tr = self.summarize_with_textrank(text, max_points)
+                if tr:
+                    key_sentences = tr.split('. ')
+            if not key_sentences:
+                sentences = text.split('.')
+                key_sentences = [s.strip() for s in sentences[:max_points] if s.strip() and len(s.strip()) > 20]
+
+            formatted = []
+            for sentence in key_sentences:
+                sentence = sentence.strip().rstrip('.')
+                if not sentence:
+                    continue
+                title = self.extract_title_from_text(sentence)
+                explanation = sentence if len(sentence) <= 150 else sentence[:147] + "..."
+                formatted.append(f"<strong>{title}</strong><br>{explanation}")
+
+            if formatted:
+                return "<br><br>".join(formatted)
+            return f"<strong>Information</strong><br>{text[:200]}{'...' if len(text) > 200 else ''}"
+        except Exception as e:
+            logger.error(f"Erreur création résumé formaté: {e}")
+            return f"<strong>Information</strong><br>{text[:200]}{'...' if len(text) > 200 else ''}"
+
+    def summarize_articles(self, articles: List[Dict[str, Any]]) -> str:
+        if not articles:
+            return "<p>Aucun article à résumer.</p>"
+        summaries = []
+        for a in articles[:10]:
+            title = a.get("title", "Article")
+            url = a.get("url", "#")
+            source = a.get("source", "Source inconnue")
+            summaries.append(f'<strong><a href="{url}" target="_blank">{title}</a></strong><br>Source: {source}')
+        return "<br><br>".join(summaries)
+
+    def summarize_transcriptions(self, transcriptions: List[Dict[str, Any]]) -> str:
+        if not transcriptions:
+            return "<p>Aucune transcription radio disponible pour cette journée.</p>"
+        out = []
+        for t in transcriptions:
+            stream_name = t.get("stream_name", t.get("section", "Radio"))
+            start_time = t.get("start_time", "")
+            captured_at = t.get("captured_at", "")
+            ai_summary = t.get("ai_summary", "")
+            ai_keywords = t.get("ai_keywords", [])
+            ai_relevance_score = t.get("ai_relevance_score", 0)
+            raw_text = t.get("transcription_text", "")
+            content_to_use = ai_summary if ai_summary and ai_summary != raw_text else raw_text
+            if content_to_use and len(content_to_use.strip()) > 10:
+                time_info = f" ({start_time})" if start_time else ""
+                if captured_at:
+                    date_part = captured_at[:10] if len(captured_at) >= 10 else ""
+                    time_part = captured_at[11:16] if len(captured_at) >= 16 else ""
+                    time_info = f" - {date_part} {time_part}"
+                title = f"<strong>📻 {stream_name}{time_info}</strong>"
+                if ai_summary and ai_summary != raw_text:
+                    content = ai_summary
+                else:
+                    content = self._clean_and_shorten_transcription(content_to_use, 200)
+                keywords_html = ""
+                if ai_keywords:
+                    keywords_html = f"<br><em>Mots-clés: {', '.join(ai_keywords[:5])}</em>"
+                relevance_html = ""
+                if ai_relevance_score and ai_relevance_score > 0.3:
+                    stars = "⭐" * min(int(ai_relevance_score * 5), 5)
+                    relevance_html = f"<br><small>Pertinence: {stars} ({int(ai_relevance_score * 100)}%)</small>"
+                block = f"""{title}
+{content}
+{keywords_html}
+{relevance_html}
+<p></p>""".strip()
+                out.append(block)
+        if not out:
+            return "<p>Aucune transcription radio valide pour cette journée.</p>"
+        return "<br><hr><br>".join(out)
+
+    def _clean_and_shorten_transcription(self, text: str, max_length: int = 200) -> str:
+        if not text:
+            return "Transcription non disponible"
+        clean_text = re.sub(r'\b(euh+|heu+|ben|alors|donc|voilà|quoi|hein)\b', ' ', text, flags=re.IGNORECASE)
+        clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+        if len(clean_text) > max_length:
+            shortened = clean_text[:max_length]
+            last_period = max(shortened.rfind('.'), shortened.rfind('!'), shortened.rfind('?'))
+            clean_text = shortened[: last_period + 1] if last_period > max_length // 2 else shortened + "..."
+        return clean_text
+
+    def create_daily_digest(self, articles: List[Dict], transcriptions: List[Dict]) -> str:
+        """
+        Construit le HTML du digest (sans accès DB).
+        Utilisé par d'autres services qui fournissent déjà les listes.
+        """
+        try:
+            if not articles and not transcriptions:
+                return """
+                <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">
+                    <h2 style="color: #dc2626;">🏝️ Digest Guadeloupe - Aucun contenu disponible</h2>
+                    <p>Aucune information disponible pour aujourd'hui.</p>
+                </div>
+                """
+            # (Section radio en priorité + analyse de sentiment si fournie par ailleurs)
+            # Pour conserver ton rendu existant, on simplifie et on réutilise summarize_transcriptions.
+            digest_html = f"""
+            <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6;">
+                <header style="text-align: center; border-bottom: 3px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px;">
+                    <h1 style="color: #1e40af; margin: 0; font-size: 28px;">🏝️ Digest Quotidien Guadeloupe</h1>
+                    <p style="color: #6b7280; font-size: 16px; margin: 10px 0 0 0;">
+                        {datetime.now().strftime('%A %d %B %Y')} • {len(articles) if articles else 0} articles
+                    </p>
+                </header>
+            """
+            if transcriptions:
+                digest_html += """
+                <section style="margin-bottom: 40px; padding: 25px; background: #fff7ed; border-radius: 15px; border: 2px solid #f59e0b;">
+                    <h2 style="color: #92400e; margin-top: 0; font-size: 22px;">🎙️ Actualité radio locale</h2>
+                """
+                digest_html += self.summarize_transcriptions(transcriptions)
+                digest_html += "</section>"
+
+            if articles:
+                digest_html += """
+                <section style="margin-bottom: 30px; padding: 20px; background: #f8fafc; border-radius: 10px; border: 1px solid #cbd5e1;">
+                    <h2 style="color: #475569; margin-top: 0; font-size: 20px;">📰 Articles de presse</h2>
+                """
+                digest_html += self.summarize_articles(articles)
+                digest_html += "</section>"
+
+            digest_html += f"""
+                <footer style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #e5e7eb; text-align: center;">
+                    <p style="color: #6b7280; font-size: 14px; margin: 10px 0;">
+                        📊 Digest généré le {datetime.now().strftime('%d/%m/%Y à %H:%M')}
+                    </p>
+                </footer>
+            </div>
+            """
+            return digest_html
+        except Exception as e:
+            logger.error(f"Erreur création digest (HTML): {e}")
+            return f"<div>Erreur: {e}</div>"
+
+# Instance globale de résumé
+summary_service = FreeSummaryService()
+
+# ==============================================================================
+#  B) AGRÉGATION & PERSISTENCE DU DIGEST (MongoDB)
+#    -> Ce bloc RÈGLE le problème “le digest est vide tant que je n’ai pas
+#       ouvert d’autres pages”. On va lire directement en base.
+# ==============================================================================
+MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+DB_NAME = os.environ.get("DB_NAME", "veille_media")
+ARTICLES_COLLECTION = os.environ.get("ARTICLES_COLLECTION", "articles")
+TRANSCRIPTS_COLLECTION = os.environ.get("TRANSCRIPTS_COLLECTION", "radio_transcriptions")
+DIGEST_COLLECTION = os.environ.get("DIGEST_COLLECTION", "daily_digests")
+
+_mongo_client = MongoClient(MONGO_URL)
+_db = _mongo_client[DB_NAME]
+_articles = _db.get_collection(ARTICLES_COLLECTION)
+_trans = _db.get_collection(TRANSCRIPTS_COLLECTION)
+_digests = _db.get_collection(DIGEST_COLLECTION)
+
+def _today_str(date: Optional[datetime] = None) -> str:
+    d = date or datetime.now()
+    return d.strftime("%Y-%m-%d")
+
+def _safe_int(x, default=0):
+    try:
+        return int(x)
+    except Exception:
+        return default
+
+def _lite_article(a: Dict[str, Any]) -> Dict[str, Any]:
+    # On garde des champs “légers” pour le digest
+    return {
+        "id": a.get("id") or a.get("_id"),
+        "title": a.get("title", ""),
+        "url": a.get("url", ""),
+        "source": a.get("source", ""),
+        "published_at": a.get("published_at") or a.get("date"),
+        "summary": a.get("ai_summary") or a.get("summary")
+                   or ((a.get("content") or "")[:280] + "…") if a.get("content") else "",
+        "keywords": a.get("keywords", []),
+    }
+
+def _lite_trans(t: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "id": t.get("id") or t.get("_id"),
+        "stream_key": t.get("stream_key"),
+        "stream_name": t.get("stream_name") or t.get("section"),
+        "section": t.get("section"),
+        "captured_at": t.get("captured_at"),
+        "start_time": t.get("start_time"),
+        "duration_seconds": _safe_int(t.get("duration_seconds", 0)),
+        "ai_summary": t.get("ai_summary") or t.get("gpt_analysis", ""),
+        "ai_keywords": t.get("ai_keywords", []),
+        "ai_relevance_score": t.get("ai_relevance_score", 0.0),
+        "transcription_text": t.get("transcription_text", ""),
+    }
+
+def _fetch_articles(date_str: str) -> List[Dict[str, Any]]:
+    cur = _articles.find({"date": date_str}, {"_id": 0}).sort("published_at", -1)
+    return [_lite_article(a) for a in cur]
+
+def _fetch_transcriptions(date_str: str) -> List[Dict[str, Any]]:
+    cur = _trans.find({"date": date_str}, {"_id": 0}).sort("captured_at", -1)
+    return [_lite_trans(t) for t in cur]
+
+def create_daily_digest(date: Optional[datetime] = None,
+                        articles: Optional[List[Dict[str, Any]]] = None,
+                        transcriptions: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """
+    Construit et PERSISTE le digest pour `date` (par défaut: aujourd'hui).
+    Retourne le document complet du digest.
+    """
+    date_str = _today_str(date)
+    if articles is None:
+        articles = _fetch_articles(date_str)
+    if transcriptions is None:
+        transcriptions = _fetch_transcriptions(date_str)
+
+    digest = {
+        "id": f"digest_{date_str.replace('-', '')}",
+        "date": date_str,
+        "created_at": datetime.now().isoformat(),
+        "articles_count": len(articles),
+        "transcriptions_count": len(transcriptions),
+        "articles": articles,
+        "transcriptions": transcriptions,
+        "sections": {
+            "articles": {"count": len(articles), "items": articles[:20]},
+            "radio": {"count": len(transcriptions), "items": transcriptions[:20]},
+        },
+    }
+    _digests.update_one({"id": digest["id"]}, {"$set": digest}, upsert=True)
+    logger.info("✅ Digest %s créé: %s articles, %s transcriptions",
+                date_str, len(articles), len(transcriptions))
+    return digest
+
+def get_daily_digest(date_str: Optional[str] = None, create_if_missing: bool = True) -> Dict[str, Any]:
+    """
+    Récupère le digest pour YYYY-MM-DD. Le crée si absent (par défaut).
+    """
+    if not date_str:
+        date_str = _today_str()
+    _id = f"digest_{date_str.replace('-', '')}"
+    doc = _digests.find_one({"id": _id}, {"_id": 0})
+    if doc:
+        return doc
+    if create_if_missing:
+        return create_daily_digest(datetime.strptime(date_str, "%Y-%m-%d"))
+    return {
+        "id": _id,
+        "date": date_str,
+        "created_at": None,
+        "articles_count": 0,
+        "transcriptions_count": 0,
+        "articles": [],
+        "transcriptions": [],
+        "sections": {"articles": {"count": 0, "items": []}, "radio": {"count": 0, "items": []}},
+    }
+
+# ------------------------------------------------------------------------------
+#  Usage direct : le router /api/digest peut importer:
+#    from backend.summary_service import create_daily_digest, get_daily_digest
+# ------------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    # Petit test rapide : crée le digest du jour en base puis l'affiche
+    d = create_daily_digest()
+    print(f"Digest créé: articles={d['articles_count']}, transcriptions={d['transcriptions_count']}")

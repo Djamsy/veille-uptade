@@ -55,6 +55,14 @@ aiohttp==3.9.1
 # Dépendances pour production Kubernetes
 gunicorn==21.2.0
 
+certifi>=2024.2.2
+
+dnspython>=2.6
+
+orjson>=3.10
+
+openai>=1.40,<2
+
 # Note: Packages exclus de la production pour éviter erreurs déploiement:
 # - Modèles NLP lourds (spaCy, transformers, torch)
 # - Navigateurs automatisés (playwright, selenium)
