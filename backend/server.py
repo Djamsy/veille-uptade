@@ -15,14 +15,18 @@ import certifi
 from dotenv import load_dotenv
 
 # === Chargement .env (local d'abord, sinon parent) ===
-_CURRENT_DIR = os.path.dirname(__file__)
-LOCAL_ENV = os.path.join(_CURRENT_DIR, ".env")
-PARENT_ENV = os.path.abspath(os.path.join(_CURRENT_DIR, "..", ".env"))
-if os.path.exists(LOCAL_ENV):
-    load_dotenv(dotenv_path=LOCAL_ENV, override=True)
-elif os.path.exists(PARENT_ENV):
-    load_dotenv(dotenv_path=PARENT_ENV, override=True)
+if os.getenv("ENVIRONMENT", "development") != "production":
+    # Dev : charge depuis .env local
+    _CURRENT_DIR = os.path.dirname(__file__)
+    LOCAL_ENV = os.path.join(_CURRENT_DIR, ".env")
+    PARENT_ENV = os.path.abspath(os.path.join(_CURRENT_DIR, "..", ".env"))
+    if os.path.exists(LOCAL_ENV):
+        load_dotenv(dotenv_path=LOCAL_ENV, override=True)
+    elif os.path.exists(PARENT_ENV):
+        load_dotenv(dotenv_path=PARENT_ENV, override=True)
 
+# Ensuite récupère tes variables normalement
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "").split(",")
 # === Config de base ===
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "development").lower()
 VERSION = os.environ.get("VERSION", "dev")
