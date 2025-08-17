@@ -1,26 +1,56 @@
 # backend/auth_routes.py
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
-
 import os
 import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
-from .server import get_db  # réutilise la connexion Mongo du serveur
+from .server import get_db  # connexion Mongo partagée
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 # --- Config JWT ---
 SECRET_KEY = os.getenv("JWT_SECRET", "dev-secret-change-me")
-ALGORITHM = "HS256"
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRES_MINUTES", "120"))
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+# ✅ Accepte argon2 et bcrypt ; rehash si nécessaire
+pwd_context = CryptContext(schemes=["argon2", "bcrypt"], deprecated="auto")
+
+# ⚠️ Ajuste ce tokenUrl selon comment tu montes le router dans server.py :
+# - si app.include_router(..., prefix="/api") -> tokenUrl DOIT être "/api/auth/login"
+# - sinon -> "/auth/login"
+OAUTH_TOKEN_URL = os.getenv("OAUTH_TOKEN_URL", "/api/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=OAUTH_TOKEN_URL)
+
+def _norm_email(v: str) -> str:
+    return (v or "").strip().lower()
+
+def get_users_col():
+    db = get_db()
+    col = db["users"]
+    # Index unique sur email (idempotent)
+    try:
+        col.create_index("email", unique=True)
+    except Exception:
+        pass
+    return col
+
+def get_user_by_email_or_username(email: str) -> Optional[Dict[str, Any]]:
+    col = get_users_col()
+    u = col.find_one({"email": email})
+    if not u:
+        # fallback éventuel si des anciens comptes utilisaient "username" comme clé de login
+        u = col.find_one({"username": email})
+    return u
+
+def _get_stored_hash(user: Dict[str, Any]) -> Optional[str]:
+    return user.get("password_hash") or user.get("password")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
@@ -28,34 +58,33 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     except Exception:
         return False
 
-def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+def maybe_rehash(user: Dict[str, Any], plain_password: str, hashed_password: str) -> None:
+    try:
+        if pwd_context.needs_update(hashed_password):
+            new_hash = pwd_context.hash(plain_password)
+            get_users_col().update_one({"_id": user["_id"]}, {"$set": {"password_hash": new_hash}})
+    except Exception:
+        # On ne bloque pas si la mise à niveau échoue
+        pass
 
 def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire, "iat": datetime.utcnow()})
+    now = datetime.now(timezone.utc)
+    expire = now + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    to_encode.update({"exp": expire, "iat": now})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-def get_users_col():
-    db = get_db()
-    col = db["users"]
-    # Index unique email (idempotent)
-    try:
-        col.create_index("email", unique=True)
-    except Exception:
-        pass
-    return col
-
-def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
-    return get_users_col().find_one({"email": email})
-
 def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
-    user = get_user_by_email(email)
-    if not user or not user.get("password_hash"):
+    user = get_user_by_email_or_username(email)
+    if not user:
         return None
-    if not verify_password(password, user["password_hash"]):
+    stored = _get_stored_hash(user)
+    if not stored:
         return None
+    if not verify_password(password, stored):
+        return None
+    # rehash si ancien format
+    maybe_rehash(user, password, stored)
     return user
 
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> Dict[str, Any]:
@@ -71,11 +100,11 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> Dict[str, Any
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-    user = get_user_by_email(email)
+    user = get_user_by_email_or_username(_norm_email(email))
     if not user:
         raise credentials_exception
-    # Ne retourne jamais le hash au client
     user.pop("password_hash", None)
+    user.pop("password", None)
     user["_id"] = str(user.get("_id"))
     return user
 
@@ -86,7 +115,7 @@ def register(user: Dict[str, Any] = Body(...)):
     """
     Body JSON: { "email": "...", "password": "...", "name": "..." }
     """
-    email = (user.get("email") or "").strip().lower()
+    email = _norm_email(user.get("email"))
     password = user.get("password") or ""
     name = (user.get("name") or "").strip()
 
@@ -100,8 +129,8 @@ def register(user: Dict[str, Any] = Body(...)):
     doc = {
         "email": email,
         "name": name or email.split("@")[0],
-        "password_hash": get_password_hash(password),
-        "created_at": datetime.utcnow().isoformat(),
+        "password_hash": pwd_context.hash(password),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "role": "user",
         "active": True,
     }
@@ -114,8 +143,11 @@ def login(payload: Dict[str, Any] = Body(...)):
     Body JSON: { "email": "...", "password": "..." }
     Retourne: { access_token, token_type }
     """
-    email = (payload.get("email") or "").strip().lower()
+    email = _norm_email(payload.get("email"))
     password = payload.get("password") or ""
+    if not email or not password:
+        raise HTTPException(400, "Email/mot de passe requis")
+
     user = authenticate_user(email, password)
     if not user:
         raise HTTPException(401, "Identifiants invalides")
