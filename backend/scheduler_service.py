@@ -14,6 +14,8 @@ import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 
+from zoneinfo import ZoneInfo  # <- TZ propre (stdlib)
+
 from fastapi import APIRouter, HTTPException
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -27,7 +29,10 @@ logger = logging.getLogger("scheduler_service")
 logger.setLevel(logging.INFO)
 
 # ---- Config de base ----
-TIMEZONE = os.environ.get("TIMEZONE", "UTC")
+# Par défaut on travaille en heure locale Guadeloupe (évite la gymnastique mentale).
+TIMEZONE_NAME = os.environ.get("TIMEZONE", "America/Guadeloupe").strip() or "America/Guadeloupe"
+TZ = ZoneInfo(TIMEZONE_NAME)
+
 RUN_SCHEDULER = os.environ.get("RUN_SCHEDULER", "1") == "1"
 MONGO_URL = os.environ.get("MONGO_URL", "").strip() or "mongodb://localhost:27017"
 
@@ -42,12 +47,11 @@ def _get_db():
         return None
 
 _db = _get_db()
-_logs = _db.scheduler_logs if _db else None
-_transcriptions = _db.radio_transcriptions if _db else None
+_logs_col = _db.scheduler_logs if _db else None
+_transcriptions_col = _db.radio_transcriptions if _db else None
 
 # ---- État & Locks ----
 _scheduler: Optional[AsyncIOScheduler] = None
-_started_flag: bool = False
 
 _scrape_lock = asyncio.Lock()
 _capture_lock = asyncio.Lock()
@@ -56,19 +60,27 @@ _cache_lock = asyncio.Lock()
 
 # ---- Utils ----
 def _log_job(job_name: str, success: bool, details: str = ""):
+    now_utc = datetime.utcnow()
+    now_local = datetime.now(TZ)
     entry = {
         "job_name": job_name,
         "success": success,
         "details": details,
-        "timestamp": datetime.utcnow().isoformat(),
-        "date": datetime.utcnow().strftime("%Y-%m-%d"),
+        "timestamp_utc": now_utc.isoformat() + "Z",
+        "timestamp_local": now_local.isoformat(),
+        "date_utc": now_utc.strftime("%Y-%m-%d"),
+        "date_local": now_local.strftime("%Y-%m-%d"),
+        "timezone": TIMEZONE_NAME,
     }
-    if _logs := _logs:
+    if _logs_col:
         try:
-            _logs.insert_one(entry)
+            _logs_col.insert_one(entry)
         except Exception:
             pass
-    (logger.info if success else logger.error)(f"[{job_name}] {'OK' if success else 'KO'} - {details}")
+    (logger.info if success else logger.error)(
+        f"[{job_name}] {'OK' if success else 'KO'} - {details} "
+        f"(utc={entry['timestamp_utc']}, local={entry['timestamp_local']})"
+    )
 
 def _lazy_imports():
     """Import paresseux des services pour éviter les imports au chargement module (et reloader)."""
@@ -78,7 +90,6 @@ def _lazy_imports():
     except Exception as e:
         logger.warning(f"Scraper service indisponible: {e}")
     try:
-        # Si tu utilises encore radio_service classique :
         from backend.radio_service import radio_service as radio  # type: ignore
     except Exception:
         radio = None
@@ -90,11 +101,11 @@ def _lazy_imports():
 
 def _is_recent_capture_in_progress(max_age_min: int = 15) -> bool:
     """Garde DB : existe-t-il une capture radio 'in_progress' récente ?"""
-    if not _transcriptions:
+    if not _transcriptions_col:
         return False
     try:
         since = (datetime.utcnow() - timedelta(minutes=max_age_min)).isoformat()
-        found = _transcriptions.find_one({"status": "in_progress", "captured_at": {"$gte": since}})
+        found = _transcriptions_col.find_one({"status": "in_progress", "captured_at": {"$gte": since}})
         return bool(found)
     except Exception:
         return False
@@ -111,7 +122,6 @@ async def job_scrape_articles():
             return
         try:
             logger.info("🚀 Scrape articles (horaire)")
-            # appel potentiellement bloquant => exécuter en thread
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(None, scraper.scrape_all_sites)
             if result and result.get("success"):
@@ -126,13 +136,11 @@ async def job_capture_radio():
     if _capture_lock.locked():
         logger.info("⏭️ Capture ignorée (lock actif)")
         return
-    # garde DB pour éviter chevauchement cross-process
     if _is_recent_capture_in_progress():
         logger.info("⏭️ Capture ignorée (déjà en cours selon DB)")
         return
     async with _capture_lock:
         _, radio, _ = _lazy_imports()
-        # Si tu as migré vers des routes de capture, appelle-les ici (via fonction interne) au lieu de radio_service
         if not radio or not hasattr(radio, "capture_all_streams"):
             _log_job("capture_radio", False, "Service radio non disponible")
             return
@@ -186,7 +194,6 @@ async def job_clean_cache_24h():
     async with _cache_lock:
         try:
             logger.info("🧹 Nettoyage cache (2h)")
-            # import paresseux
             try:
                 from backend.cache_service import intelligent_cache  # type: ignore
             except Exception as e:
@@ -200,26 +207,28 @@ async def job_clean_cache_24h():
 
 # ---- Création / attache du scheduler ----
 def _ensure_scheduler() -> AsyncIOScheduler:
-    global _scheduler, _started_flag
+    global _scheduler
     if _scheduler:
         return _scheduler
-    _scheduler = AsyncIOScheduler(timezone=TIMEZONE, job_defaults={
-        "coalesce": True,
-        "max_instances": 1,
-        "misfire_grace_time": 60,
-    })
+    _scheduler = AsyncIOScheduler(
+        timezone=TZ,
+        job_defaults={
+            "coalesce": True,
+            "max_instances": 1,
+            "misfire_grace_time": 60,
+        },
+    )
     # Jobs (cron en TZ configurée)
-    _scheduler.add_job(job_scrape_articles, CronTrigger(minute=0), id="scrape_articles", replace_existing=True)
-    _scheduler.add_job(job_capture_radio,  CronTrigger(hour=7, minute=0), id="capture_radio", replace_existing=True)
-    _scheduler.add_job(job_create_daily_digest, CronTrigger(hour=12, minute=0), id="create_digest", replace_existing=True)
-    _scheduler.add_job(job_clean_cache_24h, CronTrigger(hour=2, minute=0), id="clean_cache_24h", replace_existing=True)
+    _scheduler.add_job(job_scrape_articles,     CronTrigger(minute=0,                timezone=TZ), id="scrape_articles",   replace_existing=True)
+    _scheduler.add_job(job_capture_radio,       CronTrigger(hour=7,  minute=0,      timezone=TZ), id="capture_radio",     replace_existing=True)
+    _scheduler.add_job(job_create_daily_digest, CronTrigger(hour=12, minute=0,      timezone=TZ), id="create_digest",     replace_existing=True)
+    _scheduler.add_job(job_clean_cache_24h,     CronTrigger(hour=2,  minute=0,      timezone=TZ), id="clean_cache_24h",   replace_existing=True)
     return _scheduler
 
 def attach_scheduler(app) -> None:
     """
     Appelé depuis server.py (on_startup) pour démarrer UNE SEULE instance.
     """
-    global _started_flag
     if not RUN_SCHEDULER:
         logger.info("⏸️ RUN_SCHEDULER=0 → scheduler désactivé")
         return
@@ -229,7 +238,7 @@ def attach_scheduler(app) -> None:
     sched = _ensure_scheduler()
     if not sched.running:
         sched.start()
-        logger.info("✅ Scheduler démarré")
+        logger.info("✅ Scheduler démarré (tz=%s)", TIMEZONE_NAME)
     app.state.scheduler = sched
     app.state.scheduler_started = True
 
@@ -245,10 +254,13 @@ def stop_scheduler(app=None) -> None:
 router = APIRouter()
 
 def _job_info(j: Job) -> Dict[str, Any]:
+    next_run_utc = j.next_run_time
+    next_run_local = next_run_utc.astimezone(TZ) if next_run_utc else None
     return {
         "id": j.id,
         "name": j.name,
-        "next_run_time": j.next_run_time.isoformat() if j.next_run_time else None,
+        "next_run_time_utc": next_run_utc.isoformat() if next_run_utc else None,
+        "next_run_time_local": next_run_local.isoformat() if next_run_local else None,
         "trigger": str(j.trigger),
     }
 
@@ -256,7 +268,7 @@ def _job_info(j: Job) -> Dict[str, Any]:
 def scheduler_status():
     sched = _ensure_scheduler()
     jobs = [_job_info(j) for j in sched.get_jobs()]
-    return {"running": sched.running, "timezone": TIMEZONE, "jobs": jobs}
+    return {"running": sched.running, "timezone": TIMEZONE_NAME, "jobs": jobs}
 
 @router.post("/run-job/{job_id}", tags=["scheduler"])
 async def run_job(job_id: str):
