@@ -220,10 +220,6 @@ def digest():
         "transcriptions": [serialize_doc(t) for t in transcriptions],
     }
 
-@router.get("/scheduler/status")
-def scheduler_status():
-    return {"success": True, "scheduler": "ok"}
-
 @router.post("/articles/scrape-now")
 def scrape_now():
     # lancement non bloquant si service dispo
