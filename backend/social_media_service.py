@@ -14,7 +14,7 @@ import json
 import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
-from urllib.parse import quote_plus, urlparse
+from urllib.parse import quote_plus
 
 import requests
 import feedparser
@@ -25,6 +25,7 @@ import certifi
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+# --------- Defaults ---------
 DEFAULT_RSS_SOURCES = [
     "https://la1ere.francetvinfo.fr/guadeloupe/rss",
     "https://www.franceantilles.fr/rss",
@@ -36,68 +37,52 @@ DEFAULT_YT_URLS = [
     "https://www.youtube.com/@ericdamaseau320",  # La Pause Sans Filtre
 ]
 
+DEFAULT_NITTERS = [
+    "https://nitter.net",
+    "https://nitter.fdn.fr",
+    "https://nitter.privacy.com.de",
+    "https://nitter.poast.org",
+    "https://nitter.cz",
+]
+
+UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome Safari"
+REQ_TIMEOUT = 12
+
 
 class SocialMediaScraper:
     def __init__(self):
         # --------- Config env ---------
         self.noapi_mode = os.environ.get("SOCIAL_NOAPI_MODE", "true").lower() == "true"
 
-        # YouTube channels (peut être complété par env YOUTUBE_CHANNEL_URLS="url1,url2")
         yt_env = [x.strip() for x in os.environ.get("YOUTUBE_CHANNEL_URLS", "").split(",") if x.strip()]
         self.youtube_channel_urls = yt_env or DEFAULT_YT_URLS
         self.youtube_feeds: List[str] = []  # sera rempli après résolution
 
-        # Nitter miroirs
-        self.nitter_instances = [
-            "https://nitter.net",
-            "https://nitter.fdn.fr",
-            "https://nitter.privacy.com.de",
-            "https://nitter.poast.org",
-            "https://nitter.cz",
-        ]
-
-        # RSS locaux & Google News
         rss_env = [x.strip() for x in os.environ.get("SOCIAL_RSS_SOURCES", "").split(",") if x.strip()]
         self.rss_sources = rss_env or DEFAULT_RSS_SOURCES
 
+        nitters_env = [x.strip() for x in os.environ.get("NITTER_INSTANCES", "").split(",") if x.strip()]
+        self.nitter_instances = nitters_env or DEFAULT_NITTERS
+
         # --------- Mongo ---------
-        MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017").strip()
-        try:
-            if MONGO_URL.startswith("mongodb+srv"):
-                self.client = MongoClient(MONGO_URL, tlsCAFile=certifi.where())
-            else:
-                self.client = MongoClient(MONGO_URL)
-
-            try:
-                self.client.admin.command("ping")
-            except Exception:
-                logger.warning("⚠️ Ping Mongo échoué (connexion possible mais non vérifiée)")
-
-            try:
-                db = self.client.get_default_database()
-            except ConfigurationError:
-                db = None
-            self.db = db if db is not None else self.client["veille_media"]
-
-            self.social_collection = self.db["social_media_posts"]
-            self.ensure_indexes()
-            logger.info("✅ Connexion MongoDB réussie pour réseaux sociaux")
-        except Exception as e:
-            logger.error(f"❌ Erreur MongoDB: {e}")
-            # failsafe in-memory list (évite crash si Mongo HS)
-            self.db = None
-            self.social_collection = None  # type: ignore
+        self.db = None
+        self.social_collection = None
+        self._init_mongo()
 
         # --------- Paramètres scraping ---------
         self.max_posts_per_keyword = int(os.environ.get("SOCIAL_MAX_POSTS_PER_KEYWORD", "20"))
-        self.rate_limit_delay = float(os.environ.get("SOCIAL_RATE_LIMIT_DELAY", "1.5"))  # secondes
+        self.rate_limit_delay = float(os.environ.get("SOCIAL_RATE_LIMIT_DELAY", "1.5"))  # s
 
         # --------- Mots-clés par défaut ---------
         self.keywords_guadeloupe = [
             "Conseil Départemental Guadeloupe", "CD971", "Département Guadeloupe",
             "Guy Losbar", "Losbar", "Président conseil départemental",
-            "Collectivité Guadeloupe", "Basse-Terre politique", "CD Guadeloupe"
+            "Collectivité Guadeloupe", "Basse-Terre politique", "CD Guadeloupe",
         ]
+
+        # HTTP session
+        self.session = requests.Session()
+        self.session.headers.update({"User-Agent": UA})
 
         # Résoudre les flux YouTube maintenant
         self._resolve_youtube_feeds()
@@ -105,7 +90,34 @@ class SocialMediaScraper:
     # ------------------------------------------------------------------
     # Mongo & Indexes
     # ------------------------------------------------------------------
-    def ensure_indexes(self):
+    def _init_mongo(self):
+        MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017").strip()
+        try:
+            if MONGO_URL.startswith("mongodb+srv"):
+                client = MongoClient(MONGO_URL, tlsCAFile=certifi.where())
+            else:
+                client = MongoClient(MONGO_URL)
+
+            try:
+                client.admin.command("ping")
+            except Exception:
+                logger.warning("⚠️ Ping Mongo échoué (connexion possible mais non vérifiée)")
+
+            try:
+                db = client.get_default_database()
+            except ConfigurationError:
+                db = None
+            self.db = db if db is not None else client["veille_media"]
+
+            self.social_collection = self.db["social_media_posts"]
+            self._ensure_indexes()
+            logger.info("✅ Connexion MongoDB OK (social_media_posts)")
+        except Exception as e:
+            logger.error(f"❌ Erreur MongoDB: {e}")
+            self.db = None
+            self.social_collection = None  # type: ignore
+
+    def _ensure_indexes(self):
         if not self.social_collection:
             return
         try:
@@ -117,7 +129,7 @@ class SocialMediaScraper:
             try:
                 self.social_collection.create_index(
                     [("content", "text"), ("author", "text")],
-                    name="content_text_idx"
+                    name="content_text_idx",
                 )
             except Exception as ie:
                 logger.warning(f"Index texte non créé: {ie}")
@@ -195,6 +207,7 @@ class SocialMediaScraper:
         url = f"https://news.google.com/rss/search?q={q}&hl=fr&gl=FR&ceid=FR:fr"
         return self.fetch_rss_feed(url, platform_tag="news", keyword=keyword, limit=limit)
 
+    # ----------------- YouTube -----------------
     def _resolve_youtube_feeds(self):
         """Depuis des URLs de chaîne (handle, /channel/, /c/…), déduire le flux RSS:
         https://www.youtube.com/feeds/videos.xml?channel_id=UCxxxx
@@ -207,7 +220,9 @@ class SocialMediaScraper:
                     resolved.append(feed)
             except Exception as e:
                 logger.warning(f"YT resolve fail {url}: {e}")
-        self.youtube_feeds = list(dict.fromkeys(resolved))  # unique & order
+        # uniq + preserve order
+        seen = set()
+        self.youtube_feeds = [f for f in resolved if not (f in seen or seen.add(f))]
         if self.youtube_feeds:
             logger.info(f"✅ YouTube feeds résolus: {len(self.youtube_feeds)}")
         else:
@@ -216,8 +231,8 @@ class SocialMediaScraper:
     def _youtube_channel_url_to_feed(self, url: str) -> Optional[str]:
         """Résout channel_id en scrappant la page pour 'channelId'."""
         try:
-            resp = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
-            if resp.status_code != 200:
+            resp = self.session.get(url, timeout=REQ_TIMEOUT)
+            if resp.status_code != 200 or not resp.text:
                 return None
             m = re.search(r'"channelId"\s*:\s*"([^"]+)"', resp.text)
             if not m:
@@ -242,10 +257,11 @@ class SocialMediaScraper:
         try:
             import snscrape.modules.twitter as sntwitter
         except Exception:
-            logger.info("ℹ️ snscrape indisponible → on utilisera Nitter en fallback")
+            logger.info("ℹ️ snscrape indisponible → Nitter en fallback")
             return []
 
         posts: List[Dict[str, Any]] = []
+
         # Query ciblée Guadeloupe
         if keyword.lower() in ["guy losbar", "losbar"]:
             search_query = '"Guy Losbar" OR "Losbar" OR "président conseil départemental" lang:fr'
@@ -310,6 +326,7 @@ class SocialMediaScraper:
         posts: List[Dict[str, Any]] = []
         query = f'{keyword} (guadeloupe OR gwada OR 971 OR antilles)'
         q = quote_plus(query)
+
         for base in self.nitter_instances:
             url = f"{base}/search/rss?f=tweets&q={q}"
             try:
@@ -324,7 +341,7 @@ class SocialMediaScraper:
                     author = getattr(entry, "author", "nitter")
                     published = getattr(entry, "published", None) or datetime.utcnow().isoformat() + "Z"
                     content = f"{title}\n{summary}".strip()
-                    pid = f"nitter_{abs(hash(link or content))}"
+                    pid = f"nitter_{abs(hash((link or '') + content))}"
                     posts.append(
                         self._normalize_post(
                             pid=pid,
@@ -338,7 +355,8 @@ class SocialMediaScraper:
                         )
                     )
                 if posts:
-                    break  # on prend le 1er miroir qui marche
+                    logger.info(f"✅ Nitter ok: {base} ({len(posts)} posts cumulés)")
+                    break  # on garde le 1er miroir qui répond
             except Exception as e:
                 logger.warning(f"Nitter fail {base}: {e}")
         return posts
@@ -391,6 +409,17 @@ class SocialMediaScraper:
         except Exception as e:
             logger.warning(f"YouTube feeds erreur: {e}")
             results["youtube"] = []
+
+        # Dédup légère par id
+        for key in ("twitter", "news", "youtube"):
+            seen = set()
+            dedup = []
+            for p in results[key]:
+                if p["id"] in seen:
+                    continue
+                seen.add(p["id"])
+                dedup.append(p)
+            results[key] = dedup
 
         results["total_posts"] = sum(len(results[k]) for k in ["twitter", "news", "youtube"])
 
@@ -492,7 +521,7 @@ class SocialMediaScraper:
             return {}
 
 
-# Instance globale importable par tes routes
+# Instance globale importable par les routes
 social_scraper = SocialMediaScraper()
 
 if __name__ == "__main__":
