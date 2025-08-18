@@ -5,7 +5,7 @@ Scheduler central (APScheduler) pour la Veille Média
 - Capture radio : 7h locales
 - Digest : 12h locales
 - Nettoyage cache : 2h locales
-- Admin: /api/scheduler/status, /api/scheduler/run-job/{job_id}, /api/scheduler/toggle
+- Admin: /api/scheduler/status, /api/scheduler/next, /api/scheduler/run-job/{job_id}, /api/scheduler/toggle
 - Verrous anti-chevauchement, timestamps UTC + local, TZ IANA (America/Guadeloupe par défaut)
 """
 
@@ -13,7 +13,7 @@ import os
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from zoneinfo import ZoneInfo
 
@@ -33,7 +33,12 @@ logger.setLevel(logging.INFO)
 # Config & Fuseau horaire
 # =========================
 TIMEZONE_NAME = (os.environ.get("TIMEZONE") or "America/Guadeloupe").strip()
-TZ = ZoneInfo(TIMEZONE_NAME)
+try:
+    TZ = ZoneInfo(TIMEZONE_NAME)
+except Exception:
+    TZ = ZoneInfo("UTC")
+    TIMEZONE_NAME = "UTC"
+    logger.warning("⚠️ TIMEZONE invalide, fallback UTC")
 
 RUN_SCHEDULER = (os.environ.get("RUN_SCHEDULER") or "1").strip() == "1"
 MONGO_URL = (os.environ.get("MONGO_URL") or "mongodb://localhost:27017").strip()
@@ -115,7 +120,7 @@ def _lazy_imports():
     return scraper, radio, summary
 
 def _is_recent_capture_in_progress(max_age_min: int = 15) -> bool:
-    """Garde DB : existe-t-il une capture radio 'in_progress' récente ?"""
+    """Garde DB : capture radio 'in_progress' récente ?"""
     if _transcriptions_col is None:
         return False
     try:
@@ -255,8 +260,10 @@ def attach_scheduler(app) -> None:
     sched = _ensure_scheduler()
     if not sched.running:
         sched.start()
-        logger.info("✅ Scheduler démarré (tz=%s | now_local=%s | now_utc=%s)",
-                    TIMEZONE_NAME, datetime.now(TZ).isoformat(), datetime.utcnow().isoformat() + "Z")
+        logger.info(
+            "✅ Scheduler démarré (tz=%s | now_local=%s | now_utc=%sZ)",
+            TIMEZONE_NAME, datetime.now(TZ).isoformat(), datetime.utcnow().isoformat()
+        )
     app.state.scheduler = sched
     app.state.scheduler_started = True
 
@@ -274,12 +281,17 @@ def stop_scheduler(app=None) -> None:
 router = APIRouter()
 
 def _job_info(j: Job) -> Dict[str, Any]:
-    nr = j.next_run_time  # timezone-aware (APS)
+    nr = j.next_run_time  # timezone-aware (APS) ou None
+    try:
+        next_utc = nr.astimezone(ZoneInfo("UTC")).isoformat() if nr else None
+        next_local = nr.astimezone(TZ).isoformat() if nr else None
+    except Exception:
+        next_utc = next_local = None
     return {
         "id": j.id,
         "name": j.name or j.id,
-        "next_run_time_utc": nr.astimezone(ZoneInfo("UTC")).isoformat() if nr else None,
-        "next_run_time_local": nr.astimezone(TZ).isoformat() if nr else None,
+        "next_run_time_utc": next_utc,
+        "next_run_time_local": next_local,
         "trigger": str(j.trigger),
     }
 
@@ -287,7 +299,40 @@ def _job_info(j: Job) -> Dict[str, Any]:
 def scheduler_status():
     sched = _ensure_scheduler()
     jobs = [_job_info(j) for j in sched.get_jobs()]
-    return {"running": sched.running, "timezone": TIMEZONE_NAME, "jobs": jobs}
+
+    # tri lisible : par prochaine exécution locale (None à la fin)
+    def _key(x):
+        return (x["next_run_time_local"] is None, x["next_run_time_local"] or "")
+    jobs_sorted = sorted(jobs, key=_key)
+
+    return {
+        "running": sched.running,
+        "timezone": TIMEZONE_NAME,
+        "now_utc": datetime.utcnow().isoformat() + "Z",
+        "now_local": datetime.now(TZ).isoformat(),
+        "jobs": jobs_sorted,
+        "note": "Si next_run_time_* est null, le job vient peut-être d'être exécuté ou est en pause.",
+    }
+
+@router.get("/next", tags=["scheduler"])
+def next_runs():
+    """Résumé ultra-lisible des prochaines exécutions."""
+    sched = _ensure_scheduler()
+    items = []
+    for j in sched.get_jobs():
+        info = _job_info(j)
+        items.append({
+            "id": info["id"],
+            "next_local": info["next_run_time_local"],
+            "next_utc": info["next_run_time_utc"],
+        })
+    items.sort(key=lambda x: (x["next_local"] is None, x["next_local"] or ""))
+    return {
+        "timezone": TIMEZONE_NAME,
+        "now_local": datetime.now(TZ).isoformat(),
+        "now_utc": datetime.utcnow().isoformat() + "Z",
+        "next": items,
+    }
 
 @router.post("/run-job/{job_id}", tags=["scheduler"])
 async def run_job(job_id: str):
