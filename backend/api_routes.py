@@ -1,7 +1,7 @@
 # backend/api_routes.py
 from fastapi import APIRouter, Query, HTTPException
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from backend.db import get_db  # suppose un backend/db.py qui expose get_db()
 
@@ -63,7 +63,12 @@ def articles_sources():
 def articles(limit: int = 100):
     db = get_db()
     try:
-        arts = list(db["articles_guadeloupe"].find().sort("scraped_at", -1).limit(limit))
+        arts = list(
+            db["articles_guadeloupe"]
+            .find()
+            .sort("scraped_at", -1)
+            .limit(limit)
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"DB error: {e}")
     return {"success": True, "articles": [serialize_doc(a) for a in arts]}
@@ -73,10 +78,10 @@ def filtered_articles(
     limit: int = 50,
     offset: int = 0,
     sort_by: str = "date_desc",
-    date_start: str | None = None,
-    date_end: str | None = None,
-    source: str | None = None,
-    search_text: str | None = None,
+    date_start: Optional[str] = None,
+    date_end: Optional[str] = None,
+    source: Optional[str] = None,
+    search_text: Optional[str] = None,
 ):
     db = get_db()
 
@@ -150,12 +155,12 @@ def search(q: str = Query("")):
     except Exception:
         articles = []
 
-    # Réseaux sociaux (si collection présente)
+    # Réseaux sociaux (aligné avec social_media_service)
     try:
         social_posts: List[Dict[str, Any]] = list(
-            db["social_posts"]
-            .find({"text": {"$regex": q, "$options": "i"}})
-            .sort("created_at", -1)
+            db["social_media_posts"]
+            .find({"content": {"$regex": q, "$options": "i"}})
+            .sort("scraped_at", -1)
             .limit(50)
         )
     except Exception:
@@ -219,15 +224,3 @@ def digest():
         "articles": [serialize_doc(a) for a in articles],
         "transcriptions": [serialize_doc(t) for t in transcriptions],
     }
-
-@router.post("/articles/scrape-now")
-def scrape_now():
-    # lancement non bloquant si service dispo
-    try:
-        from backend.scraper_service import guadeloupe_scraper  # type: ignore
-    except Exception:
-        return {"success": False, "message": "Scraper non disponible"}
-
-    import threading
-    threading.Thread(target=guadeloupe_scraper.run, daemon=True).start()
-    return {"success": True, "message": "Scraping lancé en arrière-plan"}
