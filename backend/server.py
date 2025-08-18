@@ -112,11 +112,7 @@ def include_router_safely(
     Essaie un ou plusieurs chemins de module (ex: "backend.api_routes" ou ["backend.api_routes","api_routes"])
     et inclut le router si trouvé.
     """
-    if isinstance(module_candidates, (str, bytes)):
-        candidates = [module_candidates]
-    else:
-        candidates = list(module_candidates)
-
+    candidates = [module_candidates] if isinstance(module_candidates, (str, bytes)) else list(module_candidates)
     last_err: Optional[Exception] = None
     for module_path in candidates:
         try:
@@ -142,7 +138,7 @@ def route_registered(path: str) -> bool:
     return False
 
 # ======================
-# Inclusion des routeurs
+# Inclusion des routeurs métiers
 # ======================
 include_router_safely(["backend.auth_routes", "auth_routes"], "router", prefix="/api")
 include_router_safely(["backend.api_routes", "api_routes"], "router", prefix="/api")
@@ -150,6 +146,18 @@ include_router_safely(["backend.sentiment_routes", "sentiment_routes"], "router"
 include_router_safely(["backend.digest_routes", "digest_routes"], "router", prefix="/api")
 include_router_safely(["backend.analytics_routes", "analytics_routes"], "router", prefix="/api")
 include_router_safely(["backend.social_routes", "social_routes"], "router", prefix="/api/social")
+include_router_safely(["backend.telegram_routes", "telegram_routes"], "router", prefix="/api")  # 👈 Telegram
+
+# ======================
+# Scheduler (détaillé) – router + attach au startup
+# ======================
+try:
+    from backend.scheduler_service import router as scheduler_router, attach_scheduler
+    app.include_router(scheduler_router, prefix="/api/scheduler")
+    logger.info("✅ Router scheduler inclus (prefix=/api/scheduler)")
+except Exception as e:
+    logger.warning("⚠️ scheduler_service indisponible: %s", e)
+    attach_scheduler = None  # type: ignore
 
 # --- Transcriptions : accepte module avec ou sans prefix interne
 _transcription_router = None
@@ -168,10 +176,7 @@ if _transcription_router:
         logger.info("✅ transcription_routes inclus (prefix interne: %s)", internal_prefix)
     else:
         app.include_router(_transcription_router, prefix="/api/transcriptions")
-        logger.info(
-            "✅ transcription_routes inclus sous /api/transcriptions (prefix interne: %s)",
-            internal_prefix or "<none>",
-        )
+        logger.info("✅ transcription_routes inclus sous /api/transcriptions (prefix interne: %s)", internal_prefix or "<none>")
 else:
     logger.warning("⚠️ Ajout des endpoints mock /api/transcriptions/* (transcription_routes non chargé)")
 
@@ -194,9 +199,8 @@ else:
         raise HTTPException(status_code=503, detail="transcription_routes non chargé")
 
 # ======================
-# Fallbacks utiles si routers absents
+# Fallbacks utiles si routers absents (compat front)
 # ======================
-# Analytics (exemples)
 if not route_registered("/api/analytics/articles-by-source"):
     @app.get("/api/analytics/articles-by-source", tags=["analytics"])
     async def analytics_articles_by_source():
@@ -232,7 +236,7 @@ if not route_registered("/api/analytics/dashboard-metrics"):
             "last_updated": datetime.utcnow().isoformat() + "Z",
         }
 
-# Sources & articles (placeholders très simples, compatibles front)
+# Sources & articles (placeholders)
 if not route_registered("/api/articles/sources"):
     @app.get("/api/articles/sources", tags=["articles"])
     async def articles_sources():
@@ -257,7 +261,6 @@ if not route_registered("/api/search/suggestions"):
 # Scraper optionnel
 # ======================
 try:
-    # si démarré via `uvicorn backend.server:app`, l'import relatif suffit
     from .scraper_service import guadeloupe_scraper  # type: ignore
 except Exception:
     try:
@@ -304,8 +307,17 @@ def health():
     }
 
 # ======================
-# Shutdown & erreurs
+# Startup / Shutdown / erreurs
 # ======================
+@app.on_event("startup")
+async def _on_startup():
+    # Démarre le scheduler détaillé si présent
+    if callable(globals().get("attach_scheduler")):
+        try:
+            attach_scheduler(app)  # type: ignore
+        except Exception as e:
+            logger.warning("⚠️ attach_scheduler a échoué: %s", e)
+
 @app.on_event("shutdown")
 def shutdown_event():
     if mongo_client:
