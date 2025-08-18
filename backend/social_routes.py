@@ -1,17 +1,17 @@
-# backend/social_routes.py
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, HTTPException, Query, Body
 
+# ✅ on force l’import depuis social_media_service (avec YouTube inclus)
 try:
-    from backend.social_media_service import social_scraper  # import absolu
+    from backend.social_media_service import social_scraper  # type: ignore
 except Exception:
-    from social_media_service import social_scraper  # fallback si on lance depuis backend/
+    from social_media_service import social_scraper  # type: ignore
 
 router = APIRouter()
 logger = logging.getLogger("backend.social_routes")
 logger.setLevel(logging.INFO)
-logger.info("🔌 social_routes loaded")
+logger.info("🔌 social_routes loaded (social_media_service)")
 
 @router.get("/stats", tags=["social"])  # -> /api/social/stats
 def get_social_stats():
@@ -29,7 +29,16 @@ def scrape_now(payload: Dict[str, Any] = Body(default={})):
         if keywords is not None and not isinstance(keywords, list):
             raise HTTPException(status_code=400, detail="'keywords' doit être une liste de chaînes")
         results = social_scraper.start_scrape(keywords)
-        return {"success": True, **results}
+        # Sauvegarde en DB (assure que ça écrit bien)
+        posts = (
+            results.get("twitter", [])
+            + results.get("facebook", [])
+            + results.get("instagram", [])
+            + results.get("news", [])
+            + results.get("youtube", [])
+        )
+        saved = social_scraper.save_posts_to_db(posts)
+        return {"success": True, "saved": saved, **results}
     except HTTPException:
         raise
     except Exception as e:
@@ -56,9 +65,9 @@ def recent_posts(days: int = Query(1, ge=1, le=30), platform: Optional[str] = Qu
         raise HTTPException(status_code=500, detail="Erreur interne (recent)")
 
 @router.post("/scrape-keyword", tags=["social"])  # -> /api/social/scrape-keyword
-def scrape_keyword(payload: Dict[str, Any] = Body(default={})):  # accepte {"keywords": [...] } ou {"q": "..."} / {"keyword": "..."}
+def scrape_keyword(payload: Dict[str, Any] = Body(default={})):  # {"keywords":[...]} ou {"q":"..."} / {"keyword":"..."}
     try:
-        keywords = None
+        keywords: Optional[List[str]] = None
         if isinstance(payload, dict):
             if isinstance(payload.get("keywords"), list):
                 keywords = payload["keywords"]
@@ -69,7 +78,15 @@ def scrape_keyword(payload: Dict[str, Any] = Body(default={})):  # accepte {"key
         if not keywords:
             raise HTTPException(status_code=400, detail="Fournis 'keywords' (liste) ou 'q'/'keyword' (chaîne).")
         results = social_scraper.start_scrape(keywords)
-        return {"success": True, **results}
+        posts = (
+            results.get("twitter", [])
+            + results.get("facebook", [])
+            + results.get("instagram", [])
+            + results.get("news", [])
+            + results.get("youtube", [])
+        )
+        saved = social_scraper.save_posts_to_db(posts)
+        return {"success": True, "saved": saved, **results}
     except HTTPException:
         raise
     except Exception as e:
@@ -80,11 +97,18 @@ def scrape_keyword(payload: Dict[str, Any] = Body(default={})):  # accepte {"key
 def scrape_keyword_get(q: str = Query(..., description="Mot-clé à scraper")):
     try:
         results = social_scraper.start_scrape([q])
-        return {"success": True, **results}
+        posts = (
+            results.get("twitter", [])
+            + results.get("facebook", [])
+            + results.get("instagram", [])
+            + results.get("news", [])
+            + results.get("youtube", [])
+        )
+        saved = social_scraper.save_posts_to_db(posts)
+        return {"success": True, "saved": saved, **results}
     except Exception as e:
         logger.exception("Erreur scrape-keyword (GET): %s", e)
         raise HTTPException(status_code=500, detail="Erreur interne (scrape-keyword GET)")
-
 
 @router.delete("/cleanup-demo", tags=["social"])  # -> /api/social/cleanup-demo
 def cleanup_demo():
@@ -94,7 +118,6 @@ def cleanup_demo():
     except Exception as e:
         logger.exception("Erreur cleanup-demo: %s", e)
         raise HTTPException(status_code=500, detail="Erreur interne (cleanup-demo)")
-
 
 @router.get("/health", tags=["social"])  # -> /api/social/health
 def health():
