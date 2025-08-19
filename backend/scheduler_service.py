@@ -242,7 +242,7 @@ def _ensure_scheduler() -> AsyncIOScheduler:
 
     # CRON en heure locale (TZ)
     _scheduler.add_job(job_scrape_articles,     CronTrigger(minute=0,               timezone=TZ), id="scrape_articles",   replace_existing=True)
-    _scheduler.add_job(job_capture_radio,       CronTrigger(hour=7,  minute=0,     timezone=TZ), id="capture_radio",     replace_existing=True)
+    _scheduler.add_job(job_capture_radio,       CronTrigger(hour=11,  minute=0,     timezone=TZ), id="capture_radio",     replace_existing=True)
     _scheduler.add_job(job_create_daily_digest, CronTrigger(hour=12, minute=0,     timezone=TZ), id="create_digest",     replace_existing=True)
     _scheduler.add_job(job_clean_cache_24h,     CronTrigger(hour=2,  minute=0,     timezone=TZ), id="clean_cache_24h",   replace_existing=True)
 
