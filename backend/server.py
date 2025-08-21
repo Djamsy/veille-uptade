@@ -32,6 +32,7 @@ if ENVIRONMENT != "production":
 VERSION = os.environ.get("VERSION", "dev")
 MONGO_URL = os.environ.get("MONGO_URL", "").strip()
 MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME", "").strip()
+RUN_SCHEDULER = (os.environ.get("RUN_SCHEDULER", "1").strip() == "1")
 
 def _split_list(v: str) -> list[str]:
     return [x.strip().rstrip("/") for x in v.split(",") if x.strip()]
@@ -129,11 +130,11 @@ def route_registered(path: str) -> bool:
     return False
 
 # ======================
-# Inclusion des routeurs
+# Inclusion des routeurs (core)
 # ======================
 include_router_safely(["backend.api_routes", "api_routes"], "router", prefix="/api")
 include_router_safely(["backend.sentiment_routes", "sentiment_routes"], "router", prefix="/api")
-include_router_safely(["backend.digest_routes", "digest_routes"], "router")  # mettez le prefix dans le fichier si besoin
+include_router_safely(["backend.digest_routes", "digest_routes"], "router")  # le fichier peut définir son propre prefix
 include_router_safely(["backend.analytics_routes", "analytics_routes"], "router")
 include_router_safely(["backend.social_routes", "social_routes"], "router", prefix="/api/social")
 
@@ -177,64 +178,28 @@ else:
         raise HTTPException(status_code=503, detail="transcription_routes non chargé")
 
 # ======================
-# Fallbacks utiles si routers absents
+# Routeurs additionnels (radio cards, PDF, scheduler)
 # ======================
-# Analytics (exemples)
-if not route_registered("/api/analytics/articles-by-source"):
-    @app.get("/api/analytics/articles-by-source", tags=["analytics"])
-    async def analytics_articles_by_source():
-        payload = {"labels": ["France-Antilles", "RCI", "La 1ère", "KaribInfo"], "series": [12, 9, 7, 4]}
-        return {"success": True, **payload, "data": payload}
 
-if not route_registered("/api/analytics/articles-timeline"):
-    @app.get("/api/analytics/articles-timeline", tags=["analytics"])
-    async def analytics_articles_timeline():
-        payload = {
-            "labels": ["2025-08-10", "2025-08-11", "2025-08-12", "2025-08-13", "2025-08-14", "2025-08-15", "2025-08-16"],
-            "series": [5, 7, 6, 9, 8, 10, 11],
-        }
-        return {"success": True, **payload, "data": payload}
+# Radio cards (encarts pour transcriptions)
+include_router_safely(
+    ["backend.radio_cards_routes", "radio_cards_routes"],
+    "router",
+    prefix="/api"  # les endpoints commencent en général par /radio/...
+)
 
-if not route_registered("/api/analytics/sentiment-by-source"):
-    @app.get("/api/analytics/sentiment-by-source", tags=["analytics"])
-    async def analytics_sentiment_by_source():
-        payload = {
-            "labels": ["France-Antilles", "RCI", "La 1ère", "KaribInfo"],
-            "positive": [6, 5, 3, 2],
-            "neutral": [4, 3, 3, 1],
-            "negative": [2, 1, 1, 1],
-        }
-        return {"success": True, **payload, "data": payload}
+# PDF digest (expose /api/digest/pdf/...)
+include_router_safely(
+    ["backend.pdf_routes", "pdf_routes"],
+    "router"
+)
 
-if not route_registered("/api/analytics/dashboard-metrics"):
-    @app.get("/api/analytics/dashboard-metrics", tags=["analytics"])
-    async def analytics_dashboard_metrics():
-        return {
-            "success": True,
-            "totals": {"articles": 32, "sources": 4, "comments": 18},
-            "last_updated": datetime.utcnow().isoformat() + "Z",
-        }
-
-# Sources & articles (placeholders très simples)
-if not route_registered("/api/articles/sources"):
-    @app.get("/api/articles/sources", tags=["articles"])
-    async def articles_sources():
-        return {"success": True, "sources": ["France-Antilles", "RCI", "La 1ère", "KaribInfo"]}
-
-if not route_registered("/api/articles"):
-    @app.get("/api/articles", tags=["articles"])
-    async def articles_list():
-        return {"success": True, "items": []}
-
-if not route_registered("/api/search"):
-    @app.get("/api/search", tags=["search"])
-    async def search(q: str = ""):
-        return {"success": True, "query": q, "results": []}
-
-if not route_registered("/api/search/suggestions"):
-    @app.get("/api/search/suggestions", tags=["search"])
-    async def search_suggestions(q: str = ""):
-        return {"success": True, "query": q, "suggestions": []}
+# Scheduler admin (/api/scheduler/…)
+include_router_safely(
+    ["backend.scheduler_service", "scheduler_service"],
+    "router",
+    prefix="/api/scheduler"
+)
 
 # ======================
 # Scraper optionnel
@@ -265,6 +230,30 @@ def scrape_status():
     return {"success": True, "result": {"success": None, "progress": "running"}}
 
 # ======================
+# Startup / Shutdown : Scheduler attach/detach
+# ======================
+_scheduler_attached = False
+
+@app.on_event("startup")
+def _on_startup():
+    global _scheduler_attached
+    if not RUN_SCHEDULER:
+        logger.info("⏸️ RUN_SCHEDULER=0 → scheduler désactivé (pas d'attache)")
+        return
+    try:
+        try:
+            # import robuste
+            from backend.scheduler_service import attach_scheduler  # type: ignore
+        except Exception:
+            from scheduler_service import attach_scheduler  # type: ignore
+
+        attach_scheduler(app)
+        _scheduler_attached = True
+        logger.info("🗓️ Scheduler attaché au démarrage")
+    except Exception as e:
+        logger.warning("⚠️ Impossible d'attacher le scheduler: %s", e)
+
+# ======================
 # Health & root
 # ======================
 @app.get("/", tags=["health"])
@@ -291,6 +280,18 @@ def health():
 # ======================
 @app.on_event("shutdown")
 def shutdown_event():
+    # stop scheduler proprement
+    if _scheduler_attached:
+        try:
+            try:
+                from backend.scheduler_service import stop_scheduler  # type: ignore
+            except Exception:
+                from scheduler_service import stop_scheduler  # type: ignore
+            stop_scheduler(app)
+            logger.info("🛑 Scheduler arrêté proprement.")
+        except Exception as e:
+            logger.warning("⚠️ Arrêt du scheduler: %s", e)
+
     if mongo_client:
         try:
             mongo_client.close()
