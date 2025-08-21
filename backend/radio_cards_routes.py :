@@ -1,0 +1,98 @@
+# backend/radio_cards_routes.py
+from fastapi import APIRouter, Query, HTTPException
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+try:
+    from backend.radio_service import radio_service, TZ, TIMEZONE_NAME  # type: ignore
+except Exception:
+    from radio_service import radio_service, TZ, TIMEZONE_NAME  # fallback
+
+router = APIRouter(prefix="/radio", tags=["radio"])
+
+def _mins(sec: Any) -> int:
+    try:
+        return int(round((sec or 0) / 60))
+    except Exception:
+        return 0
+
+def _card(doc: Dict[str, Any]) -> Dict[str, Any]:
+    title = doc.get("stream_name") or doc.get("section") or "Transcription"
+    dur_min = _mins(doc.get("duration_seconds"))
+    start = doc.get("start_time_local") or ""
+    summary = (doc.get("ai_summary")
+               or doc.get("gpt_analysis")
+               or doc.get("transcription_text", "")).strip()
+    if len(summary) > 400:
+        summary = summary[:400] + "…"
+
+    return {
+        "id": doc.get("id"),
+        "title": title,
+        "subtitle": f"{doc.get('date','')} • {start} • {dur_min} min".strip(" •"),
+        "summary": summary,
+        "audioUrl": doc.get("audio_url"),   # None si tu n’as pas activé la sauvegarde
+        "type": doc.get("type", "radio"),   # radio | tv
+        "source": doc.get("section"),
+        "capturedAt": doc.get("captured_at"),
+        "timezone": doc.get("timezone") or TIMEZONE_NAME,
+        "meta": {
+            "transcriptionMethod": doc.get("transcription_method"),
+            "analysisMethod": doc.get("analysis_method"),
+        },
+    }
+
+@router.get("/cards/today")
+def radio_cards_today(limit: int = Query(20, ge=1, le=100)):
+    col = radio_service.transcriptions_collection
+    today = datetime.now(TZ).strftime("%Y-%m-%d")
+    try:
+        docs = list(col.find({"date": today}, {"_id": 0})
+                    .sort("captured_at", -1)
+                    .limit(limit))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"DB error: {e}")
+    cards = [_card(d) for d in docs]
+    return {"success": True, "date": today, "count": len(cards), "cards": cards}
+
+@router.get("/cards")
+def radio_cards(date: Optional[str] = None,
+                limit: int = Query(50, ge=1, le=200),
+                offset: int = Query(0, ge=0)):
+    col = radio_service.transcriptions_collection
+    if not date:
+        date = datetime.now(TZ).strftime("%Y-%m-%d")
+    try:
+        cur = (col.find({"date": date}, {"_id": 0})
+                  .sort("captured_at", -1)
+                  .skip(offset)
+                  .limit(limit))
+        docs = list(cur)
+        total = col.count_documents({"date": date})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"DB error: {e}")
+    cards = [_card(d) for d in docs]
+    return {
+        "success": True,
+        "date": date,
+        "cards": cards,
+        "pagination": {
+            "total": total,
+            "offset": offset,
+            "returned": len(cards),
+            "hasMore": offset + len(cards) < total
+        },
+    }
+
+@router.get("/cards/{transcription_id}")
+def radio_card_by_id(transcription_id: str):
+    col = radio_service.transcriptions_collection
+    try:
+        doc = col.find_one({"id": transcription_id}, {"_id": 0})
+        if not doc:
+            raise HTTPException(status_code=404, detail="Not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"DB error: {e}")
+    return {"success": True, "card": _card(doc), "raw": doc}
