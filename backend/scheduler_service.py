@@ -2,17 +2,17 @@
 """
 Scheduler central (APScheduler) pour la Veille Média
 - Scraping : toutes les heures (minute=0)
-- Capture radio : 7h locales
+- Radio/TV : vérif des créneaux "due now" TOUTES LES MINUTES (heure locale)
 - Digest : 12h locales
 - Nettoyage cache : 2h locales
-- Admin: /api/scheduler/status, /api/scheduler/next, /api/scheduler/run-job/{job_id}, /api/scheduler/toggle
-- Verrous anti-chevauchement, timestamps UTC + local, TZ IANA (America/Guadeloupe par défaut)
+- Endpoints d'admin : /api/scheduler/status, /api/scheduler/next, /api/scheduler/run-job/{job_id}, /api/scheduler/toggle
+- Verrous anti-chevauchement + démarrage unique + logs Mongo
 """
 
 import os
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional, Dict, Any, List
 
 from zoneinfo import ZoneInfo
@@ -64,7 +64,6 @@ def _get_db():
 
 _db = _get_db()
 _logs_col = _db["scheduler_logs"] if _db is not None else None
-_transcriptions_col = _db["radio_transcriptions"] if _db is not None else None
 
 # =========================
 # État & Locks
@@ -72,7 +71,7 @@ _transcriptions_col = _db["radio_transcriptions"] if _db is not None else None
 _scheduler: Optional[AsyncIOScheduler] = None
 
 _scrape_lock = asyncio.Lock()
-_capture_lock = asyncio.Lock()
+_radio_due_lock = asyncio.Lock()
 _digest_lock = asyncio.Lock()
 _cache_lock = asyncio.Lock()
 
@@ -80,13 +79,13 @@ _cache_lock = asyncio.Lock()
 # Utils
 # =========================
 def _log_job(job_name: str, success: bool, details: str = ""):
-    now_utc = datetime.utcnow()
-    now_local = datetime.now(TZ)
+    now_utc = datetime.now(ZoneInfo("UTC"))
+    now_local = now_utc.astimezone(TZ)
     entry = {
         "job_name": job_name,
         "success": success,
         "details": details,
-        "timestamp_utc": now_utc.isoformat() + "Z",
+        "timestamp_utc": now_utc.isoformat(),
         "timestamp_local": now_local.isoformat(),
         "date_utc": now_utc.strftime("%Y-%m-%d"),
         "date_local": now_local.strftime("%Y-%m-%d"),
@@ -103,7 +102,7 @@ def _log_job(job_name: str, success: bool, details: str = ""):
     )
 
 def _lazy_imports():
-    """Import paresseux des services pour éviter les import-cycles / reloads."""
+    """Import paresseux pour éviter les cycles et accélérer le boot."""
     scraper = radio = summary = None
     try:
         from backend.scraper_service import guadeloupe_scraper as scraper  # type: ignore
@@ -111,24 +110,13 @@ def _lazy_imports():
         logger.warning(f"Scraper service indisponible: {e}")
     try:
         from backend.radio_service import radio_service as radio  # type: ignore
-    except Exception:
-        radio = None
+    except Exception as e:
+        logger.warning(f"Radio service indisponible: {e}")
     try:
         from backend.summary_service import summary_service as summary  # type: ignore
-    except Exception:
-        summary = None
+    except Exception as e:
+        logger.warning(f"Summary service indisponible: {e}")
     return scraper, radio, summary
-
-def _is_recent_capture_in_progress(max_age_min: int = 15) -> bool:
-    """Garde DB : capture radio 'in_progress' récente ?"""
-    if _transcriptions_col is None:
-        return False
-    try:
-        since = (datetime.utcnow() - timedelta(minutes=max_age_min)).isoformat()
-        found = _transcriptions_col.find_one({"status": "in_progress", "captured_at": {"$gte": since}})
-        return bool(found)
-    except Exception:
-        return False
 
 # =========================
 # Jobs
@@ -154,29 +142,31 @@ async def job_scrape_articles():
         except Exception as e:
             _log_job("scrape_articles", False, str(e))
 
-async def job_capture_radio():
-    if _capture_lock.locked():
-        logger.info("⏭️ Capture ignorée (lock actif)")
+async def job_radio_due_minutely():
+    """
+    Appelé TOUTES LES MINUTES en heure locale.
+    Le radio_service s'occupe de :
+      - convertir UTC -> local
+      - vérifier quels flux sont 'due now'
+      - dédupliquer par minute
+    """
+    if _radio_due_lock.locked():
+        logger.info("⏭️ Radio due ignoré (lock actif)")
         return
-    if _is_recent_capture_in_progress():
-        logger.info("⏭️ Capture ignorée (déjà en cours selon DB)")
-        return
-    async with _capture_lock:
+    async with _radio_due_lock:
         _, radio, _ = _lazy_imports()
-        if radio is None or not hasattr(radio, "capture_all_streams"):
-            _log_job("capture_radio", False, "Service radio non disponible")
+        if radio is None or not hasattr(radio, "capture_due_streams"):
+            _log_job("radio_due_minutely", False, "radio_service.capture_due_streams indisponible")
             return
         try:
-            logger.info("🎙️ Capture radio planifiée (7h)")
+            logger.info("📻 Vérification des créneaux Radio/TV (minutely)")
             loop = asyncio.get_running_loop()
-            result = await loop.run_in_executor(None, radio.capture_all_streams)
-            if result and result.get("success"):
-                details = f"{result.get('streams_success', 0)}/{result.get('streams_processed', 0)} flux"
-                _log_job("capture_radio", True, details)
-            else:
-                _log_job("capture_radio", False, f"Réponse invalide: {result}")
+            result = await loop.run_in_executor(None, radio.capture_due_streams)
+            details = f"due={len(result.get('due', []))} ran={len(result.get('ran', []))} errors={len(result.get('errors', []))}"
+            ok = len(result.get("errors", [])) == 0
+            _log_job("radio_due_minutely", ok, details)
         except Exception as e:
-            _log_job("capture_radio", False, str(e))
+            _log_job("radio_due_minutely", False, str(e))
 
 async def job_create_daily_digest():
     if _digest_lock.locked():
@@ -195,13 +185,13 @@ async def job_create_daily_digest():
             digest_html = await loop.run_in_executor(None, lambda: summary.create_daily_digest(articles, trans))
             if _db is not None:
                 _db["daily_digests"].update_one(
-                    {"id": f"digest_{datetime.utcnow().strftime('%Y%m%d')}"},
+                    {"id": f"digest_{datetime.now(ZoneInfo('UTC')).strftime('%Y%m%d')}"},
                     {"$set": {
-                        "date": datetime.utcnow().strftime("%Y-%m-%d"),
+                        "date": datetime.now(TZ).strftime("%Y-%m-%d"),
                         "digest_html": digest_html,
                         "articles_count": len(articles),
                         "transcriptions_count": len(trans),
-                        "created_at": datetime.utcnow().isoformat(),
+                        "created_at": datetime.now(ZoneInfo("UTC")).isoformat(),
                     }},
                     upsert=True
                 )
@@ -241,10 +231,10 @@ def _ensure_scheduler() -> AsyncIOScheduler:
     )
 
     # CRON en heure locale (TZ)
-    _scheduler.add_job(job_scrape_articles,     CronTrigger(minute=0,               timezone=TZ), id="scrape_articles",   replace_existing=True)
-    _scheduler.add_job(job_capture_radio,       CronTrigger(hour=11,  minute=0,     timezone=TZ), id="capture_radio",     replace_existing=True)
-    _scheduler.add_job(job_create_daily_digest, CronTrigger(hour=12, minute=0,     timezone=TZ), id="create_digest",     replace_existing=True)
-    _scheduler.add_job(job_clean_cache_24h,     CronTrigger(hour=2,  minute=0,     timezone=TZ), id="clean_cache_24h",   replace_existing=True)
+    _scheduler.add_job(job_scrape_articles,     CronTrigger(minute=0,               timezone=TZ), id="scrape_articles",    replace_existing=True)
+    _scheduler.add_job(job_radio_due_minutely,  CronTrigger(minute="*",             timezone=TZ), id="radio_due_minutely", replace_existing=True)
+    _scheduler.add_job(job_create_daily_digest, CronTrigger(hour=12,  minute=0,     timezone=TZ), id="create_digest",      replace_existing=True)
+    _scheduler.add_job(job_clean_cache_24h,     CronTrigger(hour=2,   minute=0,     timezone=TZ), id="clean_cache_24h",    replace_existing=True)
 
     return _scheduler
 
@@ -262,7 +252,7 @@ def attach_scheduler(app) -> None:
         sched.start()
         logger.info(
             "✅ Scheduler démarré (tz=%s | now_local=%s | now_utc=%sZ)",
-            TIMEZONE_NAME, datetime.now(TZ).isoformat(), datetime.utcnow().isoformat()
+            TIMEZONE_NAME, datetime.now(TZ).isoformat(), datetime.now(ZoneInfo("UTC")).isoformat()
         )
     app.state.scheduler = sched
     app.state.scheduler_started = True
@@ -308,7 +298,7 @@ def scheduler_status():
     return {
         "running": sched.running,
         "timezone": TIMEZONE_NAME,
-        "now_utc": datetime.utcnow().isoformat() + "Z",
+        "now_utc": datetime.now(ZoneInfo("UTC")).isoformat(),
         "now_local": datetime.now(TZ).isoformat(),
         "jobs": jobs_sorted,
         "note": "Si next_run_time_* est null, le job vient peut-être d'être exécuté ou est en pause.",
@@ -316,7 +306,7 @@ def scheduler_status():
 
 @router.get("/next", tags=["scheduler"])
 def next_runs():
-    """Résumé ultra-lisible des prochaines exécutions."""
+    """Résumé synthétique des prochaines exécutions."""
     sched = _ensure_scheduler()
     items = []
     for j in sched.get_jobs():
@@ -330,7 +320,7 @@ def next_runs():
     return {
         "timezone": TIMEZONE_NAME,
         "now_local": datetime.now(TZ).isoformat(),
-        "now_utc": datetime.utcnow().isoformat() + "Z",
+        "now_utc": datetime.now(ZoneInfo("UTC")).isoformat(),
         "next": items,
     }
 
@@ -338,7 +328,7 @@ def next_runs():
 async def run_job(job_id: str):
     job_map = {
         "scrape_articles": job_scrape_articles,
-        "capture_radio": job_capture_radio,
+        "radio_due_minutely": job_radio_due_minutely,
         "create_digest": job_create_daily_digest,
         "clean_cache_24h": job_clean_cache_24h,
     }
