@@ -8,9 +8,9 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 import json
 from collections import Counter
+import unicodedata
 
 # Configuration logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class LocalSentimentAnalyzer:
@@ -75,8 +75,45 @@ class LocalSentimentAnalyzer:
             'ne', 'pas', 'point', 'jamais', 'rien', 'aucun', 'aucune', 'sans',
             'non', 'nullement', 'guère'
         }
+
+        # Mini-lexique de lemmatisation naïve (formes -> base)
+        self._lemma_map = {
+            'réussite': 'réussi', 'réussites': 'réussi', 'réussir': 'réussir',
+            'succès': 'succès', 'améliorations': 'amélioration', 'améliorés': 'améliorer', 'amélioré': 'améliorer',
+            'victoires': 'victoire', 'progrès': 'progrès', 'avancées': 'avancée',
+            'problèmes': 'problème', 'difficultés': 'difficulté', 'baisse': 'baisse', 'baisses': 'baisse',
+            'retards': 'retard', 'annulations': 'annulation', 'pannes': 'panne', 'coupures': 'coupure',
+        }
+
+        # Expressions d'intensification et de négation multi-mots
+        self._negation_phrases = { 'pas du tout', 'pas vraiment', 'pas du tout bon', 'pas terrible' }
+        self._intensity_terms = { 'très', 'vraiment', 'tellement', 'si', 'hyper', 'ultra' }
         
         logger.info("✅ Analyseur de sentiment local initialisé")
+
+        # Correction du lexique (typo) et déduplications
+        if 'chlordécane' in self.negative_words:
+            self.negative_words.remove('chlordécane')
+            self.negative_words.add('chlordécone')
+
+        # Regex emojis précompilée (perf)
+        self._emoji_pattern = re.compile("["
+            u"\U0001F600-\U0001F64F"
+            u"\U0001F300-\U0001F5FF"
+            u"\U0001F680-\U0001F6FF"
+            u"\U0001F1E0-\U0001F1FF"
+            u"\u2700-\u27BF"
+            u"\U0001f926-\U0001f937"
+            u"\U00010000-\U0010ffff"
+            u"\u2640-\u2642"
+            u"\u2600-\u2B55"
+            u"\u200d"
+            u"\u23cf"
+            u"\u23e9"
+            u"\u231a"
+            u"\ufe0f"
+            u"\u3030"
+            "]+", flags=re.UNICODE)
 
     def clean_text(self, text: str) -> str:
         """Nettoyer et normaliser le texte"""
@@ -101,26 +138,8 @@ class LocalSentimentAnalyzer:
             if emoji in text:
                 text = text.replace(emoji, ' négatif ')
         
-        # Supprimer les autres emojis restants
-        import re
-        emoji_pattern = re.compile("["
-                                   u"\U0001F600-\U0001F64F"  # emoticons
-                                   u"\U0001F300-\U0001F5FF"  # symbols & pictographs
-                                   u"\U0001F680-\U0001F6FF"  # transport & map symbols
-                                   u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
-                                   u"\U00002700-\U000027BF"  # dingbats
-                                   u"\U0001f926-\U0001f937"
-                                   u"\U00010000-\U0010ffff"
-                                   u"\u2640-\u2642" 
-                                   u"\u2600-\u2B55"
-                                   u"\u200d"
-                                   u"\u23cf"
-                                   u"\u23e9"
-                                   u"\u231a"
-                                   u"\ufe0f"  # dingbats
-                                   u"\u3030"
-                                   "]+", flags=re.UNICODE)
-        text = emoji_pattern.sub(r' ', text)
+        # Supprimer les autres emojis restants (pattern précompilé)
+        text = self._emoji_pattern.sub(r' ', text)
         
         # Supprimer les hashtags mais garder le mot
         text = re.sub(r'#(\w+)', r'\1', text)
@@ -142,59 +161,172 @@ class LocalSentimentAnalyzer:
         
         return text.strip()
 
+    def _strip_accents(self, s: str) -> str:
+        return ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
+
+    def _lemmatize_token(self, token: str) -> str:
+        """Lemmatisation très légère pour le français (naïve)."""
+        if not token:
+            return token
+        t = token.lower()
+        t = self._lemma_map.get(t, t)
+        # Règles basiques pluriel/féminin/adjectifs
+        for suf in ('ment',):
+            if t.endswith(suf) and len(t) > len(suf) + 3:  # évite mots courts
+                t = t[:-len(suf)]
+        for suf in ('ées','és','euses','euse','eaux','aux'):
+            if t.endswith(suf) and len(t) > len(suf) + 2:
+                t = t[:-len(suf)]
+        for suf in ('ement','ements','ations','ation','ances','ance','ités','ité'):
+            if t.endswith(suf) and len(t) > len(suf) + 2:
+                t = t[:-len(suf)]
+        for suf in ('es','s'):
+            if t.endswith(suf) and len(t) > len(suf) + 2:
+                t = t[:-len(suf)]
+        return t
+    def predict_population_reaction(self, text: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Aggrège le score local et fournit un format prêt pour population_reaction_service.
+        context peut contenir un snapshot front: {
+          totals: {articles_count, distinct_sources_count},
+          timeline_chart: {labels: [...]}, source_chart: {labels: [...]}
+        }
+        """
+        base = self.analyze_sentiment(text)
+        score = float(base.get('score') or 0.0)
+        conf = float(base.get('analysis_details',{}).get('confidence', 0.0))
+
+        # Polarisation estimée selon l'amplitude du score
+        a = abs(score)
+        if a < 0.15:
+            polar = 'faible'
+            risk = 'low'
+        elif a < 0.35:
+            polar = 'modéré'
+            risk = 'medium'
+        else:
+            polar = 'élevé'
+            risk = 'high'
+
+        # Cohérence du label
+        overall = 'positive' if score > 0.15 else ('négative' if score < -0.15 else 'neutre')
+
+        # Ajustements par contexte (sources/timeline)
+        try:
+            snap = context or {}
+            totals = snap.get('totals') or {}
+            src_cnt = int(totals.get('distinct_sources_count') or 0)
+            tl = snap.get('timeline_chart') or {}
+            tl_span = len(tl.get('labels') or [])
+            # Si très peu de sources et timeline courte -> réduire la confiance et le risque
+            if src_cnt <= 1 or tl_span <= 1:
+                conf = max(0.3, conf * 0.8)
+                if risk == 'high':
+                    risk = 'medium'
+                    polar = 'modéré'
+        except Exception:
+            pass
+
+        # Recommandations simples
+        recs: List[str] = []
+        if score <= -0.35:
+            recs = [
+                "Répondre vite avec empathie",
+                "Partager des faits vérifiés",
+                "Proposer une action corrective",
+            ]
+        elif score >= 0.35:
+            recs = [
+                "Amplifier les retours positifs",
+                "Remercier publiquement",
+                "Transformer en témoignages",
+            ]
+
+        # Motifs (top 5) pour explication
+        details = base.get('analysis_details', {})
+        words = details.get('words_analyzed') or []
+        reasons = [w.get('word') for w in words][:5]
+
+        return {
+            'overall_reaction': overall,
+            'overall_score': round(score, 3),
+            'risk_level': risk,
+            'confidence': round(conf, 3),
+            'polarization_risk': polar,
+            'by_demographic': {},
+            'data_sources': {'similar_articles': 0, 'similar_social_posts': 0},
+            'strategic_recommendations': recs,
+            'reasons': reasons,
+        }
+
     def analyze_sentiment(self, text: str) -> Dict[str, Any]:
         """Analyser le sentiment d'un texte"""
         try:
             if not text:
                 return self._default_sentiment()
-            
+
+            # Mesures d'emphase avant nettoyage
+            exclamations = len(re.findall(r'!+', text or ''))
+            # Ratio de mots TOUT EN MAJUSCULES (>=3 lettres)
+            upper_tokens = re.findall(r'\b[A-ZÀÂÄÉÈÊËÏÎÔÖÙÛÜÇ]{3,}\b', text or '')
+            words_total_raw = len(re.findall(r'\b\w+\b', text or '')) or 1
+            upper_ratio = min(1.0, len(upper_tokens) / words_total_raw)
+
             # Nettoyer le texte
             clean_text = self.clean_text(text)
             words = clean_text.split()
-            
+
             if not words:
                 return self._default_sentiment()
-            
+
+            # Lemmatisation naïve
+            lemmas = [self._lemmatize_token(w) for w in words]
+
             # Calculer les scores
             positive_score = 0
             negative_score = 0
             word_details = []
-            
-            for i, word in enumerate(words):
+
+            for i, word in enumerate(lemmas):
                 # Vérifier les intensificateurs
                 intensity = 1.0
-                if i > 0 and words[i-1] in self.intensifiers:
-                    intensity = self.intensifiers[words[i-1]]
-                
-                # Vérifier les négations dans les 2 mots précédents
+                if i > 0 and (words[i-1] in self.intensifiers or words[i-1] in self._intensity_terms):
+                    intensity = max(intensity, self.intensifiers.get(words[i-1], 1.2))
+
+                # Vérifier les négations sur une fenêtre plus large (jusqu'à 5 tokens en arrière)
                 is_negated = False
-                for j in range(max(0, i-2), i):
-                    if words[j] in self.negations:
-                        is_negated = True
-                        break
-                
+                scope_start = max(0, i-5)
+                window = lemmas[scope_start:i]
+                if any(w in self.negations for w in window):
+                    is_negated = True
+                else:
+                    # Détection d'expressions de négation multi-mots dans la sous-chaîne
+                    if i > 0:
+                        sub = ' '.join(words[max(0, i-5):i])  # chaîne d'origine nettoyée (non lemmatisée)
+                        if any(phrase in sub for phrase in self._negation_phrases):
+                            is_negated = True
+
                 # Calculer le score du mot
                 word_score = 0
                 sentiment_type = 'neutral'
-                
+
                 if word in self.positive_words:
                     word_score = 1.0 * intensity
                     sentiment_type = 'positive'
                 elif word in self.negative_words:
                     word_score = -1.0 * intensity
                     sentiment_type = 'negative'
-                
+
                 # Appliquer la négation
                 if is_negated and word_score != 0:
                     word_score = -word_score
                     sentiment_type = 'positive' if sentiment_type == 'negative' else 'negative'
-                
+
                 # Ajouter au score total
                 if word_score > 0:
                     positive_score += word_score
                 elif word_score < 0:
                     negative_score += abs(word_score)
-                
+
                 # Enregistrer les détails des mots significatifs
                 if word_score != 0:
                     word_details.append({
@@ -204,26 +336,30 @@ class LocalSentimentAnalyzer:
                         'intensity': intensity,
                         'negated': is_negated
                     })
-            
+
             # Calculer le score final
             total_score = positive_score - negative_score
             total_words = len(words)
-            
+
             # Normaliser le score (-1 à 1)
             if total_words > 0:
                 normalized_score = max(-1, min(1, total_score / total_words))
             else:
                 normalized_score = 0
-            
-            # Déterminer la polarité
+
+            # Ajustement par emphase (!!! et MAJUSCULES)
+            boost = min(0.2, 0.05 * exclamations) + min(0.1, 0.2 * upper_ratio)
+            if normalized_score > 0:
+                normalized_score = min(1.0, normalized_score + boost)
+            elif normalized_score < 0:
+                normalized_score = max(-1.0, normalized_score - boost)
+            # Recalcule la polarité après boost
             if normalized_score > 0.1:
                 polarity = 'positive'
             elif normalized_score < -0.1:
                 polarity = 'negative'
             else:
                 polarity = 'neutral'
-            
-            # Déterminer l'intensité
             abs_score = abs(normalized_score)
             if abs_score > 0.5:
                 intensity_level = 'strong'
@@ -231,7 +367,9 @@ class LocalSentimentAnalyzer:
                 intensity_level = 'moderate'
             else:
                 intensity_level = 'weak'
-            
+
+            confidence = self._calculate_confidence_v2(word_details, total_words, exclamations, upper_ratio)
+
             return {
                 'polarity': polarity,
                 'score': round(normalized_score, 3),
@@ -243,11 +381,14 @@ class LocalSentimentAnalyzer:
                 'analysis_details': {
                     'words_analyzed': word_details[:10],  # Limiter à 10 mots
                     'detected_patterns': self._detect_patterns(clean_text),
-                    'confidence': self._calculate_confidence(word_details, total_words)
+                    'confidence': confidence,
+                    'exclamation_count': exclamations,
+                    'uppercase_ratio': round(upper_ratio, 3),
+                    'negation_hits': sum(1 for w in lemmas if w in self.negations)
                 },
                 'analyzed_at': datetime.now().isoformat()
             }
-            
+
         except Exception as e:
             logger.error(f"Erreur analyse sentiment: {e}")
             return self._default_sentiment(error=str(e))
@@ -299,6 +440,17 @@ class LocalSentimentAnalyzer:
         
         confidence = significant_ratio * length_factor * diversity_factor
         return round(min(1.0, confidence), 3)
+
+    def _calculate_confidence_v2(self, word_details: List[Dict], total_words: int, exclamations: int, upper_ratio: float) -> float:
+        """Confiance plus stable: combine densité de mots significatifs, longueur, et bruit d'emphase."""
+        if total_words <= 0:
+            return 0.0
+        sig_ratio = len(word_details) / total_words  # 0..1
+        length_factor = min(1.0, total_words / 50)   # monte jusqu'à 50 tokens
+        emphasis_penalty = min(0.2, 0.02 * exclamations) + min(0.2, 0.2 * upper_ratio)
+        raw = 0.6 * sig_ratio + 0.4 * length_factor
+        conf = max(0.0, min(1.0, raw * (1.0 - emphasis_penalty)))
+        return round(conf, 3)
 
     def _default_sentiment(self, error: str = None) -> Dict[str, Any]:
         """Retourner un sentiment par défaut"""
@@ -375,7 +527,10 @@ class LocalSentimentAnalyzer:
                 'most_common_patterns': dict(pattern_counts.most_common(5)),
                 'analysis_timestamp': datetime.now().isoformat()
             }
-            
+            overall_summary['explanations'] = {
+                'avg_confidence': round(sum(a['sentiment']['analysis_details']['confidence'] for a in analyzed_articles) / len(analyzed_articles), 3) if analyzed_articles else 0.0,
+                'top_patterns': list(pattern_counts.keys())[:5]
+            }
             return {
                 'articles': analyzed_articles,
                 'summary': overall_summary
@@ -445,6 +600,9 @@ local_sentiment_analyzer = LocalSentimentAnalyzer()
 def analyze_text_sentiment(text: str) -> Dict[str, Any]:
     """Analyser le sentiment d'un texte (fonction utilitaire)"""
     return local_sentiment_analyzer.analyze_sentiment(text)
+
+def predict_population_reaction(text: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    return local_sentiment_analyzer.predict_population_reaction(text, context)
 
 def analyze_articles_sentiment(articles: List[Dict]) -> Dict[str, Any]:
     """Analyser le sentiment d'une liste d'articles (fonction utilitaire)"""

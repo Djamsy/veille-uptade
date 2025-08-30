@@ -5,7 +5,7 @@ Scheduler central (APScheduler) pour la Veille Média
 - Radio/TV : vérif des créneaux "due now" TOUTES LES MINUTES (heure locale)
 - Digest : 12h locales
 - Nettoyage cache : 2h locales
-- Endpoints d'admin : /api/scheduler/status, /api/scheduler/next, /api/scheduler/run-job/{job_id}, /api/scheduler/toggle
+- Endpoints d'admin : /api/scheduler/status, /api/scheduler/jobs, /api/scheduler/next, /api/scheduler/run-job/{job_id}, /api/scheduler/toggle
 - Verrous anti-chevauchement + démarrage unique + logs Mongo
 """
 
@@ -283,6 +283,22 @@ def _job_info(j: Job) -> Dict[str, Any]:
         "next_run_time_utc": next_utc,
         "next_run_time_local": next_local,
         "trigger": str(j.trigger),
+    }
+
+@router.get("/jobs", tags=["scheduler"])
+def list_jobs():
+    """Lister les jobs APScheduler enregistrés (avec prochaine exécution)."""
+    sched = _ensure_scheduler()
+    jobs = [_job_info(j) for j in sched.get_jobs()]
+    # tri par prochaine exécution locale (None à la fin)
+    jobs_sorted = sorted(jobs, key=lambda x: (x["next_run_time_local"] is None, x["next_run_time_local"] or ""))
+    return {
+        "running": sched.running,
+        "timezone": TIMEZONE_NAME,
+        "now_utc": datetime.now(ZoneInfo("UTC")).isoformat(),
+        "now_local": datetime.now(TZ).isoformat(),
+        "count": len(jobs_sorted),
+        "jobs": jobs_sorted,
     }
 
 @router.get("/status", tags=["scheduler"])

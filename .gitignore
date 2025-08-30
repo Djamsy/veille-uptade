@@ -35,3 +35,24 @@ dist
 backend/.env
 backend/.env
 backend/.env
+# macOS
+.DS_Store
+frontend/.DS_Store
+frontend/src/.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+backend/.venv/
+env/
+.venv/
+
+# Node / React
+node_modules/
+
+# Lockfiles: on choisit NPM, on ignore yarn.lock
+frontend/yarn.lock
+
+# Secrets
+.env
+frontend/.env

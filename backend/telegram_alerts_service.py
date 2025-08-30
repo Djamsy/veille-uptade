@@ -6,10 +6,17 @@ Envoie des notifications instantanées avec formatage riche
 import os
 import asyncio
 import logging
+import requests
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
-from telegram import Bot
-from telegram.constants import ParseMode
+try:
+    from telegram import Bot
+    from telegram.constants import ParseMode
+except Exception:  # make telegram optional; we can still send via HTTP
+    Bot = None
+    class ParseMode:
+        HTML = "HTML"
+        MARKDOWN_V2 = "MarkdownV2"
 from pymongo import MongoClient
 import re
 import json
@@ -22,10 +29,16 @@ logger = logging.getLogger(__name__)
 
 class TelegramAlertsService:
     def __init__(self):
-        # Configuration Telegram
-        self.telegram_token = None  # À configurer via l'API
+        # Configuration Telegram (env d'abord, Mongo sinon)
+        self.telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+        self.default_chat_id = os.environ.get("TELEGRAM_CHAT_ID")
         self.bot = None
-        self.default_chat_id = None  # Chat ID de l'utilisateur principal
+        if self.telegram_token and self.default_chat_id and Bot is not None:
+            try:
+                self.bot = Bot(token=self.telegram_token)
+                logger.info("✅ Bot Telegram initialisé depuis les variables d'environnement")
+            except Exception as e:
+                logger.warning(f"⚠️ Impossible d'initialiser Bot (env): {e}")
         
         # MongoDB connection
         MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
@@ -41,6 +54,18 @@ class TelegramAlertsService:
             self.alerts_config_collection = self.db.alerts_config
             
             logger.info("✅ Connexion MongoDB réussie pour alertes Telegram")
+            # Si pas de token en env, tenter un chargement Mongo (fallback)
+            if not self.telegram_token or not self.default_chat_id:
+                try:
+                    cfg = self.db.alerts_config.find_one({"type": "telegram_config", "status": "active"})
+                    if cfg:
+                        self.telegram_token = self.telegram_token or cfg.get("token")
+                        self.default_chat_id = self.default_chat_id or cfg.get("default_chat_id")
+                        if self.telegram_token and self.default_chat_id and Bot is not None:
+                            self.bot = Bot(token=self.telegram_token)
+                            logger.info("✅ Configuration Telegram chargée depuis MongoDB")
+                except Exception as e:
+                    logger.warning(f"⚠️ Fallback Mongo pour Telegram échoué: {e}")
         except Exception as e:
             logger.error(f"❌ Erreur MongoDB: {e}")
         
@@ -110,46 +135,75 @@ class TelegramAlertsService:
         }
 
     def configure_telegram(self, token: str, chat_id: int):
-        """Configurer le bot Telegram avec token et chat ID"""
+        """Configurer le bot Telegram avec token et chat ID (persistance Mongo + mémoire)."""
         try:
             self.telegram_token = token
-            self.default_chat_id = chat_id
-            self.bot = Bot(token=token)
-            
-            # Sauvegarder la configuration
+            self.default_chat_id = str(chat_id)
+            if Bot is not None:
+                try:
+                    self.bot = Bot(token=token)
+                except Exception as e:
+                    logger.warning(f"⚠️ Bot non initialisé (lib manquante ou erreur): {e}")
+            # Sauvegarde Mongo
             self.alerts_config_collection.update_one(
-                {'type': 'telegram_config'},
-                {
-                    '$set': {
-                        'token': token,
-                        'default_chat_id': chat_id,
-                        'configured_at': datetime.now().isoformat(),
-                        'status': 'active'
-                    }
-                },
+                {"type": "telegram_config"},
+                {"$set": {
+                    "token": token,
+                    "default_chat_id": self.default_chat_id,
+                    "configured_at": datetime.now().isoformat(),
+                    "status": "active"
+                }},
                 upsert=True
             )
-            
-            logger.info(f"✅ Bot Telegram configuré pour chat_id: {chat_id}")
+            logger.info(f"✅ Bot Telegram configuré pour chat_id: {self.default_chat_id}")
             return True
-            
         except Exception as e:
             logger.error(f"❌ Erreur configuration Telegram: {e}")
             return False
 
     def load_config(self):
-        """Charger la configuration depuis MongoDB"""
+        """Charger la configuration depuis ENV puis MongoDB."""
+        # ENV prioritaire
+        if self.telegram_token and self.default_chat_id:
+            if Bot is not None and self.bot is None:
+                try:
+                    self.bot = Bot(token=self.telegram_token)
+                except Exception as e:
+                    logger.warning(f"⚠️ Init Bot depuis ENV échouée: {e}")
+            return True
+        # Mongo fallback
         try:
-            config = self.alerts_config_collection.find_one({'type': 'telegram_config'})
-            if config and config.get('status') == 'active':
-                self.telegram_token = config.get('token')
-                self.default_chat_id = config.get('default_chat_id')
-                self.bot = Bot(token=self.telegram_token)
-                logger.info(f"✅ Configuration Telegram chargée")
+            config = self.alerts_config_collection.find_one({"type": "telegram_config", "status": "active"})
+            if config:
+                self.telegram_token = config.get("token")
+                self.default_chat_id = str(config.get("default_chat_id"))
+                if Bot is not None:
+                    try:
+                        self.bot = Bot(token=self.telegram_token)
+                    except Exception as e:
+                        logger.warning(f"⚠️ Init Bot depuis Mongo échouée: {e}")
+                logger.info("✅ Configuration Telegram chargée")
                 return True
             return False
         except Exception as e:
             logger.error(f"❌ Erreur chargement configuration: {e}")
+            return False
+    def _send_via_http(self, message: str, chat_id: Optional[str] = None) -> bool:
+        token = self.telegram_token or os.environ.get("TELEGRAM_BOT_TOKEN")
+        chat = str(chat_id or self.default_chat_id or os.environ.get("TELEGRAM_CHAT_ID", "")).strip()
+        if not token or not chat:
+            logger.warning("[telegram] Missing token/chat for HTTP send")
+            return False
+        try:
+            url = f"https://api.telegram.org/bot{token}/sendMessage"
+            payload = {"chat_id": chat, "text": message[:4000], "parse_mode": "HTML", "disable_web_page_preview": True}
+            r = requests.post(url, json=payload, timeout=10)
+            ok = r.ok and r.json().get("ok") is True
+            if not ok:
+                logger.error("[telegram] HTTP send failed: %s", r.text)
+            return ok
+        except Exception as e:
+            logger.exception("[telegram] HTTP send exception: %s", e)
             return False
 
     def escape_markdown_v2(self, text: str) -> str:
@@ -163,64 +217,72 @@ class TelegramAlertsService:
     async def send_alert(self, message: str, chat_id: int = None, parse_mode: str = "MarkdownV2"):
         """Envoyer une alerte Telegram"""
         if not self.bot:
+            # tente ENV/Mongo
             if not self.load_config():
-                logger.error("❌ Bot Telegram non configuré")
-                return False
-        
+                logger.error("❌ Bot Telegram non configuré (fallback HTTP possible)")
+                # fallback HTTP direct
+                return self._send_via_http(message, chat_id)
+
         try:
             target_chat_id = chat_id or self.default_chat_id
             if not target_chat_id:
                 logger.error("❌ Aucun chat_id configuré")
                 return False
-            
-            # Échapper le message si nécessaire
+
+            # Utilise HTML par défaut (moins pénible que MarkdownV2)
             if parse_mode == "MarkdownV2":
-                message = self.escape_markdown_v2(message)
+                parse_mode = ParseMode.HTML
             
-            # Envoyer le message
-            await self.bot.send_message(
-                chat_id=target_chat_id,
-                text=message,
-                parse_mode=parse_mode
-            )
-            
-            # Logger l'alerte
+            # Envoi via SDK si disponible
+            if self.bot is not None:
+                await self.bot.send_message(chat_id=target_chat_id, text=message, parse_mode=parse_mode)
+                sent_via_sdk = True
+            else:
+                sent_via_sdk = False
+
+            # Si pas de SDK ou échec SDK, tente HTTP
+            if not sent_via_sdk:
+                http_ok = self._send_via_http(message, target_chat_id)
+                if not http_ok:
+                    return False
+
+            # Log to Mongo
             self.alerts_collection.insert_one({
-                'chat_id': target_chat_id,
+                'chat_id': str(target_chat_id),
                 'message': message,
                 'sent_at': datetime.now().isoformat(),
                 'status': 'sent'
             })
-            
             logger.info(f"✅ Alerte Telegram envoyée à {target_chat_id}")
             return True
-            
         except Exception as e:
             logger.error(f"❌ Erreur envoi alerte Telegram: {e}")
             self.alerts_collection.insert_one({
-                'chat_id': target_chat_id,
+                'chat_id': str(chat_id or self.default_chat_id or ''),
                 'message': message,
                 'sent_at': datetime.now().isoformat(),
                 'status': 'failed',
                 'error': str(e)
             })
-            return False
+            # Dernier recours HTTP (au cas où)
+            try:
+                return self._send_via_http(message, chat_id)
+            except Exception:
+                return False
 
     def send_alert_sync(self, message: str, chat_id: int = None):
         """Version synchrone pour envoyer une alerte"""
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # Si on est déjà dans une boucle async, créer une nouvelle boucle
-                asyncio.run_coroutine_threadsafe(
-                    self.send_alert(message, chat_id), loop
-                ).result(timeout=10)
-            else:
-                asyncio.run(self.send_alert(message, chat_id))
-            return True
+            # Toujours exécuter dans une nouvelle boucle pour éviter les conflits
+            loop = asyncio.new_event_loop()
+            try:
+                return loop.run_until_complete(self.send_alert(message, chat_id))
+            finally:
+                loop.close()
         except Exception as e:
             logger.error(f"❌ Erreur envoi alerte sync: {e}")
-            return False
+            # Fallback HTTP ultime
+            return self._send_via_http(message, chat_id)
 
     def check_guy_losbar_mentions(self) -> List[Dict]:
         """Vérifier les nouvelles mentions des mots-clés surveillés (Guy Losbar et sujets départementaux)"""
@@ -429,10 +491,10 @@ class TelegramAlertsService:
         
         # Titre dynamique selon la priorité
         if high_priority_mentions:
-            alert_parts.extend(["🚨 *ALERTE PRIORITAIRE Guy Losbar*", ""])
+            alert_parts.extend(["🚨 <b>ALERTE PRIORITAIRE Guy Losbar</b>", ""])
             mentions_to_show = high_priority_mentions[:3]  # Limiter pour Telegram
         else:
-            alert_parts.extend(["📢 *ALERTE Conseil Départemental*", ""])
+            alert_parts.extend(["📢 <b>ALERTE Conseil Départemental</b>", ""])
             mentions_to_show = medium_priority_mentions[:3]
         
         for mention in mentions_to_show:
@@ -504,7 +566,7 @@ class TelegramAlertsService:
         if not changes:
             return ""
         
-        alert_parts = ["⚙️ *STATUT DES TÂCHES*", ""]
+        alert_parts = ["⚙️ <b>STATUT DES TÂCHES</b>", ""]
         
         status_emojis = {
             'active': '✅',
@@ -528,7 +590,7 @@ class TelegramAlertsService:
             new_emoji = status_emojis.get(change['new_status'], '❓')
             new_status = change['new_status']
             
-            alert_parts.append(f"🔄 *{task_name}*")
+            alert_parts.append(f"🔄 <b>{task_name}</b>")
             alert_parts.append(f"   {old_emoji} → {new_emoji} {new_status}")
             
             # Informations spécifiques par tâche
@@ -646,4 +708,4 @@ if __name__ == "__main__":
         
     else:
         print("⚠️ Configuration Telegram requise")
-        print("Utilisez l'endpoint /api/telegram/configure pour configurer le bot")
+        print("Configurez TELEGRAM_BOT_TOKEN et TELEGRAM_CHAT_ID dans l'env ou utilisez /api/telegram/configure")

@@ -1,3 +1,4 @@
+
 # backend/radio_service.py
 """
 Service de capture & transcription des flux (radio/TV) Guadeloupe.
@@ -15,11 +16,14 @@ import time
 import logging
 import tempfile
 import subprocess
+import threading
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
 from zoneinfo import ZoneInfo
 
 from pymongo import MongoClient
+from gridfs import GridFSBucket
+from bson import ObjectId
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -92,29 +96,29 @@ class RadioTranscriptionService:
             "rci_0620": {
                 "name": "RCI 6h20",
                 "section": "RCI 6h20",
-                "description": "RCI Guadeloupe - tranche matinale",
+                "description": "RCI Guadeloupe — tranche matinale",
                 "type": "radio",
                 "url": "http://n01a-eu.rcs.revma.com/v4hf7bwspwzuv?rj-ttl=5&rj-tok=AAABmFgYf1YAGI3rfz2-KTLPnA",
                 "duration_minutes": 15,
-                "schedule": {"days": "weekdays", "hour": 6, "minute": 20},
+                "schedule": {"days": ["mon","tue","wed","thu","fri"], "hour": 6, "minute": 20},
                 "priority": 1,
             },
             # Radio Guadeloupe 1ère à 06:15 (lun→ven) 9 min
             "gp_radio_0615": {
                 "name": "Guadeloupe 1ère Radio 6h15",
                 "section": "GP Radio 6h15",
-                "description": "Guadeloupe 1ère - actualités matinales",
+                "description": "Guadeloupe 1ère — actualités matinales",
                 "type": "radio",
                 "url": "http://guadeloupe.ice.infomaniak.ch/guadeloupe-128.mp3",
                 "duration_minutes": 9,
-                "schedule": {"days": "weekdays", "hour": 6, "minute": 15},
+                "schedule": {"days": ["mon","tue","wed","thu","fri"], "hour": 6, "minute": 15},
                 "priority": 2,
             },
             # TV Guadeloupe 1ère Lundi 18:30 (30 min)
             "gp_tv_lundi_1830": {
                 "name": "Guadeloupe 1ère TV (Lundi 18h30)",
                 "section": "GP TV 18h30 (Lundi)",
-                "description": "Direct TV - Guadeloupe La 1ère",
+                "description": "Direct TV — Guadeloupe La 1ère",
                 "type": "tv",
                 "url": "https://la1ere.franceinfo.fr/guadeloupe/direct-tv.html",
                 "duration_minutes": 30,
@@ -125,32 +129,32 @@ class RadioTranscriptionService:
             "gp_tv_1930": {
                 "name": "Guadeloupe 1ère TV 19h30",
                 "section": "GP TV 19h30",
-                "description": "Journal TV 19h30 - Direct TV",
+                "description": "Journal TV 19h30 — Direct TV",
                 "type": "tv",
                 "url": "https://la1ere.franceinfo.fr/guadeloupe/direct-tv.html",
                 "duration_minutes": 30,
-                "schedule": {"days": "daily", "hour": 19, "minute": 30},
+                "schedule": {"days": ["mon","tue","wed","thu","fri","sat","sun"], "hour": 19, "minute": 30},
                 "priority": 4,
             },
-            # (Compat ancien) 7h RCI / 7h GP si tu veux les garder :
-            "rci_7h": {
-                "name": "7H RCI",
+            # Compat ancien — 7h RCI / 7h GP (quotidien)
+            "rci_0700": {
+                "name": "RCI 7h00",
                 "section": "7H RCI",
-                "description": "RCI Guadeloupe - Journal matinal",
+                "description": "RCI Guadeloupe — Journal matinal",
                 "type": "radio",
                 "url": "http://n01a-eu.rcs.revma.com/v4hf7bwspwzuv?rj-ttl=5&rj-tok=AAABmFgYf1YAGI3rfz2-KTLPnA",
                 "duration_minutes": 20,
-                "schedule": {"days": "daily", "hour": 7, "minute": 0},
+                "schedule": {"days": ["mon","tue","wed","thu","fri","sat","sun"], "hour": 7, "minute": 0},
                 "priority": 9,
             },
-            "guadeloupe_premiere_7h": {
-                "name": "7H Guadeloupe Première",
-                "section": "7H Guadeloupe Première",
-                "description": "Guadeloupe Première - Actualités matinales",
+            "gp_radio_0700": {
+                "name": "Guadeloupe 1ère Radio 7h00",
+                "section": "7H Guadeloupe 1ère",
+                "description": "Guadeloupe 1ère — Journal matinal",
                 "type": "radio",
                 "url": "http://guadeloupe.ice.infomaniak.ch/guadeloupe-128.mp3",
                 "duration_minutes": 30,
-                "schedule": {"days": "daily", "hour": 7, "minute": 0},
+                "schedule": {"days": ["mon","tue","wed","thu","fri","sat","sun"], "hour": 7, "minute": 0},
                 "priority": 10,
             },
         }
@@ -338,6 +342,17 @@ class RadioTranscriptionService:
             os.unlink(out_path)
         return None
 
+    def _gridfs_bucket(self) -> GridFSBucket:
+        """Retourne un bucket GridFS pour stocker l'audio dans MongoDB."""
+        return GridFSBucket(self.db, bucket_name="radio_audio")
+
+    def _store_audio_gridfs(self, local_path: str, filename: str, content_type: str = "audio/mpeg") -> str:
+        """Stocke le fichier audio local dans GridFS et retourne l'ObjectId sous forme de str."""
+        bucket = self._gridfs_bucket()
+        with open(local_path, "rb") as f:
+            file_id = bucket.upload_from_stream(filename, f, metadata={"contentType": content_type})
+        return str(file_id)
+
     def capture_radio_stream(self, key: str, duration_seconds: int) -> Optional[str]:
         cfg = self.streams[key]
         self._update_step(key, "audio_capture", f"Capture ({duration_seconds}s)", 10)
@@ -420,6 +435,17 @@ class RadioTranscriptionService:
                 result["error"] = "Transcription: échec"
                 return result
 
+            # Sauvegarde audio dans GridFS
+            audio_file_id = None
+            audio_mime = "audio/mpeg"  # mp3 produit par _ffmpeg_capture
+            try:
+                safe_section = re.sub(r"[^a-z0-9_-]+", "-", cfg["section"].lower())
+                fname = f"{datetime.now(TZ).strftime('%Y%m%d_%H%M%S')}_{safe_section}.mp3"
+                audio_file_id = self._store_audio_gridfs(path, fname, content_type=audio_mime)
+                logger.info(f"💾 Audio stocké dans GridFS: {audio_file_id}")
+            except Exception as e:
+                logger.warning(f"Stockage GridFS échoué: {e}")
+
             # Analyse GPT (optionnelle)
             self._update_step(key, "gpt_analysis", "Analyse GPT…", 80)
             try:
@@ -464,6 +490,8 @@ class RadioTranscriptionService:
                 "priority": cfg["priority"],
                 "start_time_local": f"{cfg['schedule']['hour']:02d}:{cfg['schedule']['minute']:02d}",
                 "timezone": TIMEZONE_NAME,
+                "audio_file_id": audio_file_id,
+                "audio_mime": audio_mime if audio_file_id else None,
             }
 
             self.transcriptions_collection.insert_one(record.copy())

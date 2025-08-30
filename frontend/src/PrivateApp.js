@@ -1,5 +1,10 @@
+// ===== TEMP BACKEND OVERRIDE (force local API while console/env are flaky) =====
+// NOTE: remove this when env/console works; keep a single source of truth.
+const BACKEND_URL = 'http://localhost:10000';
+console.info('[FORCED CONFIG] BACKEND_URL =', BACKEND_URL);
+// ==============================================================================
 // src/PrivateApp.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import {
   Chart as ChartJS,
@@ -23,6 +28,57 @@ ChartJS.register(
 );
 
 // --- Helpers affichage IA (normalisation + markdown léger) ---
+// ---------- Expandable AI text for radio cards ----------
+const ExpandableAI = ({ id, text, expanded, onToggle }) => {
+  const [localExpanded, setLocalExpanded] = useState(false);
+
+  if (!text) return null;
+
+  // Use controlled prop if provided, otherwise fall back to local state
+  const isExpanded = typeof expanded === 'boolean' ? expanded : localExpanded;
+
+  const handleToggle = () => {
+    if (typeof onToggle === 'function') {
+      onToggle(id);
+    } else {
+      setLocalExpanded(prev => !prev);
+    }
+  };
+
+  return (
+    <div>
+      <div
+        style={{
+          maxHeight: isExpanded ? 'none' : '220px',
+          overflow: 'hidden',
+          transition: 'max-height 0.25s ease'
+        }}
+      >
+        {renderAIText(text)}
+      </div>
+
+      {String(text).trim().length > 420 && (
+        <div style={{ marginTop: '0.5rem' }}>
+          <button
+            type="button"
+            className="btn-link"
+            onClick={handleToggle}
+            style={{
+              border: 'none',
+              background: 'transparent',
+              color: '#2563eb',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            {isExpanded ? 'Voir moins ↑' : 'Voir plus ↓'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+// ---------- End expandable ----------
 const escapeHtml = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[ch]));
 
@@ -92,6 +148,8 @@ const GlobalStyles = () => (
     .ai-summary p { margin: 0 0 0.75rem 0; line-height: 1.7; }
     .ai-markdown .ai-li { margin-left: 1rem; }
     .ai-markdown strong { font-weight: 700; }
+.btn-link { padding: 0; background: transparent; border: none; color: #2563eb; cursor: pointer; }
+.btn-link:hover { text-decoration: underline; }
   `}</style>
 );
 
@@ -229,9 +287,62 @@ const SentimentChart = ({ data }) => {
 };
 
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 
+// BACKEND_URL défini plus haut (override/env/runtime) – on le réutilise ici.
+// Ensure audioUrl is absolute (prefix with BACKEND_URL if needed)
+const absolutizeUrl = (u) => (!u ? null : (u.startsWith('http') ? u : `${BACKEND_URL}${u}`));
 
+// Construit un contexte côté front à envoyer au backend (trace & garde-fous)
+const buildFrontendContext = () => {
+  try {
+    // Top sources (noms + totaux) s'ils existent
+    const srcData = analyticsData?.sourceChart?.data || analyticsData?.sourceChart || {};
+    const srcLabels = Array.isArray(srcData.labels) ? srcData.labels : [];
+    const srcSeries = Array.isArray(srcData.datasets?.[0]?.data)
+      ? srcData.datasets[0].data
+      : (Array.isArray(srcData.series) ? srcData.series : []);
+
+    // Timeline (dates + valeurs)
+    const tlData = analyticsData?.timelineChart?.data || analyticsData?.timelineChart || {};
+    const tlLabels = Array.isArray(tlData.labels) ? tlData.labels : [];
+    const tlSeries = Array.isArray(tlData.datasets?.[0]?.data)
+      ? tlData.datasets[0].data
+      : (Array.isArray(tlData.series) ? tlData.series : []);
+
+    // Sentiment agrégé par source
+    const sentData = analyticsData?.sentimentChart?.data || analyticsData?.sentimentChart || {};
+
+    return {
+      ui_state: {
+        active_tab: activeTab,
+        selected_date: selectedDate,
+        radio_date: radioDate,
+      },
+      filters: { ...filters },
+      pagination: { ...pagination },
+      available_sources_count: Array.isArray(availableSources) ? availableSources.length : 0,
+      analytics_snapshot: {
+        top_sources: srcLabels.slice(0, 6).map((name, i) => ({ name, total: Number(srcSeries?.[i] ?? 0) })),
+        timeline_range: { start: tlLabels[0] || null, end: tlLabels[tlLabels.length - 1] || null, points: tlLabels.length },
+        timeline_counts: tlSeries?.slice?.(Math.max(0, tlSeries.length - 14)) || [],
+        sentiment_overview: {
+          labels: Array.isArray(sentData.labels) ? sentData.labels.slice(0, 10) : [],
+          // Compresser les 3 premières séries (pos/neu/neg) si présentes
+          stacks: Array.isArray(sentData.datasets)
+            ? sentData.datasets.slice(0, 3).map(ds => ({
+                label: ds.label,
+                sum: (ds.data || []).reduce((a, b) => a + (Number(b) || 0), 0)
+              }))
+            : []
+        }
+      },
+      social_stats: socialStats || {},
+      auto_watch: autoSearchResults || {},
+    };
+  } catch (e) {
+    return { error: 'frontend_context_build_failed', message: String(e) };
+  }
+};
 // --- Analytics normalization and safe defaults ---
 const EMPTY_DATASETS = [{ label: 'Aucune donnée', data: [] }];
 const EMPTY_ANALYTICS = {
@@ -242,37 +353,52 @@ const EMPTY_ANALYTICS = {
 };
 
 function normalizeAnalytics(resp) {
-  const r = (resp && (resp.data || resp)) || {};
-  // Try common label keys
-  const labels =
-    Array.isArray(r.labels) ? r.labels :
-    Array.isArray(r.dates) ? r.dates :
-    [];
+  // Accept several shapes:
+  // - { chart_data: { labels, datasets } }
+  // - { data: { labels, datasets } }
+  // - { labels, datasets }
+  // - legacy: { labels, series } or { dates, counts }
+  const raw = resp || {};
+  const r = raw.chart_data ? raw.chart_data : (raw.data || raw);
 
-  // Build a generic "series" (single array of numbers) for simple charts
-  let series = [];
-  if (Array.isArray(r.series) && r.series.every(v => typeof v === 'number')) {
-    series = r.series;
-  } else if (Array.isArray(r.counts)) {
-    series = r.counts;
-  } else if (Array.isArray(r.values)) {
-    series = r.values;
-  } else if (Array.isArray(r.datasets) && Array.isArray(r.datasets[0]?.data)) {
-    series = r.datasets[0].data;
+  // Labels: prefer explicit labels/dates
+  const labels = Array.isArray(r.labels)
+    ? r.labels
+    : Array.isArray(r.dates)
+      ? r.dates
+      : [];
+
+  // Build datasets in a Chart.js-friendly way
+  let datasets = [];
+
+  if (Array.isArray(r.datasets) && r.datasets.length > 0) {
+    // Ensure each dataset has label & data array
+    datasets = r.datasets.map((ds) => ({
+      label: ds?.label ?? 'Valeurs',
+      data: Array.isArray(ds?.data) ? ds.data : [],
+    }));
   } else {
-    series = new Array(labels.length).fill(0);
+    // Derive a single series from common keys
+    let series = [];
+    if (Array.isArray(r.series) && r.series.every(v => typeof v === 'number')) {
+      series = r.series;
+    } else if (Array.isArray(r.counts)) {
+      series = r.counts;
+    } else if (Array.isArray(r.values)) {
+      series = r.values;
+    } else {
+      series = labels.length ? new Array(labels.length).fill(0) : [];
+    }
+    datasets = [{ label: r.label || 'Valeurs', data: series }];
   }
 
-  // Always expose a datasets array for Chart.js
-  const datasets = Array.isArray(r.datasets) && r.datasets.length > 0
-    ? r.datasets
-    : [{ label: r.label || 'Valeurs', data: series }];
+  const seriesOut = datasets?.[0]?.data || [];
 
   return {
     labels,
-    series,
+    series: seriesOut,
     datasets,
-    data: { labels, series, datasets } // mirror under data.* for frontends that expect it
+    data: { labels, series: seriesOut, datasets }, // for components that expect data.*
   };
 }
 // --- End analytics normalization ---
@@ -287,17 +413,26 @@ const DEFAULT_REACTION = {
 };
 
 function normalizeReactionResponse(json) {
-  const p = json?.prediction ?? json ?? {};
+  const p = json?.reactionPrediction ?? json?.prediction ?? json ?? {};
+  const overallScore = Number.isFinite(p?.population_reaction?.overall_score)
+    ? Number(p.population_reaction.overall_score)
+    : (Number.isFinite(p?.overall_score) ? Number(p.overall_score) : 0);
+
   return {
-    overall_reaction: p?.overall_reaction ?? DEFAULT_REACTION.overall_reaction,
+    overall_reaction: p?.overall_reaction
+      ?? p?.population_reaction?.overall_reaction
+      ?? DEFAULT_REACTION.overall_reaction,
     breakdown: {
       positive: Number(p?.breakdown?.positive ?? 0),
       neutral: Number(p?.breakdown?.neutral ?? 1),
       negative: Number(p?.breakdown?.negative ?? 0),
     },
-    confidence: Number.isFinite(p?.confidence) ? p.confidence : DEFAULT_REACTION.confidence,
-    model: p?.model ?? DEFAULT_REACTION.model,
+    confidence: Number.isFinite(p?.confidence)
+      ? Number(p.confidence)
+      : (Number.isFinite(p?.population_reaction?.confidence) ? Number(p.population_reaction.confidence) : DEFAULT_REACTION.confidence),
+    model: p?.model ?? 'gpt-comparison',
     note: p?.note ?? null,
+    overall_score: overallScore,
   };
 }
 // --- End reaction prediction normalization ---
@@ -324,6 +459,7 @@ function prettySummary(raw) {
 }
 // --- End helper ---
 function PrivateApp() {
+
   const [activeTab, setActiveTab] = useState('dashboard');
   const [dashboardStats, setDashboardStats] = useState({});
   // ... (tous les autres useState / useEffect ici, à l’intérieur de App)
@@ -335,7 +471,68 @@ function PrivateApp() {
   const [backgroundTasks, setBackgroundTasks] = useState({});
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [error, setError] = useState(null);
-  
+  const [radioCards, setRadioCards] = useState([]);
+  // --- Expansion state (unique & stable) ---
+  const [expandedCards, setExpandedCards] = useState({});
+  const isCardExpanded = useCallback((id) => !!expandedCards[id], [expandedCards]);
+  const toggleCardExpanded = useCallback((id) => {
+    if (!id) return;
+    setExpandedCards(prev => ({ ...prev, [id]: !prev[id] }));
+  }, []);
+  // -----------------------------------------
+const [radioDate, setRadioDate] = useState(new Date().toISOString().split('T')[0]);
+const [radioPagination, setRadioPagination] = useState({ total: 0, offset: 0, returned: 0, hasMore: false });
+// Charger les cartes radio du jour
+const loadRadioCardsToday = async (limit = 50) => {
+  try {
+    const resp = await apiCall(`${BACKEND_URL}/api/radio/cards/today?limit=${limit}`);
+    if (resp?.success) {
+      const returned = Array.isArray(resp.cards) ? resp.cards.length : 0;
+      const mapped = (resp.cards || []).map(c => ({
+        ...c,
+        audioUrl: absolutizeUrl(c.audioUrl)
+      }));
+      setRadioCards(mapped);
+      setRadioDate(resp.date || new Date().toISOString().split('T')[0]);
+      setRadioPagination({
+        total: Number(resp.count ?? returned) || 0,
+        offset: 0,
+        returned,
+        hasMore: returned < Number(resp.count ?? returned)
+      });
+    }
+  } catch (err) {
+    setError(`Erreur chargement cartes radio (today): ${err.message}`);
+  }
+};
+
+// Charger les cartes radio par date (avec pagination)
+const loadRadioCardsByDate = async (date, offset = 0, limit = 50) => {
+  try {
+    const url = `${BACKEND_URL}/api/radio/cards?date=${encodeURIComponent(date)}&limit=${limit}&offset=${offset}`;
+    const resp = await apiCall(url);
+    if (resp?.success) {
+      const batch = resp.cards || [];
+      const mappedBatch = batch.map(c => ({ ...c, audioUrl: absolutizeUrl(c.audioUrl) }));
+      if (offset === 0) {
+        setRadioCards(mappedBatch);
+      } else {
+        setRadioCards(prev => [...prev, ...mappedBatch]);
+      }
+      const safePagination = {
+        total: Number(resp.pagination?.total ?? batch.length) || 0,
+        offset: Number(resp.pagination?.offset ?? offset) || 0,
+        returned: Number(resp.pagination?.returned ?? batch.length) || batch.length,
+        hasMore: Boolean(resp.pagination?.hasMore ?? false),
+      };
+      setRadioDate(resp.date || date);
+      setRadioPagination(safePagination);
+    }
+  } catch (err) {
+    setError(`Erreur chargement cartes radio: ${err.message}`);
+  }
+};
+
   // Nouveaux états pour la recherche et les commentaires
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState(null);
@@ -356,10 +553,7 @@ function PrivateApp() {
     "7H Guadeloupe Première": [],
     "Autres": []
   });
-  const [transcriptionStatus, setTranscriptionStatus] = useState({
-    sections: {},
-    global_status: { any_in_progress: false, total_sections: 2, active_sections: 0 }
-  });
+
   const [socialSearchError, setSocialSearchError] = useState(null);
   
   // États pour la recherche automatique
@@ -367,6 +561,23 @@ function PrivateApp() {
   const [autoSearchResults, setAutoSearchResults] = useState({});
 
   // États pour l'analyse de sentiment et prédiction des réactions
+// === AJOUTE ceci juste avant le commentaire "/* Analyse de Sentiment et Prédiction des Réactions */"
+const adaptBackendSentiment = (apiResult) => {
+  if (!apiResult || typeof apiResult !== 'object') return null;
+  const basic = apiResult.basic_sentiment || apiResult.basicSentiment || null;
+  const ctx   = apiResult.contextual_analysis || apiResult.contextualAnalysis || null;
+  const stakeholders = apiResult.stakeholders || {};
+  const recommendations = apiResult.strategic_recommendations || apiResult.recommendations || [];
+  const alert = apiResult.alert || null;
+  return {
+    basic_sentiment: basic,
+    contextual_analysis: ctx,
+    stakeholders,
+    recommendations,
+    alert,
+    raw: apiResult,
+  };
+};
   const [sentimentText, setSentimentText] = useState('');
   const [sentimentResult, setSentimentResult] = useState(null);
   const [sentimentLoading, setSentimentLoading] = useState(false);
@@ -398,17 +609,18 @@ const [analyticsData, setAnalyticsData] = useState({
   
   // Fermer le menu mobile quand on change d'onglet
   const handleTabChange = (tabId) => {
-    setActiveTab(tabId);
-    setMobileMenuOpen(false);
-    
-    // Logique spécifique selon l'onglet
-    if (tabId === 'search') {
-      loadSearchSuggestions();
-    } else if (tabId === 'comments') {
-      loadComments();
-      loadSocialStats();
-    }
-  };
+  setActiveTab(tabId);
+  setMobileMenuOpen(false);
+  
+  if (tabId === 'search') {
+    loadSearchSuggestions();
+  } else if (tabId === 'comments') {
+    loadComments();
+    loadSocialStats();
+  } else if (tabId === 'transcription') {
+    loadRadioCardsToday();
+  }
+};
 
   // Fonction pour obtenir le logo d'un site (version corrigée)
   const getSiteLogo = (source) => {
@@ -495,8 +707,8 @@ const [analyticsData, setAnalyticsData] = useState({
         <span style={{
           background: 'linear-gradient(45deg, #ffffff, #e0e7ff)',
           backgroundClip: 'text',
-          webkitBackgroundClip: 'text',
-          webkitTextFillColor: 'transparent',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
           fontFamily: 'Inter, sans-serif',
           letterSpacing: '-1px'
         }}>
@@ -516,7 +728,29 @@ const [analyticsData, setAnalyticsData] = useState({
       </div>
     );
   };
-
+// Normalise diverses formes de retour /sentiment/analyze
+const normalizeSentimentPayload = (resp) => {
+  if (!resp) return null;
+  const a = resp.analysis || resp.data || resp.result || resp;
+  if (!a || !a.basic_sentiment) return null;
+  return {
+    basic_sentiment: {
+      polarity: a.basic_sentiment.polarity || 'neutral',
+      score: Number(a.basic_sentiment.score ?? 0),
+      intensity: a.basic_sentiment.intensity || 'low',
+      confidence: Number(a.basic_sentiment.confidence ?? 0.6)
+    },
+    contextual_analysis: {
+      urgency_level: a.contextual_analysis?.urgency_level || 'low',
+      guadeloupe_relevance: a.contextual_analysis?.guadeloupe_relevance || '',
+      local_impact: a.contextual_analysis?.local_impact || ''
+    },
+    stakeholders: {
+      personalities: Array.isArray(a.stakeholders?.personalities) ? a.stakeholders.personalities : [],
+      institutions: Array.isArray(a.stakeholders?.institutions) ? a.stakeholders.institutions : []
+    }
+  };
+};
   // Composant amélioré pour l'analyse de sentiment avec recommandations
   const EnhancedSentimentAnalysis = ({ analysis }) => {
     if (!analysis) return null;
@@ -1060,7 +1294,7 @@ const [analyticsData, setAnalyticsData] = useState({
           
           const digestData = await apiCall(digestUrl);
           if (digestData.success) {
-            setDigest(digestData.digest);
+            setDigest(digestData);
           } else {
             setDigest(null);
           }
@@ -1105,39 +1339,51 @@ const [analyticsData, setAnalyticsData] = useState({
   useEffect(() => {
     loadDashboardStats();
     loadAvailableSources(); // Charger les sources disponibles
-    
+
     if (activeTab !== 'dashboard') {
       loadTabData(activeTab);
     }
-    
+
+    // Intervals defined here so we can clean them in one place
+    let radioInterval = null;
+    let transcriptionInterval = null;
+
     // Charger des données spécifiques pour certains onglets
     if (activeTab === 'search') {
       loadSearchSuggestions();
     } else if (activeTab === 'comments') {
       loadSocialStats();
     } else if (activeTab === 'articles') {
-      loadFilteredArticles(); // Utiliser le nouveau système de filtrage
+      // Utiliser le nouveau système de filtrage
+      loadFilteredArticles();
     } else if (activeTab === 'analytics') {
       loadAnalyticsData();
     } else if (activeTab === 'transcription') {
-      loadTranscriptionSections();
-      loadTranscriptionStatus();
-      
-      // Auto-actualisation des transcriptions toutes les 30 secondes
-      const transcriptionInterval = setInterval(() => {
-        loadTranscriptionSections();
-        loadTranscriptionStatus();
-      }, 30000); // 30 secondes
-      
-      // Nettoyer l'interval quand on quitte l'onglet
-      return () => clearInterval(transcriptionInterval);
+      // Nouveau système cards (dynamiques)
+      const d = radioDate || new Date().toISOString().split('T')[0];
+
+      if (!radioCards.length) {
+        loadRadioCardsByDate(d, 0);
+      }
+
+      // Refresh des cartes toutes les 60s
+      radioInterval = setInterval(() => {
+        loadRadioCardsByDate(d, 0);
+      }, 60000);
     }
-    
+
+    // Cleanup unique pour tous les intervals possibles
+    return () => {
+      if (radioInterval) clearInterval(radioInterval);
+    };
+  }, [activeTab, selectedDate, radioDate, radioCards.length]);
+
     // Lancer la recherche automatique au premier chargement
-    if (!autoSearchCompleted) {
-      performAutoSearch();
-    }
-  }, [activeTab, selectedDate, autoSearchCompleted]);
+    useEffect(() => {
+      if (!autoSearchCompleted) {
+        performAutoSearch();
+      }
+    }, [autoSearchCompleted]);
 
   // Effet pour les animations au scroll avec approche narrative
   useEffect(() => {
@@ -1271,90 +1517,40 @@ const [analyticsData, setAnalyticsData] = useState({
     }
   };
 
-  const captureRadioNow = async () => {
-  if (backgroundTasks.capturing) return;
-  
-  setBackgroundTasks(prev => ({ ...prev, capturing: true }));
-  
+// Lance une capture radio immédiate
+const captureRadioNow = async () => {
   try {
-    // Par défaut on lance RCI (tu pourras ajouter un sélecteur)
-    const res = await apiCall(`${BACKEND_URL}/api/transcriptions/capture-now?section=rci`, { method: 'POST' });
-    if (res.success) {
-      alert(`✅ ${res.message}`);
-      // rafraîchis vite le statut puis recharges sections/statuts plus tard
+    setBackgroundTasks((prev) => ({ ...prev, capturing: true }));
+
+    const res = await fetch(`${BACKEND_URL}/api/transcriptions/capture-now`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ section: '', duration: 0 }),
+    });
+
+    const data = await res.json();
+
+    if (data && data.success) {
+      alert('🎙️ Capture lancée');
+
+      // Rafraîchir les cartes du jour
+      const d = radioDate || new Date().toISOString().split('T')[0];
+      loadRadioCardsByDate(d, 0);
+
+      // Recharger le statut 3 min plus tard
       setTimeout(() => {
-        loadTranscriptionStatus();
-      }, 1000);
-      setTimeout(() => {
-        loadTranscriptionSections();
         loadTranscriptionStatus();
       }, 180000); // 3 minutes
     } else {
-      alert(`❌ Erreur: ${res.error || 'Erreur inconnue'}`);
+      alert(`❌ Erreur: ${data?.error || 'Erreur inconnue'}`);
     }
   } catch (error) {
-    alert(`❌ Erreur capture: ${error.message}`);
+    console.error('captureRadioNow error:', error);
+    alert('❌ Erreur lors du démarrage de la capture');
   } finally {
-    setBackgroundTasks(prev => ({ ...prev, capturing: false }));
+    setBackgroundTasks((prev) => ({ ...prev, capturing: false }));
   }
 };
-
-  // Charger les transcriptions par sections
-  const loadTranscriptionSections = async () => {
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/transcriptions/sections`);
-      const data = await response.json();
-      if (data.success) {
-        setTranscriptionSections(data.sections);
-      }
-    } catch (error) {
-      console.error('Erreur chargement sections transcriptions:', error);
-    }
-  };
-
-  // Charger le statut des transcriptions
-  const loadTranscriptionStatus = async () => {
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/transcriptions/status`);
-      const data = await response.json();
-      if (data.success) {
-        setTranscriptionStatus(data.status);
-      }
-    } catch (error) {
-      console.error('Erreur chargement statut transcriptions:', error);
-    }
-  };
-
-  // Lancer la capture d'une section spécifique
-  const captureSection = async (section) => {
-    try {
-      setLoading(true);
-      const response = await fetch(`${BACKEND_URL}/api/transcriptions/capture-now?section=${section}`, {
-        method: 'POST'
-      });
-      const data = await response.json();
-      if (data.success) {
-        alert(`✅ ${data.message}`);
-        // Actualiser le statut immédiatement
-        setTimeout(() => {
-          loadTranscriptionStatus();
-        }, 1000);
-        
-        // Actualiser les sections après le temps estimé de completion (3-5 min)
-        setTimeout(() => {
-          loadTranscriptionSections();
-          loadTranscriptionStatus();
-        }, 180000); // 3 minutes
-      } else {
-        alert(`❌ Erreur: ${data.error || 'Erreur inconnue'}`);
-      }
-    } catch (error) {
-      console.error('Erreur capture section:', error);
-      alert('❌ Erreur lors du lancement de la capture');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const createDigestNow = async () => {
     setLoading(true);
@@ -1579,6 +1775,75 @@ const [analyticsData, setAnalyticsData] = useState({
     }
   };
 
+  // Construit un snapshot minimal côté front pour enrichir l'analyse back
+  const buildFrontendSnapshot = () => {
+    try {
+      // Source chart
+      const sourceChart = analyticsData?.sourceChart || EMPTY_ANALYTICS;
+      const timelineChart = analyticsData?.timelineChart || EMPTY_ANALYTICS;
+
+      // Totaux
+      const articlesCount = (dashboardStats?.articles_today ?? dashboardStats?.total_articles ?? articles?.length ?? 0) || 0;
+      // Nombre de sources distinctes : privilégie le chart, sinon déduis des articles chargés
+      let distinctSources = 0;
+      if (Array.isArray(sourceChart?.labels) && sourceChart.labels.length) {
+        distinctSources = sourceChart.labels.length;
+      } else if (Array.isArray(articles) && articles.length) {
+        distinctSources = new Set(articles.map(a => (a.source || '').trim())).size;
+      } else if (Array.isArray(availableSources) && availableSources.length) {
+        distinctSources = availableSources.length;
+      }
+
+      // Sécurisation datasets (labels + datasets[].data)
+      const safeChart = (chart) => ({
+        labels: Array.isArray(chart?.labels) ? chart.labels.slice(0, 100) : [],
+        datasets: Array.isArray(chart?.datasets) ? chart.datasets.map(ds => ({
+          label: String(ds?.label ?? 'Série'),
+          data: Array.isArray(ds?.data) ? ds.data.slice(0, 365).map(Number) : []
+        })) : []
+      });
+
+      return {
+        generated_at: new Date().toISOString(),
+        source_chart: safeChart(sourceChart),
+        timeline_chart: safeChart(timelineChart),
+        totals: {
+          articles_count: Number(articlesCount) || 0,
+          distinct_sources_count: Number(distinctSources) || 0,
+        },
+        guards: {
+          truncated: true,
+          max_labels: 100,
+          max_points: 365,
+        }
+      };
+    } catch (e) {
+      // Fallback très conservateur
+      return {
+        generated_at: new Date().toISOString(),
+        source_chart: { labels: [], datasets: [] },
+        timeline_chart: { labels: [], datasets: [] },
+        totals: { articles_count: 0, distinct_sources_count: 0 },
+        guards: { truncated: false, max_labels: 100, max_points: 365 }
+      };
+    }
+  };
+
+  // Thématisation minimale (front) – simple et robuste
+  const THEMES_MIN = {
+    water_crisis: ["eau", "robinet", "coupure", "cistern", "siaeag", "saur"],
+    sargasses: ["sargasse", "algue", "algues brunes"],
+    cyclone: ["ouragan", "cyclone", "tempête", "vigilance"],
+    chlordecone: ["chlordécone", "chlordecone", "pesticide", "pollution", "bananes"],
+  };
+
+  const classifyThemeMin = (text) => {
+    const t = (text || '').toLowerCase();
+    for (const [theme, kws] of Object.entries(THEMES_MIN)) {
+      if (kws.some((kw) => t.includes(kw))) return theme;
+    }
+    return null;
+  };
   // Analyser le sentiment d'un texte
   const analyzeSentiment = async (useAsync = false) => {
     if (!sentimentText.trim()) {
@@ -1591,12 +1856,17 @@ const [analyticsData, setAnalyticsData] = useState({
     setError(null);
 
     try {
-      const response = await apiCall(`${BACKEND_URL}/api/sentiment/analyze`, {
+      const snapshot = buildFrontendSnapshot();
+      const themeId = classifyThemeMin(sentimentText.trim());
+
+      const response = await apiCall(`${BACKEND_URL}/api/sentiment/analyze-with-frontend`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           text: sentimentText.trim(),
-          async: useAsync 
+          async: useAsync,
+          frontend_snapshot: snapshot,
+          theme_id: themeId || undefined
         })
       });
 
@@ -1607,13 +1877,20 @@ const [analyticsData, setAnalyticsData] = useState({
             mode: 'async', 
             status: 'processing', 
             hash: response.text_hash,
-            message: response.message 
+            message: response.message,
+            theme_id: response.theme_id || null,
+            snapshot_fp: response.snapshot_fp || null,
+            cache_suffix: response.cache_suffix || null,
           });
           pollSentimentStatus(response.text_hash);
         } else {
           // Mode synchrone ou cache hit
           setSentimentResult(response);
         }
+// garde-fou : si l’API renvoie directement l’analyse sans wrapper success
+if (!response.analysis && response.basic_sentiment) {
+  setSentimentResult({ analysis: response });
+}
       } else {
         setError(`Erreur analyse sentiment: ${response.error}`);
       }
@@ -1638,8 +1915,13 @@ const [analyticsData, setAnalyticsData] = useState({
           setSentimentResult(response);
           setSentimentLoading(false);
         } else if (response.status === 'not_found') {
-          // Réessayer l'analyse (probablement en cache maintenant)
-          analyzeSentiment(true);
+          // Ne pas ré-enqueue depuis ici (boucles). On continue de poller jusqu'au max.
+          if (attempts < maxAttempts) {
+            setTimeout(poll, 2000);
+          } else {
+            setError('Timeout: résultat introuvable');
+            setSentimentLoading(false);
+          }
         } else if (attempts < maxAttempts) {
           setTimeout(poll, 2000);
         } else {
@@ -1667,12 +1949,18 @@ const [analyticsData, setAnalyticsData] = useState({
     setError(null);
 
     try {
+      const snapshot = buildFrontendSnapshot();
+      const themeId = classifyThemeMin(sentimentText.trim());
+
       const response = await apiCall(`${BACKEND_URL}/api/sentiment/predict-reaction`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: sentimentText.trim(),
-          context: { source: 'frontend_test' }
+          frontend_snapshot: snapshot,
+          context: { source: 'frontend' },
+          history_limit: 150,
+          theme_id: themeId || undefined
         })
       });
 
@@ -2724,83 +3012,129 @@ const [analyticsData, setAnalyticsData] = useState({
 
               {/* Métriques du dashboard enrichies avec animations */}
               {analyticsData.dashboardMetrics && (
-                <div className="stats-container stagger-children" style={{ marginBottom: '3rem' }}>
-                  {Object.entries(analyticsData.dashboardMetrics.metrics).map(([key, metric], index) => (
-                    <div 
-                      key={key} 
-                      className="stat-card enhanced animate-bounce-in" 
-                      style={{ animationDelay: `${index * 0.1}s` }}
-                    >
-                      <div className="stat-label">{metric.label}</div>
-                      <div className="stat-value animate-count-up">
-                        {metric.value}
-                        {metric.evolution_pct && (
-                          <span style={{ 
-                            fontSize: '0.7rem', 
-                            color: metric.evolution_pct > 0 ? '#10b981' : '#ef4444',
-                            marginLeft: '0.5rem'
-                          }} className="animate-pulse">
-                            {metric.evolution_pct > 0 ? '↗' : '↘'} {Math.abs(metric.evolution_pct)}%
-                          </span>
-                        )}
-                      </div>
-                      {metric.evolution !== undefined && (
-                        <div className="stat-sublabel animate-fade-in-up">
-                          {metric.evolution >= 0 ? '+' : ''}{metric.evolution} vs hier
+                (() => {
+                  const metricsObj = (analyticsData.dashboardMetrics && typeof analyticsData.dashboardMetrics.metrics === 'object' && analyticsData.dashboardMetrics.metrics) || {};
+                  const entries = Object.entries(metricsObj);
+                  if (entries.length === 0) {
+                    return (
+                      <div className="stats-container" style={{ marginBottom: '3rem' }}>
+                        <div className="stat-card enhanced" style={{ padding: '1rem' }}>
+                          <div className="stat-label">Aucune métrique disponible</div>
+                          <div className="stat-sublabel" style={{ color: '#6b7280' }}>Les données analytics ne sont pas encore prêtes.</div>
                         </div>
-                      )}
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="stats-container stagger-children" style={{ marginBottom: '3rem' }}>
+                      {entries.map(([key, metric], index) => (
+                        <div 
+                          key={key} 
+                          className="stat-card enhanced animate-bounce-in" 
+                          style={{ animationDelay: `${index * 0.1}s` }}
+                        >
+                          <div className="stat-label">{metric?.label || key}</div>
+                          <div className="stat-value animate-count-up">
+                            {metric?.value ?? '—'}
+                            {typeof metric?.evolution_pct === 'number' && (
+                              <span style={{ 
+                                fontSize: '0.7rem', 
+                                color: metric.evolution_pct > 0 ? '#10b981' : '#ef4444',
+                                marginLeft: '0.5rem'
+                              }} className="animate-pulse">
+                                {metric.evolution_pct > 0 ? '↗' : '↘'} {Math.abs(metric.evolution_pct)}%
+                              </span>
+                            )}
+                          </div>
+                          {typeof metric?.evolution === 'number' && (
+                            <div className="stat-sublabel animate-fade-in-up">
+                              {metric.evolution >= 0 ? '+' : ''}{metric.evolution} vs hier
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  );
+                })()
               )}
 
               {/* Graphiques avec animations en cascade */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem' }} className="stagger-children">
                 
                 {/* Graphique: Articles par source */}
-                {analyticsData.sourceChart && (
-                  <div className="glass-card chart-container animate-fade-in-scale" style={{ padding: '2rem' }}>
-                    <h3 style={{ marginBottom: '1.5rem', color: '#1f2937', fontSize: '1.25rem' }} className="chart-title animate-fade-in-left">
-                      📊 Articles par Source
-                    </h3>
-                    <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="chart-wrapper">
-                      <SourceChart data={analyticsData.sourceChart.chart_data} />
-                    </div>
-                    <div style={{ marginTop: '1rem', textAlign: 'center', color: '#6b7280', fontSize: '0.9rem' }} className="chart-caption animate-fade-in-up">
-                      {analyticsData.sourceChart.total_articles} articles • {analyticsData.sourceChart.period}
-                    </div>
+                <div className="glass-card chart-container animate-fade-in-scale" style={{ padding: '2rem' }}>
+                  <h3 style={{ marginBottom: '1.5rem', color: '#1f2937', fontSize: '1.25rem' }} className="chart-title animate-fade-in-left">
+                    📊 Articles par Source
+                  </h3>
+                  <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="chart-wrapper">
+                    {(() => {
+                      const cd = analyticsData?.sourceChart?.chart_data;
+                      const hasData = cd && Array.isArray(cd.labels) && cd.labels.length > 0;   // ✅ nouveau format
+                      if (hasData) {
+                        return <SourceChart data={cd} />;
+                      }
+                      return (
+                        <div style={{ textAlign: 'center', color: '#6b7280' }}>
+                          <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🗂️</div>
+                          <div>Aucune donnée pour la période sélectionnée</div>
+                        </div>
+                      );
+                    })()}
                   </div>
-                )}
+                  <div style={{ marginTop: '1rem', textAlign: 'center', color: '#6b7280', fontSize: '0.9rem' }} className="chart-caption animate-fade-in-up">
+                    {(analyticsData?.sourceChart?.total_articles ?? 0)} articles • {(analyticsData?.sourceChart?.period ?? '')}
+                  </div>
+                </div>
 
                 {/* Graphique: Évolution temporelle */}
-                {analyticsData.timelineChart && (
-                  <div className="glass-card chart-container animate-fade-in-scale animate-delay-100" style={{ padding: '2rem' }}>
-                    <h3 style={{ marginBottom: '1.5rem', color: '#1f2937', fontSize: '1.25rem' }} className="chart-title animate-fade-in-left">
-                      📈 Évolution Temporelle
-                    </h3>
-                    <div style={{ height: '300px' }} className="chart-wrapper">
-                      <TimelineChart data={analyticsData.timelineChart.chart_data} />
-                    </div>
-                    <div style={{ marginTop: '1rem', textAlign: 'center', color: '#6b7280', fontSize: '0.9rem' }} className="chart-caption animate-fade-in-up">
-                      {analyticsData.timelineChart.total_articles} articles • {analyticsData.timelineChart.period}
-                    </div>
+                <div className="glass-card chart-container animate-fade-in-scale animate-delay-100" style={{ padding: '2rem' }}>
+                  <h3 style={{ marginBottom: '1.5rem', color: '#1f2937', fontSize: '1.25rem' }} className="chart-title animate-fade-in-left">
+                    📈 Évolution Temporelle
+                  </h3>
+                  <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="chart-wrapper">
+                    {(() => {
+                      const cd = analyticsData?.timelineChart?.chart_data;
+                      const hasData = cd && Array.isArray(cd.labels) && cd.labels.length > 0;
+                      if (hasData) {
+                        return <TimelineChart data={cd} />;
+                      }
+                      return (
+                        <div style={{ textAlign: 'center', color: '#6b7280' }}>
+                          <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📉</div>
+                          <div>Pas de points temporels disponibles</div>
+                        </div>
+                      );
+                    })()}
                   </div>
-                )}
+                  <div style={{ marginTop: '1rem', textAlign: 'center', color: '#6b7280', fontSize: '0.9rem' }} className="chart-caption animate-fade-in-up">
+                    {(analyticsData?.timelineChart?.total_articles ?? 0)} articles • {(analyticsData?.timelineChart?.period ?? '')}
+                  </div>
+                </div>
 
                 {/* Graphique: Sentiment par source */}
-                {analyticsData.sentimentChart && analyticsData.sentimentChart.chart_data.labels.length > 0 && (
-                  <div className="glass-card chart-container animate-fade-in-scale animate-delay-200" style={{ padding: '2rem' }}>
-                    <h3 style={{ marginBottom: '1.5rem', color: '#1f2937', fontSize: '1.25rem' }} className="chart-title animate-fade-in-left">
-                      💭 Sentiment par Source
-                    </h3>
-                    <div style={{ height: '300px' }} className="chart-wrapper">
-                      <SentimentChart data={analyticsData.sentimentChart.chart_data} />
-                    </div>
-                    <div style={{ marginTop: '1rem', textAlign: 'center', color: '#6b7280', fontSize: '0.9rem' }} className="chart-caption animate-fade-in-up">
-                      {analyticsData.sentimentChart.analyzed_articles} articles analysés
-                    </div>
+                <div className="glass-card chart-container animate-fade-in-scale animate-delay-200" style={{ padding: '2rem' }}>
+                  <h3 style={{ marginBottom: '1.5rem', color: '#1f2937', fontSize: '1.25rem' }} className="chart-title animate-fade-in-left">
+                    💭 Sentiment par Source
+                  </h3>
+                  <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="chart-wrapper">
+                    {(() => {
+                      const cd = analyticsData?.sentimentChart?.chart_data;
+                      const hasData = cd && Array.isArray(cd.labels) && cd.labels.length > 0;
+                      if (hasData) {
+                        return <SentimentChart data={cd} />;
+                      }
+                      return (
+                        <div style={{ textAlign: 'center', color: '#6b7280' }}>
+                          <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>💤</div>
+                          <div>Pas de scores de sentiment calculés</div>
+                        </div>
+                      );
+                    })()}
                   </div>
-                )}
+                  <div style={{ marginTop: '1rem', textAlign: 'center', color: '#6b7280', fontSize: '0.9rem' }} className="chart-caption animate-fade-in-up">
+                    {(analyticsData?.sentimentChart?.analyzed_articles ?? 0)} articles analysés
+                  </div>
+                </div>
 
                 {/* Informations sur les données avec animation */}
                 <div className="glass-card animate-fade-in-scale animate-delay-300" style={{ padding: '2rem' }}>
@@ -2821,15 +3155,68 @@ const [analyticsData, setAnalyticsData] = useState({
                       dictionnaires français et patterns Guadeloupe.
                     </p>
                   </div>
-                  
-                  <button
-                    onClick={loadAnalyticsData}
-                    className="glass-button primary micro-bounce animate-bounce-in animate-delay-400"
-                    style={{ marginTop: '1.5rem' }}
-                    disabled={loading}
-                  >
-                    {loading ? <span className="animate-rotate">⏳</span> : '🔄'} Actualiser les données
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1.5rem' }}>
+                    <span style={{ marginRight: '0.5rem', color: '#9ca3af', fontSize: '0.8rem' }}>
+                      API: {(typeof window !== 'undefined' && (window.__BACKEND_URL__ || localStorage.getItem('BACKEND_URL'))) || (typeof BACKEND_URL !== 'undefined' ? BACKEND_URL : 'http://localhost:10000')}
+                    </span>
+                    <button
+                      onClick={async () => {
+                        try {
+                          setLoading(true);
+                          const base = (
+                            (typeof window !== 'undefined' && (window.__BACKEND_URL__ || localStorage.getItem('BACKEND_URL'))) ||
+                            (typeof BACKEND_URL !== 'undefined' ? BACKEND_URL : null) ||
+                            'http://localhost:10000'
+                          ).replace(/\/+$/, '');
+                          console.info('[analytics] fetch base =', base);
+                          const res = await fetch(`${base}/api/analytics/dashboard?days=365`);
+                          if (!res.ok) {
+                            console.error('[analytics] HTTP', res.status);
+                            setAnalyticsData(null);
+                            setLoading(false);
+                            return;
+                          }
+                          const json = await res.json();
+                          const normalized = {
+                            sourceChart: json?.sourceChart || { chart_data: { labels: [], datasets: [] }, total_articles: 0, period: '' },
+                            timelineChart: json?.timelineChart || { chart_data: { labels: [], datasets: [] }, total_articles: 0, period: '' },
+                            sentimentChart: json?.sentimentChart || { chart_data: { labels: [], datasets: [] }, analyzed_articles: 0 },
+                            dashboardMetrics: json?.dashboardMetrics || { metrics: {}, top_sources: [] },
+                            success: json?.success === true
+                          };
+                          console.debug('[analytics] fetched', normalized);
+                          setAnalyticsData(normalized);
+                        } catch (e) {
+                          console.error('[analytics] load error', e);
+                          setAnalyticsData(null);
+                        } finally {
+                          setLoading(false);
+                        }
+                      }}
+                      className="glass-button primary micro-bounce animate-bounce-in animate-delay-400"
+                      disabled={loading}
+                    >
+                      {loading ? <span className="animate-rotate">⏳</span> : '🔄'} Actualiser les données
+                    </button>
+                    <button
+                      onClick={() => {
+                        const dump = {
+                          ok: !!analyticsData,
+                          total: analyticsData?.sourceChart?.total_articles ?? 0,
+                          srcLabels: analyticsData?.sourceChart?.chart_data?.labels?.length || 0,
+                          timelinePoints: (analyticsData?.timelineChart?.chart_data?.labels?.length) || 0,
+                          sentimentLabels: analyticsData?.sentimentChart?.chart_data?.labels?.length || 0,
+                        };
+                        console.table(dump);
+                        console.debug('[analytics] raw', analyticsData);
+                        alert(`Debug analytics\n` + JSON.stringify(dump, null, 2));
+                      }}
+                      className="glass-button secondary"
+                      disabled={loading}
+                    >
+                      🛠️ Debug
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2838,261 +3225,148 @@ const [analyticsData, setAnalyticsData] = useState({
 
         {/* Transcriptions Radio */}
         {activeTab === 'transcription' && (
-          <div className="animate-slide-in">
-            {/* En-tête avec statut global */}
-            <div className="section-header">
-              <h2 className="section-title">📻 Transcriptions Radio</h2>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', marginTop: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div style={{ 
-                    width: '8px', 
-                    height: '8px', 
-                    borderRadius: '50%',
-                    background: transcriptionStatus.global_status.any_in_progress ? '#10b981' : '#9ca3af',
-                    animation: transcriptionStatus.global_status.any_in_progress ? 'pulse 2s infinite' : 'none'
-                  }}></div>
-                  <span style={{ color: '#6b7280', fontSize: '0.9rem' }}>
-                    {transcriptionStatus.global_status.any_in_progress 
-                      ? `${transcriptionStatus.global_status.active_sections} transcription(s) en cours`
-                      : 'Aucune transcription en cours'
-                    }
-                  </span>
-                </div>
-                {transcriptionStatus.global_status.any_in_progress && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#3b82f6', animation: 'pulse 2s infinite' }}></div>
-                    <span style={{ color: '#3b82f6', fontSize: '0.8rem' }}>Auto-actualisation (30s)</span>
-                  </div>
-                )}
+  <div className="content-block animate-slide-in">
+    <div className="content-block-header" style={{ alignItems: 'center', gap: '1rem' }}>
+      <h3 className="content-block-title">📻 Radio / TV – Transcriptions</h3>
+      <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <input
+          type="date"
+          value={radioDate}
+          onChange={(e) => {
+            const d = e.target.value || new Date().toISOString().split('T')[0];
+            setRadioDate(d);
+            loadRadioCardsByDate(d, 0);
+          }}
+          className="glass-input"
+          style={{ padding: '0.5rem 0.75rem' }}
+        />
+        <button
+          className="glass-button secondary"
+          onClick={() => loadRadioCardsByDate(radioDate || new Date().toISOString().split('T')[0], 0)}
+        >
+          🔄 Actualiser
+        </button>
+        <button
+          className="glass-button primary"
+          onClick={captureRadioNow}
+          disabled={backgroundTasks.capturing}
+          title="Lancer une capture immédiate"
+        >
+          {backgroundTasks.capturing ? '⏳ Capture...' : '🎙️ Capturer maintenant'}
+        </button>
+      </div>
+    </div>
+
+    {radioCards.length === 0 ? (
+      <div className="glass-card" style={{ padding: '1rem' }}>
+        <em>Aucune transcription pour cette date.</em>
+      </div>
+    ) : (
+      <div
+        className="grid"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gap: '1rem'
+        }}
+      >
+        {radioCards.map((c, index) => (
+          <div
+            key={c.id}
+            className="glass-card"
+            style={{ padding: '1rem', height: 'auto', maxHeight: 'none', overflow: 'visible' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+              <span style={{ fontSize: '1.25rem' }}>{c.type === 'tv' ? '📺' : '📻'}</span>
+              <div>
+                <div style={{ fontWeight: 700 }}>{c.title || 'Transcription'}</div>
+                <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>{c.subtitle}</div>
               </div>
             </div>
 
-            {/* Boutons d'action */}
-            <div className="glass-card" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                <button
-                  onClick={captureRadioNow}
-                  disabled={backgroundTasks.capturing}
-                  className={backgroundTasks.capturing ? 'btn-secondary' : 'btn-primary'}
-                  style={{ opacity: backgroundTasks.capturing ? 0.6 : 1 }}
-                >
-                  {backgroundTasks.capturing ? '⏳ Capture...' : '📻 Capturer Tout'}
-                </button>
-                <button
-                  onClick={() => {
-                    loadTranscriptionSections();
-                    loadTranscriptionStatus();
-                  }}
-                  className="btn-secondary"
-                >
-                  🔄 Actualiser
-                </button>
-                <label className="btn-primary cursor-pointer">
-                  📤 Upload Audio
-                  <input type="file" accept="audio/*" onChange={uploadAudio} style={{ display: 'none' }} />
-                </label>
-              </div>
-            </div>
+            <div
+              className="ai-summary"
+              style={{ marginTop: '0.5rem', color: '#1f2937' }}
+            >
+              {(() => {
+                const rawPreferred = c.gpt_analysis ?? c.ai_summary ?? c.summary ?? "";
+                const preferred = typeof rawPreferred === "string" ? rawPreferred : JSON.stringify(rawPreferred);
+                const transcriptRaw = c.fullText ?? c.transcription_text ?? "";
+                const transcript = typeof transcriptRaw === "string" ? transcriptRaw : JSON.stringify(transcriptRaw);
 
-            {/* Sections de transcription prédéfinies */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem', marginBottom: '3rem' }}>
-              {/* Section 7H RCI */}
-              <div className="glass-card radio-priority-card" style={{ padding: '2rem' }}>
-                <div className="priority-badge" style={{ marginBottom: '1.5rem' }}>
-                  🎙️ PRIORITÉ ABSOLUE
-                </div>
-                {/* Information */}
-                <div style={{ marginBottom: '1.5rem' }}>
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem', color: '#1a1a1a' }}>
-                    🎙️ 7H RCI
-                  </h3>
-                  <div style={{ color: '#6b7280', fontSize: '0.9rem' }}>
-                    RCI Guadeloupe - Journal matinal | 07:00 - 07:20 (20 min)
-                  </div>
-                </div>
+                const maxChars = 900;
+                const previewSource = preferred || transcript;      // ce qu'on montre d'abord (GPT si dispo)
+                const expandedSource = transcript || preferred;     // ce qu'on montre en "Voir plus" (transcription si dispo)
+                const previewText = (previewSource || "").toString();
+                const expandedText = (expandedSource || "").toString();
 
-                {/* Statut et actions */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                  <div>
-                    {transcriptionStatus.sections?.rci_7h?.in_progress ? (
-                      <div className="status-indicator status-warning">
-                        <div style={{ width: '6px', height: '6px', background: '#f59e0b', borderRadius: '50%', animation: 'pulse 2s infinite' }}></div>
-                        {transcriptionStatus.sections?.rci_7h?.step_details || 'En cours...'}
-                      </div>
-                    ) : (
-                      <div className="status-indicator status-success">
-                        ✅ Prêt à capturer
-                      </div>
+                if (!previewText && !expandedText) return <em>—</em>;
+
+                const previewTruncated = previewText.length > maxChars ? previewText.slice(0, maxChars) + "…" : previewText;
+                const shouldExpand = expandedText.length > previewTruncated.length;
+
+                return (
+                  <>
+                    <div style={{ whiteSpace: "pre-wrap" }}>{renderAIText(previewTruncated)}</div>
+                    {shouldExpand && (
+                      <details style={{ marginTop: "0.5rem" }}>
+                        <summary
+                          className="glass-button secondary"
+                          style={{
+                            cursor: "pointer",
+                            listStyle: "none",
+                            display: "inline-block",
+                            padding: "0.25rem 0.5rem"
+                          }}
+                        >
+                          Voir plus ↓
+                        </summary>
+                        <div style={{ whiteSpace: "pre-wrap", marginTop: "0.5rem" }}>
+                          {renderAIText(expandedText)}
+                        </div>
+                        <div style={{ marginTop: "0.5rem" }}>
+                          <span className="glass-button secondary">Voir moins ↑</span>
+                        </div>
+                      </details>
                     )}
-                  </div>
-                  <button
-                    onClick={() => captureSection('rci')}
-                    disabled={loading || transcriptionStatus.sections?.rci_7h?.in_progress}
-                    className={transcriptionStatus.sections?.rci_7h?.in_progress ? 'btn-secondary' : 'btn-primary'}
-                    style={{ opacity: transcriptionStatus.sections?.rci_7h?.in_progress ? 0.6 : 1 }}
-                  >
-                    📻 Capturer
-                  </button>
-                </div>
-
-                {/* Transcriptions */}
-                <div className="transcription-list">
-                  {transcriptionSections["7H RCI"]?.length > 0 ? (
-                    transcriptionSections["7H RCI"].slice(0, 2).map(t => (
-                      <div key={t.id} className="transcription-item" style={{ padding: '1.5rem' }}>
-                        {/* Information */}
-                        <div className="transcription-information">
-                          📻 {t.stream_name} - {new Date(t.captured_at).toLocaleDateString('fr-FR')}
-                        </div>
-                        
-                        {/* Explication */}
-                        <div className="transcription-explication">
-                          {t.gpt_analysis || t.ai_summary || `"${t.transcription_text?.substring(0, 150)}..."`}
-                        </div>
-
-                        {/* Métadonnées */}
-                        <div className="transcription-meta">
-                          <span style={{ color: '#f59e0b', fontWeight: '500' }}>
-                            {t.transcription_method === 'segmented_openai_whisper_api' ? '🎬 Segmenté' : '🎤 Simple'}
-                          </span>
-                          <span>{new Date(t.captured_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
-                          {t.segments_count && (
-                            <span>{t.segments_count} segments</span>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="glass-card" style={{ padding: '2rem', textAlign: 'center' }}>
-                      <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>📻</div>
-                      <p style={{ color: '#6b7280' }}>Aucune transcription aujourd'hui</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Section 7H Guadeloupe Première */}
-              <div className="glass-card" style={{ padding: '2rem' }}>
-                {/* Information */}
-                <div style={{ marginBottom: '1.5rem' }}>
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem', color: '#1a1a1a' }}>
-                    📻 7H Guadeloupe Première
-                  </h3>
-                  <div style={{ color: '#6b7280', fontSize: '0.9rem' }}>
-                    Guadeloupe Première - Actualités matinales | 07:00 - 07:30 (30 min)
-                  </div>
-                </div>
-
-                {/* Statut et actions */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                  <div>
-                    {transcriptionStatus.sections?.guadeloupe_premiere_7h?.in_progress ? (
-                      <div className="status-indicator status-warning">
-                        <div style={{ width: '6px', height: '6px', background: '#f59e0b', borderRadius: '50%', animation: 'pulse 2s infinite' }}></div>
-                        {transcriptionStatus.sections?.guadeloupe_premiere_7h?.step_details || 'En cours...'}
-                      </div>
-                    ) : (
-                      <div className="status-indicator status-info">
-                        ✅ Prêt à capturer
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => captureSection('guadeloupe')}
-                    disabled={loading || transcriptionStatus.sections?.guadeloupe_premiere_7h?.in_progress}
-                    className={transcriptionStatus.sections?.guadeloupe_premiere_7h?.in_progress ? 'btn-secondary' : 'btn-primary'}
-                    style={{ opacity: transcriptionStatus.sections?.guadeloupe_premiere_7h?.in_progress ? 0.6 : 1 }}
-                  >
-                    📻 Capturer
-                  </button>
-                </div>
-
-                {/* Transcriptions */}
-                <div className="transcription-list">
-                  {transcriptionSections["7H Guadeloupe Première"]?.length > 0 ? (
-                    transcriptionSections["7H Guadeloupe Première"].slice(0, 2).map(t => (
-                      <div key={t.id} className="transcription-item" style={{ padding: '1.5rem' }}>
-                        {/* Information */}
-                        <div className="transcription-information">
-                          📻 {t.stream_name} - {new Date(t.captured_at).toLocaleDateString('fr-FR')}
-                        </div>
-                        
-                        {/* Explication */}
-                        <div className="transcription-explication">
-                          {t.gpt_analysis || t.ai_summary || `"${t.transcription_text?.substring(0, 150)}..."`}
-                        </div>
-
-                        {/* Métadonnées */}
-                        <div className="transcription-meta">
-                          <span style={{ color: '#3b82f6', fontWeight: '500' }}>
-                            {t.transcription_method === 'segmented_openai_whisper_api' ? '🎬 Segmenté' : '🎤 Simple'}
-                          </span>
-                          <span>{new Date(t.captured_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
-                          {t.segments_count && (
-                            <span>{t.segments_count} segments</span>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="glass-card" style={{ padding: '2rem', textAlign: 'center' }}>
-                      <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>📻</div>
-                      <p style={{ color: '#6b7280' }}>Aucune transcription aujourd'hui</p>
-                    </div>
-                  )}
-                </div>
-              </div>
+                  </>
+                );
+              })()}
             </div>
 
-            {/* Toutes les transcriptions du jour */}
-            <div className="glass-card" style={{ padding: '2rem' }}>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1.5rem', color: '#1a1a1a' }}>
-                📋 Toutes les transcriptions du jour
-              </h3>
-              
-              <div className="transcription-list">
-                {Object.entries(transcriptionSections).map(([sectionName, transcriptions]) => 
-                  transcriptions?.map(t => (
-                    <div key={t.id} className="transcription-item">
-                      {/* Information */}
-                      <div className="transcription-information">
-                        📻 {t.stream_name || sectionName} - {new Date(t.captured_at || t.uploaded_at).toLocaleDateString('fr-FR')}
-                      </div>
-                      
-                      {/* Explication */}
-                      <div className="transcription-explication">
-                        {t.gpt_analysis || t.ai_summary || `"${t.transcription_text?.substring(0, 200)}..."`}
-                      </div>
-
-                      {/* Métadonnées */}
-                      <div className="transcription-meta">
-                        <span className="article-source">{sectionName}</span>
-                        <span>{new Date(t.captured_at || t.uploaded_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
-                        {t.segments_count && (
-                          <span style={{ color: '#f59e0b', fontWeight: '500' }}>🎬 {t.segments_count} segments</span>
-                        )}
-                        {t.ai_relevance_score && (
-                          <span style={{ color: '#10b981', fontWeight: '500' }}>
-                            ⭐ {Math.round(t.ai_relevance_score * 100)}%
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
-                
-                {Object.values(transcriptionSections || {}).every(section => !section || section.length === 0) && (
-                  <div className="glass-card" style={{ padding: '3rem', textAlign: 'center' }}>
-                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📻</div>
-                    <p style={{ color: '#6b7280', fontSize: '1.1rem' }}>Aucune transcription disponible</p>
-                    <p style={{ color: '#9ca3af', fontSize: '0.9rem', marginTop: '0.5rem' }}>
-                      Capturez ou uploadez des fichiers audio pour commencer
-                    </p>
-                  </div>
-                )}
-              </div>
+            <div style={{ marginTop: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.8rem', color: '#6b7280' }}>
+                {c.source ? `Source: ${c.source}` : '—'}
+              </span>
+              {c.audioUrl ? (
+                <audio controls src={c.audioUrl} style={{ height: 28 }}>
+                  Votre navigateur ne supporte pas l’audio HTML5.
+                </audio>
+              ) : (
+                <span style={{ fontSize: '0.8rem', color: '#9ca3af' }}>Audio non disponible</span>
+              )}
             </div>
           </div>
+        ))}
+      </div>
+    )}
+
+    {radioPagination?.hasMore && (
+      <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'center' }}>
+        <button
+          className="glass-button secondary"
+          onClick={() => {
+            const nextOffset = (radioPagination?.offset ?? 0) + (radioPagination?.returned ?? 0);
+            loadRadioCardsByDate(radioDate || new Date().toISOString().split('T')[0], nextOffset);
+          }}
+        >
+          ⬇️ Charger plus
+        </button>
+      </div>
+    )}
+  </div>
+)}
+
         )}
 
         {/* Search */}
@@ -3302,39 +3576,36 @@ const [analyticsData, setAnalyticsData] = useState({
                     <p className="section-subtitle">Analyses des émissions radiophoniques</p>
                   </div>
                   <div className="section-count">
-                    {Object.values(transcriptionSections || {}).reduce((acc, arr) => acc + (arr?.length || 0), 0)} transcriptions
+                    {Array.isArray(radioCards) ? radioCards.length : 0} transcriptions
                   </div>
                 </div>
 
                 <div className="transcription-blocks">
                   {(() => {
-                    const all = Object.values(transcriptionSections || {}).flat();
-                    const items = all
-                      .slice()
-                      .sort((a, b) => new Date(b.captured_at || b.uploaded_at || 0) - new Date(a.captured_at || a.uploaded_at || 0))
-                      .slice(0, 4);
+                    const items = (radioCards || []);
 
                     if (items.length === 0) {
                       return (
                         <div className="glass-card" style={{ padding: '2rem', textAlign: 'center' }}>
                           <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>📻</div>
-                          <p style={{ color: '#6b7280' }}>Aucune transcription aujourd'hui</p>
+                          <p style={{ color: '#6b7280' }}>Aucune transcription aujourd&apos;hui</p>
                         </div>
                       );
                     }
+                    const methodLabel = (m) => (m === 'segmented_openai_whisper_api' ? '🎬 Segmenté' : (m ? '🎤 ' + m : '🎤 Simple'));
 
-                    const methodLabel = (m) => (m === 'segmented_openai_whisper_api' ? '🎬 Segmenté' : '🎤 Simple');
-
-                    return items.map((t) => (
+                    return items.map((t, index) => (
                       <div key={t.id} className="transcription-block scroll-reveal">
                         <div className="transcription-header">
                           <div className="transcription-source">
                             <div className="source-badge radio">
-                              <span className="source-icon">📻</span>
-                              <span className="source-name">{t.stream_name || t.section || 'Radio'}</span>
+                              <span className="source-icon">{t.type === 'tv' ? '📺' : '📻'}</span>
+                              <span className="source-name">{t.title || t.stream_name || t.section || 'Radio'}</span>
                             </div>
                             <div className="transcription-time">
-                              {new Date(t.captured_at || t.uploaded_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                              {t.capturedAt
+                                ? new Date(t.capturedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                                : (t.subtitle || '').split('•').pop()?.trim() || ''}
                             </div>
                           </div>
                           <div className="transcription-status">
@@ -3342,36 +3613,96 @@ const [analyticsData, setAnalyticsData] = useState({
                           </div>
                         </div>
 
-                        <div className="transcription-content">
-                          <h3 className="transcription-title">{t.section || t.stream_name}</h3>
+                        <div className="transcription-content" style={{ height: 'auto', maxHeight: 'none', overflow: 'visible' }}>
+                          <h3 className="transcription-title">{t.title || t.section || t.stream_name || 'Transcription'}</h3>
 
                           <div className="transcription-extract">
                             <div className="extract-header">
                               <span className="extract-icon">💬</span>
                               <span className="extract-title">Extrait</span>
                             </div>
-                            <div className="extract-content">
-                              <p>{t.gpt_analysis || t.ai_summary || (t.transcription_text ? `"${t.transcription_text.substring(0, 220)}..."` : '—')}</p>
-                            </div>
+                            {(() => {
+                              const rawPreferred = t.gpt_analysis ?? t.ai_summary ?? t.summary ?? "";
+                              const preferred = typeof rawPreferred === "string" ? rawPreferred : JSON.stringify(rawPreferred);
+                              const transcriptRaw = t.fullText ?? t.transcription_text ?? "";
+                              const transcript = typeof transcriptRaw === "string" ? transcriptRaw : JSON.stringify(transcriptRaw);
+
+                              const maxChars = 900;
+                              const previewSource = preferred || transcript;      // aperçu = résumé GPT si dispo
+                              const expandedSource = transcript || preferred;     // "Voir plus" = transcription si dispo
+                              const previewText = (previewSource || "").toString();
+                              const expandedText = (expandedSource || "").toString();
+
+                              if (!previewText && !expandedText) {
+                                return (
+                                  <div className="extract-content">
+                                    <p>—</p>
+                                  </div>
+                                );
+                              }
+
+                              const previewTruncated = previewText.length > maxChars ? previewText.slice(0, maxChars) + "…" : previewText;
+                              const shouldExpand = expandedText.length > previewTruncated.length;
+
+                              return (
+                                <>
+                                  <div
+                                    className="extract-content"
+                                    style={{ whiteSpace: "pre-wrap" }}
+                                  >
+                                    {renderAIText(previewTruncated)}
+                                  </div>
+                                  {shouldExpand && (
+                                    <details style={{ marginTop: "0.5rem" }}>
+                                      <summary
+                                        className="glass-button secondary"
+                                        style={{
+                                          cursor: "pointer",
+                                          listStyle: "none",
+                                          display: "inline-block",
+                                          padding: "0.25rem 0.5rem"
+                                        }}
+                                      >
+                                        Voir plus ↓
+                                      </summary>
+                                      <div className="extract-content" style={{ whiteSpace: "pre-wrap", marginTop: "0.5rem" }}>
+                                        {renderAIText(expandedText)}
+                                      </div>
+                                      <div style={{ marginTop: "0.5rem" }}>
+                                        <span className="glass-button secondary">Voir moins ↑</span>
+                                      </div>
+                                    </details>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </div>
 
                           <div className="transcription-footer">
                             <div className="transcription-metrics">
                               <span className="metric-item">
                                 <span className="metric-icon">🧩</span>
-                                <span className="metric-value">{methodLabel(t.transcription_method)}</span>
+                                <span className="metric-value">
+                                  {methodLabel(t.meta?.transcriptionMethod || t.transcription_method)}
+                                </span>
                               </span>
-                              {t.segments_count ? (
+                              {t.meta?.segmentsCount || t.segments_count ? (
                                 <span className="metric-item">
                                   <span className="metric-icon">🎬</span>
-                                  <span className="metric-value">{t.segments_count} segments</span>
+                                  <span className="metric-value">{t.meta?.segmentsCount || t.segments_count} segments</span>
                                 </span>
                               ) : null}
                             </div>
                             <div className="transcription-actions">
-                              <button className="action-btn secondary">
-                                <span>📄</span> Transcription
-                              </button>
+                              {t.audioUrl ? (
+                                <audio controls src={t.audioUrl} style={{ height: 28 }}>
+                                  Votre navigateur ne supporte pas l&apos;audio HTML5.
+                                </audio>
+                              ) : (
+                                <button className="action-btn secondary" title="Ouvrir la carte">
+                                  <span>📄</span> Détails
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -4233,110 +4564,130 @@ const [analyticsData, setAnalyticsData] = useState({
 
             {/* Prédiction des réactions */}
             {reactionPrediction && (
-              <div className="glass-card animate-slide-in" style={{ padding: '2rem' }}>
-                <h3 className="section-title" style={{ marginBottom: '1.5rem' }}>
-                  🔮 Anticipation de la Réaction de la Population
-                </h3>
+              <>
+                {/*
+                  Safely extract values with fallbacks for sentiment & prediction section
+                */}
+                {(() => {
+                  // fallback extraction for population reaction
+                  // (scoped inside IIFE to avoid polluting outer scope)
+                  const overall = reactionPrediction?.population_reaction?.overall_reaction || 'N/A';
+                  const overallScore = typeof reactionPrediction?.population_reaction?.overall_score === 'number' 
+                    ? reactionPrediction.population_reaction.overall_score 
+                    : 0;
+                  const polarization = reactionPrediction?.population_reaction?.polarization_risk || 'inconnu';
+                  const confidencePct = Math.round((typeof reactionPrediction?.confidence === 'number' ? reactionPrediction.confidence : 0) * 100);
+                  const byDemo = reactionPrediction?.population_reaction?.by_demographic || {};
+                  const dataSources = reactionPrediction?.data_sources || { similar_articles: 0, similar_social_posts: 0 };
+                  const recommendations = Array.isArray(reactionPrediction?.strategic_recommendations) ? reactionPrediction.strategic_recommendations : [];
+                  return (
+                  <div className="glass-card animate-slide-in" style={{ padding: '2rem' }}>
+                    <h3 className="section-title" style={{ marginBottom: '1.5rem' }}>
+                      🔮 Anticipation de la Réaction de la Population
+                    </h3>
 
-                {/* Réaction globale */}
-                <div style={{
-                  textAlign: 'center',
-                  padding: '2rem',
-                  background: 'rgba(15, 23, 42, 0.6)',
-                  borderRadius: '12px',
-                  marginBottom: '2rem'
-                }}>
-                  <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>
-                    {reactionPrediction.population_reaction.overall_reaction === 'très positive' ? '🎉' :
-                     reactionPrediction.population_reaction.overall_reaction === 'positive' ? '😊' :
-                     reactionPrediction.population_reaction.overall_reaction === 'neutre' ? '😐' :
-                     reactionPrediction.population_reaction.overall_reaction === 'négative' ? '😞' : '😡'}
-                  </div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#e2e8f0', marginBottom: '0.5rem' }}>
-                    Réaction Globale: {reactionPrediction.population_reaction.overall_reaction}
-                  </div>
-                  <div style={{ color: '#94a3b8' }}>
-                    Score: {reactionPrediction.population_reaction.overall_score} | 
-                    Polarisation: {reactionPrediction.population_reaction.polarization_risk} | 
-                    Confiance: {Math.round(reactionPrediction.confidence * 100)}%
-                  </div>
-                </div>
-
-                {/* Réactions par segment */}
-                <div style={{ marginBottom: '2rem' }}>
-                  <h4 style={{ color: '#8b5cf6', marginBottom: '1rem' }}>👥 Réactions par Segment de Population</h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
-                    {Object.entries(reactionPrediction.population_reaction.by_demographic || {}).map(([segment, data]) => (
-                      <div key={segment} style={{
-                        padding: '1rem',
-                        background: 'rgba(75, 85, 99, 0.1)',
-                        borderRadius: '8px',
-                        border: '1px solid rgba(139, 92, 246, 0.2)'
-                      }}>
-                        <div style={{ fontWeight: 'bold', color: '#e2e8f0', marginBottom: '0.5rem' }}>
-                          {segment.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                        </div>
-                        <div style={{ color: '#c4b5fd', marginBottom: '0.5rem' }}>
-                          {data.reaction_label} ({data.reaction_score})
-                        </div>
-                        <div style={{ fontSize: '0.875rem', color: '#94a3b8' }}>
-                          Engagement: {data.engagement_likelihood}
-                        </div>
-                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.5rem' }}>
-                          Préoccupations: {data.key_concerns.join(', ')}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Données sources */}
-                <div style={{ marginBottom: '2rem' }}>
-                  <h4 style={{ color: '#10b981', marginBottom: '1rem' }}>📊 Sources de Données Utilisées</h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                    {/* Réaction globale */}
                     <div style={{
-                      padding: '1rem',
-                      background: 'rgba(16, 185, 129, 0.1)',
-                      borderRadius: '8px'
+                      textAlign: 'center',
+                      padding: '2rem',
+                      background: 'rgba(15, 23, 42, 0.6)',
+                      borderRadius: '12px',
+                      marginBottom: '2rem'
                     }}>
-                      <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#6ee7b7' }}>
-                        {reactionPrediction.data_sources.similar_articles}
+                      <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>
+                        {overall === 'très positive' ? '🎉' :
+                         overall === 'positive' ? '😊' :
+                         overall === 'neutre' ? '😐' :
+                         overall === 'négative' ? '😞' : '😡'}
                       </div>
-                      <div style={{ color: '#94a3b8', fontSize: '0.875rem' }}>Articles similaires</div>
-                    </div>
-                    <div style={{
-                      padding: '1rem',
-                      background: 'rgba(59, 130, 246, 0.1)',
-                      borderRadius: '8px'
-                    }}>
-                      <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#93c5fd' }}>
-                        {reactionPrediction.data_sources.similar_social_posts}
+                      <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#e2e8f0', marginBottom: '0.5rem' }}>
+                        Réaction Globale: {overall}
                       </div>
-                      <div style={{ color: '#94a3b8', fontSize: '0.875rem' }}>Posts réseaux sociaux</div>
+                      <div style={{ color: '#94a3b8' }}>
+                        Score: {overallScore} | 
+                        Polarisation: {polarization} | 
+                        Confiance: {confidencePct}%
+                      </div>
                     </div>
-                  </div>
-                </div>
 
-                {/* Recommandations stratégiques */}
-                {reactionPrediction.strategic_recommendations.length > 0 && (
-                  <div>
-                    <h4 style={{ color: '#f59e0b', marginBottom: '1rem' }}>🎯 Recommandations Stratégiques</h4>
-                    <div style={{ display: 'grid', gap: '0.5rem' }}>
-                      {reactionPrediction.strategic_recommendations.map((recommendation, i) => (
-                        <div key={i} style={{
+                    {/* Réactions par segment */}
+                    <div style={{ marginBottom: '2rem' }}>
+                      <h4 style={{ color: '#8b5cf6', marginBottom: '1rem' }}>👥 Réactions par Segment de Population</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
+                        {Object.entries(byDemo).map(([segment, data]) => (
+                          <div key={segment} style={{
+                            padding: '1rem',
+                            background: 'rgba(75, 85, 99, 0.1)',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(139, 92, 246, 0.2)'
+                          }}>
+                            <div style={{ fontWeight: 'bold', color: '#e2e8f0', marginBottom: '0.5rem' }}>
+                              {segment.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                            </div>
+                            <div style={{ color: '#c4b5fd', marginBottom: '0.5rem' }}>
+                              {(data && data.reaction_label) || 'N/A'} ({(data && data.reaction_score) ?? 0})
+                            </div>
+                            <div style={{ fontSize: '0.875rem', color: '#94a3b8' }}>
+                              Engagement: {(data && data.engagement_likelihood) || 'N/A'}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.5rem' }}>
+                              Préoccupations: {Array.isArray(data?.key_concerns) ? data.key_concerns.join(', ') : '—'}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Données sources */}
+                    <div style={{ marginBottom: '2rem' }}>
+                      <h4 style={{ color: '#10b981', marginBottom: '1rem' }}>📊 Sources de Données Utilisées</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                        <div style={{
                           padding: '1rem',
-                          background: 'rgba(245, 158, 11, 0.1)',
-                          borderRadius: '8px',
-                          borderLeft: '4px solid #f59e0b',
-                          color: '#e2e8f0'
+                          background: 'rgba(16, 185, 129, 0.1)',
+                          borderRadius: '8px'
                         }}>
-                          {recommendation}
+                          <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#6ee7b7' }}>
+                            {dataSources.similar_articles}
+                          </div>
+                          <div style={{ color: '#94a3b8', fontSize: '0.875rem' }}>Articles similaires</div>
                         </div>
-                      ))}
+                        <div style={{
+                          padding: '1rem',
+                          background: 'rgba(59, 130, 246, 0.1)',
+                          borderRadius: '8px'
+                        }}>
+                          <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#93c5fd' }}>
+                            {dataSources.similar_social_posts}
+                          </div>
+                          <div style={{ color: '#94a3b8', fontSize: '0.875rem' }}>Posts réseaux sociaux</div>
+                        </div>
+                      </div>
                     </div>
+
+                    {/* Recommandations stratégiques */}
+                    {recommendations.length > 0 && (
+                      <div>
+                        <h4 style={{ color: '#f59e0b', marginBottom: '1rem' }}>🎯 Recommandations Stratégiques</h4>
+                        <div style={{ display: 'grid', gap: '0.5rem' }}>
+                          {recommendations.map((recommendation, i) => (
+                            <div key={i} style={{
+                              padding: '1rem',
+                              background: 'rgba(245, 158, 11, 0.1)',
+                              borderRadius: '8px',
+                              borderLeft: '4px solid #f59e0b',
+                              color: '#e2e8f0'
+                            }}>
+                              {recommendation}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                  );
+                })()}
+              </>
             )}
           </div>
         )}
@@ -4347,3 +4698,4 @@ const [analyticsData, setAnalyticsData] = useState({
 }
 
 export default PrivateApp;
+ 

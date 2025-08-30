@@ -30,13 +30,15 @@ except ImportError:
             return {"error": "Aucun analyseur de sentiment disponible"}
 
 # Configuration logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 class AsyncSentimentService:
     def __init__(self):
         """Initialiser le service de sentiment asynchrone"""
+
+        # Délai max de traitement d'un item (anti-timeout)
+        self.processing_timeout_seconds = int(os.environ.get("SENTIMENT_PROCESSING_TIMEOUT_SECONDS", "60"))
 
         self.initialization_failed = False
 
@@ -99,26 +101,32 @@ class AsyncSentimentService:
         logger.info("⏹️ Traitement sentiment asynchrone arrêté")
 
     def get_text_hash(self, text: str) -> str:
-        """Générer un hash unique pour le texte"""
+        """Générer un hash unique pour le texte (normalisé)."""
         import hashlib
-        return hashlib.md5(text.encode('utf-8')).hexdigest()
+        return hashlib.md5((text or "").strip().encode('utf-8')).hexdigest()
 
-    def get_cached_sentiment(self, text: str) -> Optional[Dict[str, Any]]:
-        """Récupérer l'analyse de sentiment depuis le cache"""
+    def get_task_id(self, text: str, cache_key_suffix: Optional[str] = None) -> str:
+        """Clé composite: md5( md5(text) + '|' + suffix )."""
+        import hashlib
+        base = self.get_text_hash(text)
+        composite = hashlib.md5(f"{base}|{cache_key_suffix or ''}".encode('utf-8')).hexdigest()
+        return composite
+
+    def get_cached_sentiment(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """Récupérer l'analyse de sentiment depuis le cache par identifiant (task_id)."""
         try:
             if self.initialization_failed or self.client is None:
                 return None
 
-            text_hash = self.get_text_hash(text)
             cutoff_time = datetime.now() - timedelta(hours=24)
             cached_result = self.sentiment_cache.find_one({  # type: ignore
-                'text_hash': text_hash,
+                'text_hash': task_id,
                 'analyzed_at': {'$gte': cutoff_time}
             })
 
             if cached_result:
                 self.stats['analyses_cached'] += 1
-                logger.info(f"🎯 Sentiment cache HIT pour hash {text_hash[:8]}...")
+                logger.info(f"🎯 Sentiment cache HIT pour hash {task_id[:8]}...")
                 result = dict(cached_result)
                 result.pop('_id', None)
                 result.pop('text_hash', None)
@@ -129,32 +137,33 @@ class AsyncSentimentService:
             logger.warning(f"Erreur récupération cache sentiment: {e}")
             return None
 
-    def queue_sentiment_analysis(self, text: str, priority: str = 'normal', context: Dict = None) -> Optional[str]:
-        """Ajouter une analyse de sentiment à la queue de traitement"""
+    def queue_sentiment_analysis(self, text: str, priority: str = 'normal', context: Dict = None,
+                                 cache_key_suffix: Optional[str] = None, force: bool = False) -> Optional[str]:
+        """Ajouter une analyse de sentiment à la queue de traitement (clé composite texte+snapshot)."""
         try:
             if self.initialization_failed or self.client is None:
                 return None
 
-            text_hash = self.get_text_hash(text)
+            task_id = self.get_task_id(text, cache_key_suffix)
 
-            # Vérifier si déjà en cache
-            cached = self.get_cached_sentiment(text)
-            if cached:
-                return text_hash
+            # Cache existant ?
+            if not force:
+                cached = self.get_cached_sentiment(task_id)
+                if cached is not None:
+                    return task_id
 
-            # Vérifier si déjà en queue
-            existing = self.processing_queue.find_one({  # type: ignore
-                'text_hash': text_hash,
-                'status': {'$in': ['pending', 'processing']}
-            })
-
-            if existing:
-                logger.info(f"📝 Texte déjà en queue: {text_hash[:8]}...")
-                return text_hash
+                # Déjà en queue ?
+                existing = self.processing_queue.find_one({  # type: ignore
+                    'text_hash': task_id,
+                    'status': {'$in': ['pending', 'processing']}
+                })
+                if existing:
+                    logger.info(f"📝 Tâche déjà en queue: {task_id[:8]}...")
+                    return task_id
 
             queue_item = {
-                'text_hash': text_hash,
-                'text': text[:500],
+                'text_hash': task_id,
+                'text': (text or '')[:500],
                 'full_text': text,
                 'priority': priority,
                 'context': context or {},
@@ -166,8 +175,8 @@ class AsyncSentimentService:
 
             self.processing_queue.insert_one(queue_item)  # type: ignore
             self.stats['queue_size'] += 1
-            logger.info(f"📋 Texte ajouté à la queue sentiment: {text_hash[:8]}... (priorité: {priority})")
-            return text_hash
+            logger.info(f"📋 Texte ajouté à la queue sentiment: {task_id[:8]}... (priorité: {priority})")
+            return task_id
         except Exception as e:
             logger.error(f"Erreur ajout queue sentiment: {e}")
             return None
@@ -185,12 +194,17 @@ class AsyncSentimentService:
 
             queue_item = self.processing_queue.find_one({'text_hash': text_hash})  # type: ignore
             if queue_item:
-                return {
-                    'status': queue_item.get('status', 'pending'),
+                status = queue_item.get('status', 'pending')
+                payload = {
+                    'status': status,
                     'queued_at': queue_item.get('queued_at'),
                     'processing_attempts': queue_item.get('processing_attempts', 0),
                     'priority': queue_item.get('priority', 'normal')
                 }
+                if status == 'failed':
+                    payload['error'] = queue_item.get('error', 'processing failed')
+                    payload['failed_at'] = queue_item.get('failed_at')
+                return payload
 
             return {'status': 'not_found'}
         except Exception as e:
@@ -207,6 +221,29 @@ class AsyncSentimentService:
 
         while self.processing_active:
             try:
+                # Housekeeping: marquer en échec les items "processing" trop anciens (timeout)
+                try:
+                    now = datetime.now()
+                    timeout_ago = now - timedelta(seconds=max(15, self.processing_timeout_seconds))
+                    res = self.processing_queue.update_many(  # type: ignore
+                        {
+                            'status': 'processing',
+                            'processing_started_at': {'$lt': timeout_ago},
+                            'processing_attempts': {'$gte': 1}
+                        },
+                        {
+                            '$set': {
+                                'status': 'failed',
+                                'error': 'processing timeout',
+                                'failed_at': now
+                            }
+                        }
+                    )
+                    if getattr(res, 'modified_count', 0):
+                        logger.warning(f"⏱️ {res.modified_count} item(s) marqués 'failed' (timeout)")
+                except Exception as e_hk:
+                    logger.warning(f"Housekeeping timeout check error: {e_hk}")
+
                 priority_order = ['high', 'normal', 'low']
                 next_item = None
 
@@ -245,7 +282,12 @@ class AsyncSentimentService:
         try:
             logger.info(f"🤖 Traitement sentiment: {text_hash[:8]}... (priorité: {item.get('priority')})")
             start_time = time.time()
-            sentiment_result = gpt_sentiment_analyzer.analyze_sentiment(full_text)  # type: ignore
+            analyze_fn = getattr(gpt_sentiment_analyzer, 'analyze_sentiment', None)
+            if callable(analyze_fn):
+                sentiment_result = analyze_fn(full_text)  # type: ignore
+            else:
+                # Support d'un analyseur simple de type fonction(text)->dict
+                sentiment_result = gpt_sentiment_analyzer(full_text)  # type: ignore
             processing_time = time.time() - start_time
 
             cache_entry = {
@@ -340,19 +382,27 @@ async_sentiment_service = AsyncSentimentService()
 
 # Fonctions utilitaires
 
-def analyze_text_async(text: str, priority: str = 'normal') -> Optional[str]:
-    """Analyser un texte en mode asynchrone"""
-    return async_sentiment_service.queue_sentiment_analysis(text, priority)
+def analyze_text_async(text: str, cache_key_suffix: Optional[str] = None, force: bool = False,
+                       priority: str = 'normal', context: Optional[Dict[str, Any]] = None,
+                       task_id: Optional[str] = None, **_) -> Optional[Dict[str, Any]]:
+    """Analyser un texte en mode asynchrone. Retourne {task_id, status}."""
+    tid = task_id or async_sentiment_service.get_task_id(text, cache_key_suffix)
+    queued = async_sentiment_service.queue_sentiment_analysis(text, priority=priority, context=context or {},
+                                                             cache_key_suffix=cache_key_suffix, force=force)
+    if queued is None:
+        return None
+    status = async_sentiment_service.get_sentiment_status(tid).get('status', 'queued')
+    return {"task_id": tid, "status": status}
 
 
-def get_text_sentiment_cached(text: str) -> Optional[Dict[str, Any]]:
-    """Récupérer l'analyse depuis le cache ou None si pas disponible"""
-    return async_sentiment_service.get_cached_sentiment(text)
+def get_text_sentiment_cached(task_id: str) -> Optional[Dict[str, Any]]:
+    """Récupérer l'analyse depuis le cache par identifiant (task_id)."""
+    return async_sentiment_service.get_cached_sentiment(task_id)
 
 
-def get_sentiment_analysis_status(text_hash: str) -> Dict[str, Any]:
-    """Obtenir le statut d'une analyse"""
-    return async_sentiment_service.get_sentiment_status(text_hash)
+def get_sentiment_analysis_status(task_id: str) -> Dict[str, Any]:
+    """Obtenir le statut d'une analyse par identifiant (task_id)."""
+    return async_sentiment_service.get_sentiment_status(task_id)
 
 # Démarrer le service au démarrage du module
 if __name__ != "__main__":
