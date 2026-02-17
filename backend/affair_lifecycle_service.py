@@ -1,0 +1,1287 @@
+# backend/affair_lifecycle_service.py
+"""
+Service de cycle de vie des affaires — REFONTE COMPLÈTE
+========================================================
+
+ANCIEN SYSTÈME (problèmes) :
+- 1 article > seuil gravité → affaire créée immédiatement
+- Corrélation par mots-clés simples → faux positifs massifs
+- Transcriptions jamais liées → BMG toujours à zéro
+- Pas de cycle de vie → affaires orphelines à l'infini
+
+NOUVEAU SYSTÈME :
+1. INGESTION : chaque item (article/transcription/social) entre dans
+   la collection `topic_candidates` avec son contexte extrait
+2. CLUSTERING : un job périodique regroupe les candidats par
+   similarité contextuelle (pas juste les mots-clés)
+3. PROMOTION : un cluster devient une AFFAIRE quand il remplit
+   les critères (multi-source, multi-jour, gravité suffisante)
+4. SUIVI : l'affaire vivante accumule les nouveaux items,
+   son BMG évolue, elle peut être résolue/archivée
+5. RÉCONCILIATION : le service de réconciliation corrige les
+   entités des transcriptions via les articles (noms corrects)
+
+COLLECTIONS MONGO :
+- topic_candidates : items en attente de clustering
+- topic_clusters   : groupes contextuels (pré-affaires)
+- affairs          : affaires promues (existante, on la garde)
+- affair_timeline  : historique des événements d'une affaire
+"""
+
+import os
+import re
+import logging
+import hashlib
+from datetime import datetime, timedelta
+from typing import Dict, List, Any, Optional, Tuple, Set
+from collections import Counter, defaultdict
+from difflib import SequenceMatcher
+
+from pymongo import MongoClient, DESCENDING
+from bson import ObjectId
+
+logger = logging.getLogger("affair_lifecycle")
+
+# ============================================================
+# CONFIGURATION
+# ============================================================
+
+# --- Clustering ---
+CLUSTER_WINDOW_HOURS = 72              # Fenêtre de clustering (3 jours)
+MIN_CLUSTER_ITEMS = 2                  # Minimum d'items pour former un cluster
+CLUSTER_SIMILARITY_THRESHOLD = 0.30    # Seuil de similarité contextuelle
+CLUSTER_MERGE_THRESHOLD = 0.50         # Seuil pour fusionner deux clusters
+
+# --- Promotion en affaire ---
+PROMOTION_MIN_SOURCES = 2              # Au moins 2 sources différentes
+PROMOTION_MIN_MEDIA_TYPES = 1          # Au moins 1 type de média (article OU transcription)
+PROMOTION_MIN_GRAVITY = 0.50           # Gravité minimum du cluster
+PROMOTION_MIN_ITEMS = 2                # Minimum d'items dans le cluster
+
+# --- Cycle de vie ---
+AFFAIR_ACTIVE_DAYS = 14                # Durée de vie active sans nouvel item
+AFFAIR_STALE_DAYS = 7                  # Jours sans activité → statut "stale"
+
+# --- BMG ---
+CANAL_WEIGHTS = {
+    "radio": 0.35,
+    "television": 0.30,
+    "presse": 0.25,
+    "reseaux_sociaux": 0.10,
+}
+
+PRESSE_WEIGHTS = {
+    "France-Antilles Guadeloupe": 1.0,
+    "France-Antilles": 1.0,
+    "RCI Guadeloupe": 0.9,
+    "RCI": 0.9,
+    "La 1ère Guadeloupe": 0.7,
+    "La 1ère": 0.7,
+    "KaribInfo": 0.65,
+    "Outremers360": 0.8,
+}
+
+RADIO_WEIGHTS = {
+    "RCI": 1.0,
+    "Guadeloupe La 1ère": 0.8,
+    "NRJ Antilles": 0.4,
+    "TRACE FM": 0.35,
+}
+
+# Mots vides pour le contexte
+STOPWORDS = {
+    "le", "la", "les", "de", "du", "des", "un", "une", "et", "en",
+    "est", "au", "aux", "ce", "qui", "que", "son", "sa", "ses",
+    "sur", "par", "pour", "dans", "avec", "pas", "ne", "plus",
+    "se", "ou", "il", "elle", "ont", "nous", "vous", "leur",
+    "cette", "aussi", "tres", "tout", "fait", "bien", "mais",
+    "comme", "peut", "etre", "autre", "entre", "apres", "avant",
+    "avoir", "dire", "voir", "aller", "faire", "venir",
+}
+
+
+# ============================================================
+# SERVICE PRINCIPAL
+# ============================================================
+class AffairLifecycleService:
+    """Gère le cycle de vie complet des affaires."""
+
+    def __init__(self, db=None):
+        self.db = db
+        if self.db is None:
+            self._connect()
+
+        if self.db is not None:
+            # Collections
+            self.candidates = self.db["topic_candidates"]
+            self.clusters = self.db["topic_clusters"]
+            self.affairs = self.db["affairs"]
+            self.timeline = self.db["affair_timeline"]
+            self.articles = self.db["articles_guadeloupe"]
+            self.transcriptions = self.db["radio_transcriptions"]
+            self.social = self.db["social_media_posts"]
+
+            # Index
+            self._ensure_indexes()
+            logger.info("✅ AffairLifecycleService initialisé")
+        else:
+            logger.error("❌ Pas de DB — service inopérant")
+
+    def _connect(self):
+        mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+        db_name = os.environ.get("MONGO_DB_NAME", "veille_media")
+        try:
+            import certifi
+            client = MongoClient(
+                mongo_url,
+                tlsCAFile=certifi.where() if "mongodb+srv" in mongo_url else None,
+                serverSelectionTimeoutMS=10000,
+            )
+            client.admin.command("ping")
+            self.db = client[db_name]
+        except Exception as e:
+            logger.error(f"❌ MongoDB: {e}")
+            self.db = None
+
+    def _ensure_indexes(self):
+        """Crée les index nécessaires."""
+        try:
+            self.candidates.create_index([("created_at", DESCENDING)])
+            self.candidates.create_index("cluster_id")
+            self.candidates.create_index("source_type")
+            self.clusters.create_index([("created_at", DESCENDING)])
+            self.clusters.create_index("status")
+            self.affairs.create_index([("created_at", DESCENDING)])
+            self.affairs.create_index("status")
+            self.affairs.create_index([("last_activity", DESCENDING)])
+            self.timeline.create_index("affair_id")
+            self.timeline.create_index([("timestamp", DESCENDING)])
+        except Exception as e:
+            logger.warning(f"⚠️ Index creation: {e}")
+
+    # ============================================================
+    # ÉTAPE 1 : INGESTION — Enregistrer un candidat
+    # ============================================================
+    def ingest_item(
+        self, item: Dict[str, Any], source_type: str = "article"
+    ) -> Dict[str, Any]:
+        """
+        Point d'entrée : enregistre un article/transcription/post
+        comme candidat au clustering.
+
+        source_type : 'article' | 'transcription' | 'social'
+        """
+        if self.db is None:
+            return {"success": False, "error": "no_db"}
+
+        # Extraire le contexte — PRIORITÉ : ai_summary > content > title
+        # Le résumé IA est bien plus discriminant que le contenu brut
+        # (3000 mots de contenu = trop de bruit, mots génériques partagés)
+        title = item.get("title") or ""
+        ai_summary = item.get("ai_summary") or ""
+        content = item.get("content") or item.get("text") or ""
+
+        if ai_summary:
+            # Résumé IA disponible : utiliser titre + résumé (le plus ciblé)
+            context_source = f"{title} {ai_summary}"
+        elif content and len(content) > 100:
+            # Pas de résumé IA : utiliser titre + premiers 500 mots du contenu
+            # (limiter pour éviter la dilution par les mots génériques)
+            words = content.split()[:500]
+            context_source = f"{title} {' '.join(words)}"
+        else:
+            context_source = title
+
+        context_tokens = self._extract_context_tokens(context_source, item)
+        if len(context_tokens) < 3:
+            return {"success": False, "reason": "too_short"}
+
+        # Construire le candidat
+        candidate = {
+            "item_id": str(item.get("_id", "")),
+            "source_type": source_type,
+            "source_name": (
+                item.get("source") or item.get("site") or
+                item.get("radio") or item.get("stream_name") or
+                item.get("platform") or "unknown"
+            ),
+            "title": title[:200],
+            "context_tokens": list(context_tokens),
+            "entities": item.get("elected") or item.get("entities") or [],
+            "institutions": item.get("institutions") or [],
+            "theme": item.get("theme", "general"),
+            "keywords": item.get("keywords_found") or [],
+            "gravity_score": item.get("gravity_score", 0),
+            "importance_score": item.get("importance_score", 0),
+            "sentiment": item.get("sentiment", "neutre"),
+            "is_affair_candidate": item.get("gravity_score", 0) >= 0.40,
+            "cluster_id": None,  # Sera rempli par le clustering
+            "created_at": datetime.utcnow(),
+            "item_date": self._parse_date(
+                item.get("scraped_at") or item.get("captured_at") or
+                item.get("date") or item.get("created_at")
+            ) or datetime.utcnow(),
+        }
+
+        try:
+            # Éviter les doublons
+            existing = self.candidates.find_one({
+                "item_id": candidate["item_id"],
+                "source_type": source_type,
+            })
+            if existing:
+                return {"success": True, "action": "already_exists", "id": str(existing["_id"])}
+
+            result = self.candidates.insert_one(candidate)
+            logger.debug(f"📥 Candidat ingéré: {source_type} '{title[:50]}'")
+            return {
+                "success": True,
+                "action": "ingested",
+                "id": str(result.inserted_id),
+                "is_affair_candidate": candidate["is_affair_candidate"],
+            }
+        except Exception as e:
+            logger.error(f"❌ Ingestion: {e}")
+            return {"success": False, "error": str(e)}
+
+    # ============================================================
+    # ÉTAPE 2 : CLUSTERING — Regrouper les candidats par contexte
+    # ============================================================
+    def run_clustering(self) -> Dict[str, Any]:
+        """
+        Job principal de clustering.
+        Regroupe les candidats non-clusterisés par similarité contextuelle.
+        Fusionne les clusters proches.
+        """
+        if self.db is None:
+            return {"error": "no_db"}
+
+        cutoff = datetime.utcnow() - timedelta(hours=CLUSTER_WINDOW_HOURS)
+
+        # Récupérer les candidats non-clusterisés dans la fenêtre
+        unclustered = list(self.candidates.find({
+            "cluster_id": None,
+            "created_at": {"$gte": cutoff},
+        }).sort("created_at", DESCENDING).limit(500))
+
+        if not unclustered:
+            return {"clustered": 0, "new_clusters": 0, "merged": 0}
+
+        logger.info(f"🔄 Clustering: {len(unclustered)} candidats à traiter")
+
+        # Charger les clusters actifs existants
+        active_clusters = list(self.clusters.find({
+            "status": "active",
+            "created_at": {"$gte": cutoff},
+        }))
+
+        stats = {"assigned_to_existing": 0, "new_clusters_created": 0, "merged": 0}
+
+        # Phase 1 : essayer de rattacher aux clusters existants
+        still_unassigned = []
+        for cand in unclustered:
+            assigned = self._try_assign_to_cluster(cand, active_clusters)
+            if assigned:
+                stats["assigned_to_existing"] += 1
+            else:
+                still_unassigned.append(cand)
+
+        # Phase 2 : créer de nouveaux clusters entre les non-assignés
+        new_clusters = self._create_new_clusters(still_unassigned)
+        stats["new_clusters_created"] = len(new_clusters)
+        active_clusters.extend(new_clusters)
+
+        # Phase 3 : tenter de fusionner les clusters proches
+        merge_count = self._merge_similar_clusters(active_clusters)
+        stats["merged"] = merge_count
+
+        total = stats["assigned_to_existing"] + sum(
+            len(c.get("items", [])) for c in new_clusters
+        )
+        logger.info(
+            f"📊 Clustering terminé: {total} assignés, "
+            f"{stats['new_clusters_created']} nouveaux clusters, "
+            f"{stats['merged']} fusions"
+        )
+        return stats
+
+    def _try_assign_to_cluster(
+        self, candidate: Dict, clusters: List[Dict]
+    ) -> bool:
+        """Essaye de rattacher un candidat à un cluster existant."""
+        cand_tokens = set(candidate.get("context_tokens", []))
+        cand_theme = candidate.get("theme", "")
+        cand_entities = set(candidate.get("entities", []))
+        cand_date = candidate.get("item_date")
+
+        best_cluster = None
+        best_score = 0
+
+        for cluster in clusters:
+            score = self._candidate_cluster_similarity(
+                cand_tokens, cand_theme, cand_entities, cluster,
+                cand_date=cand_date,
+            )
+            if score > best_score and score >= CLUSTER_SIMILARITY_THRESHOLD:
+                best_score = score
+                best_cluster = cluster
+
+        if best_cluster:
+            cluster_id = best_cluster["_id"]
+            # Mettre à jour le candidat
+            self.candidates.update_one(
+                {"_id": candidate["_id"]},
+                {"$set": {"cluster_id": str(cluster_id)}}
+            )
+            # Mettre à jour le cluster
+            self.clusters.update_one(
+                {"_id": cluster_id},
+                {
+                    "$push": {"items": {
+                        "candidate_id": str(candidate["_id"]),
+                        "item_id": candidate["item_id"],
+                        "source_type": candidate["source_type"],
+                        "source_name": candidate["source_name"],
+                        "title": candidate["title"],
+                        "score": best_score,
+                    }},
+                    "$addToSet": {
+                        "all_entities": {"$each": candidate.get("entities", [])},
+                        "all_sources": candidate["source_name"],
+                        "all_source_types": candidate["source_type"],
+                        "all_tokens": {"$each": list(cand_tokens)[:30]},
+                    },
+                    "$max": {"max_gravity": candidate.get("gravity_score", 0)},
+                    "$set": {"last_activity": datetime.utcnow()},
+                    "$inc": {"item_count": 1},
+                }
+            )
+            # Mettre à jour le cache local
+            best_cluster.setdefault("all_tokens_set", set()).update(cand_tokens)
+            return True
+
+        return False
+
+    def _create_new_clusters(self, candidates: List[Dict]) -> List[Dict]:
+        """Crée de nouveaux clusters à partir des candidats non-assignés."""
+        if len(candidates) < MIN_CLUSTER_ITEMS:
+            return []
+
+        new_clusters = []
+        used = set()
+
+        for i, cand_a in enumerate(candidates):
+            if i in used:
+                continue
+
+            group = [cand_a]
+            group_tokens = set(cand_a.get("context_tokens", []))
+            group_entities = set(cand_a.get("entities", []))
+            group_theme = cand_a.get("theme", "")
+
+            date_a = cand_a.get("item_date")
+
+            for j, cand_b in enumerate(candidates):
+                if j <= i or j in used:
+                    continue
+
+                b_tokens = set(cand_b.get("context_tokens", []))
+                b_entities = set(cand_b.get("entities", []))
+                b_theme = cand_b.get("theme", "")
+                date_b = cand_b.get("item_date")
+
+                sim = self._pairwise_similarity(
+                    group_tokens, group_theme, group_entities,
+                    b_tokens, b_theme, b_entities,
+                    date_a=date_a, date_b=date_b,
+                )
+                if sim >= CLUSTER_SIMILARITY_THRESHOLD:
+                    group.append(cand_b)
+                    group_tokens.update(b_tokens)
+                    group_entities.update(b_entities)
+                    used.add(j)
+
+            if len(group) >= MIN_CLUSTER_ITEMS:
+                used.add(i)
+                cluster = self._create_cluster(group)
+                if cluster:
+                    new_clusters.append(cluster)
+
+        return new_clusters
+
+    def _create_cluster(self, candidates: List[Dict]) -> Optional[Dict]:
+        """Crée un cluster en base depuis une liste de candidats."""
+        all_tokens = set()
+        all_entities = set()
+        all_sources = set()
+        all_source_types = set()
+        max_gravity = 0
+        themes = Counter()
+
+        items_list = []
+        for c in candidates:
+            all_tokens.update(c.get("context_tokens", []))
+            all_entities.update(c.get("entities", []))
+            all_sources.add(c.get("source_name", ""))
+            all_source_types.add(c.get("source_type", ""))
+            max_gravity = max(max_gravity, c.get("gravity_score", 0))
+            themes[c.get("theme", "general")] += 1
+            items_list.append({
+                "candidate_id": str(c["_id"]),
+                "item_id": c["item_id"],
+                "source_type": c["source_type"],
+                "source_name": c["source_name"],
+                "title": c["title"],
+            })
+
+        # Titre du cluster = titre du candidat avec la plus haute gravité
+        best_title = max(candidates, key=lambda c: c.get("gravity_score", 0)).get("title", "")
+        dominant_theme = themes.most_common(1)[0][0] if themes else "general"
+
+        cluster_doc = {
+            "title": best_title[:200],
+            "dominant_theme": dominant_theme,
+            "all_entities": sorted(all_entities),
+            "all_sources": sorted(all_sources),
+            "all_source_types": sorted(all_source_types),
+            "all_tokens": sorted(list(all_tokens)[:100]),
+            "max_gravity": max_gravity,
+            "item_count": len(candidates),
+            "items": items_list,
+            "status": "active",
+            "promoted_to_affair": False,
+            "affair_id": None,
+            "created_at": datetime.utcnow(),
+            "last_activity": datetime.utcnow(),
+        }
+
+        try:
+            result = self.clusters.insert_one(cluster_doc)
+            cluster_id = result.inserted_id
+
+            # Lier les candidats au cluster
+            cand_ids = [c["_id"] for c in candidates]
+            self.candidates.update_many(
+                {"_id": {"$in": cand_ids}},
+                {"$set": {"cluster_id": str(cluster_id)}}
+            )
+
+            cluster_doc["_id"] = cluster_id
+            cluster_doc["all_tokens_set"] = all_tokens
+            logger.info(
+                f"🆕 Cluster créé: '{best_title[:50]}' "
+                f"({len(candidates)} items, {len(all_sources)} sources)"
+            )
+            return cluster_doc
+        except Exception as e:
+            logger.error(f"❌ Création cluster: {e}")
+            return None
+
+    def _merge_similar_clusters(self, clusters: List[Dict]) -> int:
+        """Fusionne les clusters trop similaires."""
+        merged = 0
+        merged_ids = set()
+
+        for i, cl_a in enumerate(clusters):
+            if str(cl_a.get("_id", "")) in merged_ids:
+                continue
+            for j, cl_b in enumerate(clusters):
+                if j <= i or str(cl_b.get("_id", "")) in merged_ids:
+                    continue
+
+                sim = self._cluster_cluster_similarity(cl_a, cl_b)
+                if sim >= CLUSTER_MERGE_THRESHOLD:
+                    self._do_merge(cl_a, cl_b)
+                    merged_ids.add(str(cl_b["_id"]))
+                    merged += 1
+
+        return merged
+
+    def _do_merge(self, keep: Dict, absorb: Dict):
+        """Fusionne `absorb` dans `keep`."""
+        try:
+            # Déplacer les items de absorb vers keep
+            self.clusters.update_one(
+                {"_id": keep["_id"]},
+                {
+                    "$push": {"items": {"$each": absorb.get("items", [])}},
+                    "$addToSet": {
+                        "all_entities": {"$each": absorb.get("all_entities", [])},
+                        "all_sources": {"$each": absorb.get("all_sources", [])},
+                        "all_source_types": {"$each": absorb.get("all_source_types", [])},
+                        "all_tokens": {"$each": absorb.get("all_tokens", [])[:50]},
+                    },
+                    "$max": {"max_gravity": absorb.get("max_gravity", 0)},
+                    "$inc": {"item_count": absorb.get("item_count", 0)},
+                    "$set": {"last_activity": datetime.utcnow()},
+                }
+            )
+            # Marquer absorb comme fusionné
+            self.clusters.update_one(
+                {"_id": absorb["_id"]},
+                {"$set": {"status": "merged", "merged_into": str(keep["_id"])}}
+            )
+            # Relien les candidats
+            self.candidates.update_many(
+                {"cluster_id": str(absorb["_id"])},
+                {"$set": {"cluster_id": str(keep["_id"])}}
+            )
+            logger.info(f"🔗 Clusters fusionnés: {absorb.get('title', '')[:40]} → {keep.get('title', '')[:40]}")
+        except Exception as e:
+            logger.error(f"❌ Fusion clusters: {e}")
+
+    # ============================================================
+    # ÉTAPE 3 : PROMOTION — Cluster → Affaire
+    # ============================================================
+    def run_promotion(self) -> Dict[str, Any]:
+        """
+        Évalue chaque cluster actif et promeut en affaire
+        ceux qui remplissent les critères.
+        """
+        if self.db is None:
+            return {"error": "no_db"}
+
+        active_clusters = list(self.clusters.find({
+            "status": "active",
+            "promoted_to_affair": False,
+        }))
+
+        stats = {"evaluated": len(active_clusters), "promoted": 0, "details": []}
+
+        for cluster in active_clusters:
+            should_promote, reasons = self._evaluate_promotion(cluster)
+
+            if should_promote:
+                affair_id = self._promote_to_affair(cluster)
+                if affair_id:
+                    stats["promoted"] += 1
+                    stats["details"].append({
+                        "cluster_title": cluster.get("title", "")[:60],
+                        "affair_id": affair_id,
+                        "reasons": reasons,
+                        "items": cluster.get("item_count", 0),
+                        "sources": cluster.get("all_sources", []),
+                    })
+
+        logger.info(
+            f"📊 Promotion: {stats['promoted']}/{stats['evaluated']} clusters promus"
+        )
+        return stats
+
+    def _evaluate_promotion(self, cluster: Dict) -> Tuple[bool, List[str]]:
+        """Évalue si un cluster mérite d'être promu en affaire."""
+        reasons = []
+
+        item_count = cluster.get("item_count", 0)
+        sources = cluster.get("all_sources", [])
+        source_types = cluster.get("all_source_types", [])
+        max_gravity = cluster.get("max_gravity", 0)
+
+        # Critère 1 : assez d'items
+        if item_count >= PROMOTION_MIN_ITEMS:
+            reasons.append(f"items={item_count}")
+        else:
+            return False, [f"pas assez d'items ({item_count}<{PROMOTION_MIN_ITEMS})"]
+
+        # Critère 2 : multi-source
+        unique_sources = len(set(sources))
+        if unique_sources >= PROMOTION_MIN_SOURCES:
+            reasons.append(f"sources={unique_sources}")
+        else:
+            # Exception : si gravité très haute (crise), une source suffit
+            if max_gravity >= 0.85 and item_count >= 3:
+                reasons.append(f"haute_gravité_bypass (gravity={max_gravity})")
+            else:
+                return False, [f"pas assez de sources ({unique_sources}<{PROMOTION_MIN_SOURCES})"]
+
+        # Critère 3 : gravité suffisante
+        if max_gravity >= PROMOTION_MIN_GRAVITY:
+            reasons.append(f"gravity={max_gravity}")
+        else:
+            return False, [f"gravité insuffisante ({max_gravity}<{PROMOTION_MIN_GRAVITY})"]
+
+        # Critère 4 : multi-type (bonus, pas bloquant)
+        if len(set(source_types)) >= 2:
+            reasons.append("cross_media")
+
+        return True, reasons
+
+    def _promote_to_affair(self, cluster: Dict) -> Optional[str]:
+        """Crée une affaire depuis un cluster promu."""
+        try:
+            # Vérifier s'il existe déjà une affaire très similaire
+            existing = self._find_similar_affair(cluster)
+            if existing:
+                # Fusionner avec l'affaire existante
+                self._merge_cluster_into_affair(cluster, existing)
+                return str(existing["_id"])
+
+            # Construire l'entité dominante
+            entities = cluster.get("all_entities", [])
+            entity_counts = Counter(entities)
+            primary_entity = entity_counts.most_common(1)[0][0] if entity_counts else None
+
+            # Construire les listes d'IDs par type
+            article_ids = []
+            transcription_ids = []
+            social_ids = []
+            for item in cluster.get("items", []):
+                iid = item.get("item_id", "")
+                if item["source_type"] == "article":
+                    article_ids.append(iid)
+                elif item["source_type"] == "transcription":
+                    transcription_ids.append(iid)
+                elif item["source_type"] == "social":
+                    social_ids.append(iid)
+
+            # Créer l'affaire
+            affair = {
+                "title": cluster.get("title", "Affaire sans titre"),
+                "description": self._generate_affair_description(cluster),
+                "primary_entity": primary_entity,
+                "entities": sorted(set(entities)),
+                "elected": [e for e in entities if not self._is_institution(e)],
+                "institutions": [e for e in entities if self._is_institution(e)],
+                "keywords": cluster.get("all_tokens", [])[:20],
+                "theme": cluster.get("dominant_theme", "general"),
+                "gravity_score": cluster.get("max_gravity", 0),
+                "affair_type": self._classify_affair_type(cluster),
+                "status": "active",
+                "articles": article_ids,
+                "radio_transcriptions": transcription_ids,
+                "social_posts": social_ids,
+                "sources": cluster.get("all_sources", []),
+                "source_types": cluster.get("all_source_types", []),
+                "item_count": cluster.get("item_count", 0),
+                "cluster_id": str(cluster["_id"]),
+                "created_at": datetime.utcnow(),
+                "last_activity": datetime.utcnow(),
+                "promoted_at": datetime.utcnow(),
+                "bmg": 0,
+                "bmg_details": {},
+                "bmg_history": [],
+            }
+
+            # Calculer le BMG initial
+            bmg_result = self.calculate_bmg(affair)
+            affair["bmg"] = bmg_result["bmg"]
+            affair["bmg_details"] = bmg_result
+
+            result = self.affairs.insert_one(affair)
+            affair_id = str(result.inserted_id)
+
+            # Marquer le cluster comme promu
+            self.clusters.update_one(
+                {"_id": cluster["_id"]},
+                {"$set": {
+                    "promoted_to_affair": True,
+                    "affair_id": affair_id,
+                    "promoted_at": datetime.utcnow(),
+                }}
+            )
+
+            # Timeline
+            self.timeline.insert_one({
+                "affair_id": affair_id,
+                "event": "created",
+                "details": {
+                    "from_cluster": str(cluster["_id"]),
+                    "items": cluster.get("item_count", 0),
+                    "sources": cluster.get("all_sources", []),
+                    "gravity": cluster.get("max_gravity", 0),
+                },
+                "timestamp": datetime.utcnow(),
+            })
+
+            logger.info(
+                f"🎯 AFFAIRE CRÉÉE: '{affair['title'][:60]}' "
+                f"(BMG={bmg_result['bmg']:.2f}, {affair['item_count']} items, "
+                f"sources={affair['sources']})"
+            )
+            return affair_id
+
+        except Exception as e:
+            logger.error(f"❌ Promotion: {e}")
+            return None
+
+    def _find_similar_affair(self, cluster: Dict) -> Optional[Dict]:
+        """Cherche une affaire existante similaire au cluster."""
+        cluster_entities = set(cluster.get("all_entities", []))
+        cluster_tokens = set(cluster.get("all_tokens", []))
+
+        recent_affairs = self.affairs.find({
+            "status": "active",
+            "created_at": {"$gte": datetime.utcnow() - timedelta(days=AFFAIR_ACTIVE_DAYS)},
+        })
+
+        best = None
+        best_score = 0
+
+        for affair in recent_affairs:
+            aff_entities = set(affair.get("entities", []))
+            aff_tokens = set(affair.get("keywords", []))
+
+            # Entités communes
+            common_entities = cluster_entities & aff_entities
+            entity_score = len(common_entities) / max(len(cluster_entities | aff_entities), 1)
+
+            # Tokens communs
+            common_tokens = cluster_tokens & aff_tokens
+            token_score = len(common_tokens) / max(min(len(cluster_tokens), len(aff_tokens)), 1)
+
+            combined = entity_score * 0.6 + token_score * 0.4
+            if combined > best_score and combined >= 0.4:
+                best_score = combined
+                best = affair
+
+        return best
+
+    def _merge_cluster_into_affair(self, cluster: Dict, affair: Dict):
+        """Fusionne un cluster dans une affaire existante."""
+        new_articles = []
+        new_transcriptions = []
+        new_social = []
+
+        for item in cluster.get("items", []):
+            iid = item.get("item_id", "")
+            if item["source_type"] == "article":
+                new_articles.append(iid)
+            elif item["source_type"] == "transcription":
+                new_transcriptions.append(iid)
+            elif item["source_type"] == "social":
+                new_social.append(iid)
+
+        update = {
+            "$addToSet": {
+                "entities": {"$each": cluster.get("all_entities", [])},
+                "sources": {"$each": cluster.get("all_sources", [])},
+                "source_types": {"$each": cluster.get("all_source_types", [])},
+            },
+            "$push": {},
+            "$max": {"gravity_score": cluster.get("max_gravity", 0)},
+            "$inc": {"item_count": cluster.get("item_count", 0)},
+            "$set": {"last_activity": datetime.utcnow()},
+        }
+
+        if new_articles:
+            update["$addToSet"]["articles"] = {"$each": new_articles}
+        if new_transcriptions:
+            update["$addToSet"]["radio_transcriptions"] = {"$each": new_transcriptions}
+        if new_social:
+            update["$addToSet"]["social_posts"] = {"$each": new_social}
+
+        # Cleanup empty $push
+        if not update["$push"]:
+            del update["$push"]
+
+        self.affairs.update_one({"_id": affair["_id"]}, update)
+
+        # Recalculer BMG
+        updated_affair = self.affairs.find_one({"_id": affair["_id"]})
+        if updated_affair:
+            bmg = self.calculate_bmg(updated_affair)
+            self.affairs.update_one(
+                {"_id": affair["_id"]},
+                {"$set": {"bmg": bmg["bmg"], "bmg_details": bmg}}
+            )
+
+        # Marquer cluster
+        self.clusters.update_one(
+            {"_id": cluster["_id"]},
+            {"$set": {
+                "promoted_to_affair": True,
+                "affair_id": str(affair["_id"]),
+                "merged_into_existing": True,
+            }}
+        )
+
+        # Timeline
+        self.timeline.insert_one({
+            "affair_id": str(affair["_id"]),
+            "event": "cluster_merged",
+            "details": {
+                "cluster_id": str(cluster["_id"]),
+                "new_items": cluster.get("item_count", 0),
+                "new_sources": cluster.get("all_sources", []),
+            },
+            "timestamp": datetime.utcnow(),
+        })
+
+        logger.info(
+            f"🔗 Cluster fusionné dans affaire '{affair.get('title', '')[:50]}'"
+        )
+
+    # ============================================================
+    # ÉTAPE 4 : CALCUL BMG — Bruit Médiatique Global
+    # ============================================================
+    def calculate_bmg(self, affair: Dict) -> Dict[str, Any]:
+        """
+        Calcule le BMG d'une affaire à partir de ses items réels.
+        Formule : BMG = Σ (BNP_canal × poids_canal)
+        BNP_canal = Σ (importance × engagement × poids_média) / Σ poids_média
+        """
+        canal_data = {
+            "presse": {"score_sum": 0, "weight_sum": 0, "count": 0, "items": []},
+            "radio": {"score_sum": 0, "weight_sum": 0, "count": 0, "items": []},
+            "television": {"score_sum": 0, "weight_sum": 0, "count": 0, "items": []},
+            "reseaux_sociaux": {"score_sum": 0, "weight_sum": 0, "count": 0, "items": []},
+        }
+
+        # Presse (articles)
+        article_ids = affair.get("articles", [])
+        if article_ids:
+            try:
+                obj_ids = [ObjectId(a) for a in article_ids if a and len(a) == 24]
+                docs = list(self.articles.find({"_id": {"$in": obj_ids}})) if obj_ids else []
+                for doc in docs:
+                    importance = doc.get("importance_score") or doc.get("gravity_score", 0.3)
+                    source = doc.get("source", "")
+                    weight = self._get_presse_weight(source)
+                    engagement = min(1.0, 0.5 + (doc.get("word_count", 0) / 3000) * 0.3)
+
+                    bnp = importance * engagement * weight
+                    canal_data["presse"]["score_sum"] += bnp
+                    canal_data["presse"]["weight_sum"] += weight
+                    canal_data["presse"]["count"] += 1
+                    canal_data["presse"]["items"].append({
+                        "source": source, "importance": round(importance, 2),
+                        "bnp": round(bnp, 3),
+                    })
+            except Exception as e:
+                logger.debug(f"BMG presse: {e}")
+
+        # Radio (transcriptions)
+        trans_ids = affair.get("radio_transcriptions", [])
+        if trans_ids:
+            try:
+                obj_ids = [ObjectId(t) for t in trans_ids if t and len(t) == 24]
+                docs = list(self.transcriptions.find({"_id": {"$in": obj_ids}})) if obj_ids else []
+                for doc in docs:
+                    importance = doc.get("importance_score") or doc.get("score_importance", 0.4)
+                    station = doc.get("radio") or doc.get("stream_name", "")
+                    weight = self._get_radio_weight(station)
+                    # Durée de mention comme proxy d'engagement
+                    text_len = len(doc.get("text", ""))
+                    engagement = min(1.0, 0.4 + (text_len / 5000) * 0.4)
+
+                    bnp = importance * engagement * weight
+                    canal_data["radio"]["score_sum"] += bnp
+                    canal_data["radio"]["weight_sum"] += weight
+                    canal_data["radio"]["count"] += 1
+                    canal_data["radio"]["items"].append({
+                        "station": station, "importance": round(importance, 2),
+                        "bnp": round(bnp, 3),
+                    })
+            except Exception as e:
+                logger.debug(f"BMG radio: {e}")
+
+        # Réseaux sociaux
+        social_ids = affair.get("social_posts", [])
+        if social_ids:
+            try:
+                obj_ids = [ObjectId(s) for s in social_ids if s and len(s) == 24]
+                docs = list(self.social.find({"_id": {"$in": obj_ids}})) if obj_ids else []
+                for doc in docs:
+                    likes = doc.get("likes", 0) or doc.get("reactions", 0)
+                    shares = doc.get("shares", 0) or doc.get("retweets", 0)
+                    comments = doc.get("comments_count", 0) or doc.get("replies", 0)
+                    engagement = min(1.0, (likes + shares * 3 + comments * 2) / 500)
+                    importance = doc.get("relevance_score", 0.3)
+                    weight = 0.5  # Poids moyen RS
+
+                    bnp = importance * max(engagement, 0.1) * weight
+                    canal_data["reseaux_sociaux"]["score_sum"] += bnp
+                    canal_data["reseaux_sociaux"]["weight_sum"] += weight
+                    canal_data["reseaux_sociaux"]["count"] += 1
+            except Exception as e:
+                logger.debug(f"BMG social: {e}")
+
+        # Calculer BNP par canal
+        bnp_by_canal = {}
+        for canal, data in canal_data.items():
+            if data["weight_sum"] > 0:
+                bnp_by_canal[canal] = data["score_sum"] / data["weight_sum"]
+            else:
+                bnp_by_canal[canal] = 0
+
+        # BMG global
+        bmg = sum(bnp_by_canal.get(c, 0) * w for c, w in CANAL_WEIGHTS.items())
+
+        # Bonus multi-canal : si l'affaire est présente sur 2+ canaux, boost
+        active_canals = sum(1 for d in canal_data.values() if d["count"] > 0)
+        if active_canals >= 3:
+            bmg *= 1.15
+        elif active_canals >= 2:
+            bmg *= 1.08
+        bmg = min(1.0, bmg)
+
+        # Niveau d'alerte
+        if bmg >= 0.75:
+            niveau = "CRITIQUE"
+        elif bmg >= 0.55:
+            niveau = "ÉLEVÉ"
+        elif bmg >= 0.35:
+            niveau = "MODÉRÉ"
+        elif bmg >= 0.15:
+            niveau = "FAIBLE"
+        else:
+            niveau = "MINIMAL"
+
+        total_items = sum(d["count"] for d in canal_data.values())
+        dominant = max(bnp_by_canal, key=bnp_by_canal.get) if any(bnp_by_canal.values()) else None
+
+        return {
+            "bmg": round(bmg, 3),
+            "bnp_by_canal": {k: round(v, 3) for k, v in bnp_by_canal.items()},
+            "niveau_alerte": niveau,
+            "total_items": total_items,
+            "active_canals": active_canals,
+            "dominant_canal": dominant,
+            "canal_details": {
+                k: {"count": v["count"], "items": v["items"][:5]}
+                for k, v in canal_data.items() if v["count"] > 0
+            },
+            "multi_canal_bonus": active_canals >= 2,
+            "calculated_at": datetime.utcnow().isoformat(),
+        }
+
+    # ============================================================
+    # ÉTAPE 5 : CYCLE DE VIE — Mise à jour périodique
+    # ============================================================
+    def update_affair_lifecycle(self) -> Dict[str, Any]:
+        """
+        Job périodique : met à jour le statut des affaires.
+        - Recalcule le BMG
+        - Passe en 'stale' si pas d'activité
+        - Archive les affaires trop vieilles
+        """
+        if self.db is None:
+            return {"error": "no_db"}
+
+        stats = {"updated": 0, "stale": 0, "archived": 0}
+        now = datetime.utcnow()
+
+        active_affairs = list(self.affairs.find({"status": "active"}))
+
+        for affair in active_affairs:
+            affair_id = str(affair["_id"])
+            last_activity = affair.get("last_activity") or affair.get("created_at", now)
+
+            if isinstance(last_activity, str):
+                try:
+                    last_activity = datetime.fromisoformat(last_activity)
+                except ValueError:
+                    last_activity = now
+
+            days_inactive = (now - last_activity).days
+
+            if days_inactive >= AFFAIR_ACTIVE_DAYS:
+                # Archiver
+                self.affairs.update_one(
+                    {"_id": affair["_id"]},
+                    {"$set": {"status": "archived", "archived_at": now}}
+                )
+                self.timeline.insert_one({
+                    "affair_id": affair_id,
+                    "event": "archived",
+                    "details": {"days_inactive": days_inactive},
+                    "timestamp": now,
+                })
+                stats["archived"] += 1
+
+            elif days_inactive >= AFFAIR_STALE_DAYS:
+                # Stale
+                self.affairs.update_one(
+                    {"_id": affair["_id"]},
+                    {"$set": {"status": "stale"}}
+                )
+                stats["stale"] += 1
+
+            else:
+                # Recalculer BMG
+                bmg = self.calculate_bmg(affair)
+                old_bmg = affair.get("bmg", 0)
+
+                update_set = {
+                    "bmg": bmg["bmg"],
+                    "bmg_details": bmg,
+                }
+
+                # Sauvegarder l'historique BMG
+                self.affairs.update_one(
+                    {"_id": affair["_id"]},
+                    {
+                        "$set": update_set,
+                        "$push": {"bmg_history": {
+                            "$each": [{"bmg": bmg["bmg"], "at": now.isoformat()}],
+                            "$slice": -30,  # Garder les 30 derniers
+                        }},
+                    }
+                )
+                stats["updated"] += 1
+
+                # Timeline si changement significatif
+                if abs(bmg["bmg"] - old_bmg) >= 0.1:
+                    self.timeline.insert_one({
+                        "affair_id": affair_id,
+                        "event": "bmg_change",
+                        "details": {
+                            "old_bmg": old_bmg,
+                            "new_bmg": bmg["bmg"],
+                            "niveau": bmg["niveau_alerte"],
+                        },
+                        "timestamp": now,
+                    })
+
+        logger.info(
+            f"🔄 Lifecycle: {stats['updated']} MAJ, "
+            f"{stats['stale']} stale, {stats['archived']} archivées"
+        )
+        return stats
+
+    # ============================================================
+    # JOB COMBINÉ — À appeler par le scheduler
+    # ============================================================
+    def run_full_cycle(self) -> Dict[str, Any]:
+        """
+        Exécute le cycle complet :
+        1. Clustering des nouveaux candidats
+        2. Promotion des clusters éligibles
+        3. Mise à jour du cycle de vie
+        """
+        logger.info("=" * 50)
+        logger.info("🔄 CYCLE COMPLET AFFAIRES")
+        logger.info("=" * 50)
+
+        results = {}
+
+        # 1. Clustering
+        results["clustering"] = self.run_clustering()
+
+        # 2. Promotion
+        results["promotion"] = self.run_promotion()
+
+        # 3. Lifecycle
+        results["lifecycle"] = self.update_affair_lifecycle()
+
+        logger.info(f"✅ Cycle terminé: {results}")
+        return results
+
+    # ============================================================
+    # UTILITAIRES
+    # ============================================================
+    def _extract_tokens(self, text: str) -> Set[str]:
+        """Extraction basique de tokens (utilisé par le clustering interne)."""
+        if not text:
+            return set()
+        import unicodedata
+        text = unicodedata.normalize("NFKD", text.lower())
+        text = "".join(ch for ch in text if not unicodedata.combining(ch))
+        words = re.findall(r"[a-z]{3,}", text)
+        return {w for w in words if w not in STOPWORDS}
+
+    def _extract_context_tokens(
+        self, text: str, item: Dict[str, Any]
+    ) -> Set[str]:
+        """
+        Extraction enrichie de tokens pour l'ingestion.
+        Combine le texte (résumé IA ou contenu limité) avec les
+        entités nommées et mots-clés de l'enrichissement pour
+        produire un ensemble de tokens discriminant.
+        """
+        # Tokens du texte (résumé IA ou contenu limité)
+        base_tokens = self._extract_tokens(text)
+
+        # Ajouter les entités nommées (très discriminantes)
+        for entity in (item.get("elected") or []):
+            if entity and len(entity) > 2:
+                # Découper les noms composés : "Ary Chalus" → {"ary", "chalus"}
+                base_tokens.update(
+                    w.lower() for w in entity.split() if len(w) > 2
+                )
+        for inst in (item.get("institutions") or []):
+            if inst and len(inst) > 2:
+                base_tokens.update(
+                    w.lower() for w in inst.split() if len(w) > 2
+                )
+
+        # Ajouter les mots-clés trouvés par l'enrichissement
+        for kw in (item.get("keywords_found") or []):
+            if kw and len(kw) > 2:
+                base_tokens.update(
+                    w.lower() for w in kw.split() if len(w) > 2
+                )
+
+        # Filtrer les mots trop génériques pour la Guadeloupe
+        # (présents dans presque tous les articles, donc non discriminants)
+        noise_words = {
+            "guadeloupe", "antilles", "caraibe", "caraibes", "france",
+            "outre", "mer", "ile", "iles", "region", "departement",
+            "commune", "ville", "population", "habitants", "territoire",
+            "article", "information", "infos", "selon", "aussi",
+            "plus", "tous", "tout", "toute", "toutes", "tres",
+            "cette", "dans", "avec", "pour", "depuis", "lors",
+        }
+        base_tokens -= noise_words
+        base_tokens -= STOPWORDS
+
+        return base_tokens
+
+    def _pairwise_similarity(
+        self,
+        tokens_a: Set[str], theme_a: str, entities_a: Set[str],
+        tokens_b: Set[str], theme_b: str, entities_b: Set[str],
+        date_a: Optional[datetime] = None,
+        date_b: Optional[datetime] = None,
+    ) -> float:
+        """Similarité entre deux ensembles de tokens/thème/entités,
+        avec prise en compte de la proximité temporelle.
+
+        Même jour  → bonus +0.10 (un "accident" le même jour = probablement le même)
+        1 jour     → bonus +0.05
+        2+ jours   → pénalité progressive (2 "accidents" à 3j d'écart = probablement différents)
+        """
+        # Tokens communs (Jaccard)
+        common_tokens = tokens_a & tokens_b
+        if not common_tokens:
+            return 0.0
+        min_size = min(len(tokens_a), len(tokens_b))
+        token_score = len(common_tokens) / max(min_size, 1)
+
+        # Thème
+        theme_score = 1.0 if (theme_a and theme_a == theme_b) else 0.0
+
+        # Entités communes
+        common_entities = entities_a & entities_b
+        entity_score = len(common_entities) / max(len(entities_a | entities_b), 1) if (entities_a or entities_b) else 0
+
+        base_score = token_score * 0.40 + theme_score * 0.20 + entity_score * 0.30
+
+        # Proximité temporelle (10% du score)
+        temporal_score = 0.5  # Défaut si pas de dates
+        if date_a and date_b:
+            try:
+                delta_hours = abs((date_a - date_b).total_seconds()) / 3600
+                if delta_hours <= 12:
+                    temporal_score = 1.0    # Même demi-journée
+                elif delta_hours <= 24:
+                    temporal_score = 0.8    # Même jour
+                elif delta_hours <= 48:
+                    temporal_score = 0.5    # Lendemain
+                else:
+                    temporal_score = 0.2    # Plus vieux = probablement différent
+            except (TypeError, ValueError):
+                temporal_score = 0.5
+
+        return base_score + temporal_score * 0.10
+
+    def _candidate_cluster_similarity(
+        self, cand_tokens: Set[str], cand_theme: str, cand_entities: Set[str],
+        cluster: Dict,
+        cand_date: Optional[datetime] = None,
+    ) -> float:
+        """Similarité entre un candidat et un cluster."""
+        cl_tokens = cluster.get("all_tokens_set") or set(cluster.get("all_tokens", []))
+        cl_theme = cluster.get("dominant_theme", "")
+        cl_entities = set(cluster.get("all_entities", []))
+        cl_date = cluster.get("last_activity") or cluster.get("created_at")
+        return self._pairwise_similarity(
+            cand_tokens, cand_theme, cand_entities,
+            cl_tokens, cl_theme, cl_entities,
+            date_a=cand_date, date_b=cl_date,
+        )
+
+    def _cluster_cluster_similarity(self, cl_a: Dict, cl_b: Dict) -> float:
+        """Similarité entre deux clusters."""
+        return self._pairwise_similarity(
+            cl_a.get("all_tokens_set") or set(cl_a.get("all_tokens", [])),
+            cl_a.get("dominant_theme", ""),
+            set(cl_a.get("all_entities", [])),
+            cl_b.get("all_tokens_set") or set(cl_b.get("all_tokens", [])),
+            cl_b.get("dominant_theme", ""),
+            set(cl_b.get("all_entities", [])),
+            date_a=cl_a.get("last_activity") or cl_a.get("created_at"),
+            date_b=cl_b.get("last_activity") or cl_b.get("created_at"),
+        )
+
+    def _classify_affair_type(self, cluster: Dict) -> str:
+        g = cluster.get("max_gravity", 0)
+        if g >= 0.85:
+            return "crise_majeure"
+        elif g >= 0.75:
+            return "affaire_grave"
+        elif g >= 0.65:
+            return "affaire_importante"
+        elif g >= 0.50:
+            return "incident_significatif"
+        else:
+            return "sujet_suivi"
+
+    def _generate_affair_description(self, cluster: Dict) -> str:
+        titles = [item.get("title", "") for item in cluster.get("items", [])[:5]]
+        sources = cluster.get("all_sources", [])
+        return (
+            f"Affaire détectée à partir de {cluster.get('item_count', 0)} éléments "
+            f"provenant de {len(sources)} source(s) ({', '.join(sources[:3])}). "
+            f"Sujets : {' | '.join(t for t in titles[:3] if t)}"
+        )
+
+    def _is_institution(self, entity: str) -> bool:
+        institutions = {"CHU", "SMGEAG", "EDF Guadeloupe", "ARS", "CAF", "Préfecture", "Rectorat"}
+        return entity in institutions or entity.upper() == entity
+
+    def _get_presse_weight(self, source: str) -> float:
+        for name, weight in PRESSE_WEIGHTS.items():
+            if name.lower() in source.lower():
+                return weight
+        return 0.4
+
+    def _get_radio_weight(self, station: str) -> float:
+        for name, weight in RADIO_WEIGHTS.items():
+            if name.lower() in station.lower():
+                return weight
+        return 0.3
+
+    def _parse_date(self, val: Any) -> Optional[datetime]:
+        if val is None:
+            return None
+        if isinstance(val, datetime):
+            return val
+        if isinstance(val, str):
+            for fmt in ["%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]:
+                try:
+                    return datetime.strptime(val[:len(fmt)+2], fmt)
+                except (ValueError, IndexError):
+                    continue
+        return None
+
+    # ============================================================
+    # SANTÉ
+    # ============================================================
+    def health_check(self) -> Dict[str, Any]:
+        if self.db is None:
+            return {"status": "down"}
+
+        try:
+            return {
+                "status": "operational",
+                "candidates_total": self.candidates.count_documents({}),
+                "candidates_unclustered": self.candidates.count_documents({"cluster_id": None}),
+                "clusters_active": self.clusters.count_documents({"status": "active"}),
+                "affairs_active": self.affairs.count_documents({"status": "active"}),
+                "affairs_stale": self.affairs.count_documents({"status": "stale"}),
+            }
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+
+
+# ============================================================
+# SINGLETON
+# ============================================================
+_instance: Optional[AffairLifecycleService] = None
+
+def get_affair_lifecycle_service(db=None) -> AffairLifecycleService:
+    global _instance
+    if _instance is None:
+        _instance = AffairLifecycleService(db=db)
+    return _instance
