@@ -250,8 +250,8 @@ class AffairLifecycleService:
     def run_clustering(self) -> Dict[str, Any]:
         """
         Job principal de clustering.
-        Regroupe les candidats non-clusterisés par similarité contextuelle.
-        Fusionne les clusters proches.
+        STRATÉGIE : IA d'abord (Grok regroupe les titres par événement),
+        puis fallback sur similarité tokens si IA indisponible.
         """
         if self.db is None:
             return {"error": "no_db"}
@@ -275,9 +275,9 @@ class AffairLifecycleService:
             "created_at": {"$gte": cutoff},
         }))
 
-        stats = {"assigned_to_existing": 0, "new_clusters_created": 0, "merged": 0}
+        stats = {"assigned_to_existing": 0, "new_clusters_created": 0, "merged": 0, "method": "tokens"}
 
-        # Phase 1 : essayer de rattacher aux clusters existants
+        # Phase 1 : essayer de rattacher aux clusters existants (rapide, pas besoin d'IA)
         still_unassigned = []
         for cand in unclustered:
             assigned = self._try_assign_to_cluster(cand, active_clusters)
@@ -286,8 +286,18 @@ class AffairLifecycleService:
             else:
                 still_unassigned.append(cand)
 
-        # Phase 2 : créer de nouveaux clusters entre les non-assignés
-        new_clusters = self._create_new_clusters(still_unassigned)
+        # Phase 2 : créer de nouveaux clusters — PRIORITÉ IA
+        new_clusters = []
+        if len(still_unassigned) >= MIN_CLUSTER_ITEMS:
+            new_clusters = self._create_clusters_with_ai(still_unassigned)
+            if new_clusters:
+                stats["method"] = "ai"
+
+        # Phase 2b : fallback tokens si IA indisponible ou échouée
+        if not new_clusters and len(still_unassigned) >= MIN_CLUSTER_ITEMS:
+            new_clusters = self._create_new_clusters(still_unassigned)
+            stats["method"] = "tokens_fallback"
+
         stats["new_clusters_created"] = len(new_clusters)
         active_clusters.extend(new_clusters)
 
@@ -299,11 +309,96 @@ class AffairLifecycleService:
             len(c.get("items", [])) for c in new_clusters
         )
         logger.info(
-            f"📊 Clustering terminé: {total} assignés, "
+            f"📊 Clustering terminé ({stats['method']}): {total} assignés, "
             f"{stats['new_clusters_created']} nouveaux clusters, "
             f"{stats['merged']} fusions"
         )
         return stats
+
+    # ----------------------------------------------------------
+    # Clustering par IA (Grok / xAI)
+    # ----------------------------------------------------------
+    def _create_clusters_with_ai(self, candidates: List[Dict]) -> List[Dict]:
+        """
+        Envoie les titres+résumés des candidats à l'IA et crée les clusters
+        à partir de son regroupement sémantique.
+        Traite par batchs de 40 articles max (limites tokens).
+        """
+        try:
+            from backend.ai_groq_service import cluster_articles_with_ai, is_available
+            if not is_available():
+                return []
+        except ImportError:
+            try:
+                from ai_groq_service import cluster_articles_with_ai, is_available
+                if not is_available():
+                    return []
+            except ImportError:
+                return []
+
+        all_new_clusters = []
+        batch_size = 40  # Max articles par appel IA
+
+        for batch_start in range(0, len(candidates), batch_size):
+            batch = candidates[batch_start:batch_start + batch_size]
+            if len(batch) < MIN_CLUSTER_ITEMS:
+                continue
+
+            # Préparer les données pour l'IA
+            articles_for_ai = []
+            for cand in batch:
+                articles_for_ai.append({
+                    "title": cand.get("title", ""),
+                    "ai_summary": "",  # On va chercher depuis l'article original
+                    "date": cand.get("item_date"),
+                })
+                # Essayer de récupérer le résumé IA depuis l'article original
+                item_id = cand.get("item_id", "")
+                if item_id:
+                    try:
+                        orig = self.articles.find_one({"_id": ObjectId(item_id)})
+                        if orig:
+                            articles_for_ai[-1]["ai_summary"] = orig.get("ai_summary", "")
+                    except Exception:
+                        pass
+
+            # Appel IA
+            result = cluster_articles_with_ai(articles_for_ai)
+            if not result or not result.get("groups"):
+                continue
+
+            # Créer les clusters à partir des groupes IA
+            for group in result["groups"]:
+                indices = group.get("articles", [])
+                if len(indices) < MIN_CLUSTER_ITEMS:
+                    continue
+
+                # Indices IA sont 1-based → mapper aux candidats du batch
+                group_candidates = []
+                for idx in indices:
+                    real_idx = idx - 1  # 1-based → 0-based
+                    if 0 <= real_idx < len(batch):
+                        group_candidates.append(batch[real_idx])
+
+                if len(group_candidates) >= MIN_CLUSTER_ITEMS:
+                    cluster = self._create_cluster(group_candidates)
+                    if cluster:
+                        # Enrichir le titre du cluster avec le label IA
+                        ai_label = group.get("label", "")
+                        if ai_label:
+                            self.clusters.update_one(
+                                {"_id": cluster["_id"]},
+                                {"$set": {"ai_label": ai_label}}
+                            )
+                            cluster["ai_label"] = ai_label
+                        all_new_clusters.append(cluster)
+
+            logger.info(
+                f"🤖 Batch IA: {len(batch)} candidats → "
+                f"{len([g for g in result['groups'] if len(g.get('articles', [])) >= 2])} groupes"
+            )
+
+        return all_new_clusters
 
     def _try_assign_to_cluster(
         self, candidate: Dict, clusters: List[Dict]
@@ -634,9 +729,11 @@ class AffairLifecycleService:
                 elif item["source_type"] == "social":
                     social_ids.append(iid)
 
-            # Créer l'affaire
+            # Créer l'affaire — utiliser le label IA s'il existe (plus clair)
+            ai_label = cluster.get("ai_label", "")
+            affair_title = ai_label if ai_label else cluster.get("title", "Affaire sans titre")
             affair = {
-                "title": cluster.get("title", "Affaire sans titre"),
+                "title": affair_title,
                 "description": self._generate_affair_description(cluster),
                 "primary_entity": primary_entity,
                 "entities": sorted(set(entities)),

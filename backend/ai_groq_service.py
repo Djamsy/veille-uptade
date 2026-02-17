@@ -269,6 +269,112 @@ def summarize_groq(text: str, max_sentences: int = 3) -> Optional[str]:
 
 
 # ============================================================
+# Clustering IA — regrouper des articles par événement
+# ============================================================
+
+CLUSTERING_PROMPT = """Tu es un analyste média spécialisé Guadeloupe/Antilles.
+
+Voici une liste d'articles récents numérotés. Regroupe-les par ÉVÉNEMENT RÉEL :
+- Deux articles parlent du MÊME événement s'ils couvrent le même fait concret
+  (même accident, même décision politique, même grève, même incident).
+- Deux articles sur des accidents DIFFÉRENTS ne font PAS partie du même groupe,
+  même s'ils parlent tous les deux d'"accident".
+- Un article culturel et un article politique ne vont JAMAIS ensemble.
+
+Réponds UNIQUEMENT en JSON :
+{
+  "groups": [
+    {
+      "label": "description courte de l'événement (max 10 mots)",
+      "articles": [1, 4, 7],
+      "gravity": 0.0 à 1.0
+    }
+  ],
+  "isolates": [2, 5]
+}
+
+"isolates" = articles qui ne correspondent à aucun groupe (événement unique).
+Ne crée un groupe QUE si au moins 2 articles parlent du même événement."""
+
+
+def cluster_articles_with_ai(
+    articles: List[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """
+    Envoie un batch d'articles à l'IA pour regroupement sémantique.
+    Chaque article doit avoir au minimum 'title'.
+    Retourne {"groups": [...], "isolates": [...]} ou None si échec.
+    """
+    client = _get_client()
+    if client is None:
+        return None
+
+    if not articles or len(articles) < 2:
+        return None
+
+    # Construire la liste numérotée
+    lines = []
+    for i, art in enumerate(articles, 1):
+        title = art.get("title", "Sans titre")[:120]
+        summary = art.get("ai_summary") or art.get("summary") or ""
+        date = art.get("date") or art.get("scraped_at") or ""
+        if isinstance(date, str):
+            date = date[:10]  # Juste YYYY-MM-DD
+        else:
+            try:
+                date = date.strftime("%Y-%m-%d")
+            except Exception:
+                date = ""
+
+        line = f"{i}. [{date}] {title}"
+        if summary:
+            line += f" — {summary[:150]}"
+        lines.append(line)
+
+    user_content = "\n".join(lines)
+
+    try:
+        response = client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=[
+                {"role": "system", "content": CLUSTERING_PROMPT},
+                {"role": "user", "content": user_content},
+            ],
+            temperature=0.05,
+            max_tokens=1500,
+            response_format={"type": "json_object"},
+        )
+
+        raw = response.choices[0].message.content.strip()
+        result = json.loads(raw)
+
+        groups = result.get("groups", [])
+        isolates = result.get("isolates", [])
+
+        # Valider les indices
+        valid_range = set(range(1, len(articles) + 1))
+        for group in groups:
+            group["articles"] = [a for a in group.get("articles", []) if a in valid_range]
+        isolates = [a for a in isolates if a in valid_range]
+
+        # Filtrer les groupes vides ou avec 1 seul article
+        groups = [g for g in groups if len(g.get("articles", [])) >= 2]
+
+        logger.info(
+            f"🤖 Clustering IA: {len(articles)} articles → "
+            f"{len(groups)} groupes, {len(isolates)} isolés"
+        )
+        return {"groups": groups, "isolates": isolates}
+
+    except json.JSONDecodeError as e:
+        logger.warning(f"⚠️ Clustering IA: JSON invalide: {e}")
+        return None
+    except Exception as e:
+        logger.warning(f"⚠️ Clustering IA échoué: {e}")
+        return None
+
+
+# ============================================================
 # Fonction combinée (Groq + fallback tags_index)
 # ============================================================
 
