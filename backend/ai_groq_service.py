@@ -17,12 +17,14 @@ from typing import Dict, Any, Optional, List
 logger = logging.getLogger("ai_groq_service")
 
 # ============================================================
-# Configuration — auto-détection Groq vs xAI
+# Configuration — auto-détection Groq vs xAI + fallback OpenAI
 # ============================================================
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "").strip()
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
 _user_model = os.environ.get("GROQ_MODEL", "").strip()
 
+# --- Provider primaire (xAI / Groq) ---
 if GROQ_API_KEY.startswith("xai-"):
     AI_PROVIDER = "xai"
     AI_BASE_URL = "https://api.x.ai/v1"
@@ -36,18 +38,24 @@ else:
     AI_BASE_URL = "https://api.groq.com/openai/v1"
     AI_MODEL = _user_model or "mixtral-8x7b-32768"
 
+# --- Fallback OpenAI (GPT-4o-mini, ~1€/mois) ---
+FALLBACK_PROVIDER = "openai"
+FALLBACK_BASE_URL = "https://api.openai.com/v1"
+FALLBACK_MODEL = "gpt-4o-mini"
+
 # Compat
 GROQ_MODEL = AI_MODEL
 
 # ============================================================
-# Client IA (via SDK OpenAI — compatible Groq & xAI)
+# Clients IA (primaire + fallback)
 # ============================================================
 
 _client = None
+_fallback_client = None
 
 
 def _get_client():
-    """Initialise le client IA (lazy loading)."""
+    """Initialise le client IA primaire (lazy loading)."""
     global _client
     if _client is not None:
         return _client
@@ -59,16 +67,73 @@ def _get_client():
             api_key=GROQ_API_KEY,
             base_url=AI_BASE_URL,
         )
-        logger.info(f"✅ Client IA initialisé — provider: {AI_PROVIDER}, modèle: {AI_MODEL}, url: {AI_BASE_URL}")
+        logger.info(f"✅ Client IA primaire — provider: {AI_PROVIDER}, modèle: {AI_MODEL}")
         return _client
     except Exception as e:
-        logger.error(f"❌ Impossible d'initialiser le client IA: {e}")
+        logger.error(f"❌ Impossible d'initialiser le client IA primaire: {e}")
         return None
 
 
+def _get_fallback_client():
+    """Initialise le client OpenAI fallback (lazy loading)."""
+    global _fallback_client
+    if _fallback_client is not None:
+        return _fallback_client
+    if not OPENAI_API_KEY:
+        return None
+    try:
+        from openai import OpenAI
+        _fallback_client = OpenAI(
+            api_key=OPENAI_API_KEY,
+            base_url=FALLBACK_BASE_URL,
+        )
+        logger.info(f"✅ Client IA fallback — {FALLBACK_PROVIDER}/{FALLBACK_MODEL}")
+        return _fallback_client
+    except Exception as e:
+        logger.warning(f"⚠️ Fallback OpenAI non disponible: {e}")
+        return None
+
+
+def _call_ai(messages: List[Dict], temperature: float = 0.1,
+             max_tokens: int = 800, json_mode: bool = True) -> Optional[str]:
+    """
+    Appel IA avec fallback automatique : xAI/Grok → OpenAI GPT-4o-mini.
+    Retourne le contenu brut de la réponse ou None.
+    """
+    kwargs = {
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+    if json_mode:
+        kwargs["response_format"] = {"type": "json_object"}
+
+    # 1. Essayer le provider primaire
+    client = _get_client()
+    if client:
+        try:
+            resp = client.chat.completions.create(model=GROQ_MODEL, **kwargs)
+            return resp.choices[0].message.content.strip()
+        except Exception as e:
+            logger.warning(f"⚠️ {AI_PROVIDER} échoué: {e} — fallback OpenAI")
+
+    # 2. Fallback OpenAI
+    fb = _get_fallback_client()
+    if fb:
+        try:
+            resp = fb.chat.completions.create(model=FALLBACK_MODEL, **kwargs)
+            content = resp.choices[0].message.content.strip()
+            logger.info(f"✅ Fallback {FALLBACK_PROVIDER}/{FALLBACK_MODEL} OK")
+            return content
+        except Exception as e:
+            logger.error(f"❌ Fallback OpenAI aussi échoué: {e}")
+
+    return None
+
+
 def is_available() -> bool:
-    """Vérifie si le service IA est disponible."""
-    return bool(GROQ_API_KEY) and _get_client() is not None
+    """Vérifie si au moins un service IA est disponible."""
+    return bool(GROQ_API_KEY and _get_client()) or bool(OPENAI_API_KEY and _get_fallback_client())
 
 
 # ============================================================
@@ -105,11 +170,10 @@ Règles :
 
 def enrich_article_with_groq(article: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """
-    Enrichit un article via Groq API.
+    Enrichit un article via IA (xAI → fallback OpenAI → fallback tags_index).
     Retourne None si échec (pour permettre le fallback sur tags_index).
     """
-    client = _get_client()
-    if client is None:
+    if not is_available():
         return None
 
     title = article.get("title", "")
@@ -122,18 +186,17 @@ def enrich_article_with_groq(article: Dict[str, Any]) -> Optional[Dict[str, Any]
     text_input = f"Titre: {title}\n\nContenu: {content[:3000]}"
 
     try:
-        response = client.chat.completions.create(
-            model=GROQ_MODEL,
+        raw = _call_ai(
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": text_input},
             ],
             temperature=0.1,
             max_tokens=800,
-            response_format={"type": "json_object"},
+            json_mode=True,
         )
-
-        raw = response.choices[0].message.content.strip()
+        if raw is None:
+            return None
         result = json.loads(raw)
 
         # Normaliser et valider les champs
@@ -202,27 +265,22 @@ Réponds UNIQUEMENT en JSON :
 
 
 def analyze_sentiment_groq(text: str) -> Optional[Dict[str, Any]]:
-    """Analyse de sentiment via Groq."""
-    client = _get_client()
-    if client is None:
-        return None
-
+    """Analyse de sentiment via IA (xAI → fallback OpenAI)."""
     if not text or len(text.strip()) < 20:
         return None
 
     try:
-        response = client.chat.completions.create(
-            model=GROQ_MODEL,
+        raw = _call_ai(
             messages=[
                 {"role": "system", "content": SENTIMENT_PROMPT},
                 {"role": "user", "content": text[:2000]},
             ],
             temperature=0.1,
             max_tokens=300,
-            response_format={"type": "json_object"},
+            json_mode=True,
         )
-
-        raw = response.choices[0].message.content.strip()
+        if raw is None:
+            return None
         result = json.loads(raw)
         return {
             "sentiment": result.get("sentiment", "neutre"),
@@ -242,26 +300,21 @@ def analyze_sentiment_groq(text: str) -> Optional[Dict[str, Any]]:
 # ============================================================
 
 def summarize_groq(text: str, max_sentences: int = 3) -> Optional[str]:
-    """Résumé d'article via Groq."""
-    client = _get_client()
-    if client is None:
-        return None
-
+    """Résumé d'article via IA (xAI → fallback OpenAI)."""
     if not text or len(text.strip()) < 50:
         return None
 
     try:
-        response = client.chat.completions.create(
-            model=GROQ_MODEL,
+        result = _call_ai(
             messages=[
                 {"role": "system", "content": f"Résume ce texte d'actualité de Guadeloupe en {max_sentences} phrases maximum. Sois factuel et concis."},
                 {"role": "user", "content": text[:4000]},
             ],
             temperature=0.2,
             max_tokens=300,
+            json_mode=False,
         )
-
-        return response.choices[0].message.content.strip()
+        return result
 
     except Exception as e:
         logger.warning(f"⚠️ Groq résumé échoué: {e}")
@@ -302,11 +355,10 @@ def cluster_articles_with_ai(
 ) -> Optional[Dict[str, Any]]:
     """
     Envoie un batch d'articles à l'IA pour regroupement sémantique.
-    Chaque article doit avoir au minimum 'title'.
+    Utilise xAI en priorité, fallback OpenAI GPT-4o-mini.
     Retourne {"groups": [...], "isolates": [...]} ou None si échec.
     """
-    client = _get_client()
-    if client is None:
+    if not is_available():
         return None
 
     if not articles or len(articles) < 2:
@@ -334,18 +386,17 @@ def cluster_articles_with_ai(
     user_content = "\n".join(lines)
 
     try:
-        response = client.chat.completions.create(
-            model=GROQ_MODEL,
+        raw = _call_ai(
             messages=[
                 {"role": "system", "content": CLUSTERING_PROMPT},
                 {"role": "user", "content": user_content},
             ],
             temperature=0.05,
             max_tokens=1500,
-            response_format={"type": "json_object"},
+            json_mode=True,
         )
-
-        raw = response.choices[0].message.content.strip()
+        if raw is None:
+            return None
         result = json.loads(raw)
 
         groups = result.get("groups", [])

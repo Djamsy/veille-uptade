@@ -360,3 +360,33 @@ async def purge_v1_affairs():
         },
         "message": "Base affaires nettoyée. Relancez /cycle/run pour recréer les affaires via V2."
     }
+
+
+@router.post("/reset")
+async def full_reset():
+    """RESET COMPLET — Vide toutes les collections (articles, affaires,
+    candidats, clusters, timeline, transcriptions). Repart de zéro."""
+    svc = _svc()
+
+    results = {}
+    for name, col in [
+        ("affairs", svc.affairs),
+        ("topic_candidates", svc.candidates),
+        ("topic_clusters", svc.clusters),
+        ("affair_timeline", svc.timeline),
+        ("articles_guadeloupe", svc.articles),
+        ("radio_transcriptions", svc.transcriptions),
+        ("social_media_posts", svc.social),
+    ]:
+        try:
+            r = col.delete_many({})
+            results[name] = r.deleted_count
+        except Exception as e:
+            results[name] = f"error: {e}"
+
+    logger.info(f"🔥 RESET COMPLET: {results}")
+    return {
+        "success": True,
+        "deleted": results,
+        "message": "Base vidée. Le prochain scraping + cycle créera tout depuis zéro."
+    }
