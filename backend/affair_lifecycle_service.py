@@ -59,8 +59,9 @@ PROMOTION_MIN_GRAVITY = 0.50           # Gravité minimum du cluster
 PROMOTION_MIN_ITEMS = 2                # Minimum d'items dans le cluster
 
 # --- Cycle de vie ---
-AFFAIR_ACTIVE_DAYS = 14                # Durée de vie active sans nouvel item
-AFFAIR_STALE_DAYS = 7                  # Jours sans activité → statut "stale"
+AFFAIR_ACTIVE_DAYS = 7                 # Durée de vie active (1 semaine)
+AFFAIR_STALE_DAYS = 5                  # Jours sans activité → statut "stale"
+MAX_ACTIVE_AFFAIRS = 20                # Maximum d'affaires actives simultanées
 
 # --- BMG ---
 CANAL_WEIGHTS = {
@@ -1137,17 +1138,508 @@ class AffairLifecycleService:
         return stats
 
     # ============================================================
+    # SYSTÈME IA — Gestion directe des affaires par l'IA
+    # ============================================================
+    def run_ai_managed_cycle(self) -> Dict[str, Any]:
+        """
+        Cycle piloté par l'IA :
+        1. Récupère les affaires actives (max 20)
+        2. Récupère les articles non encore assignés à une affaire
+        3. Envoie tout à l'IA qui décide des assignations/créations
+        4. Applique les décisions de l'IA
+        5. Expire les affaires > 7 jours sans activité
+        6. Fournit le contexte de la semaine passée pour continuité
+        """
+        if self.db is None:
+            return {"error": "no_db"}
+
+        logger.info("=" * 50)
+        logger.info("🤖 CYCLE IA AFFAIRES (gestion directe)")
+        logger.info("=" * 50)
+
+        stats = {
+            "method": "ai_managed",
+            "articles_processed": 0,
+            "assigned_to_existing": 0,
+            "new_affairs_created": 0,
+            "gravity_updates": 0,
+            "expired": 0,
+            "ignored": 0,
+        }
+
+        # 1. Récupérer les affaires actives
+        active_affairs = list(
+            self.affairs.find({"status": "active"})
+            .sort("gravity_score", -1)
+            .limit(MAX_ACTIVE_AFFAIRS)
+        )
+        # Sérialiser les _id pour l'IA
+        affairs_for_ai = []
+        affair_map = {}  # id_str → ObjectId
+        for aff in active_affairs:
+            id_str = str(aff["_id"])
+            affair_map[id_str] = aff["_id"]
+            affairs_for_ai.append({
+                "_id": id_str,
+                "title": aff.get("title", ""),
+                "gravity_score": aff.get("gravity_score", 0),
+                "item_count": aff.get("item_count", 0),
+                "last_activity": aff.get("last_activity", ""),
+            })
+
+        # 2. Récupérer les articles enrichis non encore traités
+        cutoff = datetime.utcnow() - timedelta(days=3)
+        existing_article_ids = set()
+        for aff in active_affairs:
+            for aid in aff.get("articles", []):
+                existing_article_ids.add(str(aid))
+
+        new_articles_raw = list(
+            self.articles.find({
+                "_analysis_method": {"$exists": True},
+                "scraped_at": {"$gte": cutoff.isoformat()},
+                "_affair_processed": {"$ne": True},
+            })
+            .sort("scraped_at", -1)
+            .limit(60)
+        )
+
+        # Filtrer ceux déjà dans une affaire
+        new_articles = []
+        for art in new_articles_raw:
+            if str(art["_id"]) not in existing_article_ids:
+                new_articles.append(art)
+
+        # 2b. Récupérer et découper les transcriptions radio récentes
+        #     Chaque transcription = plusieurs sujets → chaque sujet est traité
+        #     comme un "article virtuel" pour l'assignation IA
+        radio_topics = []
+        try:
+            from backend.ai_groq_service import split_radio_transcription
+        except ImportError:
+            try:
+                from ai_groq_service import split_radio_transcription
+            except ImportError:
+                split_radio_transcription = None
+
+        if split_radio_transcription:
+            existing_radio_ids = set()
+            for aff in active_affairs:
+                for rid in aff.get("radio_transcriptions", []):
+                    existing_radio_ids.add(str(rid))
+
+            new_transcriptions = list(
+                self.transcriptions.find({
+                    "captured_at": {"$gte": cutoff.isoformat()},
+                    "_affair_processed": {"$ne": True},
+                })
+                .sort("captured_at", -1)
+                .limit(20)
+            )
+            logger.info(
+                f"📻 {len(new_transcriptions)} transcriptions radio non traitées trouvées"
+            )
+
+            for trans in new_transcriptions:
+                trans_id = str(trans["_id"])
+                if trans_id in existing_radio_ids:
+                    continue
+
+                text = trans.get("text") or trans.get("transcription") or ""
+                if len(text) < 50:
+                    continue
+
+                radio_name = trans.get("radio") or trans.get("stream_name") or trans.get("name") or ""
+                topics = split_radio_transcription(text, radio_name=radio_name)
+
+                if topics:
+                    # Persister l'analyse sur le document transcription
+                    all_entities = []
+                    all_themes = []
+                    max_gravity = 0.0
+                    for topic in topics:
+                        all_entities.extend(topic.get("entities", []))
+                        all_themes.append(topic.get("theme", "general"))
+                        max_gravity = max(max_gravity, topic.get("gravity", 0))
+
+                        # Créer un "article virtuel" pour chaque sujet radio
+                        radio_topics.append({
+                            "_id": trans["_id"],  # ID de la transcription source
+                            "_is_radio_topic": True,
+                            "_transcription_id": trans_id,
+                            "title": topic.get("title", "Sujet radio"),
+                            "ai_summary": topic.get("summary", ""),
+                            "source": radio_name,
+                            "source_type": "transcription",
+                            "gravity_score": topic.get("gravity", 0.3),
+                            "entities": topic.get("entities", []),
+                            "elected": [e for e in topic.get("entities", [])
+                                        if not self._is_institution(e)],
+                            "institutions": [e for e in topic.get("entities", [])
+                                             if self._is_institution(e)],
+                            "theme": topic.get("theme", "general"),
+                            "date": trans.get("captured_at", ""),
+                            "text_excerpt": topic.get("text_excerpt", ""),
+                        })
+
+                    # Sauvegarder l'enrichissement sur la transcription
+                    self.transcriptions.update_one(
+                        {"_id": trans["_id"]},
+                        {"$set": {
+                            "ai_topics": topics,
+                            "ai_topics_count": len(topics),
+                            "entities": list(set(all_entities)),
+                            "themes": list(set(all_themes)),
+                            "gravity_score": round(max_gravity, 3),
+                            "enriched_at": datetime.utcnow().isoformat(),
+                            "_analysis_method": "ai_split",
+                        }}
+                    )
+
+                    logger.info(
+                        f"📻 {radio_name}: {len(topics)} sujets extraits et sauvegardés"
+                    )
+
+            stats["radio_transcriptions_processed"] = len(new_transcriptions)
+            stats["radio_topics_extracted"] = len(radio_topics)
+
+        # Combiner articles + sujets radio pour envoi à l'IA
+        all_items_for_ai = new_articles + radio_topics
+
+        if not all_items_for_ai:
+            logger.info("ℹ️ Pas de nouveaux contenus à traiter")
+            lifecycle_stats = self.update_affair_lifecycle()
+            stats["lifecycle"] = lifecycle_stats
+            return stats
+
+        stats["articles_processed"] = len(new_articles)
+        stats["total_items_for_ai"] = len(all_items_for_ai)
+
+        # 3. Contexte semaine passée (affaires archivées/expirées récemment)
+        week_ago = datetime.utcnow() - timedelta(days=7)
+        last_week_affairs = list(
+            self.affairs.find({
+                "status": {"$in": ["archived", "stale"]},
+                "created_at": {"$gte": week_ago},
+            })
+            .sort("gravity_score", -1)
+            .limit(10)
+        )
+        last_week_for_ai = []
+        for aff in last_week_affairs:
+            last_week_for_ai.append({
+                "title": aff.get("title", ""),
+                "gravity_score": aff.get("gravity_score", 0),
+            })
+
+        # 4. Appel IA
+        try:
+            from backend.ai_groq_service import manage_affairs_with_ai
+        except ImportError:
+            try:
+                from ai_groq_service import manage_affairs_with_ai
+            except ImportError:
+                logger.warning("⚠️ manage_affairs_with_ai non disponible, fallback clustering")
+                return self.run_full_cycle()
+
+        ai_result = manage_affairs_with_ai(
+            active_affairs=affairs_for_ai,
+            new_articles=all_items_for_ai,  # Articles + sujets radio combinés
+            last_week_affairs=last_week_for_ai if last_week_for_ai else None,
+        )
+
+        if ai_result is None:
+            logger.warning("⚠️ IA indisponible, fallback sur cycle classique")
+            return self.run_full_cycle()
+
+        # 5. Appliquer les décisions de l'IA
+        now = datetime.utcnow()
+
+        # 5a. Assignations (article/radio → affaire existante ou nouvelle)
+        for assignment in ai_result.get("assignments", []):
+            art_idx = assignment.get("article_index", 0) - 1  # 1-based → 0-based
+            if art_idx < 0 or art_idx >= len(all_items_for_ai):
+                continue
+
+            item = all_items_for_ai[art_idx]
+            item_id = str(item["_id"])
+            is_radio = item.get("_is_radio_topic", False)
+            affair_id = assignment.get("affair_id")
+
+            if affair_id and affair_id in affair_map:
+                # Assigner à une affaire existante
+                if is_radio:
+                    # C'est un sujet radio → ajouter la transcription
+                    trans_id = item.get("_transcription_id", item_id)
+                    self.affairs.update_one(
+                        {"_id": affair_map[affair_id]},
+                        {
+                            "$addToSet": {
+                                "radio_transcriptions": trans_id,
+                                "sources": item.get("source", ""),
+                                "source_types": "transcription",
+                                "entities": {"$each": item.get("entities", []) or []},
+                            },
+                            "$inc": {"item_count": 1},
+                            "$set": {"last_activity": now},
+                        }
+                    )
+                    self.transcriptions.update_one(
+                        {"_id": item["_id"]},
+                        {"$set": {"_affair_processed": True}}
+                    )
+                    stats["assigned_to_existing"] += 1
+                else:
+                    # C'est un article
+                    self.affairs.update_one(
+                        {"_id": affair_map[affair_id]},
+                        {
+                            "$addToSet": {
+                                "articles": item_id,
+                                "sources": item.get("source", ""),
+                                "entities": {"$each": item.get("entities", []) or []},
+                            },
+                            "$inc": {"item_count": 1},
+                            "$set": {"last_activity": now},
+                        }
+                    )
+                    self.articles.update_one(
+                        {"_id": item["_id"]},
+                        {"$set": {"_affair_processed": True, "_affair_id": affair_id}}
+                    )
+                    stats["assigned_to_existing"] += 1
+
+                # Timeline
+                event_type = "radio_topic_added" if is_radio else "article_added"
+                self.timeline.insert_one({
+                    "affair_id": affair_id,
+                    "event": event_type,
+                    "details": {
+                        "item_id": item_id,
+                        "title": item.get("title", "")[:80],
+                        "source": item.get("source", ""),
+                        "reason": assignment.get("reason", ""),
+                    },
+                    "timestamp": now,
+                })
+
+            elif affair_id is None:
+                # Créer une nouvelle affaire
+                new_title = assignment.get("new_affair_title", item.get("title", "Nouvelle affaire"))
+                new_gravity = float(assignment.get("gravity", item.get("gravity_score", 0.5)))
+
+                new_affair = {
+                    "title": new_title[:200],
+                    "description": f"Affaire créée par IA: {assignment.get('reason', '')}",
+                    "primary_entity": (item.get("elected", [None]) or [None])[0],
+                    "entities": item.get("entities", []) or [],
+                    "elected": item.get("elected", []) or [],
+                    "institutions": item.get("institutions", []) or [],
+                    "keywords": item.get("keywords_found", []) or [],
+                    "theme": item.get("theme", "general"),
+                    "gravity_score": round(min(1.0, max(0.0, new_gravity)), 3),
+                    "affair_type": self._classify_affair_type_by_gravity(new_gravity),
+                    "status": "active",
+                    "articles": [item_id] if not is_radio else [],
+                    "radio_transcriptions": [item.get("_transcription_id", item_id)] if is_radio else [],
+                    "social_posts": [],
+                    "sources": [item.get("source", "")],
+                    "source_types": ["transcription" if is_radio else "article"],
+                    "item_count": 1,
+                    "created_at": now,
+                    "last_activity": now,
+                    "promoted_at": now,
+                    "bmg": 0,
+                    "bmg_details": {},
+                    "bmg_history": [],
+                    "ai_managed": True,
+                }
+
+                result = self.affairs.insert_one(new_affair)
+                new_affair_id = str(result.inserted_id)
+
+                # Marquer comme traité
+                if is_radio:
+                    self.transcriptions.update_one(
+                        {"_id": item["_id"]},
+                        {"$set": {"_affair_processed": True}}
+                    )
+                else:
+                    self.articles.update_one(
+                        {"_id": item["_id"]},
+                        {"$set": {"_affair_processed": True, "_affair_id": new_affair_id}}
+                    )
+
+                # Timeline
+                self.timeline.insert_one({
+                    "affair_id": new_affair_id,
+                    "event": "created",
+                    "details": {
+                        "method": "ai_managed",
+                        "gravity": new_gravity,
+                        "reason": assignment.get("reason", ""),
+                        "first_item": item.get("title", "")[:80],
+                        "source_type": "radio" if is_radio else "article",
+                    },
+                    "timestamp": now,
+                })
+
+                stats["new_affairs_created"] += 1
+                src_label = "📻 Radio" if is_radio else "📰 Article"
+                logger.info(
+                    f"🆕 Affaire IA créée ({src_label}): '{new_title[:50]}' (gravity={new_gravity:.1f})"
+                )
+
+        # 5b. Mises à jour de gravité
+        for gupdate in ai_result.get("gravity_updates", []):
+            aff_id = gupdate.get("affair_id", "")
+            if aff_id in affair_map:
+                new_grav = float(gupdate.get("new_gravity", 0))
+                old_affair = self.affairs.find_one({"_id": affair_map[aff_id]})
+                old_grav = old_affair.get("gravity_score", 0) if old_affair else 0
+
+                self.affairs.update_one(
+                    {"_id": affair_map[aff_id]},
+                    {"$set": {
+                        "gravity_score": round(min(1.0, max(0.0, new_grav)), 3),
+                        "affair_type": self._classify_affair_type_by_gravity(new_grav),
+                    }}
+                )
+                stats["gravity_updates"] += 1
+
+                # Timeline si changement significatif
+                if abs(new_grav - old_grav) >= 0.1:
+                    self.timeline.insert_one({
+                        "affair_id": aff_id,
+                        "event": "gravity_update",
+                        "details": {
+                            "old": round(old_grav, 2),
+                            "new": round(new_grav, 2),
+                            "reason": gupdate.get("reason", ""),
+                        },
+                        "timestamp": now,
+                    })
+
+        # 5c. Expirer les affaires signalées par l'IA
+        for exp_id in ai_result.get("expired_affairs", []):
+            if exp_id in affair_map:
+                self.affairs.update_one(
+                    {"_id": affair_map[exp_id]},
+                    {"$set": {"status": "archived", "archived_at": now}}
+                )
+                self.timeline.insert_one({
+                    "affair_id": exp_id,
+                    "event": "archived",
+                    "details": {"reason": "expired_by_ai"},
+                    "timestamp": now,
+                })
+                stats["expired"] += 1
+
+        # 5d. Marquer les items ignorés comme traités
+        for ign_idx in ai_result.get("ignored_articles", []):
+            real_idx = ign_idx - 1
+            if 0 <= real_idx < len(all_items_for_ai):
+                ignored_item = all_items_for_ai[real_idx]
+                if ignored_item.get("_is_radio_topic"):
+                    self.transcriptions.update_one(
+                        {"_id": ignored_item["_id"]},
+                        {"$set": {"_affair_processed": True, "_affair_ignored": True}}
+                    )
+                else:
+                    self.articles.update_one(
+                        {"_id": ignored_item["_id"]},
+                        {"$set": {"_affair_processed": True, "_affair_ignored": True}}
+                    )
+                stats["ignored"] += 1
+
+        # 6. Enforcer la limite de 20 affaires actives
+        self._enforce_max_affairs()
+
+        # 7. Recalculer BMG des affaires touchées
+        self._recalculate_active_bmg()
+
+        # 8. Lifecycle classique (stale/archive par date)
+        lifecycle_stats = self.update_affair_lifecycle()
+        stats["lifecycle"] = lifecycle_stats
+
+        logger.info(
+            f"✅ Cycle IA terminé: {stats['assigned_to_existing']} assignés, "
+            f"{stats['new_affairs_created']} créées, {stats['gravity_updates']} MAJ gravité, "
+            f"{stats['expired']} expirées, {stats['ignored']} ignorés"
+        )
+        return stats
+
+    def _enforce_max_affairs(self):
+        """Expire les affaires les moins graves si on dépasse MAX_ACTIVE_AFFAIRS."""
+        active_count = self.affairs.count_documents({"status": "active"})
+        if active_count <= MAX_ACTIVE_AFFAIRS:
+            return
+
+        excess = active_count - MAX_ACTIVE_AFFAIRS
+        # Les moins graves en premier
+        weakest = list(
+            self.affairs.find({"status": "active"})
+            .sort("gravity_score", 1)
+            .limit(excess)
+        )
+        now = datetime.utcnow()
+        for aff in weakest:
+            self.affairs.update_one(
+                {"_id": aff["_id"]},
+                {"$set": {"status": "archived", "archived_at": now}}
+            )
+            self.timeline.insert_one({
+                "affair_id": str(aff["_id"]),
+                "event": "archived",
+                "details": {"reason": f"max_affairs_exceeded ({active_count}>{MAX_ACTIVE_AFFAIRS})"},
+                "timestamp": now,
+            })
+            logger.info(f"📤 Affaire expirée (limite {MAX_ACTIVE_AFFAIRS}): '{aff.get('title', '')[:40]}'")
+
+    def _recalculate_active_bmg(self):
+        """Recalcule le BMG de toutes les affaires actives."""
+        active = list(self.affairs.find({"status": "active"}))
+        for aff in active:
+            try:
+                bmg = self.calculate_bmg(aff)
+                self.affairs.update_one(
+                    {"_id": aff["_id"]},
+                    {
+                        "$set": {"bmg": bmg["bmg"], "bmg_details": bmg},
+                        "$push": {"bmg_history": {
+                            "$each": [{"bmg": bmg["bmg"], "at": datetime.utcnow().isoformat()}],
+                            "$slice": -30,
+                        }},
+                    }
+                )
+            except Exception as e:
+                logger.debug(f"BMG recalc: {e}")
+
+    def _classify_affair_type_by_gravity(self, gravity: float) -> str:
+        """Classifie le type d'affaire selon le score de gravité."""
+        if gravity >= 0.85:
+            return "crise_majeure"
+        elif gravity >= 0.75:
+            return "affaire_grave"
+        elif gravity >= 0.65:
+            return "affaire_importante"
+        elif gravity >= 0.50:
+            return "incident_significatif"
+        else:
+            return "sujet_suivi"
+
+    # ============================================================
     # JOB COMBINÉ — À appeler par le scheduler
     # ============================================================
     def run_full_cycle(self) -> Dict[str, Any]:
         """
-        Exécute le cycle complet :
+        Exécute le cycle complet classique (fallback si IA indisponible) :
         1. Clustering des nouveaux candidats
         2. Promotion des clusters éligibles
         3. Mise à jour du cycle de vie
         """
         logger.info("=" * 50)
-        logger.info("🔄 CYCLE COMPLET AFFAIRES")
+        logger.info("🔄 CYCLE CLASSIQUE AFFAIRES (fallback)")
         logger.info("=" * 50)
 
         results = {}
@@ -1161,7 +1653,7 @@ class AffairLifecycleService:
         # 3. Lifecycle
         results["lifecycle"] = self.update_affair_lifecycle()
 
-        logger.info(f"✅ Cycle terminé: {results}")
+        logger.info(f"✅ Cycle classique terminé: {results}")
         return results
 
     # ============================================================

@@ -228,9 +228,12 @@ async def job_enrich():
 # ============================================================
 
 async def job_affair_cycle():
-    """Lance le cycle complet du système d'affaires V2
-    1. Ingère les articles enrichis récents dans topic_candidates
-    2. Exécute clustering → promotion → lifecycle
+    """Lance le cycle IA des affaires :
+    PRIORITÉ : gestion directe par IA (run_ai_managed_cycle)
+    FALLBACK : clustering classique (run_full_cycle)
+
+    Le cycle IA envoie les affaires actives + nouveaux articles à l'IA
+    qui décide des assignations, créations et mises à jour de gravité.
     """
     async with _locks['affairs']:
         if _db is None:
@@ -243,20 +246,21 @@ async def job_affair_cycle():
                 return
 
             # ── Étape 1 : ingérer les articles enrichis non encore candidats ──
+            # (pour le fallback clustering, et pour avoir les articles en base)
             loop = asyncio.get_running_loop()
             ingested = await loop.run_in_executor(None, _ingest_enriched_articles, svc)
 
-            # ── Étape 2 : cycle complet (clustering → promotion → lifecycle) ──
-            logger.info("🔄 Lancement cycle affaires V2...")
-            result = await loop.run_in_executor(None, svc.run_full_cycle)
+            # ── Étape 2 : cycle IA (priorité) ou classique (fallback) ──
+            logger.info("🤖 Lancement cycle IA affaires...")
+            result = await loop.run_in_executor(None, svc.run_ai_managed_cycle)
 
             if result:
-                promo = result.get("promotion", {})
-                clust = result.get("clustering", {})
+                method = result.get("method", "unknown")
+                created = result.get("new_affairs_created", 0)
+                assigned = result.get("assigned_to_existing", 0)
                 logger.info(
-                    f"✅ Cycle V2 terminé: {ingested} candidats ingérés, "
-                    f"{clust.get('new_clusters_created', 0)} clusters, "
-                    f"{promo.get('promoted', 0)} promotions"
+                    f"✅ Cycle affaires terminé ({method}): {ingested} ingérés, "
+                    f"{assigned} assignés, {created} créées"
                 )
             return {"ingested": ingested, **(result or {})}
 

@@ -33,42 +33,21 @@ def _svc():
 
 @router.post("/cycle/run")
 async def run_full_cycle():
-    """Lance le cycle complet : ingestion → clustering → promotion → lifecycle."""
+    """Lance le cycle IA (priorité) ou classique (fallback).
+    Le cycle IA envoie les affaires actives + nouveaux articles à l'IA
+    qui décide des assignations, créations et mises à jour de gravité."""
     svc = _svc()
 
-    # Ingérer les articles enrichis non encore candidats
-    ingested = 0
-    try:
-        from datetime import timedelta
-        articles_col = svc.articles
-        candidates_col = svc.candidates
-        cutoff = (datetime.utcnow() - timedelta(days=3))
-
-        enriched = list(articles_col.find({
-            "_analysis_method": {"$exists": True},
-            "scraped_at": {"$gte": cutoff.isoformat()},
-        }).limit(200))
-
-        existing_ids = set()
-        for c in candidates_col.find({"source_type": "article"}, {"item_id": 1}):
-            existing_ids.add(c.get("item_id", ""))
-
-        for article in enriched:
-            art_id = str(article["_id"])
-            if art_id not in existing_ids:
-                try:
-                    r = svc.ingest_item(article, source_type="article")
-                    if r.get("success") and r.get("action") != "already_exists":
-                        ingested += 1
-                except Exception:
-                    pass
-    except Exception as e:
-        logger.warning(f"Ingestion avant cycle: {e}")
-
-    # Cycle complet
-    result = svc.run_full_cycle()
-    result["pre_ingested"] = ingested
+    # Cycle IA en priorité, fallback classique si IA indisponible
+    result = svc.run_ai_managed_cycle()
     return result
+
+
+@router.post("/cycle/run-classic")
+async def run_classic_cycle():
+    """Force le cycle classique (clustering → promotion → lifecycle)."""
+    svc = _svc()
+    return svc.run_full_cycle()
 
 
 @router.post("/cycle/clustering")

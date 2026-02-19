@@ -28,7 +28,7 @@ _user_model = os.environ.get("GROQ_MODEL", "").strip()
 if GROQ_API_KEY.startswith("xai-"):
     AI_PROVIDER = "xai"
     AI_BASE_URL = "https://api.x.ai/v1"
-    AI_MODEL = _user_model if _user_model and _user_model != "mixtral-8x7b-32768" else "grok-2-1212"
+    AI_MODEL = _user_model if _user_model and _user_model != "mixtral-8x7b-32768" else "grok-2-latest"
 elif GROQ_API_KEY.startswith("gsk_"):
     AI_PROVIDER = "groq"
     AI_BASE_URL = "https://api.groq.com/openai/v1"
@@ -348,6 +348,272 @@ Réponds UNIQUEMENT en JSON :
 
 "isolates" = articles qui ne correspondent à aucun groupe (événement unique).
 Ne crée un groupe QUE si au moins 2 articles parlent du même événement."""
+
+
+AFFAIRS_MANAGEMENT_PROMPT = """Tu es le gestionnaire d'affaires média pour la Guadeloupe/Antilles.
+Tu es EXTRÊMEMENT STRICT sur les assignations.
+
+Tu reçois :
+1. La liste des AFFAIRES ACTIVES (max 20) avec leur ID, titre, score de gravité et résumé
+2. La liste des NOUVEAUX CONTENUS (articles presse + sujets radio) non encore assignés
+3. (Optionnel) Les affaires de la semaine passée pour le contexte de continuité
+
+Ta mission :
+- ASSIGNER un contenu à une affaire existante UNIQUEMENT s'il parle du MÊME événement PRÉCIS
+- CRÉER une nouvelle affaire si le contenu traite d'un événement nouveau et notable
+- METTRE À JOUR le score de gravité de chaque affaire touchée (0.0 à 1.0)
+- IGNORER les contenus anodins
+
+RÈGLES CRITIQUES D'ASSIGNATION :
+- Pour assigner à une affaire existante, l'article DOIT parler du MÊME FAIT CONCRET
+- Le thème ne suffit PAS : "campagne sucrière" et "carnaval" = PAS la même affaire, même si c'est en Guadeloupe
+- Deux sujets différents dans le même domaine (économie, politique...) = AFFAIRES SÉPARÉES
+- Un article culturel (carnaval, festival) ne va JAMAIS avec un article social/économique (grève, usine)
+- En cas de DOUTE sur l'assignation → CRÉER une nouvelle affaire ou IGNORER, ne JAMAIS forcer
+- Vérifie que le SUJET PRÉCIS correspond, pas seulement la catégorie thématique
+
+RÈGLES DE GRAVITÉ :
+- 0.0-0.2 = anodin (météo banale, petites annonces)
+- 0.3-0.4 = mineur (événement culturel, annonce routine)
+- 0.5-0.6 = notable (décision politique, événement économique significatif)
+- 0.7-0.8 = grave (décès, agression, grève, crise sociale)
+- 0.9-1.0 = crise majeure (catastrophe, émeute, scandale politique majeur)
+
+SEUILS :
+- Créer une affaire : gravity >= 0.4
+- Ignorer un contenu : gravity < 0.4 ET aucune affaire existante ne correspond
+
+Réponds UNIQUEMENT en JSON :
+{
+  "assignments": [
+    {"article_index": 1, "affair_id": "abc123", "reason": "même fait: [explication précise]"},
+    {"article_index": 3, "affair_id": null, "new_affair_title": "Titre court et précis", "gravity": 0.7, "reason": "nouvel événement: [explication]"}
+  ],
+  "gravity_updates": [
+    {"affair_id": "abc123", "new_gravity": 0.8, "reason": "confirmé par 2e source"}
+  ],
+  "ignored_articles": [2, 5],
+  "expired_affairs": ["def456"]
+}
+
+Notes :
+- "article_index" est 1-based (correspond au numéro dans la liste)
+- "affair_id": null signifie créer une nouvelle affaire
+- "expired_affairs" : IDs d'affaires devenues non pertinentes (> 7 jours sans activité)
+- Les contenus marqués [RADIO] sont des sujets extraits de journaux radio"""
+
+
+def manage_affairs_with_ai(
+    active_affairs: List[Dict[str, Any]],
+    new_articles: List[Dict[str, Any]],
+    last_week_affairs: Optional[List[Dict[str, Any]]] = None,
+) -> Optional[Dict[str, Any]]:
+    """
+    Gestion IA des affaires : reçoit la liste des affaires actives + nouveaux articles,
+    retourne les assignations, nouvelles affaires et mises à jour de gravité.
+    """
+    if not is_available():
+        return None
+
+    if not new_articles:
+        return None
+
+    # --- Construire le contexte ---
+    parts = []
+
+    # 1. Affaires actives
+    if active_affairs:
+        parts.append("=== AFFAIRES ACTIVES ===")
+        for aff in active_affairs:
+            aff_id = aff.get("_id", aff.get("id", "?"))
+            title = aff.get("title", "Sans titre")[:100]
+            gravity = aff.get("gravity_score", 0)
+            items = aff.get("item_count", 0)
+            last_act = aff.get("last_activity", "")
+            if hasattr(last_act, "strftime"):
+                last_act = last_act.strftime("%Y-%m-%d")
+            elif isinstance(last_act, str):
+                last_act = last_act[:10]
+            parts.append(
+                f"[{aff_id}] (gravity={gravity:.1f}, {items} items, dernier={last_act}) {title}"
+            )
+    else:
+        parts.append("=== AUCUNE AFFAIRE ACTIVE ===")
+
+    # 2. Contexte semaine passée (si dispo)
+    if last_week_affairs:
+        parts.append("\n=== CONTEXTE SEMAINE PASSÉE (pour continuité) ===")
+        for aff in last_week_affairs[:10]:
+            title = aff.get("title", "Sans titre")[:80]
+            gravity = aff.get("gravity_score", 0)
+            parts.append(f"- (gravity={gravity:.1f}) {title}")
+
+    # 3. Nouveaux contenus (articles + sujets radio)
+    parts.append("\n=== NOUVEAUX CONTENUS ===")
+    for i, art in enumerate(new_articles, 1):
+        title = art.get("title", "Sans titre")[:120]
+        summary = art.get("ai_summary") or art.get("summary") or ""
+        source = art.get("source") or art.get("source_name") or ""
+        theme = art.get("theme", "")
+        date = art.get("date") or art.get("scraped_at") or ""
+        if isinstance(date, str):
+            date = date[:10]
+        elif hasattr(date, "strftime"):
+            date = date.strftime("%Y-%m-%d")
+
+        # Marquer les sujets radio distinctement
+        is_radio = art.get("_is_radio_topic", False) or art.get("source_type") == "transcription"
+        tag = "[RADIO]" if is_radio else "[PRESSE]"
+
+        line = f"{i}. {tag} [{date}] [{source}] {title}"
+        if theme:
+            line += f" (thème: {theme})"
+        if summary:
+            line += f" — {summary[:150]}"
+        parts.append(line)
+
+    user_content = "\n".join(parts)
+
+    try:
+        raw = _call_ai(
+            messages=[
+                {"role": "system", "content": AFFAIRS_MANAGEMENT_PROMPT},
+                {"role": "user", "content": user_content},
+            ],
+            temperature=0.05,
+            max_tokens=2000,
+            json_mode=True,
+        )
+        if raw is None:
+            return None
+
+        result = json.loads(raw)
+
+        # Valider la structure
+        assignments = result.get("assignments", [])
+        gravity_updates = result.get("gravity_updates", [])
+        ignored = result.get("ignored_articles", [])
+        expired = result.get("expired_affairs", [])
+
+        # Valider les indices d'articles
+        valid_range = set(range(1, len(new_articles) + 1))
+        for a in assignments:
+            if a.get("article_index") not in valid_range:
+                assignments.remove(a)
+
+        logger.info(
+            f"🤖 Gestion IA affaires: {len(new_articles)} articles → "
+            f"{len(assignments)} assignés, {len(ignored)} ignorés, "
+            f"{len(gravity_updates)} MAJ gravité, {len(expired)} expirées"
+        )
+
+        return {
+            "assignments": assignments,
+            "gravity_updates": gravity_updates,
+            "ignored_articles": ignored,
+            "expired_affairs": expired,
+        }
+
+    except json.JSONDecodeError as e:
+        logger.warning(f"⚠️ Gestion IA affaires: JSON invalide: {e}")
+        return None
+    except Exception as e:
+        logger.warning(f"⚠️ Gestion IA affaires échoué: {e}")
+        return None
+
+
+RADIO_SPLIT_PROMPT = """Tu es un analyste média spécialisé Guadeloupe/Antilles.
+
+On te donne une transcription radio (journal d'infos, flash, émission).
+Une transcription contient PLUSIEURS sujets/nouvelles différents.
+
+Découpe cette transcription en sujets distincts. Pour chaque sujet :
+- Donne un titre court (max 15 mots)
+- Résume le contenu en 1-2 phrases
+- Estime la gravité (0.0 à 1.0)
+- Liste les entités (personnalités, institutions) mentionnées
+- Donne le thème (eau_env, energie_transports, sante_social, education, economie_emploi, culture_patrimoine, securite_justice, politique, sport, general)
+
+Réponds UNIQUEMENT en JSON :
+{
+  "topics": [
+    {
+      "title": "Titre court du sujet",
+      "summary": "Résumé en 1-2 phrases",
+      "gravity": 0.7,
+      "entities": ["Nom Prénom", "Institution"],
+      "theme": "securite_justice",
+      "text_excerpt": "passage clé de la transcription (50 mots max)"
+    }
+  ]
+}
+
+Règles :
+- Ignore les pubs, jingles, présentations de l'émission
+- Un sujet = un événement/fait concret
+- Un décès, accident grave, grève = gravity >= 0.7
+- Météo banale, résultats sportifs mineurs = gravity < 0.3
+- Minimum 1 sujet, pas de limite haute"""
+
+
+def split_radio_transcription(
+    transcription_text: str,
+    radio_name: str = "",
+    max_chars: int = 4000,
+) -> Optional[List[Dict[str, Any]]]:
+    """
+    Découpe une transcription radio en sujets individuels via IA.
+    Chaque sujet peut ensuite être assigné à une affaire différente.
+    Retourne une liste de topics ou None si échec.
+    """
+    if not is_available():
+        return None
+
+    if not transcription_text or len(transcription_text.strip()) < 50:
+        return None
+
+    header = f"Radio: {radio_name}\n" if radio_name else ""
+    user_content = f"{header}Transcription:\n{transcription_text[:max_chars]}"
+
+    try:
+        raw = _call_ai(
+            messages=[
+                {"role": "system", "content": RADIO_SPLIT_PROMPT},
+                {"role": "user", "content": user_content},
+            ],
+            temperature=0.1,
+            max_tokens=1500,
+            json_mode=True,
+        )
+        if raw is None:
+            return None
+
+        result = json.loads(raw)
+        topics = result.get("topics", [])
+
+        if not topics:
+            return None
+
+        # Valider chaque topic
+        valid_topics = []
+        for t in topics:
+            if t.get("title") and t.get("summary"):
+                t["gravity"] = float(t.get("gravity", 0.3))
+                t["entities"] = t.get("entities", [])
+                t["theme"] = t.get("theme", "general")
+                valid_topics.append(t)
+
+        logger.info(
+            f"📻 Transcription {radio_name}: {len(valid_topics)} sujets extraits"
+        )
+        return valid_topics
+
+    except json.JSONDecodeError as e:
+        logger.warning(f"⚠️ Split radio: JSON invalide: {e}")
+        return None
+    except Exception as e:
+        logger.warning(f"⚠️ Split radio échoué: {e}")
+        return None
 
 
 def cluster_articles_with_ai(
