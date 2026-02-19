@@ -1188,7 +1188,14 @@ class AffairLifecycleService:
             })
 
         # 2. Récupérer les articles enrichis non encore traités
-        cutoff = datetime.utcnow() - timedelta(days=3)
+        # IMPORTANT : utiliser datetime aware (UTC) car radio_service stocke
+        # captured_at avec timezone (+00:00). Comparaison string MongoDB exige
+        # le même format pour que $gte fonctionne correctement.
+        try:
+            from zoneinfo import ZoneInfo
+            cutoff = datetime.now(ZoneInfo("UTC")) - timedelta(days=3)
+        except Exception:
+            cutoff = datetime.utcnow() - timedelta(days=3)
         existing_article_ids = set()
         for aff in active_affairs:
             for aid in aff.get("articles", []):

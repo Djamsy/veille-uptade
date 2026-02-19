@@ -495,11 +495,9 @@ def manage_affairs_with_ai(
         ignored = result.get("ignored_articles", [])
         expired = result.get("expired_affairs", [])
 
-        # Valider les indices d'articles
+        # Valider les indices d'articles (list comprehension, pas remove pendant itération)
         valid_range = set(range(1, len(new_articles) + 1))
-        for a in assignments:
-            if a.get("article_index") not in valid_range:
-                assignments.remove(a)
+        assignments = [a for a in assignments if a.get("article_index") in valid_range]
 
         logger.info(
             f"🤖 Gestion IA affaires: {len(new_articles)} articles → "
