@@ -928,7 +928,10 @@ async def analyze_text(request: Request):
 
 if RUN_SCHEDULER:
     try:
-        from backend.scheduler_service import router as scheduler_router, attach_scheduler
+        try:
+            from backend.scheduler_service import router as scheduler_router, attach_scheduler
+        except ImportError:
+            from scheduler_service import router as scheduler_router, attach_scheduler
         app.include_router(scheduler_router, prefix="/api/scheduler")
 
         @app.on_event("startup")
@@ -965,8 +968,12 @@ except Exception as e:
 # ========== SYSTÈME D'AFFAIRES V2 ==========
 affair_lifecycle_service = None
 try:
-    from backend.affair_lifecycle_service import get_affair_lifecycle_service
-    from backend.affair_lifecycle_routes import router as affair_v2_router, set_service as set_affair_service
+    try:
+        from backend.affair_lifecycle_service import get_affair_lifecycle_service
+        from backend.affair_lifecycle_routes import router as affair_v2_router, set_service as set_affair_service
+    except ImportError:
+        from affair_lifecycle_service import get_affair_lifecycle_service
+        from affair_lifecycle_routes import router as affair_v2_router, set_service as set_affair_service
 
     affair_lifecycle_service = get_affair_lifecycle_service(db=db)
     set_affair_service(affair_lifecycle_service)
