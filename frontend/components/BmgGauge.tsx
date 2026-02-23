@@ -43,9 +43,9 @@ export default function BmgGauge({ value, size = 80, label }: BmgGaugeProps) {
           cy="40"
           r={radius}
           fill="none"
-          stroke="#334155"
+          stroke="#e2e8f0"
           strokeWidth="6"
-          opacity="0.5"
+          opacity="0.4"
         />
         {/* Value arc */}
         <circle
@@ -76,7 +76,7 @@ export default function BmgGauge({ value, size = 80, label }: BmgGaugeProps) {
           x="40"
           y="52"
           textAnchor="middle"
-          fill="#94a3b8"
+          fill="#64748b"
           fontSize="8"
           fontWeight="500"
         >

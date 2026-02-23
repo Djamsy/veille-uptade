@@ -29,15 +29,15 @@ function themeLabel(theme: string): string {
 
 function themeColor(theme: string): string {
   const map: Record<string, string> = {
-    politique: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-    economie: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-    social: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-    environnement: 'bg-green-500/20 text-green-400 border-green-500/30',
-    sante: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
-    justice: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-    securite: 'bg-red-500/20 text-red-400 border-red-500/30',
+    politique: 'bg-purple-100 text-purple-600 border-purple-200',
+    economie: 'bg-emerald-100 text-emerald-600 border-emerald-200',
+    social: 'bg-blue-100 text-blue-400 border-blue-200',
+    environnement: 'bg-green-100 text-green-400 border-green-200',
+    sante: 'bg-rose-100 text-rose-400 border-rose-200',
+    justice: 'bg-amber-100 text-amber-600 border-amber-200',
+    securite: 'bg-red-100 text-red-600 border-red-200',
   }
-  return map[theme] || 'bg-slate-500/20 text-slate-400 border-slate-500/30'
+  return map[theme] || 'bg-slate-100 text-slate-500 border-slate-200'
 }
 
 function alertBadgeClass(niveau: string): string {
@@ -104,11 +104,11 @@ export default function AffairsPage() {
           {/* ── Header ──────────────────────────── */}
           <div className="flex items-start justify-between mb-6">
             <div>
-              <h1 className="text-2xl font-bold text-white">Affaires</h1>
-              <p className="text-sm text-slate-400 mt-0.5">
+              <h1 className="text-2xl font-bold text-slate-800">Affaires</h1>
+              <p className="text-sm text-slate-500 mt-0.5">
                 {total} affaire{total > 1 ? 's' : ''} au total
                 {criticalCount > 0 && (
-                  <span className="ml-2 text-red-400">
+                  <span className="ml-2 text-red-600">
                     — {criticalCount} critique{criticalCount > 1 ? 's' : ''}
                   </span>
                 )}
@@ -116,24 +116,24 @@ export default function AffairsPage() {
             </div>
             <button
               onClick={loadAffairs}
-              className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-sm hover:bg-slate-700 transition-colors"
+              className="px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 text-sm hover:bg-slate-100 transition-colors"
             >
               Actualiser
             </button>
           </div>
 
           {/* ── Filters Bar ─────────────────────── */}
-          <div className="flex flex-wrap items-center gap-3 mb-6 p-4 bg-slate-800/30 rounded-xl border border-slate-700/30">
+          <div className="flex flex-wrap items-center gap-3 mb-6 p-4 bg-white/60 rounded-xl border border-slate-200">
             {/* Status tabs */}
-            <div className="flex bg-slate-900/50 rounded-lg p-0.5">
+            <div className="flex bg-slate-50 rounded-lg p-0.5">
               {(['all', 'active', 'stale', 'archived'] as StatusFilter[]).map((s) => (
                 <button
                   key={s}
                   onClick={() => setStatusFilter(s)}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                     statusFilter === s
-                      ? 'bg-sky-600 text-white'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? 'bg-teal-600 text-slate-800'
+                      : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
                   {s === 'all' ? 'Toutes' : s === 'active' ? 'Actives' : s === 'stale' ? 'En veille' : 'Archivées'}
@@ -141,13 +141,13 @@ export default function AffairsPage() {
               ))}
             </div>
 
-            <div className="h-5 w-px bg-slate-700" />
+            <div className="h-5 w-px bg-slate-100" />
 
             {/* Sort */}
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortField)}
-              className="bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:ring-1 focus:ring-sky-500"
+              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-sky-500"
             >
               <option value="bmg">Tri: BMG</option>
               <option value="gravity">Tri: Gravité</option>
@@ -156,10 +156,10 @@ export default function AffairsPage() {
             </select>
 
             {/* View mode */}
-            <div className="ml-auto flex bg-slate-900/50 rounded-lg p-0.5">
+            <div className="ml-auto flex bg-slate-50 rounded-lg p-0.5">
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-slate-700 text-white' : 'text-slate-500'}`}
+                className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-slate-100 text-slate-800' : 'text-slate-500'}`}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
@@ -167,7 +167,7 @@ export default function AffairsPage() {
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-slate-700 text-white' : 'text-slate-500'}`}
+                className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-slate-100 text-slate-800' : 'text-slate-500'}`}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -178,7 +178,7 @@ export default function AffairsPage() {
 
           {/* ── Error ───────────────────────────── */}
           {error && (
-            <div className="mb-6 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+            <div className="mb-6 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">
               {error}
             </div>
           )}
@@ -187,7 +187,7 @@ export default function AffairsPage() {
           {loading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5">
+                <div key={i} className="bg-white rounded-xl border border-slate-200 p-5">
                   <div className="skeleton h-4 w-32 mb-3" />
                   <div className="skeleton h-16 w-full mb-3" />
                   <div className="skeleton h-3 w-24" />
@@ -196,14 +196,14 @@ export default function AffairsPage() {
             </div>
           ) : sortedAffairs.length === 0 ? (
             /* ── Empty state ──────────────────── */
-            <div className="bg-slate-800/30 rounded-xl border border-slate-700/30 p-16 text-center">
+            <div className="bg-white/60 rounded-xl border border-slate-200 p-16 text-center">
               <svg className="w-16 h-16 mx-auto text-slate-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
               </svg>
-              <p className="text-slate-400 text-sm mb-2">Aucune affaire avec ce filtre</p>
+              <p className="text-slate-500 text-sm mb-2">Aucune affaire avec ce filtre</p>
               <button
                 onClick={() => setStatusFilter('all')}
-                className="text-sky-400 text-sm hover:text-sky-300"
+                className="text-teal-600 text-sm hover:text-teal-500"
               >
                 Voir toutes les affaires
               </button>
@@ -213,15 +213,15 @@ export default function AffairsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {sortedAffairs.map((affair) => (
                 <Link key={affair._id} href={`/affairs/${affair._id}`}>
-                  <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 card-hover cursor-pointer h-full">
+                  <div className="bg-white rounded-xl border border-slate-200 p-5 card-hover cursor-pointer h-full">
                     {/* Header with BMG */}
                     <div className="flex items-start justify-between gap-3 mb-3">
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-semibold text-white truncate">
+                        <h3 className="text-sm font-semibold text-slate-800 truncate">
                           {affair.title || affair.primary_entity || 'Affaire'}
                         </h3>
                         {affair.primary_entity && affair.title !== affair.primary_entity && (
-                          <p className="text-xs text-slate-400 truncate mt-0.5">{affair.primary_entity}</p>
+                          <p className="text-xs text-slate-500 truncate mt-0.5">{affair.primary_entity}</p>
                         )}
                       </div>
                       <BmgGauge value={affair.bmg || 0} size={60} />
@@ -229,7 +229,7 @@ export default function AffairsPage() {
 
                     {/* Description snippet */}
                     {affair.description && (
-                      <p className="text-xs text-slate-400 line-clamp-2 mb-3">{affair.description}</p>
+                      <p className="text-xs text-slate-500 line-clamp-2 mb-3">{affair.description}</p>
                     )}
 
                     {/* Tags */}
@@ -243,9 +243,9 @@ export default function AffairsPage() {
                         </span>
                       )}
                       <span className={`badge ${
-                        affair.status === 'active' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                        : affair.status === 'stale' ? 'bg-slate-500/20 text-slate-400 border border-slate-500/30'
-                        : 'bg-slate-600/20 text-slate-500 border border-slate-600/30'
+                        affair.status === 'active' ? 'bg-emerald-100 text-emerald-600 border border-emerald-200'
+                        : affair.status === 'stale' ? 'bg-slate-100 text-slate-500 border border-slate-200'
+                        : 'bg-slate-100 text-slate-500 border border-slate-200'
                       }`}>
                         {affair.status}
                       </span>
@@ -255,7 +255,7 @@ export default function AffairsPage() {
                     {affair.entities && affair.entities.length > 0 && (
                       <div className="flex flex-wrap gap-1 mb-3">
                         {affair.entities.slice(0, 3).map((e, i) => (
-                          <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400">
+                          <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
                             {e}
                           </span>
                         ))}
@@ -266,7 +266,7 @@ export default function AffairsPage() {
                     )}
 
                     {/* Footer */}
-                    <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-700/30">
+                    <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-200">
                       <div className="flex items-center gap-3">
                         <span>{affair.item_count || 0} items</span>
                         <span>{affair.source_types?.length || 0} canaux</span>
@@ -282,14 +282,14 @@ export default function AffairsPage() {
             <div className="space-y-2">
               {sortedAffairs.map((affair) => (
                 <Link key={affair._id} href={`/affairs/${affair._id}`}>
-                  <div className="flex items-center gap-4 p-4 bg-slate-800/50 rounded-xl border border-slate-700/50 hover:bg-slate-800/80 transition-colors cursor-pointer">
+                  <div className="flex items-center gap-4 p-4 bg-white rounded-xl border border-slate-200 hover:bg-white/80 transition-colors cursor-pointer">
                     {/* BMG mini */}
                     <BmgGauge value={affair.bmg || 0} size={48} />
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-sm font-semibold text-white truncate">
+                        <h3 className="text-sm font-semibold text-slate-800 truncate">
                           {affair.title || affair.primary_entity || 'Affaire'}
                         </h3>
                         <span className={`badge border ${themeColor(affair.theme)}`}>
@@ -307,7 +307,7 @@ export default function AffairsPage() {
                     {/* Entities */}
                     <div className="hidden lg:flex flex-wrap gap-1 max-w-[200px]">
                       {(affair.entities || []).slice(0, 3).map((e, i) => (
-                        <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 truncate max-w-[100px]">
+                        <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 truncate max-w-[100px]">
                           {e}
                         </span>
                       ))}

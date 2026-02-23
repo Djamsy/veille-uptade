@@ -19,17 +19,17 @@ function timeAgo(dateStr: string): string {
 function sentimentColor(s?: string): string {
   if (!s) return 'text-slate-500'
   const l = s.toLowerCase()
-  if (l.includes('positif') || l.includes('positive')) return 'text-emerald-400'
-  if (l.includes('négatif') || l.includes('negative')) return 'text-red-400'
-  return 'text-slate-400'
+  if (l.includes('positif') || l.includes('positive')) return 'text-emerald-600'
+  if (l.includes('négatif') || l.includes('negative')) return 'text-red-600'
+  return 'text-slate-500'
 }
 
 function sentimentBg(s?: string): string {
-  if (!s) return 'bg-slate-700/30'
+  if (!s) return 'bg-slate-100'
   const l = s.toLowerCase()
-  if (l.includes('positif') || l.includes('positive')) return 'bg-emerald-500/10 border-emerald-500/20'
-  if (l.includes('négatif') || l.includes('negative')) return 'bg-red-500/10 border-red-500/20'
-  return 'bg-slate-700/20 border-slate-700/30'
+  if (l.includes('positif') || l.includes('positive')) return 'bg-emerald-50 border-emerald-200'
+  if (l.includes('négatif') || l.includes('negative')) return 'bg-red-50 border-red-200'
+  return 'bg-slate-100 border-slate-200'
 }
 
 function themeLabel(theme?: string): string {
@@ -44,16 +44,16 @@ function themeLabel(theme?: string): string {
 }
 
 function themeColor(theme?: string): string {
-  if (!theme) return 'bg-slate-500/20 text-slate-400 border-slate-500/30'
+  if (!theme) return 'bg-slate-100 text-slate-500 border-slate-200'
   const map: Record<string, string> = {
-    politique: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-    economie: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-    social: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-    sante: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
-    justice: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-    securite: 'bg-red-500/20 text-red-400 border-red-500/30',
+    politique: 'bg-purple-100 text-purple-600 border-purple-200',
+    economie: 'bg-emerald-100 text-emerald-600 border-emerald-200',
+    social: 'bg-blue-100 text-blue-400 border-blue-200',
+    sante: 'bg-rose-100 text-rose-400 border-rose-200',
+    justice: 'bg-amber-100 text-amber-400 border-amber-200',
+    securite: 'bg-red-100 text-red-600 border-red-200',
   }
-  return map[theme] || 'bg-slate-500/20 text-slate-400 border-slate-500/30'
+  return map[theme] || 'bg-slate-100 text-slate-500 border-slate-200'
 }
 
 function sourceLogo(source: string): string {
@@ -121,21 +121,21 @@ export default function ArticlesPage() {
           {/* ── Header ──────────────────────────── */}
           <div className="flex items-start justify-between mb-6">
             <div>
-              <h1 className="text-2xl font-bold text-white">Articles</h1>
-              <p className="text-sm text-slate-400 mt-0.5">
+              <h1 className="text-2xl font-bold text-slate-800">Articles</h1>
+              <p className="text-sm text-slate-500 mt-0.5">
                 {total} article{total > 1 ? 's' : ''} en base
               </p>
             </div>
             <button
               onClick={loadArticles}
-              className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-sm hover:bg-slate-700 transition-colors"
+              className="px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 text-sm hover:bg-slate-100 transition-colors"
             >
               Actualiser
             </button>
           </div>
 
           {/* ── Search + Source badges ──────────── */}
-          <div className="flex flex-wrap items-center gap-3 mb-6 p-4 bg-slate-800/30 rounded-xl border border-slate-700/30">
+          <div className="flex flex-wrap items-center gap-3 mb-6 p-4 bg-white/60 rounded-xl border border-slate-200">
             {/* Search */}
             <div className="relative flex-1 min-w-[200px]">
               <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -146,14 +146,14 @@ export default function ArticlesPage() {
                 placeholder="Rechercher un article..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-600 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
               />
             </div>
 
             {/* Source badges */}
             <div className="flex flex-wrap gap-1.5">
               {Object.entries(sourceCounts).slice(0, 6).map(([src, count]) => (
-                <span key={src} className="text-[10px] px-2 py-1 rounded-full bg-slate-700/30 text-slate-400 border border-slate-700/50">
+                <span key={src} className="text-[10px] px-2 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
                   {src} ({count})
                 </span>
               ))}
@@ -162,7 +162,7 @@ export default function ArticlesPage() {
 
           {/* ── Error ───────────────────────────── */}
           {error && (
-            <div className="mb-6 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+            <div className="mb-6 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">
               {error}
             </div>
           )}
@@ -171,14 +171,14 @@ export default function ArticlesPage() {
           {loading ? (
             <div className="space-y-3">
               {[...Array(8)].map((_, i) => (
-                <div key={i} className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-4">
+                <div key={i} className="bg-white shadow-sm rounded-xl border border-slate-200 p-4">
                   <div className="skeleton h-4 w-2/3 mb-2" />
                   <div className="skeleton h-3 w-1/3" />
                 </div>
               ))}
             </div>
           ) : filtered.length === 0 ? (
-            <div className="bg-slate-800/30 rounded-xl border border-slate-700/30 p-16 text-center">
+            <div className="bg-white/60 rounded-xl border border-slate-200 p-16 text-center">
               <svg className="w-12 h-12 mx-auto text-slate-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
               </svg>
@@ -190,10 +190,10 @@ export default function ArticlesPage() {
             /* ── Article list ──────────────── */
             <div className="space-y-3">
               {filtered.map((article) => (
-                <div key={article._id} className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-4 card-hover">
+                <div key={article._id} className="bg-white shadow-sm rounded-xl border border-slate-200 p-4 card-hover">
                   <div className="flex items-start gap-4">
                     {/* Source icon */}
-                    <div className="w-10 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center text-xs font-bold text-slate-400 flex-shrink-0">
+                    <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500 flex-shrink-0">
                       {sourceLogo(article.source)}
                     </div>
 
@@ -201,7 +201,7 @@ export default function ArticlesPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-semibold text-white mb-1 line-clamp-2">
+                          <h3 className="text-sm font-semibold text-slate-800 mb-1 line-clamp-2">
                             {article.title}
                           </h3>
                           <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -228,14 +228,14 @@ export default function ArticlesPage() {
                           )}
                           {article.gravity_score !== undefined && article.gravity_score > 0 && (
                             <span className={`text-[10px] font-medium ${
-                              article.gravity_score >= 0.8 ? 'text-red-400' :
-                              article.gravity_score >= 0.5 ? 'text-orange-400' : 'text-slate-500'
+                              article.gravity_score >= 0.8 ? 'text-red-600' :
+                              article.gravity_score >= 0.5 ? 'text-orange-600' : 'text-slate-500'
                             }`}>
                               Gravité {Math.round(article.gravity_score * 100)}%
                             </span>
                           )}
                           {article.is_affair && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400 border border-sky-500/20">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-100 text-teal-600 border border-teal-200">
                               Affaire
                             </span>
                           )}
@@ -246,12 +246,12 @@ export default function ArticlesPage() {
                       {(article.elected || article.institutions) && (
                         <div className="flex flex-wrap gap-1 mt-2">
                           {(article.elected || []).map((e, i) => (
-                            <span key={`e-${i}`} className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400">
+                            <span key={`e-${i}`} className="text-[10px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-600">
                               {e}
                             </span>
                           ))}
                           {(article.institutions || []).map((e, i) => (
-                            <span key={`i-${i}`} className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400">
+                            <span key={`i-${i}`} className="text-[10px] px-1.5 py-0.5 rounded bg-teal-50 text-teal-600">
                               {e}
                             </span>
                           ))}
@@ -264,7 +264,7 @@ export default function ArticlesPage() {
                           href={article.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[10px] text-sky-500 hover:text-sky-400 mt-2"
+                          className="inline-flex items-center gap-1 text-[10px] text-teal-600 hover:text-teal-600 mt-2"
                         >
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -285,7 +285,7 @@ export default function ArticlesPage() {
               <button
                 onClick={() => setPage(Math.max(0, page - 1))}
                 disabled={page === 0}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 text-xs disabled:opacity-30 hover:bg-slate-700 transition-colors"
+                className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-500 text-xs disabled:opacity-30 hover:bg-slate-100 transition-colors"
               >
                 Précédent
               </button>
@@ -295,7 +295,7 @@ export default function ArticlesPage() {
               <button
                 onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
                 disabled={page >= totalPages - 1}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 text-xs disabled:opacity-30 hover:bg-slate-700 transition-colors"
+                className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-500 text-xs disabled:opacity-30 hover:bg-slate-100 transition-colors"
               >
                 Suivant
               </button>

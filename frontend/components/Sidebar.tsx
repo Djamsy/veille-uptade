@@ -60,19 +60,18 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-64 bg-slate-900 border-r border-slate-700/50 flex flex-col z-40">
+    <aside className="fixed left-0 top-0 h-screen w-64 flex flex-col z-40"
+      style={{ background: 'linear-gradient(180deg, #0e7490 0%, #065f46 100%)' }}
+    >
       {/* Logo */}
-      <div className="px-6 py-5 border-b border-slate-700/50">
+      <div className="px-6 py-5 border-b border-white/10">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center">
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-            </svg>
+          <div className="w-10 h-10 rounded-xl bg-amber-400 flex items-center justify-center shadow-lg">
+            <span className="text-lg">🏝️</span>
           </div>
           <div>
             <h1 className="text-sm font-bold text-white leading-tight">Veille Média</h1>
-            <p className="text-[10px] text-slate-400 font-medium tracking-wider uppercase">Guadeloupe</p>
+            <p className="text-[10px] text-cyan-200/70 font-medium tracking-wider uppercase">Guadeloupe</p>
           </div>
         </div>
       </div>
@@ -85,8 +84,8 @@ export default function Sidebar() {
             href={item.href}
             className={`sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
               isActive(item.href)
-                ? 'active bg-sky-500/10 text-sky-400'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                ? 'active bg-white/15 text-amber-300'
+                : 'text-white/70 hover:text-white hover:bg-white/10'
             }`}
           >
             {item.icon}
@@ -96,9 +95,9 @@ export default function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-4 py-4 border-t border-slate-700/50">
-        <div className="flex items-center gap-2 text-xs text-slate-500">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+      <div className="px-4 py-4 border-t border-white/10">
+        <div className="flex items-center gap-2 text-xs text-white/50">
+          <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
           Connecté au backend
         </div>
       </div>

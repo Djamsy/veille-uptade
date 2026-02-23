@@ -3,19 +3,26 @@
 @tailwind utilities;
 
 :root {
-  --primary: #0ea5e9;
-  --primary-dark: #0284c7;
-  --positive: #10b981;
-  --negative: #ef4444;
+  --primary: #0891b2;
+  --primary-light: #22d3ee;
+  --accent: #f59e0b;
+  --accent-light: #fbbf24;
+  --positive: #059669;
+  --negative: #dc2626;
   --neutral: #6b7280;
-  --warning: #f59e0b;
+  --warning: #d97706;
   --critical: #dc2626;
-  --bg: #0f172a;
-  --bg-card: #1e293b;
-  --bg-card-hover: #334155;
-  --text: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --border: #334155;
+  --bg: #faf9f6;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f0fdfa;
+  --bg-sidebar: linear-gradient(180deg, #0e7490 0%, #065f46 100%);
+  --text: #1e293b;
+  --text-secondary: #64748b;
+  --text-light: #94a3b8;
+  --border: #e2e8f0;
+  --border-accent: #99f6e4;
+  --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
 }
 
 * { box-sizing: border-box; }
@@ -32,8 +39,8 @@ body {
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #475569; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
 /* BMG Gauge animations */
 @keyframes gaugeRotate {
@@ -51,11 +58,12 @@ body {
 
 /* Card hover effect */
 .card-hover {
-  transition: all 0.2s ease-out;
+  transition: all 0.25s ease-out;
+  box-shadow: var(--shadow);
 }
 .card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
 }
 
 /* Sidebar active link indicator */
@@ -70,7 +78,7 @@ body {
   top: 0;
   bottom: 0;
   width: 3px;
-  background: var(--primary);
+  background: var(--accent);
   border-radius: 0 2px 2px 0;
   transform: scaleY(0);
   transition: transform 0.15s ease-out;
@@ -86,18 +94,23 @@ body {
   100% { background-position: 200% 0; }
 }
 .skeleton {
-  background: linear-gradient(90deg, var(--bg-card) 25%, var(--bg-card-hover) 50%, var(--bg-card) 75%);
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
-  border-radius: 4px;
+  border-radius: 6px;
 }
 
 /* Badge variants */
 .badge {
-  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold;
 }
-.badge-critical { @apply bg-red-500/20 text-red-400 border border-red-500/30; }
-.badge-high { @apply bg-orange-500/20 text-orange-400 border border-orange-500/30; }
-.badge-medium { @apply bg-yellow-500/20 text-yellow-400 border border-yellow-500/30; }
-.badge-low { @apply bg-green-500/20 text-green-400 border border-green-500/30; }
-.badge-info { @apply bg-sky-500/20 text-sky-400 border border-sky-500/30; }
+.badge-critical { @apply bg-red-100 text-red-700 border border-red-200; }
+.badge-high { @apply bg-orange-100 text-orange-700 border border-orange-200; }
+.badge-medium { @apply bg-amber-100 text-amber-700 border border-amber-200; }
+.badge-low { @apply bg-emerald-100 text-emerald-700 border border-emerald-200; }
+.badge-info { @apply bg-cyan-100 text-cyan-700 border border-cyan-200; }
+
+/* Tropical decorative wave */
+.wave-bg {
+  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdfa 50%, #ecfeff 100%);
+}

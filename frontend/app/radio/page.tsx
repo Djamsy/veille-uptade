@@ -27,11 +27,11 @@ function timeAgo(dateStr?: string) {
 }
 
 function sourceBadgeColor(source?: string) {
-  if (!source) return 'bg-slate-700 text-slate-300'
+  if (!source) return 'bg-slate-100 text-slate-500'
   const s = source.toLowerCase()
-  if (s.includes('rci')) return 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-  if (s.includes('guadeloupe') || s.includes('gp')) return 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-  return 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+  if (s.includes('rci')) return 'bg-amber-100 text-amber-600 border border-amber-200'
+  if (s.includes('guadeloupe') || s.includes('gp')) return 'bg-blue-100 text-blue-600 border border-blue-200'
+  return 'bg-purple-100 text-purple-600 border border-purple-200'
 }
 
 function summarySourceLabel(src: string) {
@@ -45,13 +45,13 @@ function summarySourceLabel(src: string) {
 
 function SkeletonCard() {
   return (
-    <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 animate-pulse">
-      <div className="h-4 bg-slate-700 rounded w-3/4 mb-3" />
-      <div className="h-3 bg-slate-700/60 rounded w-1/2 mb-4" />
+    <div className="bg-white shadow-sm rounded-xl border border-slate-200 p-5 animate-pulse">
+      <div className="h-4 bg-slate-100 rounded w-3/4 mb-3" />
+      <div className="h-3 bg-slate-200 rounded w-1/2 mb-4" />
       <div className="space-y-2">
-        <div className="h-3 bg-slate-700/40 rounded w-full" />
-        <div className="h-3 bg-slate-700/40 rounded w-5/6" />
-        <div className="h-3 bg-slate-700/40 rounded w-2/3" />
+        <div className="h-3 bg-slate-200 rounded w-full" />
+        <div className="h-3 bg-slate-200 rounded w-5/6" />
+        <div className="h-3 bg-slate-200 rounded w-2/3" />
       </div>
     </div>
   )
@@ -69,19 +69,19 @@ function RadioCardItem({
   const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 
   return (
-    <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 hover:border-slate-600/50 transition-colors">
+    <div className="bg-white shadow-sm rounded-xl border border-slate-200 hover:border-slate-300 transition-colors">
       {/* Header */}
       <div className="px-5 pt-5 pb-3">
         <div className="flex items-start justify-between gap-3 mb-2">
           <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-semibold text-white truncate">{card.title}</h3>
+            <h3 className="text-sm font-semibold text-slate-800 truncate">{card.title}</h3>
             <p className="text-xs text-slate-400 mt-0.5">{card.subtitle}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${sourceBadgeColor(card.source)}`}>
               {card.source || 'Radio'}
             </span>
-            <span className="text-[10px] text-slate-500">{timeAgo(card.capturedAt)}</span>
+            <span className="text-[10px] text-slate-400">{timeAgo(card.capturedAt)}</span>
           </div>
         </div>
 
@@ -89,26 +89,26 @@ function RadioCardItem({
         <div className="flex items-center gap-2 mb-3">
           <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
             card.summarySource === 'gpt'
-              ? 'bg-emerald-500/10 text-emerald-400'
-              : 'bg-slate-700/50 text-slate-400'
+              ? 'bg-emerald-50 text-emerald-600'
+              : 'bg-slate-100 text-slate-400'
           }`}>
             {summarySourceLabel(card.summarySource)}
           </span>
           {card.meta?.transcriptionMethod && (
-            <span className="text-[10px] text-slate-600">
+            <span className="text-[10px] text-slate-500">
               {card.meta.transcriptionMethod}
             </span>
           )}
         </div>
 
         {/* Summary text */}
-        <div className="text-sm text-slate-300 leading-relaxed">
+        <div className="text-sm text-slate-500 leading-relaxed">
           {expanded && card.fullText ? card.fullText : card.summary}
         </div>
         {card.isTruncated && (
           <button
             onClick={onToggle}
-            className="mt-2 text-xs text-sky-400 hover:text-sky-300 transition-colors"
+            className="mt-2 text-xs text-teal-600 hover:text-teal-500 transition-colors"
           >
             {expanded ? '▲ Réduire' : '▼ Voir tout'}
           </button>
@@ -117,12 +117,12 @@ function RadioCardItem({
 
       {/* Audio player */}
       {card.audioUrl && (
-        <div className="px-5 pb-4 pt-1 border-t border-slate-700/30">
+        <div className="px-5 pb-4 pt-1 border-t border-slate-200">
           <audio
             controls
             preload="none"
             className="w-full h-8"
-            style={{ filter: 'invert(1) hue-rotate(180deg)', opacity: 0.7 }}
+            style={{ opacity: 0.9 }}
           >
             <source src={`${BACKEND_URL}${card.audioUrl}`} type="audio/wav" />
           </audio>
@@ -236,7 +236,7 @@ export default function RadioPage() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Transcriptions Radio</h1>
+          <h1 className="text-2xl font-bold text-slate-800">Transcriptions Radio</h1>
           <p className="text-sm text-slate-400 mt-1">
             {total} transcription{total !== 1 ? 's' : ''} • {viewMode === 'today' ? 'Aujourd\'hui' : selectedDate || '—'}
           </p>
@@ -244,12 +244,12 @@ export default function RadioPage() {
 
         <div className="flex items-center gap-2">
           {/* Date toggle */}
-          <div className="flex rounded-lg border border-slate-700/50 overflow-hidden">
+          <div className="flex rounded-lg border border-slate-200 overflow-hidden">
             <button
               onClick={() => setViewMode('today')}
               className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                 viewMode === 'today'
-                  ? 'bg-sky-500/20 text-sky-400'
+                  ? 'bg-teal-100 text-teal-700'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -259,7 +259,7 @@ export default function RadioPage() {
               onClick={() => setViewMode('date')}
               className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                 viewMode === 'date'
-                  ? 'bg-sky-500/20 text-sky-400'
+                  ? 'bg-teal-100 text-teal-700'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -272,21 +272,21 @@ export default function RadioPage() {
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="px-3 py-1.5 bg-slate-800 border border-slate-700/50 rounded-lg text-xs text-white"
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800"
             />
           )}
 
           <button
             onClick={handleRefreshSnapshot}
             disabled={refreshing}
-            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700/50 rounded-lg text-xs text-slate-300 transition-colors disabled:opacity-50"
+            className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500 transition-colors disabled:opacity-50"
           >
             {refreshing ? '⟳ Refresh...' : '⟳ Snapshot'}
           </button>
 
           <button
             onClick={() => setShowCapturePanel(!showCapturePanel)}
-            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-xs text-white font-medium transition-colors"
+            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-xs text-slate-800 font-medium transition-colors"
           >
             🎙 Capturer
           </button>
@@ -295,8 +295,8 @@ export default function RadioPage() {
 
       {/* Capture panel */}
       {showCapturePanel && (
-        <div className="bg-slate-800/70 rounded-xl border border-emerald-500/30 p-5">
-          <h3 className="text-sm font-semibold text-emerald-400 mb-3">Capture radio en direct</h3>
+        <div className="bg-white rounded-xl border border-emerald-200 p-5">
+          <h3 className="text-sm font-semibold text-emerald-600 mb-3">Capture radio en direct</h3>
           <div className="flex items-end gap-3 flex-wrap">
             <div>
               <label className="block text-[10px] text-slate-400 mb-1">Flux / Section</label>
@@ -305,7 +305,7 @@ export default function RadioPage() {
                 value={captureSection}
                 onChange={(e) => setCaptureSection(e.target.value)}
                 placeholder="rci, guadeloupe, gp..."
-                className="px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded-lg text-sm text-white placeholder-slate-600 w-48"
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 placeholder-slate-400 w-48"
               />
             </div>
             <div>
@@ -316,13 +316,13 @@ export default function RadioPage() {
                 onChange={(e) => setCaptureDuration(Number(e.target.value))}
                 min={5}
                 max={600}
-                className="px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded-lg text-sm text-white w-24"
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 w-24"
               />
             </div>
             <button
               onClick={handleCapture}
               disabled={capturing}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm text-white font-medium transition-colors disabled:opacity-50"
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm text-slate-800 font-medium transition-colors disabled:opacity-50"
             >
               {capturing ? (
                 <span className="flex items-center gap-2">
@@ -335,7 +335,7 @@ export default function RadioPage() {
               ) : 'Lancer la capture'}
             </button>
           </div>
-          <p className="mt-2 text-[10px] text-slate-500">
+          <p className="mt-2 text-[10px] text-slate-400">
             Laissez le flux vide pour utiliser le stream prioritaire par défaut (RCI replay).
           </p>
         </div>
@@ -343,9 +343,9 @@ export default function RadioPage() {
 
       {/* Error */}
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
+        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
           {error}
-          <button onClick={() => setError('')} className="ml-3 text-red-300 hover:text-red-200">✕</button>
+          <button onClick={() => setError('')} className="ml-3 text-red-500 hover:text-red-400">✕</button>
         </div>
       )}
 
@@ -355,10 +355,10 @@ export default function RadioPage() {
           {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
         </div>
       ) : cards.length === 0 ? (
-        <div className="bg-slate-800/30 rounded-xl border border-slate-700/30 p-12 text-center">
+        <div className="bg-white/60 rounded-xl border border-slate-200 p-12 text-center">
           <div className="text-4xl mb-3">📻</div>
-          <h3 className="text-lg font-medium text-slate-300 mb-1">Aucune transcription</h3>
-          <p className="text-sm text-slate-500">
+          <h3 className="text-lg font-medium text-slate-500 mb-1">Aucune transcription</h3>
+          <p className="text-sm text-slate-400">
             {viewMode === 'today'
               ? 'Pas encore de transcriptions aujourd\'hui. Lancez une capture !'
               : `Aucune transcription pour le ${selectedDate}`}
@@ -379,14 +379,14 @@ export default function RadioPage() {
 
       {/* Stats footer */}
       {!loading && cards.length > 0 && (
-        <div className="flex items-center justify-between text-xs text-slate-500 px-1">
+        <div className="flex items-center justify-between text-xs text-slate-400 px-1">
           <span>
             {cards.filter((c) => c.summarySource === 'gpt').length} résumés IA •{' '}
             {cards.filter((c) => c.audioUrl).length} avec audio
           </span>
           <button
             onClick={loadCards}
-            className="text-sky-500 hover:text-sky-400 transition-colors"
+            className="text-teal-600 hover:text-teal-600 transition-colors"
           >
             Actualiser
           </button>
