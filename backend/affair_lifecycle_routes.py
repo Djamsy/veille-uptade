@@ -341,6 +341,58 @@ async def purge_v1_affairs():
     }
 
 
+@router.get("/debug/radio-transcriptions")
+async def debug_radio_transcriptions():
+    """Debug: voir les transcriptions radio récentes et leur état."""
+    svc = _svc()
+    from datetime import timedelta
+    try:
+        from zoneinfo import ZoneInfo
+        cutoff = datetime.now(ZoneInfo("UTC")) - timedelta(days=7)
+    except Exception:
+        cutoff = datetime.utcnow() - timedelta(days=7)
+
+    # Toutes les transcriptions récentes
+    total = svc.transcriptions.count_documents({})
+    recent = list(
+        svc.transcriptions.find({})
+        .sort("captured_at", -1)
+        .limit(10)
+    )
+
+    # Transcriptions non traitées (celles que le cycle cherche)
+    unprocessed = list(
+        svc.transcriptions.find({
+            "captured_at": {"$gte": cutoff.isoformat()},
+            "_affair_processed": {"$ne": True},
+        })
+        .sort("captured_at", -1)
+        .limit(10)
+    )
+
+    def _serialize(doc):
+        return {
+            "_id": str(doc.get("_id", "")),
+            "radio": doc.get("radio", ""),
+            "name": doc.get("name", ""),
+            "stream_name": doc.get("stream_name", ""),
+            "captured_at": doc.get("captured_at", ""),
+            "date": doc.get("date", ""),
+            "text_length": len(doc.get("text", "") or doc.get("transcription", "") or ""),
+            "_affair_processed": doc.get("_affair_processed"),
+            "ai_topics_count": doc.get("ai_topics_count"),
+            "has_text": bool(doc.get("text") or doc.get("transcription")),
+        }
+
+    return {
+        "total_transcriptions": total,
+        "cutoff_used": cutoff.isoformat(),
+        "recent_10": [_serialize(d) for d in recent],
+        "unprocessed_7days": [_serialize(d) for d in unprocessed],
+        "unprocessed_count": len(unprocessed),
+    }
+
+
 @router.post("/reset")
 async def full_reset():
     """RESET COMPLET — Vide toutes les collections (articles, affaires,
