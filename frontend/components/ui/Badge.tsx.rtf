@@ -1,0 +1,126 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2865
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 // Emplacement: frontend/components/ui/Badge.tsx\
+\
+import \{ HTMLAttributes \} from 'react'\
+import \{ clsx \} from 'clsx'\
+\
+interface BadgeProps extends HTMLAttributes<HTMLSpanElement> \{\
+  variant?: 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'info'\
+  size?: 'sm' | 'md' | 'lg'\
+  dot?: boolean\
+  children: React.ReactNode\
+\}\
+\
+export function Badge(\{ \
+  variant = 'default', \
+  size = 'md', \
+  dot = false,\
+  className,\
+  children,\
+  ...props \
+\}: BadgeProps) \{\
+  const baseClasses = 'inline-flex items-center font-medium rounded-full'\
+  \
+  const variantClasses = \{\
+    default: 'bg-gray-100 text-gray-800',\
+    primary: 'bg-caribbean-100 text-caribbean-800',\
+    secondary: 'bg-gray-100 text-gray-600',\
+    success: 'bg-tropical-100 text-tropical-800',\
+    warning: 'bg-sunset-100 text-sunset-800',\
+    danger: 'bg-red-100 text-red-800',\
+    info: 'bg-blue-100 text-blue-800',\
+  \}\
+  \
+  const sizeClasses = \{\
+    sm: dot ? 'px-1.5 py-0.5 text-xs' : 'px-2 py-1 text-xs',\
+    md: dot ? 'px-2 py-1 text-xs' : 'px-2.5 py-0.5 text-sm',\
+    lg: dot ? 'px-2.5 py-1.5 text-sm' : 'px-3 py-1 text-sm',\
+  \}\
+\
+  const dotClasses = \{\
+    default: 'bg-gray-500',\
+    primary: 'bg-caribbean-600',\
+    secondary: 'bg-gray-400',\
+    success: 'bg-tropical-600',\
+    warning: 'bg-sunset-600',\
+    danger: 'bg-red-600',\
+    info: 'bg-blue-600',\
+  \}\
+\
+  return (\
+    <span\
+      className=\{clsx(\
+        baseClasses,\
+        variantClasses[variant],\
+        sizeClasses[size],\
+        className\
+      )\}\
+      \{...props\}\
+    >\
+      \{dot && (\
+        <div className=\{clsx(\
+          'w-1.5 h-1.5 rounded-full mr-1.5',\
+          dotClasses[variant]\
+        )\} />\
+      )\}\
+      \{children\}\
+    </span>\
+  )\
+\}\
+\
+// Badges sp\'e9cialis\'e9s pour les th\'e8mes\
+export function ThemeBadge(\{ theme, ...props \}: \{ theme: string \} & Omit<BadgeProps, 'variant'>) \{\
+  const themeVariants: Record<string, BadgeProps['variant']> = \{\
+    'securite_justice': 'danger',\
+    'environnement_agriculture': 'success',\
+    'sante_social': 'info',\
+    'politique_institutions': 'warning',\
+    'culture_sport': 'primary',\
+    'economie': 'secondary',\
+  \}\
+\
+  const themeLabels: Record<string, string> = \{\
+    'securite_justice': 'S\'e9curit\'e9',\
+    'environnement_agriculture': 'Environnement',\
+    'sante_social': 'Sant\'e9',\
+    'politique_institutions': 'Politique',\
+    'culture_sport': 'Culture',\
+    'economie': '\'c9conomie',\
+  \}\
+\
+  return (\
+    <Badge variant=\{themeVariants[theme] || 'default'\} \{...props\}>\
+      \{themeLabels[theme] || theme\}\
+    </Badge>\
+  )\
+\}\
+\
+// Badge de statut avec ic\'f4ne\
+export function StatusBadge(\{ \
+  status, \
+  ...props \
+\}: \{ \
+  status: 'active' | 'inactive' | 'pending' | 'error' | 'success' \
+\} & Omit<BadgeProps, 'variant' | 'dot'>) \{\
+  const statusConfig = \{\
+    active: \{ variant: 'success' as const, label: 'Actif' \},\
+    inactive: \{ variant: 'secondary' as const, label: 'Inactif' \},\
+    pending: \{ variant: 'warning' as const, label: 'En attente' \},\
+    error: \{ variant: 'danger' as const, label: 'Erreur' \},\
+    success: \{ variant: 'success' as const, label: 'R\'e9ussi' \},\
+  \}\
+\
+  const config = statusConfig[status]\
+\
+  return (\
+    <Badge variant=\{config.variant\} dot \{...props\}>\
+      \{config.label\}\
+    </Badge>\
+  )\
+\}}
