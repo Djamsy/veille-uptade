@@ -315,6 +315,167 @@ async def affair_system_health():
     return _svc().health_check()
 
 
+@router.get("/dashboard/enriched")
+async def enriched_dashboard():
+    """Dashboard enrichi avec stats détaillées, couverture, tendances."""
+    svc = _svc()
+    from datetime import timedelta
+    from collections import Counter
+
+    now = datetime.utcnow()
+
+    # ── Affaires actives ──
+    active_affairs = list(
+        svc.affairs.find({"status": "active"}).sort("bmg", -1).limit(20)
+    )
+    for a in active_affairs:
+        a["_id"] = str(a["_id"])
+        for k in ("created_at", "last_activity", "promoted_at"):
+            if k in a and hasattr(a[k], "isoformat"):
+                a[k] = a[k].isoformat()
+
+    # ── Stats de couverture (7 jours) ──
+    cutoff_7d = (now - timedelta(days=7)).isoformat()
+    total_articles_7d = svc.articles.count_documents({"scraped_at": {"$gte": cutoff_7d}})
+    enriched_articles_7d = svc.articles.count_documents({
+        "scraped_at": {"$gte": cutoff_7d},
+        "_analysis_method": {"$exists": True},
+    })
+    affiliated_articles_7d = svc.articles.count_documents({
+        "scraped_at": {"$gte": cutoff_7d},
+        "_affair_processed": True,
+    })
+    total_transcriptions_7d = svc.transcriptions.count_documents({
+        "captured_at": {"$gte": cutoff_7d}
+    })
+    processed_transcriptions_7d = svc.transcriptions.count_documents({
+        "captured_at": {"$gte": cutoff_7d},
+        "_affair_processed": True,
+    })
+
+    # ── Taux d'affiliation ──
+    affiliation_rate = round(
+        (affiliated_articles_7d / total_articles_7d * 100) if total_articles_7d > 0 else 0, 1
+    )
+    enrichment_rate = round(
+        (enriched_articles_7d / total_articles_7d * 100) if total_articles_7d > 0 else 0, 1
+    )
+    radio_rate = round(
+        (processed_transcriptions_7d / total_transcriptions_7d * 100)
+        if total_transcriptions_7d > 0 else 0, 1
+    )
+
+    # ── Répartition thématique des affaires ──
+    theme_counter = Counter()
+    for a in active_affairs:
+        theme_counter[a.get("theme", "general")] += 1
+    themes_distribution = dict(theme_counter.most_common(10))
+
+    # ── Top entités (les plus citées dans les affaires actives) ──
+    entity_counter = Counter()
+    for a in active_affairs:
+        for e in (a.get("elected", []) or []):
+            if e and len(e) > 2:
+                entity_counter[e] += 1
+        for e in (a.get("institutions", []) or []):
+            if e and len(e) > 2:
+                entity_counter[e] += 1
+    top_entities = [{"name": name, "count": count} for name, count in entity_counter.most_common(15)]
+
+    # ── Activité par jour (7 derniers jours) ──
+    daily_activity = []
+    for i in range(7):
+        day = now - timedelta(days=6 - i)
+        day_start = day.replace(hour=0, minute=0, second=0).isoformat()
+        day_end = day.replace(hour=23, minute=59, second=59).isoformat()
+        articles_count = svc.articles.count_documents({
+            "scraped_at": {"$gte": day_start, "$lte": day_end}
+        })
+        events_count = svc.timeline.count_documents({
+            "timestamp": {"$gte": datetime(day.year, day.month, day.day),
+                          "$lt": datetime(day.year, day.month, day.day) + timedelta(days=1)}
+        })
+        daily_activity.append({
+            "date": day.strftime("%Y-%m-%d"),
+            "label": day.strftime("%a %d"),
+            "articles": articles_count,
+            "events": events_count,
+        })
+
+    # ── Articles récents non affiliés (orphelins) ──
+    orphan_articles = list(
+        svc.articles.find({
+            "scraped_at": {"$gte": cutoff_7d},
+            "_analysis_method": {"$exists": True},
+            "$or": [
+                {"_affair_processed": {"$exists": False}},
+                {"_affair_processed": False},
+            ],
+        })
+        .sort("scraped_at", -1)
+        .limit(10)
+    )
+    orphans_serialized = []
+    for art in orphan_articles:
+        orphans_serialized.append({
+            "_id": str(art["_id"]),
+            "title": art.get("title", "Sans titre")[:100],
+            "source": art.get("source", ""),
+            "theme": art.get("theme", "general"),
+            "gravity_score": art.get("gravity_score", 0),
+            "scraped_at": art.get("scraped_at", ""),
+        })
+
+    # ── Alertes critiques ──
+    critical = [a for a in active_affairs if a.get("bmg", 0) >= 0.55]
+
+    # ── Stats pipeline ──
+    health = svc.health_check()
+
+    # ── Dernières actions du cycle ──
+    recent_timeline = list(
+        svc.timeline.find({}).sort("timestamp", -1).limit(10)
+    )
+    for t in recent_timeline:
+        t["_id"] = str(t["_id"])
+        if hasattr(t.get("timestamp"), "isoformat"):
+            t["timestamp"] = t["timestamp"].isoformat()
+
+    # ── Sources actives ──
+    source_counter = Counter()
+    for art in svc.articles.find(
+        {"scraped_at": {"$gte": cutoff_7d}},
+        {"source": 1}
+    ).limit(500):
+        src = art.get("source", "Inconnu")
+        if src:
+            source_counter[src] += 1
+    top_sources = [{"name": n, "count": c} for n, c in source_counter.most_common(8)]
+
+    return {
+        "top_affairs": active_affairs,
+        "critical_alerts": critical,
+        "stats": health,
+        "coverage": {
+            "total_articles_7d": total_articles_7d,
+            "enriched_articles_7d": enriched_articles_7d,
+            "affiliated_articles_7d": affiliated_articles_7d,
+            "total_transcriptions_7d": total_transcriptions_7d,
+            "processed_transcriptions_7d": processed_transcriptions_7d,
+            "affiliation_rate": affiliation_rate,
+            "enrichment_rate": enrichment_rate,
+            "radio_rate": radio_rate,
+        },
+        "themes_distribution": themes_distribution,
+        "top_entities": top_entities,
+        "daily_activity": daily_activity,
+        "orphan_articles": orphans_serialized,
+        "recent_timeline": recent_timeline,
+        "top_sources": top_sources,
+        "timestamp": now.isoformat(),
+    }
+
+
 @router.post("/purge-v1")
 async def purge_v1_affairs():
     """Supprime les affaires créées par le V1 (sans promoted_at)

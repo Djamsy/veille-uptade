@@ -4,10 +4,21 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import Sidebar from '../components/Sidebar'
 import BmgGauge from '../components/BmgGauge'
-import { fetchDashboard, fetchAffairSystemHealth, runFullCycle, type DashboardData, type SystemStats, type Affair } from '../lib/api'
+import {
+  fetchEnrichedDashboard,
+  runFullCycle,
+  type EnrichedDashboardData,
+  type Affair,
+  type DailyActivity,
+  type TopEntity,
+  type TopSource,
+  type OrphanArticle,
+  type TimelineEvent,
+} from '../lib/api'
 
 // ── Helpers ──────────────────────────────────────────────
 function timeAgo(dateStr: string): string {
+  if (!dateStr) return ''
   const now = Date.now()
   const then = new Date(dateStr).getTime()
   const diff = Math.floor((now - then) / 1000)
@@ -20,9 +31,12 @@ function timeAgo(dateStr: string): string {
 function themeLabel(theme: string): string {
   const map: Record<string, string> = {
     politique: 'Politique', economie: 'Économie', social: 'Social',
+    economie_emploi: 'Économie', eau_env: 'Environnement',
+    energie_transports: 'Transports', sante_social: 'Santé',
+    securite_justice: 'Justice', education: 'Éducation',
+    culture_patrimoine: 'Culture', sport: 'Sport', general: 'Général',
     environnement: 'Environnement', sante: 'Santé', justice: 'Justice',
-    education: 'Éducation', culture: 'Culture', sport: 'Sport',
-    securite: 'Sécurité', infrastructure: 'Infrastructure', general: 'Général',
+    culture: 'Culture', securite: 'Sécurité', infrastructure: 'Infra',
   }
   return map[theme] || theme
 }
@@ -31,25 +45,64 @@ function themeColor(theme: string): string {
   const map: Record<string, string> = {
     politique: 'bg-purple-100 text-purple-700 border-purple-200',
     economie: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    economie_emploi: 'bg-emerald-100 text-emerald-700 border-emerald-200',
     social: 'bg-blue-100 text-blue-700 border-blue-200',
+    sante_social: 'bg-rose-100 text-rose-700 border-rose-200',
     environnement: 'bg-green-100 text-green-700 border-green-200',
+    eau_env: 'bg-green-100 text-green-700 border-green-200',
+    energie_transports: 'bg-orange-100 text-orange-700 border-orange-200',
     sante: 'bg-rose-100 text-rose-700 border-rose-200',
     justice: 'bg-amber-100 text-amber-700 border-amber-200',
     securite: 'bg-red-100 text-red-700 border-red-200',
+    securite_justice: 'bg-red-100 text-red-700 border-red-200',
     education: 'bg-indigo-100 text-indigo-700 border-indigo-200',
     culture: 'bg-pink-100 text-pink-700 border-pink-200',
+    culture_patrimoine: 'bg-pink-100 text-pink-700 border-pink-200',
     sport: 'bg-cyan-100 text-cyan-700 border-cyan-200',
     infrastructure: 'bg-orange-100 text-orange-700 border-orange-200',
   }
   return map[theme] || 'bg-slate-100 text-slate-600 border-slate-200'
 }
 
-function alertBadge(niveau: string) {
-  const map: Record<string, string> = {
-    critique: 'badge-critical', élevé: 'badge-high',
-    modéré: 'badge-medium', faible: 'badge-low',
-  }
-  return map[niveau?.toLowerCase()] || 'badge-info'
+// ── Rate Bar ────────────────────────────────────────────
+function RateBar({ label, rate, count, total, color }: {
+  label: string; rate: number; count: number; total: number; color: string
+}) {
+  const barColor = rate >= 70 ? 'bg-emerald-500' : rate >= 40 ? 'bg-amber-500' : 'bg-red-400'
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-slate-600 font-medium">{label}</span>
+        <span className={`text-xs font-bold ${color}`}>{rate}%</span>
+      </div>
+      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full transition-all duration-500 ${barColor}`}
+          style={{ width: `${Math.min(100, rate)}%` }} />
+      </div>
+      <p className="text-[10px] text-slate-400">{count} / {total}</p>
+    </div>
+  )
+}
+
+// ── Mini Activity Chart ─────────────────────────────────
+function ActivityChart({ data }: { data: DailyActivity[] }) {
+  const maxArticles = Math.max(...data.map(d => d.articles), 1)
+  const maxEvents = Math.max(...data.map(d => d.events), 1)
+  return (
+    <div className="flex items-end gap-1.5 h-24">
+      {data.map((d, i) => (
+        <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
+          <div className="w-full flex flex-col-reverse gap-0.5" style={{ height: '72px' }}>
+            <div className="bg-teal-400 rounded-t-sm transition-all duration-300"
+              style={{ height: `${(d.articles / maxArticles) * 100}%`, minHeight: d.articles > 0 ? '3px' : '0' }} />
+            <div className="bg-purple-400 rounded-t-sm transition-all duration-300"
+              style={{ height: `${(d.events / maxEvents) * 40}%`, minHeight: d.events > 0 ? '2px' : '0' }} />
+          </div>
+          <span className="text-[9px] text-slate-400 leading-none">{d.label.split(' ')[0]}</span>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 // ── Skeleton ──────────────────────────────────────────────
@@ -63,33 +116,12 @@ function SkeletonCard() {
   )
 }
 
-// ── Stat Card ────────────────────────────────────────────
-function StatCard({ label, value, sub, color = 'text-slate-800', icon }: {
-  label: string; value: string | number; sub?: string; color?: string;
-  icon: React.ReactNode
-}) {
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 p-5 card-hover shadow-sm">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">{label}</p>
-          <p className={`text-2xl font-bold ${color}`}>{value}</p>
-          {sub && <p className="text-xs text-slate-400 mt-1">{sub}</p>}
-        </div>
-        <div className="p-2 bg-slate-50 rounded-lg text-slate-400">
-          {icon}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ── Affair Card ──────────────────────────────────────────
 function AffairCard({ affair }: { affair: Affair }) {
   return (
     <Link href={`/affairs/${affair._id}`}>
-      <div className="bg-white rounded-xl border border-slate-200 p-5 card-hover cursor-pointer shadow-sm">
-        <div className="flex items-start justify-between gap-3 mb-4">
+      <div className="bg-white rounded-xl border border-slate-200 p-4 card-hover cursor-pointer shadow-sm">
+        <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex-1 min-w-0">
             <h3 className="text-sm font-semibold text-slate-800 truncate">
               {affair.title || affair.primary_entity || 'Affaire'}
@@ -100,23 +132,23 @@ function AffairCard({ affair }: { affair: Affair }) {
                 : timeAgo(affair.last_activity || affair.created_at)}
             </p>
           </div>
-          <BmgGauge value={affair.bmg || 0} size={64} />
+          <BmgGauge value={affair.bmg || 0} size={52} />
         </div>
-        <div className="flex flex-wrap gap-1.5 mb-3">
-          <span className={`badge border ${themeColor(affair.theme)}`}>
+        <div className="flex flex-wrap gap-1 mb-2">
+          <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${themeColor(affair.theme)}`}>
             {themeLabel(affair.theme)}
           </span>
-          {affair.bmg_details?.niveau_alerte && (
-            <span className={`badge ${alertBadge(affair.bmg_details.niveau_alerte)}`}>
-              {affair.bmg_details.niveau_alerte}
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-200">
+            {affair.item_count || 0} items
+          </span>
+          {(affair.source_types?.length || 0) >= 2 && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-teal-50 text-teal-600 border border-teal-200">
+              multi-canal
             </span>
           )}
-          <span className="badge bg-slate-100 text-slate-500 border border-slate-200">
-            {affair.source_types?.length || 0} canaux
-          </span>
         </div>
-        <div className="flex items-center justify-between text-xs text-slate-400">
-          <span>{affair.item_count || 0} items</span>
+        <div className="flex items-center justify-between text-[10px] text-slate-400">
+          <span>Gravité {Math.round((affair.gravity_score || 0) * 100)}%</span>
           <span>{timeAgo(affair.last_activity || affair.created_at)}</span>
         </div>
       </div>
@@ -128,21 +160,39 @@ function AffairCard({ affair }: { affair: Affair }) {
 function AlertRow({ affair }: { affair: Affair }) {
   return (
     <Link href={`/affairs/${affair._id}`}>
-      <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-red-50 border border-red-200 hover:bg-red-100 transition-colors cursor-pointer">
+      <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg bg-red-50 border border-red-200 hover:bg-red-100 transition-colors cursor-pointer">
         <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-slate-800 truncate">
             {affair.title || affair.primary_entity}
           </p>
-          <p className="text-xs text-slate-500">
-            BMG {Math.round(affair.bmg || 0)} — {themeLabel(affair.theme)}
-          </p>
         </div>
-        <div className="text-xs text-red-600 font-medium flex-shrink-0">
-          {affair.bmg_details?.niveau_alerte || 'alerte'}
-        </div>
+        <span className="text-xs text-red-600 font-medium flex-shrink-0">
+          BMG {Math.round(affair.bmg || 0)}
+        </span>
       </div>
     </Link>
+  )
+}
+
+// ── Timeline Event ───────────────────────────────────────
+function TimelineItem({ event }: { event: TimelineEvent }) {
+  const iconMap: Record<string, string> = {
+    created: '🆕', article_added: '📰', radio_topic_added: '📻',
+    gravity_update: '📊', archived: '📦', expired: '⏰',
+  }
+  return (
+    <div className="flex items-start gap-2 py-1.5">
+      <span className="text-xs flex-shrink-0">{iconMap[event.event] || '•'}</span>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs text-slate-600 truncate">
+          {(event.details as Record<string, string>)?.title ||
+           (event.details as Record<string, string>)?.reason ||
+           event.event}
+        </p>
+        <p className="text-[10px] text-slate-400">{timeAgo(event.timestamp)}</p>
+      </div>
+    </div>
   )
 }
 
@@ -150,8 +200,7 @@ function AlertRow({ affair }: { affair: Affair }) {
 // MAIN DASHBOARD
 // ════════════════════════════════════════════════════════════
 export default function DashboardPage() {
-  const [dashboard, setDashboard] = useState<DashboardData | null>(null)
-  const [health, setHealth] = useState<SystemStats | null>(null)
+  const [data, setData] = useState<EnrichedDashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [cycleRunning, setCycleRunning] = useState(false)
@@ -159,29 +208,25 @@ export default function DashboardPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [dash, hlth] = await Promise.allSettled([
-        fetchDashboard(),
-        fetchAffairSystemHealth(),
-      ])
-      if (dash.status === 'fulfilled') { setDashboard(dash.value); setError('') }
-      else { setError('Impossible de charger le dashboard') }
-      if (hlth.status === 'fulfilled') { setHealth(hlth.value) }
+      const result = await fetchEnrichedDashboard()
+      setData(result)
+      setError('')
       setLastRefresh(new Date())
-    } catch (e: any) {
-      setError(e.message || 'Erreur de connexion')
+    } catch (e: unknown) {
+      setError((e as Error).message || 'Erreur de connexion')
     } finally { setLoading(false) }
   }, [])
 
   useEffect(() => {
     loadData()
-    const interval = setInterval(loadData, 60_000)
+    const interval = setInterval(loadData, 90_000)
     return () => clearInterval(interval)
   }, [loadData])
 
   const handleRunCycle = async () => {
     setCycleRunning(true)
     try { await runFullCycle(); await loadData() }
-    catch (e: any) { console.error('Cycle error:', e) }
+    catch (e: unknown) { console.error('Cycle error:', e) }
     finally { setCycleRunning(false) }
   }
 
@@ -192,8 +237,8 @@ export default function DashboardPage() {
         <main className="ml-64 flex-1 p-8 min-h-screen bg-[#faf9f6]">
           <div className="max-w-7xl mx-auto">
             <div className="skeleton h-8 w-48 mb-8" />
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-              {[...Array(5)].map((_, i) => <SkeletonCard key={i} />)}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+              {[...Array(4)].map((_, i) => <SkeletonCard key={i} />)}
             </div>
           </div>
         </main>
@@ -201,135 +246,290 @@ export default function DashboardPage() {
     )
   }
 
-  const topAffairs = dashboard?.top_affairs || []
-  const criticals = dashboard?.critical_alerts || []
-  const stats = dashboard?.stats || health
+  const topAffairs = data?.top_affairs || []
+  const criticals = data?.critical_alerts || []
+  const stats = data?.stats
+  const coverage = data?.coverage
+  const themes = data?.themes_distribution || {}
+  const entities = data?.top_entities || []
+  const activity = data?.daily_activity || []
+  const orphans = data?.orphan_articles || []
+  const timeline = data?.recent_timeline || []
+  const sources = data?.top_sources || []
 
   return (
     <div className="flex">
       <Sidebar />
-      <main className="ml-64 flex-1 p-8 min-h-screen bg-[#faf9f6]">
-        <div className="max-w-7xl mx-auto animate-fade-in">
+      <main className="ml-64 flex-1 p-6 min-h-screen bg-[#faf9f6]">
+        <div className="max-w-[1400px] mx-auto animate-fade-in">
 
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-2xl font-bold text-slate-800">Tableau de bord</h1>
-              <p className="text-sm text-slate-500 mt-0.5">
-                Dernière mise à jour : {lastRefresh.toLocaleTimeString('fr-FR')}
+              <p className="text-xs text-slate-400 mt-0.5">
+                MAJ : {lastRefresh.toLocaleTimeString('fr-FR')} — 7 derniers jours
               </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <button onClick={loadData}
-                className="px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition-colors shadow-sm">
-                <svg className="w-4 h-4 inline mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Rafraîchir
+                className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-500 text-xs hover:bg-slate-50 transition-colors shadow-sm">
+                ↻ Rafraîchir
               </button>
               <button onClick={handleRunCycle} disabled={cycleRunning}
-                className="px-4 py-2 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-sm font-medium transition-colors disabled:opacity-50 shadow-sm">
-                {cycleRunning ? (
-                  <><svg className="w-4 h-4 inline mr-1.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                  </svg>Cycle en cours...</>
-                ) : 'Lancer le cycle complet'}
+                className="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-medium transition-colors disabled:opacity-50 shadow-sm">
+                {cycleRunning ? '⟳ Cycle en cours...' : '▶ Lancer le cycle'}
               </button>
             </div>
           </div>
 
           {error && (
-            <div className="mb-6 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">{error}</div>
+            <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">{error}</div>
           )}
 
+          {/* Alertes critiques */}
           {criticals.length > 0 && (
-            <div className="mb-8">
-              <div className="flex items-center gap-2 mb-3">
+            <div className="mb-6">
+              <div className="flex items-center gap-2 mb-2">
                 <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                <h2 className="text-sm font-semibold text-red-600 uppercase tracking-wider">
-                  Alertes critiques ({criticals.length})
+                <h2 className="text-xs font-semibold text-red-600 uppercase tracking-wider">
+                  Alertes ({criticals.length})
                 </h2>
               </div>
-              <div className="space-y-2">
-                {criticals.slice(0, 5).map((a) => <AlertRow key={a._id} affair={a} />)}
+              <div className="space-y-1.5">
+                {criticals.slice(0, 3).map((a) => <AlertRow key={a._id} affair={a} />)}
               </div>
             </div>
           )}
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-            <StatCard label="Affaires actives" value={stats?.affairs_active ?? '—'}
-              sub={`${stats?.affairs_stale ?? 0} en veille`} color="text-teal-600"
-              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>} />
-            <StatCard label="Clusters" value={stats?.clusters_active ?? '—'}
-              sub="groupes détectés" color="text-purple-600"
-              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>} />
-            <StatCard label="Candidats" value={stats?.candidates_total ?? '—'}
-              sub={`${stats?.candidates_unclustered ?? 0} non classés`} color="text-amber-600"
-              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>} />
-            <StatCard label="Système" value={stats?.status === 'healthy' ? 'OK' : stats?.status ?? '—'}
-              color={stats?.status === 'healthy' ? 'text-emerald-600' : 'text-red-600'}
-              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>} />
-            <StatCard label="Top BMG" value={topAffairs.length > 0 ? Math.round(topAffairs[0]?.bmg || 0) : '—'}
-              sub={topAffairs.length > 0 ? (topAffairs[0]?.title || '').slice(0, 25) : 'Aucune affaire'}
-              color={(topAffairs[0]?.bmg || 0) >= 75 ? 'text-red-600' : (topAffairs[0]?.bmg || 0) >= 50 ? 'text-orange-600' : (topAffairs[0]?.bmg || 0) >= 25 ? 'text-yellow-600' : 'text-emerald-600'}
-              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>} />
-          </div>
-
-          {/* Top Affaires Grid */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-slate-800">Affaires majeures</h2>
-              <Link href="/affairs" className="text-sm text-teal-600 hover:text-teal-500 transition-colors">Voir tout →</Link>
+          {/* ── ROW 1 : Métriques clés ─────────────────── */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Affaires actives</p>
+              <p className="text-3xl font-bold text-teal-600">{stats?.affairs_active ?? 0}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">{stats?.affairs_stale ?? 0} en veille</p>
             </div>
-            {topAffairs.length === 0 ? (
-              <div className="bg-white/60 rounded-xl border border-slate-200 p-12 text-center shadow-sm">
-                <svg className="w-12 h-12 mx-auto text-slate-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                </svg>
-                <p className="text-slate-500 text-sm">Aucune affaire active pour le moment</p>
-                <p className="text-slate-400 text-xs mt-1">Lancez le cycle complet pour détecter de nouvelles affaires</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {topAffairs.slice(0, 9).map((affair) => <AffairCard key={affair._id} affair={affair} />)}
-              </div>
-            )}
+            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Articles 7j</p>
+              <p className="text-3xl font-bold text-slate-800">{coverage?.total_articles_7d ?? 0}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">{coverage?.enriched_articles_7d ?? 0} enrichis</p>
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Taux affiliation</p>
+              <p className={`text-3xl font-bold ${
+                (coverage?.affiliation_rate ?? 0) >= 60 ? 'text-emerald-600' :
+                (coverage?.affiliation_rate ?? 0) >= 30 ? 'text-amber-600' : 'text-red-500'
+              }`}>{coverage?.affiliation_rate ?? 0}%</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">{coverage?.affiliated_articles_7d ?? 0} affiliés</p>
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Radio 7j</p>
+              <p className="text-3xl font-bold text-purple-600">{coverage?.total_transcriptions_7d ?? 0}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">{coverage?.radio_rate ?? 0}% traités</p>
+            </div>
           </div>
 
-          {/* Pipeline Status */}
+          {/* ── ROW 2 : Couverture + Activité ─────────── */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+            {/* Taux de couverture */}
+            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">Couverture pipeline</h2>
+              <div className="space-y-4">
+                <RateBar label="Enrichissement IA" rate={coverage?.enrichment_rate ?? 0}
+                  count={coverage?.enriched_articles_7d ?? 0} total={coverage?.total_articles_7d ?? 0}
+                  color="text-blue-600" />
+                <RateBar label="Affiliation aux affaires" rate={coverage?.affiliation_rate ?? 0}
+                  count={coverage?.affiliated_articles_7d ?? 0} total={coverage?.total_articles_7d ?? 0}
+                  color="text-teal-600" />
+                <RateBar label="Radio traitées" rate={coverage?.radio_rate ?? 0}
+                  count={coverage?.processed_transcriptions_7d ?? 0} total={coverage?.total_transcriptions_7d ?? 0}
+                  color="text-purple-600" />
+              </div>
+            </div>
+
+            {/* Activité 7 jours */}
+            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">Activité 7 jours</h2>
+              {activity.length > 0 ? (
+                <>
+                  <ActivityChart data={activity} />
+                  <div className="flex items-center gap-4 mt-3 justify-center">
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 rounded-full bg-teal-400" />
+                      <span className="text-[10px] text-slate-400">Articles</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 rounded-full bg-purple-400" />
+                      <span className="text-[10px] text-slate-400">Événements</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs text-slate-400 text-center py-8">Pas de données</p>
+              )}
+            </div>
+
+            {/* Répartition thématique + sources */}
+            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Thèmes des affaires</h2>
+              {Object.keys(themes).length > 0 ? (
+                <div className="space-y-2 mb-4">
+                  {Object.entries(themes).map(([theme, count]) => {
+                    const maxCount = Math.max(...Object.values(themes))
+                    return (
+                      <div key={theme} className="flex items-center gap-2">
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded border ${themeColor(theme)} flex-shrink-0`}>
+                          {themeLabel(theme)}
+                        </span>
+                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-teal-400 rounded-full"
+                            style={{ width: `${(count / maxCount) * 100}%` }} />
+                        </div>
+                        <span className="text-[10px] text-slate-400 w-4 text-right">{count}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400 mb-4">Aucune affaire active</p>
+              )}
+
+              {sources.length > 0 && (
+                <>
+                  <h3 className="text-[10px] text-slate-400 uppercase tracking-wider mb-2 pt-3 border-t border-slate-100">
+                    Sources actives 7j
+                  </h3>
+                  <div className="flex flex-wrap gap-1">
+                    {sources.map((s, i) => (
+                      <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-200">
+                        {s.name} ({s.count})
+                      </span>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* ── ROW 3 : Affaires + Sidebar ─────────────── */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+            {/* Affaires majeures (3 cols) */}
+            <div className="lg:col-span-3">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-semibold text-slate-700">Affaires majeures</h2>
+                <Link href="/affairs" className="text-xs text-teal-600 hover:text-teal-500 transition-colors">
+                  Voir tout →
+                </Link>
+              </div>
+              {topAffairs.length === 0 ? (
+                <div className="bg-white/60 rounded-xl border border-slate-200 p-10 text-center shadow-sm">
+                  <p className="text-slate-400 text-sm">Aucune affaire active</p>
+                  <p className="text-slate-300 text-xs mt-1">Lancez le cycle pour détecter de nouvelles affaires</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {topAffairs.slice(0, 9).map((affair) => <AffairCard key={affair._id} affair={affair} />)}
+                </div>
+              )}
+            </div>
+
+            {/* Sidebar : Timeline + Entités */}
+            <div className="space-y-4">
+              {/* Timeline récente */}
+              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                <h3 className="text-[10px] text-slate-400 uppercase tracking-wider mb-2">Activité récente</h3>
+                {timeline.length > 0 ? (
+                  <div className="divide-y divide-slate-50">
+                    {timeline.slice(0, 8).map((evt) => (
+                      <TimelineItem key={evt._id} event={evt} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 py-4 text-center">Aucune activité</p>
+                )}
+              </div>
+
+              {/* Top entités */}
+              {entities.length > 0 && (
+                <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                  <h3 className="text-[10px] text-slate-400 uppercase tracking-wider mb-2">Top entités</h3>
+                  <div className="space-y-1">
+                    {entities.slice(0, 10).map((e, i) => (
+                      <div key={i} className="flex items-center justify-between">
+                        <span className="text-xs text-slate-600 truncate">{e.name}</span>
+                        <span className="text-[10px] text-slate-400 ml-2 flex-shrink-0">×{e.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── ROW 4 : Articles orphelins ─────────────── */}
+          {orphans.length > 0 && (
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-700">Articles non affiliés</h2>
+                  <p className="text-[10px] text-slate-400">Articles enrichis sans affaire — à surveiller</p>
+                </div>
+                <span className="text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-200">
+                  {orphans.length} orphelins
+                </span>
+              </div>
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="divide-y divide-slate-100">
+                  {orphans.map((art) => (
+                    <div key={art._id} className="flex items-center gap-3 px-4 py-2.5">
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded border flex-shrink-0 ${themeColor(art.theme)}`}>
+                        {themeLabel(art.theme)}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-slate-700 truncate">{art.title}</p>
+                        <p className="text-[10px] text-slate-400">{art.source} — {timeAgo(art.scraped_at)}</p>
+                      </div>
+                      <div className="flex-shrink-0 text-right">
+                        <p className="text-[10px] text-slate-400">gravité</p>
+                        <p className={`text-xs font-bold ${
+                          art.gravity_score >= 0.7 ? 'text-red-500' :
+                          art.gravity_score >= 0.4 ? 'text-amber-500' : 'text-slate-400'
+                        }`}>{Math.round(art.gravity_score * 100)}%</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── ROW 5 : Pipeline technique ─────────────── */}
           {stats && (
-            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-              <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wider mb-4">Pipeline</h2>
-              <div className="flex items-center gap-6 overflow-x-auto">
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  <div className="w-10 h-10 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center">
-                    <span className="text-sm font-bold text-amber-600">{stats.candidates_total ?? 0}</span>
+            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+              <h2 className="text-[10px] text-slate-400 uppercase tracking-wider mb-3">Pipeline technique</h2>
+              <div className="flex items-center gap-4 overflow-x-auto">
+                {[
+                  { label: 'Candidats', value: stats.candidates_total, sub: 'Ingestion', color: 'amber' },
+                  { label: 'Non classés', value: stats.candidates_unclustered, sub: 'En attente', color: 'red' },
+                  { label: 'Clusters', value: stats.clusters_active, sub: 'Groupement', color: 'purple' },
+                  { label: 'Affaires', value: stats.affairs_active, sub: 'Promues', color: 'teal' },
+                  { label: 'En veille', value: stats.affairs_stale, sub: 'Archivage', color: 'slate' },
+                ].map((step, i, arr) => (
+                  <div key={i} className="flex items-center gap-3 flex-shrink-0">
+                    <div className={`w-9 h-9 rounded-full bg-${step.color}-50 border border-${step.color}-200 flex items-center justify-center`}>
+                      <span className={`text-xs font-bold text-${step.color}-600`}>{step.value ?? 0}</span>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-medium text-slate-600">{step.label}</p>
+                      <p className="text-[9px] text-slate-400">{step.sub}</p>
+                    </div>
+                    {i < arr.length - 1 && (
+                      <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    )}
                   </div>
-                  <div><p className="text-xs font-medium text-slate-600">Candidats</p><p className="text-[10px] text-slate-400">Ingestion</p></div>
-                </div>
-                <svg className="w-5 h-5 text-slate-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  <div className="w-10 h-10 rounded-full bg-purple-50 border border-purple-200 flex items-center justify-center">
-                    <span className="text-sm font-bold text-purple-600">{stats.clusters_active ?? 0}</span>
-                  </div>
-                  <div><p className="text-xs font-medium text-slate-600">Clusters</p><p className="text-[10px] text-slate-400">Regroupement</p></div>
-                </div>
-                <svg className="w-5 h-5 text-slate-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  <div className="w-10 h-10 rounded-full bg-teal-50 border border-teal-200 flex items-center justify-center">
-                    <span className="text-sm font-bold text-teal-600">{stats.affairs_active ?? 0}</span>
-                  </div>
-                  <div><p className="text-xs font-medium text-slate-600">Affaires</p><p className="text-[10px] text-slate-400">Promues</p></div>
-                </div>
-                <svg className="w-5 h-5 text-slate-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  <div className="w-10 h-10 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center">
-                    <span className="text-sm font-bold text-slate-500">{stats.affairs_stale ?? 0}</span>
-                  </div>
-                  <div><p className="text-xs font-medium text-slate-600">En veille</p><p className="text-[10px] text-slate-400">Archivage</p></div>
-                </div>
+                ))}
               </div>
             </div>
           )}

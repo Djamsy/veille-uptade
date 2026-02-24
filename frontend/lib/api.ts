@@ -81,6 +81,57 @@ export interface DashboardData {
   timestamp: string;
 }
 
+export interface CoverageStats {
+  total_articles_7d: number;
+  enriched_articles_7d: number;
+  affiliated_articles_7d: number;
+  total_transcriptions_7d: number;
+  processed_transcriptions_7d: number;
+  affiliation_rate: number;
+  enrichment_rate: number;
+  radio_rate: number;
+}
+
+export interface DailyActivity {
+  date: string;
+  label: string;
+  articles: number;
+  events: number;
+}
+
+export interface TopEntity {
+  name: string;
+  count: number;
+}
+
+export interface TopSource {
+  name: string;
+  count: number;
+}
+
+export interface OrphanArticle {
+  _id: string;
+  title: string;
+  source: string;
+  theme: string;
+  gravity_score: number;
+  scraped_at: string;
+}
+
+export interface EnrichedDashboardData {
+  top_affairs: Affair[];
+  critical_alerts: Affair[];
+  stats: SystemStats;
+  coverage: CoverageStats;
+  themes_distribution: Record<string, number>;
+  top_entities: TopEntity[];
+  daily_activity: DailyActivity[];
+  orphan_articles: OrphanArticle[];
+  recent_timeline: TimelineEvent[];
+  top_sources: TopSource[];
+  timestamp: string;
+}
+
 export interface SystemStats {
   status: string;
   candidates_total: number;
@@ -175,6 +226,9 @@ export interface RadioCardsResponse {
 // --- Dashboard ---
 export const fetchDashboard = () =>
   apiFetch<DashboardData>('/api/affairs/dashboard');
+
+export const fetchEnrichedDashboard = () =>
+  apiFetch<EnrichedDashboardData>('/api/affairs/dashboard/enriched');
 
 // --- Affaires ---
 export const fetchAffairs = (status = 'active', limit = 30, sortBy = 'bmg') =>
