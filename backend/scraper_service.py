@@ -30,6 +30,70 @@ except:
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
+# ============================================================
+# Filtre de pertinence Guadeloupe — rejette les articles hors-sujet
+# ============================================================
+_GUADELOUPE_KEYWORDS = {
+    "guadeloupe", "guadeloupeen", "guadeloupeenne", "guadeloupéen", "guadeloupéenne",
+    "antilles", "antillais", "antillaise", "caraibes", "caraibe",
+    "pointe-a-pitre", "pointe a pitre", "basse-terre", "basse terre",
+    "les abymes", "abymes", "le gosier", "gosier", "sainte-anne", "saint-francois",
+    "le moule", "petit-bourg", "baie-mahault", "lamentin", "capesterre",
+    "marie-galante", "les saintes", "la desirade", "desirade", "terre-de-haut",
+    "bouillante", "deshaies", "trois-rivieres", "gourbeyre", "vieux-habitants",
+    "jarry", "dothémare", "grand-camp", "bergevin", "fouillole",
+    "martinique", "guyane", "reunion", "mayotte", "outre-mer", "outremer",
+    "dom-tom", "drom-com",
+    # Institutions locales
+    "smgeag", "siaeag", "chu guadeloupe", "prefecture guadeloupe",
+    "conseil departemental", "conseil regional", "rectorat guadeloupe",
+    # Sujets typiquement antillais
+    "sargasse", "sargasses", "chlordecone", "chlordécone",
+    "cyclone", "ouragan", "gwo ka", "gwoka", "carnaval",
+    "canne a sucre", "campagne sucriere", "banane", "rhum",
+}
+
+def _is_guadeloupe_relevant(title: str, content: str, url: str = "") -> bool:
+    """
+    Vérifie si un article concerne la Guadeloupe / Antilles.
+    Retourne True si au moins un mot-clé local est trouvé.
+    Pour les sites déjà locaux (France-Antilles Guadeloupe, RCI, KaribInfo),
+    on est plus permissif (accepte tout sauf les articles clairement internationaux).
+    """
+    text = f"{title} {content[:1500]}".lower()
+    # Supprimer les accents pour matching plus souple
+    import unicodedata
+    text_norm = unicodedata.normalize("NFKD", text)
+    text_norm = "".join(ch for ch in text_norm if not unicodedata.combining(ch))
+
+    # Vérifier la présence de mots-clés locaux
+    for kw in _GUADELOUPE_KEYWORDS:
+        kw_norm = unicodedata.normalize("NFKD", kw)
+        kw_norm = "".join(ch for ch in kw_norm if not unicodedata.combining(ch))
+        if kw_norm in text_norm:
+            return True
+
+    # Mots-clés d'exclusion forte (article clairement hors-zone)
+    _INTL_EXCLUSIONS = [
+        "ukraine", "russie", "gaza", "israel", "palestine", "liban",
+        "venezuela", "mexique", "philippines", "japon", "chine",
+        "etats-unis", "trump", "biden", "poutine", "zelensky",
+        "premier league", "champions league", "liga", "bundesliga", "serie a",
+    ]
+    intl_count = sum(1 for kw in _INTL_EXCLUSIONS if kw in text_norm)
+    if intl_count >= 2:
+        return False
+
+    # Si l'URL est d'un site local guadeloupéen, on accepte par défaut
+    # (les articles locaux ne mentionnent pas toujours "Guadeloupe" explicitement)
+    local_domains = ["guadeloupe.franceantilles.fr", "rci.fm/guadeloupe",
+                     "la1ere.franceinfo.fr/guadeloupe", "karibinfo.com"]
+    for domain in local_domains:
+        if domain in url:
+            return True
+
+    return False
+
 
 class GuadeloupeScraper:
     def __init__(self) -> None:
@@ -105,48 +169,84 @@ class GuadeloupeScraper:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "fr-FR,fr;q=0.9",
         }
+
+    @staticmethod
+    def _clean_url(url: str) -> str:
+        """Nettoie une URL en supprimant les paramètres de tracking (utm_*, fbclid, etc.)"""
+        parsed = urlparse(url)
+        # Supprimer les query params de tracking
+        if parsed.query:
+            from urllib.parse import parse_qs, urlencode
+            params = parse_qs(parsed.query)
+            clean_params = {k: v for k, v in params.items()
+                           if not k.startswith("utm_") and k not in ("fbclid", "gclid", "ref", "source")}
+            clean_query = urlencode(clean_params, doseq=True)
+            url = parsed._replace(query=clean_query, fragment="").geturl()
+        else:
+            url = parsed._replace(fragment="").geturl()
+        # Supprimer le trailing slash
+        return url.rstrip("/")
     
     def extract_article_content(self, url: str, site_config: Dict) -> str:
         """
-        Extrait le contenu complet d'un article (3000 premiers mots)
+        Extrait le contenu ÉDITORIAL d'un article (3000 premiers mots).
+        Exclut : navigation, sidebar, footer, bylines auteur, publicités.
         """
         try:
             response = requests.get(url, headers=self.headers, timeout=10)
             response.raise_for_status()
             soup = BeautifulSoup(response.content, 'html.parser')
-            
-            # Essayer différents sélecteurs de contenu
+
+            # 1. Supprimer les éléments non-éditoriaux AVANT extraction
+            for tag in soup(["script", "style", "nav", "header", "footer",
+                             "aside", "iframe", "noscript", "form"]):
+                tag.decompose()
+
+            # Supprimer les blocs auteur/byline/signature/publicité
+            for cls_pattern in ["author", "byline", "signature", "credit",
+                                "pub", "advert", "social", "share", "comment",
+                                "related", "sidebar", "widget", "menu", "breadcrumb",
+                                "newsletter", "footer", "nav"]:
+                for el in soup.find_all(class_=re.compile(cls_pattern, re.I)):
+                    el.decompose()
+                for el in soup.find_all(id=re.compile(cls_pattern, re.I)):
+                    el.decompose()
+
+            # 2. Essayer les sélecteurs de contenu éditorial
             content = ""
             for selector in site_config.get('content_selectors', []):
                 elements = soup.select(selector)
                 if elements:
-                    # Prendre tous les paragraphes
                     paragraphs = []
                     for element in elements:
-                        for p in element.find_all(['p', 'div']):
+                        # Uniquement les paragraphes (pas les divs qui peuvent
+                        # contenir du bruit)
+                        for p in element.find_all('p'):
                             text = p.get_text(strip=True)
-                            if text and len(text) > 20:  # Ignorer les petits textes
+                            if text and len(text) > 30:
                                 paragraphs.append(text)
-                    
+
                     content = " ".join(paragraphs)
-                    if content:
+                    if len(content) > 100:
                         break
-            
-            # Si pas de contenu avec sélecteurs, prendre tout le texte
-            if not content:
-                # Enlever scripts et styles
-                for script in soup(["script", "style"]):
-                    script.decompose()
-                content = soup.get_text()
-            
-            # Nettoyer et limiter à 3000 mots
+
+            # 3. Fallback : tous les <p> du body
+            if not content or len(content) < 100:
+                paragraphs = []
+                for p in soup.find_all('p'):
+                    text = p.get_text(strip=True)
+                    if text and len(text) > 30:
+                        paragraphs.append(text)
+                content = " ".join(paragraphs)
+
+            # 4. Nettoyer et limiter à 3000 mots
             content = re.sub(r'\s+', ' ', content).strip()
             words = content.split()[:3000]
             content = " ".join(words)
-            
+
             logger.info(f"   📄 Contenu extrait: {len(words)} mots")
             return content
-            
+
         except Exception as e:
             logger.warning(f"   ⚠️ Erreur extraction contenu: {e}")
             return ""
@@ -197,38 +297,53 @@ class GuadeloupeScraper:
                     
                     if not href.startswith('http'):
                         href = urljoin(config['url'], href)
-                    
-                    # Vérifier si l'article existe déjà
+                    # Nettoyer l'URL (supprimer utm_*, fbclid, etc.)
+                    href = self._clean_url(href)
+
+                    # Vérifier si l'article existe déjà (URL nettoyée + titre)
                     article_id = hashlib.md5(f"{href}:{title}".encode()).hexdigest()[:12]
-                    if self.articles_collection.find_one({'article_id': article_id}):
+                    # Aussi vérifier par titre seul (même article, URL différente)
+                    title_hash = hashlib.md5(title.encode()).hexdigest()[:12]
+                    if (self.articles_collection.find_one({'article_id': article_id})
+                            or self.articles_collection.find_one({'title_hash': title_hash})):
                         logger.info(f"   ⏭️  Article {i}/{len(links)}: Déjà en base")
                         continue
                     
                     logger.info(f"   📰 Article {i}/{len(links)}: {title[:50]}...")
-                    
+
                     # EXTRAIRE LE CONTENU
                     content = self.extract_article_content(href, config)
-                    
+
+                    # FILTRE GUADELOUPE — rejeter les articles hors-zone
+                    if not _is_guadeloupe_relevant(title, content, href):
+                        logger.info(f"   🌍 HORS-ZONE ignoré: {title[:60]}")
+                        continue
+
                     article = {
                         'article_id': article_id,
+                        'title_hash': title_hash,
                         'title': title,
                         'url': href,
-                        'content': content,  # CONTENU AJOUTÉ
-                        'text': content,  # Pour compatibilité
+                        'content': content,
+                        'text': content,
                         'source': config['name'],
                         'site_key': site_key,
                         'date': datetime.now().strftime('%Y-%m-%d'),
                         'scraped_at': datetime.now(),
                         'word_count': len(content.split()) if content else 0
                     }
-                    
-                    # ENRICHIR AVEC TAGS_INDEX
-                    logger.info(f"   🔬 Enrichissement avec tags_index...")
+
+                    # ENRICHIR AVEC TAGS_INDEX (pré-enrichissement léger)
+                    # On marque comme "rules_preliminary" pour que job_enrich
+                    # puisse ré-enrichir avec l'IA plus tard
+                    logger.info(f"   🔬 Pré-enrichissement avec tags_index...")
                     enriched = infer_tags_and_theme(article)
                     article.update(enriched)
-                    
-                    logger.info(f"   ✅ Enrichi: {enriched.get('theme')} | {enriched.get('elected', [])} | Affaire: {enriched.get('is_affair')}")
-                    
+                    # Marquer comme pré-enrichissement (pas définitif)
+                    article["_analysis_method"] = "rules_preliminary"
+
+                    logger.info(f"   ✅ Enrichi: {enriched.get('theme')} | gravity: {enriched.get('gravity_score')} | {enriched.get('elected', [])}")
+
                     articles.append(article)
                     
                 except Exception as e:

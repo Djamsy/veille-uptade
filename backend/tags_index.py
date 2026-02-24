@@ -448,45 +448,56 @@ def detect_entities(text: str) -> Tuple[List[str], List[str]]:
     
     return personalities_found, institutions_found
 
-def detect_theme(text: str) -> Tuple[str, int]:
+def detect_theme(text: str, title: str = "") -> Tuple[str, int]:
     """
-    Détecte le thème principal avec regex
+    Détecte le thème principal avec regex.
+    Le titre a un poids x3 par rapport au contenu pour éviter
+    que du bruit dans les sidebars/footers ne pollue la classification.
     """
-    text_lower = text.lower()
+    text_lower = normalize(text)
+    title_lower = normalize(title) if title else ""
     theme_scores = {}
-    
+
     for theme, keywords in THEME_TAXONOMY.items():
         score = 0
         for kw in keywords:
             nkw = normalize(kw)
-            # Recherche mot entier
-            if re.search(rf"(?<![a-z0-9]){re.escape(nkw)}(?![a-z0-9])", text_lower):
+            pattern = rf"(?<![a-z0-9]){re.escape(nkw)}(?![a-z0-9])"
+            # Mot trouvé dans le titre → poids x3
+            if title_lower and re.search(pattern, title_lower):
+                score += 3
+            # Mot trouvé dans le contenu complet → poids x1
+            elif re.search(pattern, text_lower):
                 score += 1
         if score > 0:
             theme_scores[theme] = score
-    
+
     if theme_scores:
         best_theme = max(theme_scores.items(), key=lambda x: x[1])
         return best_theme[0], best_theme[1]
-    
+
     return "general", 0
 
 def calculate_gravity(text: str) -> Tuple[float, List[str]]:
     """
-    Calcule la gravité basée sur les mots-clés
+    Calcule la gravité basée sur les mots-clés avec matching STRICT (word boundary).
     Retourne (score_gravité, mots_clés_trouvés)
+
+    IMPORTANT: Utilise des regex word-boundary pour éviter les faux positifs.
+    Ex: "mort" ne matche PAS "importation" ou "amortissement"
     """
     text_lower = normalize(text)
     max_gravity = 0.0
     keywords_found = []
-    
+
     for keyword, gravity in KEYWORDS_GRAVITY.items():
         keyword_norm = normalize(keyword)
-        # Recherche exacte du mot-clé
-        if keyword_norm in text_lower:
+        # Recherche MOT ENTIER (word boundary) — pas de substring !
+        pattern = rf"(?<![a-z0-9]){re.escape(keyword_norm)}(?![a-z0-9])"
+        if re.search(pattern, text_lower):
             keywords_found.append(keyword)
             max_gravity = max(max_gravity, gravity)
-    
+
     return max_gravity, keywords_found
 
 def analyze_sentiment(text: str) -> str:
@@ -540,9 +551,9 @@ def infer_tags_and_theme(article: Dict[str, Any]) -> Dict[str, Any]:
     title = article.get("title", "")
     content = article.get("content", "") or article.get("text", "")
     full_text = f"{title} {content}"
-    
-    # Détection du thème
-    theme, theme_score = detect_theme(full_text)
+
+    # Détection du thème (titre pondéré x3)
+    theme, theme_score = detect_theme(full_text, title=title)
     
     # Détection des entités (personnalités + institutions)
     personalities, institutions = detect_entities(full_text)

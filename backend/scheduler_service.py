@@ -163,10 +163,15 @@ async def job_enrich():
         try:
             articles_col = _db["articles_guadeloupe"]
 
-            # Articles non enrichis (pas de champ _analysis_method) des 3 derniers jours
+            # Articles à enrichir : soit jamais enrichis, soit seulement pré-enrichis
+            # par règles (rules_preliminary) — l'IA peut faire mieux
             cutoff = (datetime.now() - timedelta(days=3)).isoformat()
             query = {
-                "_analysis_method": {"$exists": False},
+                "$or": [
+                    {"_analysis_method": {"$exists": False}},
+                    {"_analysis_method": "rules_preliminary"},
+                    {"_analysis_method": "rule_based_ultra_strict"},
+                ],
                 "scraped_at": {"$gte": cutoff}
             }
 
