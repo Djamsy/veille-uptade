@@ -1138,7 +1138,337 @@ class AffairLifecycleService:
         return stats
 
     # ============================================================
-    # SYSTÈME IA — Gestion directe des affaires par l'IA
+    # CYCLE SIMPLIFIÉ — Créer d'abord, consolider ensuite
+    # ============================================================
+    def run_simple_cycle(self) -> Dict[str, Any]:
+        """
+        Cycle simplifié et efficace :
+        1. Chaque article enrichi non traité → crée une affaire (ou fusionne si similaire)
+        2. Consolide : cherche dans les 24h si d'autres sources parlent du même sujet
+        3. Met à jour le lifecycle (stale/archive)
+        4. Recalcule BMG
+        """
+        if self.db is None:
+            return {"error": "no_db"}
+
+        logger.info("=" * 50)
+        logger.info("🔄 CYCLE SIMPLIFIÉ (créer → consolider)")
+        logger.info("=" * 50)
+
+        now = datetime.utcnow()
+        cutoff_3d = (now - timedelta(days=3)).isoformat()
+        stats = {
+            "method": "simple_cycle",
+            "created": 0,
+            "merged": 0,
+            "consolidated": 0,
+            "radio_linked": 0,
+        }
+
+        # ── ÉTAPE 1 : Récupérer les articles enrichis non traités ──
+        unprocessed = list(self.articles.find({
+            "scraped_at": {"$gte": cutoff_3d},
+            "_analysis_method": {"$exists": True},
+            "$or": [
+                {"_affair_processed": {"$exists": False}},
+                {"_affair_processed": False},
+            ],
+        }).sort("gravity_score", -1).limit(60))
+
+        logger.info(f"📰 {len(unprocessed)} articles non traités trouvés")
+
+        # Charger les affaires actives
+        active_affairs = list(self.affairs.find({"status": "active"}))
+
+        # ── ÉTAPE 2 : Pour chaque article → créer ou fusionner ──
+        for art in unprocessed:
+            art_id = str(art["_id"])
+            gravity = art.get("gravity_score", 0)
+
+            # Ignorer seulement les contenus vraiment anodins
+            if gravity < 0.15:
+                self.articles.update_one(
+                    {"_id": art["_id"]},
+                    {"$set": {"_affair_processed": True, "_affair_ignored": True}}
+                )
+                continue
+
+            art_elected = set(
+                e.lower().strip() for e in (art.get("elected", []) or []) if e and len(e) > 3
+            )
+            art_institutions = set(
+                e.lower().strip() for e in (art.get("institutions", []) or []) if e and len(e) > 3
+            )
+            art_entities = art_elected | art_institutions
+            art_theme = art.get("theme", "general")
+            art_title_words = set(
+                w.lower() for w in (art.get("title", "").split()) if len(w) > 4
+            )
+
+            # Chercher une affaire existante similaire
+            best_match = None
+            best_score = 0
+
+            for affair in active_affairs:
+                score = self._match_score(
+                    art_elected, art_institutions, art_entities,
+                    art_theme, art_title_words, affair
+                )
+                if score > best_score:
+                    best_score = score
+                    best_match = affair
+
+            if best_match and best_score >= 3:
+                # Fusionner avec l'affaire existante
+                self.affairs.update_one(
+                    {"_id": best_match["_id"]},
+                    {
+                        "$addToSet": {
+                            "articles": art_id,
+                            "sources": art.get("source", ""),
+                            "entities": {"$each": list(art_entities)[:10]},
+                        },
+                        "$inc": {"item_count": 1},
+                        "$set": {"last_activity": now},
+                        "$max": {"gravity_score": gravity},
+                    }
+                )
+                self.articles.update_one(
+                    {"_id": art["_id"]},
+                    {"$set": {"_affair_processed": True, "_affair_id": str(best_match["_id"])}}
+                )
+                stats["merged"] += 1
+            else:
+                # Créer une nouvelle affaire
+                title = art.get("title", "Nouvelle affaire")[:200]
+                new_affair = {
+                    "title": title,
+                    "description": (art.get("ai_summary", "") or "")[:300],
+                    "primary_entity": list(art_elected)[0] if art_elected else None,
+                    "entities": list(art_entities)[:20],
+                    "elected": list(art_elected)[:10],
+                    "institutions": list(art_institutions)[:10],
+                    "keywords": art.get("keywords_found", []) or [],
+                    "theme": art_theme,
+                    "gravity_score": round(max(gravity, 0.3), 3),
+                    "affair_type": self._classify_affair_type_by_gravity(gravity),
+                    "status": "active",
+                    "articles": [art_id],
+                    "radio_transcriptions": [],
+                    "social_posts": [],
+                    "sources": [art.get("source", "")],
+                    "source_types": ["article"],
+                    "item_count": 1,
+                    "created_at": now,
+                    "last_activity": now,
+                    "promoted_at": now,
+                    "bmg": 0, "bmg_details": {}, "bmg_history": [],
+                    "ai_managed": False,
+                    "_creation_method": "simple_cycle",
+                }
+                result = self.affairs.insert_one(new_affair)
+                new_id = str(result.inserted_id)
+                new_affair["_id"] = result.inserted_id
+
+                self.articles.update_one(
+                    {"_id": art["_id"]},
+                    {"$set": {"_affair_processed": True, "_affair_id": new_id}}
+                )
+                self.timeline.insert_one({
+                    "affair_id": new_id,
+                    "event": "created",
+                    "details": {"method": "simple_cycle", "title": title[:80],
+                                "source": art.get("source", ""), "gravity": gravity},
+                    "timestamp": now,
+                })
+                active_affairs.append(new_affair)
+                stats["created"] += 1
+                logger.info(f"🆕 Affaire: '{title[:50]}' (gravity={gravity:.2f}, source={art.get('source', '')})")
+
+        # ── ÉTAPE 3 : Consolidation — chercher d'autres sources 24h ──
+        stats["consolidated"] = self._consolidate_affairs_24h(active_affairs)
+
+        # ── ÉTAPE 4 : Lier les transcriptions radio ──
+        stats["radio_linked"] = self._link_radio_to_affairs(active_affairs)
+
+        # ── ÉTAPE 5 : Enforcer la limite ──
+        self._enforce_max_affairs()
+
+        # ── ÉTAPE 6 : Recalculer BMG ──
+        self._recalculate_active_bmg()
+
+        # ── ÉTAPE 7 : Lifecycle ──
+        stats["lifecycle"] = self.update_affair_lifecycle()
+
+        logger.info(
+            f"✅ Cycle simplifié: {stats['created']} créées, {stats['merged']} fusionnées, "
+            f"{stats['consolidated']} consolidées, {stats['radio_linked']} radio liées"
+        )
+        return stats
+
+    def _match_score(
+        self, art_elected: set, art_institutions: set, art_entities: set,
+        art_theme: str, art_title_words: set, affair: dict
+    ) -> int:
+        """Calcule un score de similarité entre un article et une affaire."""
+        aff_elected = set(
+            e.lower().strip() for e in (affair.get("elected", []) or []) if e and len(e) > 3
+        )
+        aff_institutions = set(
+            e.lower().strip() for e in (affair.get("institutions", []) or []) if e and len(e) > 3
+        )
+        aff_entities = aff_elected | aff_institutions
+        aff_theme = affair.get("theme", "general")
+        aff_title_words = set(
+            w.lower() for w in (affair.get("title", "").split()) if len(w) > 4
+        )
+
+        common_elected = art_elected & aff_elected
+        common_institutions = art_institutions & aff_institutions
+        common_entities = art_entities & aff_entities
+        same_theme = (art_theme == aff_theme and art_theme not in ("", "general"))
+        common_title = art_title_words & aff_title_words
+
+        score = 0
+        score += len(common_elected) * 4      # Personne en commun = signal fort
+        score += len(common_institutions) * 2  # Institution en commun
+        score += (2 if same_theme else 0)      # Même thème
+        score += min(len(common_title), 3)     # Mots du titre en commun (max 3 pts)
+        return score
+
+    def _consolidate_affairs_24h(self, active_affairs: list) -> int:
+        """Cherche dans les 24h si des articles non traités correspondent
+        à des affaires récemment créées. Consolide multi-source."""
+        cutoff_24h = (datetime.utcnow() - timedelta(hours=24)).isoformat()
+        now = datetime.utcnow()
+        consolidated = 0
+
+        # Articles des 24h, même ceux déjà "ignorés" avec peu de tentatives
+        candidates = list(self.articles.find({
+            "scraped_at": {"$gte": cutoff_24h},
+            "_analysis_method": {"$exists": True},
+            "$or": [
+                {"_affair_processed": {"$exists": False}},
+                {"_affair_processed": False},
+                {"_affair_ignored": True, "_affair_attempts": {"$lt": 3}},
+            ],
+        }).limit(100))
+
+        for art in candidates:
+            art_id = str(art["_id"])
+            art_elected = set(
+                e.lower().strip() for e in (art.get("elected", []) or []) if e and len(e) > 3
+            )
+            art_institutions = set(
+                e.lower().strip() for e in (art.get("institutions", []) or []) if e and len(e) > 3
+            )
+            art_entities = art_elected | art_institutions
+            art_theme = art.get("theme", "general")
+            art_title_words = set(
+                w.lower() for w in (art.get("title", "").split()) if len(w) > 4
+            )
+
+            best_match = None
+            best_score = 0
+            for affair in active_affairs:
+                # Ne pas re-matcher un article déjà dans cette affaire
+                if art_id in [str(a) for a in affair.get("articles", [])]:
+                    continue
+                score = self._match_score(
+                    art_elected, art_institutions, art_entities,
+                    art_theme, art_title_words, affair
+                )
+                if score > best_score:
+                    best_score = score
+                    best_match = affair
+
+            if best_match and best_score >= 3:
+                self.affairs.update_one(
+                    {"_id": best_match["_id"]},
+                    {
+                        "$addToSet": {
+                            "articles": art_id,
+                            "sources": art.get("source", ""),
+                        },
+                        "$inc": {"item_count": 1},
+                        "$set": {"last_activity": now},
+                    }
+                )
+                self.articles.update_one(
+                    {"_id": art["_id"]},
+                    {"$set": {"_affair_processed": True, "_affair_id": str(best_match["_id"]),
+                              "_affair_ignored": False}}
+                )
+                self.timeline.insert_one({
+                    "affair_id": str(best_match["_id"]),
+                    "event": "consolidated",
+                    "details": {"title": art.get("title", "")[:80],
+                                "source": art.get("source", ""), "score": best_score},
+                    "timestamp": now,
+                })
+                consolidated += 1
+
+        if consolidated:
+            logger.info(f"🔗 Consolidation 24h: {consolidated} articles rattachés")
+        return consolidated
+
+    def _link_radio_to_affairs(self, active_affairs: list) -> int:
+        """Lie les transcriptions radio récentes aux affaires par entités."""
+        cutoff = (datetime.utcnow() - timedelta(days=3)).isoformat()
+        now = datetime.utcnow()
+        linked = 0
+
+        transcriptions = list(self.transcriptions.find({
+            "captured_at": {"$gte": cutoff},
+            "_affair_processed": {"$ne": True},
+        }).limit(30))
+
+        for trans in transcriptions:
+            trans_id = str(trans["_id"])
+            trans_entities = set()
+            for e in (trans.get("entities", []) or []):
+                if e and len(e) > 3:
+                    trans_entities.add(e.lower().strip())
+
+            # Aussi chercher dans ai_topics si disponible
+            for topic in (trans.get("ai_topics", []) or []):
+                for e in (topic.get("entities", []) or []):
+                    if e and len(e) > 3:
+                        trans_entities.add(e.lower().strip())
+
+            if not trans_entities:
+                continue
+
+            for affair in active_affairs:
+                aff_entities = set(
+                    e.lower().strip() for e in (affair.get("elected", []) or []) if e and len(e) > 3
+                ) | set(
+                    e.lower().strip() for e in (affair.get("institutions", []) or []) if e and len(e) > 3
+                )
+                common = trans_entities & aff_entities
+                if len(common) >= 1:
+                    self.affairs.update_one(
+                        {"_id": affair["_id"]},
+                        {
+                            "$addToSet": {"radio_transcriptions": trans_id,
+                                          "source_types": "transcription"},
+                            "$inc": {"item_count": 1},
+                            "$set": {"last_activity": now},
+                        }
+                    )
+                    self.transcriptions.update_one(
+                        {"_id": trans["_id"]},
+                        {"$set": {"_affair_processed": True}}
+                    )
+                    linked += 1
+                    break  # 1 affaire par transcription suffit
+
+        if linked:
+            logger.info(f"📻 {linked} transcriptions radio liées à des affaires")
+        return linked
+
+    # ============================================================
+    # SYSTÈME IA — Gestion directe des affaires par l'IA (legacy)
     # ============================================================
     def run_ai_managed_cycle(self) -> Dict[str, Any]:
         """

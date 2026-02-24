@@ -33,14 +33,16 @@ def _svc():
 
 @router.post("/cycle/run")
 async def run_full_cycle():
-    """Lance le cycle IA (priorité) ou classique (fallback).
-    Le cycle IA envoie les affaires actives + nouveaux articles à l'IA
-    qui décide des assignations, créations et mises à jour de gravité."""
+    """Lance le cycle simplifié : créer → consolider → radio → BMG."""
     svc = _svc()
+    return svc.run_simple_cycle()
 
-    # Cycle IA en priorité, fallback classique si IA indisponible
-    result = svc.run_ai_managed_cycle()
-    return result
+
+@router.post("/cycle/run-ai")
+async def run_ai_cycle():
+    """Force le cycle IA (legacy). Fallback classique si IA indisponible."""
+    svc = _svc()
+    return svc.run_ai_managed_cycle()
 
 
 @router.post("/cycle/run-classic")

@@ -228,12 +228,11 @@ async def job_enrich():
 # ============================================================
 
 async def job_affair_cycle():
-    """Lance le cycle IA des affaires :
-    PRIORITÉ : gestion directe par IA (run_ai_managed_cycle)
-    FALLBACK : clustering classique (run_full_cycle)
-
-    Le cycle IA envoie les affaires actives + nouveaux articles à l'IA
-    qui décide des assignations, créations et mises à jour de gravité.
+    """Lance le cycle simplifié des affaires :
+    1. Chaque article enrichi → crée une affaire (ou fusionne si similaire)
+    2. Consolide 24h (multi-source)
+    3. Lie les transcriptions radio
+    4. Lifecycle + BMG
     """
     async with _locks['affairs']:
         if _db is None:
@@ -242,27 +241,25 @@ async def job_affair_cycle():
         try:
             svc = _get_affair_service()
             if svc is None:
-                logger.warning("⚠️ Service affaires V2 non disponible")
+                logger.warning("⚠️ Service affaires non disponible")
                 return
 
-            # ── Étape 1 : ingérer les articles enrichis non encore candidats ──
-            # (pour le fallback clustering, et pour avoir les articles en base)
             loop = asyncio.get_running_loop()
-            ingested = await loop.run_in_executor(None, _ingest_enriched_articles, svc)
 
-            # ── Étape 2 : cycle IA (priorité) ou classique (fallback) ──
-            logger.info("🤖 Lancement cycle IA affaires...")
-            result = await loop.run_in_executor(None, svc.run_ai_managed_cycle)
+            # Cycle simplifié : créer → consolider → radio → BMG
+            logger.info("🔄 Lancement cycle simplifié affaires...")
+            result = await loop.run_in_executor(None, svc.run_simple_cycle)
 
             if result:
-                method = result.get("method", "unknown")
-                created = result.get("new_affairs_created", 0)
-                assigned = result.get("assigned_to_existing", 0)
+                created = result.get("created", 0)
+                merged = result.get("merged", 0)
+                consolidated = result.get("consolidated", 0)
+                radio = result.get("radio_linked", 0)
                 logger.info(
-                    f"✅ Cycle affaires terminé ({method}): {ingested} ingérés, "
-                    f"{assigned} assignés, {created} créées"
+                    f"✅ Cycle affaires: {created} créées, {merged} fusionnées, "
+                    f"{consolidated} consolidées, {radio} radio liées"
                 )
-            return {"ingested": ingested, **(result or {})}
+            return result or {}
 
         except Exception as e:
             logger.error(f"❌ Erreur cycle affaires: {e}")
