@@ -7,6 +7,7 @@ import BmgGauge from '../components/BmgGauge'
 import {
   fetchEnrichedDashboard,
   runFullCycle,
+  runReaffiliate,
   type EnrichedDashboardData,
   type Affair,
   type DailyActivity,
@@ -204,6 +205,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [cycleRunning, setCycleRunning] = useState(false)
+  const [reaffiliating, setReaffiliating] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
 
   const loadData = useCallback(async () => {
@@ -228,6 +230,13 @@ export default function DashboardPage() {
     try { await runFullCycle(); await loadData() }
     catch (e: unknown) { console.error('Cycle error:', e) }
     finally { setCycleRunning(false) }
+  }
+
+  const handleReaffiliate = async () => {
+    setReaffiliating(true)
+    try { await runReaffiliate(); await loadData() }
+    catch (e: unknown) { console.error('Reaffiliate error:', e) }
+    finally { setReaffiliating(false) }
   }
 
   if (loading) {
@@ -474,9 +483,15 @@ export default function DashboardPage() {
                   <h2 className="text-sm font-semibold text-slate-700">Articles non affiliés</h2>
                   <p className="text-[10px] text-slate-400">Articles enrichis sans affaire — à surveiller</p>
                 </div>
-                <span className="text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-200">
-                  {orphans.length} orphelins
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-200">
+                    {orphans.length} orphelins
+                  </span>
+                  <button onClick={handleReaffiliate} disabled={reaffiliating}
+                    className="text-xs px-3 py-1 rounded-lg bg-teal-50 text-teal-600 border border-teal-200 hover:bg-teal-100 transition-colors disabled:opacity-50">
+                    {reaffiliating ? '⟳ En cours...' : '🔗 Ré-affilier'}
+                  </button>
+                </div>
               </div>
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="divide-y divide-slate-100">

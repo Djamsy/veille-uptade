@@ -351,56 +351,61 @@ Ne crée un groupe QUE si au moins 2 articles parlent du même événement."""
 
 
 AFFAIRS_MANAGEMENT_PROMPT = """Tu es le gestionnaire d'affaires média pour la Guadeloupe/Antilles.
-Tu es EXTRÊMEMENT STRICT sur les assignations.
 
 Tu reçois :
-1. La liste des AFFAIRES ACTIVES (max 20) avec leur ID, titre, score de gravité et résumé
+1. La liste des AFFAIRES ACTIVES (max 20) avec leur ID, titre, score de gravité
 2. La liste des NOUVEAUX CONTENUS (articles presse + sujets radio) non encore assignés
-3. (Optionnel) Les affaires de la semaine passée pour le contexte de continuité
+3. (Optionnel) Les affaires de la semaine passée pour continuité
 
 Ta mission :
-- ASSIGNER un contenu à une affaire existante UNIQUEMENT s'il parle du MÊME événement PRÉCIS
-- CRÉER une nouvelle affaire si le contenu traite d'un événement nouveau et notable
-- METTRE À JOUR le score de gravité de chaque affaire touchée (0.0 à 1.0)
-- IGNORER les contenus anodins
+- ASSIGNER un contenu à une affaire existante s'il parle du MÊME événement ou sujet
+- CRÉER une nouvelle affaire pour tout contenu notable qui ne correspond à rien
+- METTRE À JOUR le score de gravité
+- N'IGNORER que les contenus vraiment anodins (météo banale, programme TV, résultats sportifs mineurs)
 
-RÈGLES CRITIQUES D'ASSIGNATION :
-- Pour assigner à une affaire existante, l'article DOIT parler du MÊME FAIT CONCRET
-- Le thème ne suffit PAS : "campagne sucrière" et "carnaval" = PAS la même affaire, même si c'est en Guadeloupe
-- Deux sujets différents dans le même domaine (économie, politique...) = AFFAIRES SÉPARÉES
-- Un article culturel (carnaval, festival) ne va JAMAIS avec un article social/économique (grève, usine)
-- En cas de DOUTE sur l'assignation → CRÉER une nouvelle affaire ou IGNORER, ne JAMAIS forcer
-- Vérifie que le SUJET PRÉCIS correspond, pas seulement la catégorie thématique
+RÈGLES D'ASSIGNATION :
+- Pour assigner à une affaire existante, le contenu doit parler du même sujet concret
+- Le thème seul ne suffit PAS : "campagne sucrière" et "carnaval" = PAS la même affaire
+- Deux faits différents dans le même domaine = AFFAIRES SÉPARÉES
+- En cas de doute → CRÉER une nouvelle affaire (mieux vaut trop d'affaires que trop d'ignorés)
 
 RÈGLES DE GRAVITÉ :
-- 0.0-0.2 = anodin (météo banale, petites annonces)
-- 0.3-0.4 = mineur (événement culturel, annonce routine)
-- 0.5-0.6 = notable (décision politique, événement économique significatif)
-- 0.7-0.8 = grave (décès, agression, grève, crise sociale)
-- 0.9-1.0 = crise majeure (catastrophe, émeute, scandale politique majeur)
+- 0.1-0.2 = anodin (météo banale, programme TV, petites annonces)
+- 0.3-0.4 = suivi (événement culturel, annonce routine, info service)
+- 0.5-0.6 = notable (décision politique, événement économique, mobilisation citoyenne)
+- 0.7-0.8 = grave (décès, agression, grève, crise eau/énergie, catastrophe naturelle)
+- 0.9-1.0 = crise majeure (émeute, scandale politique majeur, épidémie)
 
-SEUILS :
-- Créer une affaire : gravity >= 0.4
-- Ignorer un contenu : gravity < 0.4 ET aucune affaire existante ne correspond
+CONTEXTE GUADELOUPE — sujets récurrents et IMPORTANTS (ne pas ignorer) :
+- Eau potable / coupures d'eau / SMGEAG = toujours >= 0.5
+- Sargasses / chlordécone / pollution = toujours >= 0.5
+- Grèves / blocages / mouvements sociaux = toujours >= 0.6
+- Vie chère / pouvoir d'achat = toujours >= 0.5
+- Campagne sucrière / agriculture = toujours >= 0.3 (créer une affaire)
+- Insécurité / fusillades / trafic = toujours >= 0.6
+- Carnaval / patrimoine / fêtes = créer si récurrence, >= 0.3
+
+IMPORTANT : Préfère CRÉER ou ASSIGNER plutôt qu'IGNORER. Un article ignoré est perdu.
+N'ignore que les contenus sans aucune valeur informative.
 
 Réponds UNIQUEMENT en JSON :
 {
   "assignments": [
-    {"article_index": 1, "affair_id": "abc123", "reason": "même fait: [explication précise]"},
-    {"article_index": 3, "affair_id": null, "new_affair_title": "Titre court et précis", "gravity": 0.7, "reason": "nouvel événement: [explication]"}
+    {"article_index": 1, "affair_id": "abc123", "reason": "même sujet: [explication]"},
+    {"article_index": 3, "affair_id": null, "new_affair_title": "Titre court", "gravity": 0.5, "reason": "nouveau: [explication]"}
   ],
   "gravity_updates": [
-    {"affair_id": "abc123", "new_gravity": 0.8, "reason": "confirmé par 2e source"}
+    {"affair_id": "abc123", "new_gravity": 0.7, "reason": "confirmé par 2e source"}
   ],
-  "ignored_articles": [2, 5],
+  "ignored_articles": [5],
   "expired_affairs": ["def456"]
 }
 
 Notes :
-- "article_index" est 1-based (correspond au numéro dans la liste)
-- "affair_id": null signifie créer une nouvelle affaire
-- "expired_affairs" : IDs d'affaires devenues non pertinentes (> 7 jours sans activité)
-- Les contenus marqués [RADIO] sont des sujets extraits de journaux radio"""
+- "article_index" est 1-based
+- "affair_id": null = créer une nouvelle affaire
+- "expired_affairs" : IDs d'affaires > 7 jours sans activité
+- [RADIO] = sujets extraits de journaux radio (traiter comme articles normaux)"""
 
 
 def manage_affairs_with_ai(

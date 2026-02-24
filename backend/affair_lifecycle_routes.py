@@ -68,6 +68,18 @@ async def run_lifecycle_only():
     return _svc().update_affair_lifecycle()
 
 
+@router.post("/cycle/reaffiliate")
+async def reaffiliate_orphans():
+    """Force la ré-affiliation des articles orphelins aux affaires actives."""
+    svc = _svc()
+    count = svc._reaffiliate_orphans()
+    return {
+        "success": True,
+        "reaffiliated": count,
+        "message": f"{count} articles orphelins rattachés à des affaires existantes"
+    }
+
+
 # ============================================================
 # AFFAIRES
 # ============================================================

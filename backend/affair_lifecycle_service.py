@@ -1542,37 +1542,52 @@ class AffairLifecycleService:
                 })
                 stats["expired"] += 1
 
-        # 5d. Marquer les items ignorés comme traités
+        # 5d. Marquer les items ignorés — NE PAS les bloquer définitivement
+        # On incrémente un compteur de tentatives. Après 3 tentatives, on les marque processed.
         for ign_idx in ai_result.get("ignored_articles", []):
             real_idx = ign_idx - 1
             if 0 <= real_idx < len(all_items_for_ai):
                 ignored_item = all_items_for_ai[real_idx]
-                if ignored_item.get("_is_radio_topic"):
-                    self.transcriptions.update_one(
+                is_radio = ignored_item.get("_is_radio_topic", False)
+                col = self.transcriptions if is_radio else self.articles
+                doc = col.find_one({"_id": ignored_item["_id"]})
+                attempts = (doc.get("_affair_attempts", 0) if doc else 0) + 1
+                if attempts >= 3:
+                    # 3 tentatives : on abandonne
+                    col.update_one(
                         {"_id": ignored_item["_id"]},
-                        {"$set": {"_affair_processed": True, "_affair_ignored": True}}
+                        {"$set": {"_affair_processed": True, "_affair_ignored": True,
+                                  "_affair_attempts": attempts}}
                     )
                 else:
-                    self.articles.update_one(
+                    # Pas encore 3 tentatives : laisser une chance au prochain cycle
+                    col.update_one(
                         {"_id": ignored_item["_id"]},
-                        {"$set": {"_affair_processed": True, "_affair_ignored": True}}
+                        {"$set": {"_affair_ignored": True, "_affair_attempts": attempts},
+                         "$unset": {"_affair_processed": ""}}
                     )
                 stats["ignored"] += 1
 
-        # 6. Enforcer la limite de 20 affaires actives
+        # 6. Ré-affilier les orphelins récents aux affaires nouvellement créées
+        if stats["new_affairs_created"] > 0:
+            reaffiliated = self._reaffiliate_orphans()
+            stats["reaffiliated"] = reaffiliated
+
+        # 7. Enforcer la limite de 20 affaires actives
         self._enforce_max_affairs()
 
-        # 7. Recalculer BMG des affaires touchées
+        # 8. Recalculer BMG des affaires touchées
         self._recalculate_active_bmg()
 
-        # 8. Lifecycle classique (stale/archive par date)
+        # 9. Lifecycle classique (stale/archive par date)
         lifecycle_stats = self.update_affair_lifecycle()
         stats["lifecycle"] = lifecycle_stats
 
         logger.info(
             f"✅ Cycle IA terminé: {stats['assigned_to_existing']} assignés, "
             f"{stats['new_affairs_created']} créées, {stats['gravity_updates']} MAJ gravité, "
-            f"{stats['expired']} expirées, {stats['ignored']} ignorés"
+            f"{stats['expired']} expirées, {stats['ignored']} ignorés, "
+            f"{stats.get('reaffiliated', 0)} ré-affiliés"
         )
         return stats
 
@@ -1621,6 +1636,119 @@ class AffairLifecycleService:
                 )
             except Exception as e:
                 logger.debug(f"BMG recalc: {e}")
+
+    def _reaffiliate_orphans(self) -> int:
+        """Ré-essaye de lier les articles orphelins récents aux affaires actives.
+        Utilise un matching plus souple : 1 entité spécifique (personne) suffit,
+        ou 1 entité + même thème."""
+        cutoff = (datetime.utcnow() - timedelta(days=5)).isoformat()
+
+        orphans = list(self.articles.find({
+            "scraped_at": {"$gte": cutoff},
+            "_analysis_method": {"$exists": True},
+            "$or": [
+                {"_affair_processed": {"$exists": False}},
+                {"_affair_processed": False},
+            ],
+        }).limit(50))
+
+        if not orphans:
+            return 0
+
+        active_affairs = list(self.affairs.find({"status": "active"}))
+        if not active_affairs:
+            return 0
+
+        reaffiliated = 0
+        now = datetime.utcnow()
+
+        for art in orphans:
+            art_elected = set(
+                e.lower().strip() for e in (art.get("elected", []) or []) if e and len(e) > 3
+            )
+            art_institutions = set(
+                e.lower().strip() for e in (art.get("institutions", []) or []) if e and len(e) > 3
+            )
+            art_entities = art_elected | art_institutions
+            art_theme = art.get("theme", "general")
+
+            if not art_entities:
+                continue
+
+            best_match = None
+            best_score = 0
+
+            for affair in active_affairs:
+                aff_elected = set(
+                    e.lower().strip() for e in (affair.get("elected", []) or []) if e and len(e) > 3
+                )
+                aff_institutions = set(
+                    e.lower().strip() for e in (affair.get("institutions", []) or []) if e and len(e) > 3
+                )
+                aff_entities = aff_elected | aff_institutions
+                aff_theme = affair.get("theme", "general")
+
+                # Entités en commun
+                common = art_entities & aff_entities
+                common_elected = art_elected & aff_elected  # personnes en commun (plus fiable)
+
+                if not common:
+                    continue
+
+                # Score de match
+                score = 0
+                # 1 personne en commun = fort signal
+                if common_elected:
+                    score += len(common_elected) * 3
+                # Institutions en commun
+                score += len(common - common_elected) * 1
+                # Bonus même thème
+                if art_theme == aff_theme and art_theme != "general":
+                    score += 2
+
+                # Seuil : au moins 3 points (1 personne, ou 1 institution + même thème, etc.)
+                if score >= 3 and score > best_score:
+                    best_score = score
+                    best_match = affair
+
+            if best_match:
+                art_id = str(art["_id"])
+                self.affairs.update_one(
+                    {"_id": best_match["_id"]},
+                    {
+                        "$addToSet": {
+                            "articles": art_id,
+                            "sources": art.get("source", ""),
+                            "entities": {"$each": list(art_entities)[:10]},
+                        },
+                        "$inc": {"item_count": 1},
+                        "$set": {"last_activity": now},
+                    }
+                )
+                self.articles.update_one(
+                    {"_id": art["_id"]},
+                    {"$set": {
+                        "_affair_processed": True,
+                        "_affair_id": str(best_match["_id"]),
+                        "_affair_reaffiliated": True,
+                    }}
+                )
+                self.timeline.insert_one({
+                    "affair_id": str(best_match["_id"]),
+                    "event": "article_reaffiliated",
+                    "details": {
+                        "item_id": art_id,
+                        "title": art.get("title", "")[:80],
+                        "source": art.get("source", ""),
+                        "match_score": best_score,
+                    },
+                    "timestamp": now,
+                })
+                reaffiliated += 1
+
+        if reaffiliated:
+            logger.info(f"🔗 Ré-affiliation: {reaffiliated} articles orphelins rattachés")
+        return reaffiliated
 
     def _classify_affair_type_by_gravity(self, gravity: float) -> str:
         """Classifie le type d'affaire selon le score de gravité."""

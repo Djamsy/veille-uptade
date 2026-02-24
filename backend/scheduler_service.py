@@ -364,21 +364,34 @@ async def job_update_affairs():
                     if art_id in existing_ids:
                         continue
 
-                    # Entités de l'article
-                    art_entities = set()
+                    # Entités de l'article (séparées par type)
+                    art_elected = set()
+                    art_institutions = set()
                     for e in (article.get("elected", []) or []):
                         if e and len(e) > 3:
-                            art_entities.add(e.lower().strip())
+                            art_elected.add(e.lower().strip())
                     for e in (article.get("institutions", []) or []):
                         if e and len(e) > 3:
-                            art_entities.add(e.lower().strip())
+                            art_institutions.add(e.lower().strip())
                     for e in (article.get("entities", []) or []):
                         if e and len(e) > 3:
-                            art_entities.add(e.lower().strip())
+                            art_elected.add(e.lower().strip())
+                    art_entities = art_elected | art_institutions
 
-                    # Match : au moins 2 entités en commun
+                    # Match assoupli :
+                    # - 2 entités en commun (toujours OK), OU
+                    # - 1 personne en commun + même thème
                     common_entities = affair_entities & art_entities
-                    if len(common_entities) >= 2:
+                    common_elected = affair_elected & art_elected
+                    same_theme = (
+                        affair.get("theme", "") == article.get("theme", "")
+                        and affair.get("theme", "") not in ("", "general")
+                    )
+                    match = (
+                        len(common_entities) >= 2
+                        or (len(common_elected) >= 1 and same_theme)
+                    )
+                    if match:
                         updates.append({
                             "type": "article",
                             "id": art_id,
@@ -408,7 +421,7 @@ async def job_update_affairs():
                     logger.info(f"📈 MAJ: {affair.get('title', '?')} (+{len(updates)} via entités)")
 
             if updated_count:
-                logger.info(f"✅ {updated_count} affaires mises à jour (matching strict)")
+                logger.info(f"✅ {updated_count} affaires mises à jour (matching entités+thème)")
 
         except Exception as e:
             logger.error(f"❌ Erreur MAJ affaires: {e}")
