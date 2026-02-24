@@ -53,10 +53,10 @@ CLUSTER_SIMILARITY_THRESHOLD = 0.30    # Seuil de similarité contextuelle
 CLUSTER_MERGE_THRESHOLD = 0.50         # Seuil pour fusionner deux clusters
 
 # --- Promotion en affaire ---
-PROMOTION_MIN_SOURCES = 2              # Au moins 2 sources différentes
+PROMOTION_MIN_SOURCES = 1              # Au moins 1 source (assoupli, était 2)
 PROMOTION_MIN_MEDIA_TYPES = 1          # Au moins 1 type de média (article OU transcription)
-PROMOTION_MIN_GRAVITY = 0.50           # Gravité minimum du cluster
-PROMOTION_MIN_ITEMS = 2                # Minimum d'items dans le cluster
+PROMOTION_MIN_GRAVITY = 0.40           # Gravité minimum du cluster (assoupli, était 0.50)
+PROMOTION_MIN_ITEMS = 1                # Minimum d'items (assoupli, était 2)
 
 # --- Cycle de vie ---
 AFFAIR_ACTIVE_DAYS = 7                 # Durée de vie active (1 semaine)
@@ -1769,9 +1769,11 @@ class AffairLifecycleService:
     def run_full_cycle(self) -> Dict[str, Any]:
         """
         Exécute le cycle complet classique (fallback si IA indisponible) :
-        1. Clustering des nouveaux candidats
-        2. Promotion des clusters éligibles
-        3. Mise à jour du cycle de vie
+        1. Création directe d'affaires pour articles haute gravité
+        2. Clustering des nouveaux candidats
+        3. Promotion des clusters éligibles
+        4. Ré-affiliation des orphelins
+        5. Mise à jour du cycle de vie
         """
         logger.info("=" * 50)
         logger.info("🔄 CYCLE CLASSIQUE AFFAIRES (fallback)")
@@ -1779,17 +1781,163 @@ class AffairLifecycleService:
 
         results = {}
 
+        # 0. Création directe : articles enrichis à haute gravité sans affaire
+        results["direct_creation"] = self._direct_create_from_enriched()
+
         # 1. Clustering
         results["clustering"] = self.run_clustering()
 
         # 2. Promotion
         results["promotion"] = self.run_promotion()
 
-        # 3. Lifecycle
+        # 3. Ré-affiliation des orphelins
+        results["reaffiliated"] = self._reaffiliate_orphans()
+
+        # 4. Lifecycle
         results["lifecycle"] = self.update_affair_lifecycle()
+
+        # 5. BMG
+        self._recalculate_active_bmg()
 
         logger.info(f"✅ Cycle classique terminé: {results}")
         return results
+
+    def _direct_create_from_enriched(self) -> Dict[str, Any]:
+        """
+        Filet de sécurité : crée des affaires directement à partir d'articles
+        enrichis qui ont une gravité suffisante et ne sont pas encore traités.
+        Pas besoin de clustering ni d'IA — chaque article notable = 1 affaire.
+        On fusionne si un article ressemble fortement à une affaire existante.
+        """
+        if self.db is None:
+            return {"error": "no_db"}
+
+        cutoff = (datetime.utcnow() - timedelta(days=3)).isoformat()
+        now = datetime.utcnow()
+
+        # Articles enrichis non traités avec gravité >= 0.35
+        unprocessed = list(self.articles.find({
+            "scraped_at": {"$gte": cutoff},
+            "_analysis_method": {"$exists": True},
+            "$or": [
+                {"_affair_processed": {"$exists": False}},
+                {"_affair_processed": False},
+            ],
+            "gravity_score": {"$gte": 0.35},
+        }).sort("gravity_score", -1).limit(30))
+
+        if not unprocessed:
+            return {"created": 0, "merged": 0}
+
+        active_affairs = list(self.affairs.find({"status": "active"}))
+        stats = {"created": 0, "merged": 0, "skipped": 0}
+
+        for art in unprocessed:
+            art_id = str(art["_id"])
+            art_elected = set(
+                e.lower().strip() for e in (art.get("elected", []) or []) if e and len(e) > 3
+            )
+            art_institutions = set(
+                e.lower().strip() for e in (art.get("institutions", []) or []) if e and len(e) > 3
+            )
+            art_entities = art_elected | art_institutions
+            art_theme = art.get("theme", "general")
+            gravity = art.get("gravity_score", 0)
+
+            # Chercher une affaire existante similaire
+            best_match = None
+            best_score = 0
+            for affair in active_affairs:
+                aff_elected = set(
+                    e.lower().strip() for e in (affair.get("elected", []) or []) if e and len(e) > 3
+                )
+                aff_entities = aff_elected | set(
+                    e.lower().strip() for e in (affair.get("institutions", []) or []) if e and len(e) > 3
+                )
+                common = art_entities & aff_entities
+                common_elected = art_elected & aff_elected
+                same_theme = (art_theme == affair.get("theme", "") and art_theme not in ("", "general"))
+
+                score = len(common_elected) * 3 + len(common - common_elected) + (2 if same_theme else 0)
+                if score >= 3 and score > best_score:
+                    best_score = score
+                    best_match = affair
+
+            if best_match:
+                # Fusionner avec l'affaire existante
+                self.affairs.update_one(
+                    {"_id": best_match["_id"]},
+                    {
+                        "$addToSet": {
+                            "articles": art_id,
+                            "sources": art.get("source", ""),
+                            "entities": {"$each": list(art_entities)[:10]},
+                        },
+                        "$inc": {"item_count": 1},
+                        "$set": {"last_activity": now},
+                        "$max": {"gravity_score": gravity},
+                    }
+                )
+                self.articles.update_one(
+                    {"_id": art["_id"]},
+                    {"$set": {"_affair_processed": True, "_affair_id": str(best_match["_id"])}}
+                )
+                stats["merged"] += 1
+            else:
+                # Créer une nouvelle affaire
+                title = art.get("title", "Nouvelle affaire")[:200]
+                new_affair = {
+                    "title": title,
+                    "description": art.get("ai_summary", "")[:300] or f"Affaire créée automatiquement depuis: {title}",
+                    "primary_entity": (list(art_elected) or [None])[0] if art_elected else None,
+                    "entities": list(art_entities)[:20],
+                    "elected": list(art_elected)[:10],
+                    "institutions": list(art_institutions)[:10],
+                    "keywords": art.get("keywords_found", []) or [],
+                    "theme": art_theme,
+                    "gravity_score": round(gravity, 3),
+                    "affair_type": self._classify_affair_type_by_gravity(gravity),
+                    "status": "active",
+                    "articles": [art_id],
+                    "radio_transcriptions": [],
+                    "social_posts": [],
+                    "sources": [art.get("source", "")],
+                    "source_types": ["article"],
+                    "item_count": 1,
+                    "created_at": now,
+                    "last_activity": now,
+                    "promoted_at": now,
+                    "bmg": 0,
+                    "bmg_details": {},
+                    "bmg_history": [],
+                    "ai_managed": False,
+                    "_creation_method": "direct_from_enriched",
+                }
+                result = self.affairs.insert_one(new_affair)
+                new_id = str(result.inserted_id)
+                self.articles.update_one(
+                    {"_id": art["_id"]},
+                    {"$set": {"_affair_processed": True, "_affair_id": new_id}}
+                )
+                self.timeline.insert_one({
+                    "affair_id": new_id,
+                    "event": "created",
+                    "details": {
+                        "method": "direct_from_enriched",
+                        "gravity": gravity,
+                        "title": title[:80],
+                        "source": art.get("source", ""),
+                    },
+                    "timestamp": now,
+                })
+                # Ajouter à la liste pour les prochaines itérations
+                active_affairs.append(new_affair)
+                stats["created"] += 1
+                logger.info(f"🆕 Affaire directe: '{title[:50]}' (gravity={gravity:.2f})")
+
+        self._enforce_max_affairs()
+        logger.info(f"📊 Création directe: {stats['created']} créées, {stats['merged']} fusionnées")
+        return stats
 
     # ============================================================
     # UTILITAIRES
