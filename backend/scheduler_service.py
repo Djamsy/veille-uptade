@@ -430,6 +430,52 @@ async def job_update_affairs():
 
 
 # ============================================================
+# JOB 5: Capture radio (transcription flux radio/TV)
+# ============================================================
+
+async def job_radio_capture():
+    """Capture les flux radio/TV qui sont dus maintenant.
+    Le radio_service vérifie lui-même si un flux est planifié
+    à l'heure actuelle (fenêtre de ±2min).
+    """
+    try:
+        radio_svc = None
+        try:
+            from backend.radio_service import radio_service as _rs
+            radio_svc = _rs
+        except Exception:
+            try:
+                from radio_service import radio_service as _rs
+                radio_svc = _rs
+            except Exception:
+                pass
+
+        if radio_svc is None or not radio_svc.is_ready():
+            logger.debug("ℹ️ Radio service non disponible, skip capture")
+            return {"success": False, "reason": "radio_service_unavailable"}
+
+        # Appeler capture_due_streams_async (ou sync via executor)
+        if hasattr(radio_svc, 'capture_due_streams_async'):
+            result = await radio_svc.capture_due_streams_async(window_min=3)
+        else:
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(None, radio_svc.capture_due_streams)
+
+        ran = result.get("ran", [])
+        errors = result.get("errors", [])
+        if ran:
+            logger.info(f"🎙️ Radio capture: {len(ran)} flux capturés ({', '.join(ran)})")
+        if errors:
+            logger.warning(f"⚠️ Radio erreurs: {errors}")
+
+        return result
+
+    except Exception as e:
+        logger.error(f"❌ Erreur capture radio: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ============================================================
 # JOB combiné : Scrape → Enrich → Cycle affaires
 # ============================================================
 
@@ -468,10 +514,10 @@ def _ensure_scheduler():
         job_defaults={"coalesce": True, "max_instances": 1}
     )
 
-    # Pipeline complet toutes les 2h
+    # Pipeline complet toutes les heures (scrape + enrich + affaires)
     _scheduler.add_job(
         job_full_pipeline,
-        CronTrigger(hour="*/2", minute="0", timezone=TZ),
+        CronTrigger(minute="0", timezone=TZ),
         id="full_pipeline",
         name="Pipeline complet (scrape → enrich → affaires)"
     )
@@ -492,6 +538,14 @@ def _ensure_scheduler():
         name="Enrichissement articles non traités"
     )
 
+    # 🎙️ Capture radio toutes les 5 min (le service vérifie si un flux est dû)
+    _scheduler.add_job(
+        job_radio_capture,
+        CronTrigger(minute="*/5", timezone=TZ),
+        id="radio_capture",
+        name="Capture radio/TV (flux planifiés)"
+    )
+
     return _scheduler
 
 
@@ -499,7 +553,7 @@ def attach_scheduler(app):
     sched = _ensure_scheduler()
     if not sched.running:
         sched.start()
-        logger.info("✅ Scheduler démarré (pipeline 2h + MAJ 15min + enrichissement 30min)")
+        logger.info("✅ Scheduler démarré (pipeline 1h + MAJ 15min + enrichissement 30min + radio 5min)")
     app.state.scheduler = sched
 
 
@@ -591,6 +645,13 @@ async def enrich_now():
 async def detect_now():
     """Lance le cycle affaires V2 maintenant"""
     result = await job_affair_cycle()
+    return {"success": True, "result": result}
+
+
+@router.post("/radio-capture-now")
+async def radio_capture_now():
+    """Lance la capture radio maintenant"""
+    result = await job_radio_capture()
     return {"success": True, "result": result}
 
 

@@ -981,30 +981,18 @@ try:
     logger.info("✅ Système d'affaires V2 chargé (cycle de vie complet)")
     logger.info("   🔄 Pipeline: ingestion → clustering → promotion → BMG")
 
-    # ── AUTO-PURGE : supprimer les affaires V1 (sans promoted_at) ──
-    # Les affaires V1 sont créées par l'ancien système (scraper_service V1,
-    # create_or_update_affair, job_update_affairs V1) et contiennent des
-    # corrélations catastrophiques (articles non liés groupés ensemble).
-    # Seules les affaires V2 (avec promoted_at) sont fiables.
+    # ── AUTO-PURGE DÉSACTIVÉE ──
+    # L'auto-purge des affaires V1 a été désactivée car elle supprimait
+    # TOUTES les affaires à chaque redémarrage de Render, avant que le
+    # nouveau cycle ne puisse en recréer. Les affaires V2 (avec promoted_at)
+    # sont conservées. Purge manuelle disponible via API si nécessaire.
     if db is not None:
         try:
-            v1_count = db.affairs.count_documents({"promoted_at": {"$exists": False}})
-            if v1_count > 0:
-                result = db.affairs.delete_many({"promoted_at": {"$exists": False}})
-                logger.info(f"🧹 AUTO-PURGE: {result.deleted_count} affaires V1 supprimées (sans promoted_at)")
-                # Nettoyer aussi les candidats et clusters orphelins
-                cand_del = db.topic_candidates.delete_many({})
-                clust_del = db.topic_clusters.delete_many({})
-                timeline_del = db.affair_timeline.delete_many({})
-                logger.info(
-                    f"   🧹 Nettoyage: {cand_del.deleted_count} candidats, "
-                    f"{clust_del.deleted_count} clusters, "
-                    f"{timeline_del.deleted_count} timeline supprimés"
-                )
-            else:
-                logger.info("✅ Pas d'affaires V1 à purger")
-        except Exception as purge_err:
-            logger.warning(f"⚠️ Erreur auto-purge V1: {purge_err}")
+            total = db.affairs.count_documents({})
+            v2_count = db.affairs.count_documents({"promoted_at": {"$exists": True}})
+            logger.info(f"📊 Affaires en base: {total} total, {v2_count} V2 (avec promoted_at)")
+        except Exception as e:
+            logger.warning(f"⚠️ Erreur lecture affaires: {e}")
 
 except Exception as e:
     logger.warning(f"⚠️ Système affaires V2 non disponible: {e}")
