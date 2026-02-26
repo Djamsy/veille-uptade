@@ -17,31 +17,31 @@ from typing import Dict, Any, Optional, List
 logger = logging.getLogger("ai_groq_service")
 
 # ============================================================
-# Configuration — auto-détection Groq vs xAI + fallback OpenAI
+# Configuration — OpenAI en priorité, fallback Groq/xAI
 # ============================================================
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "").strip()
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
 _user_model = os.environ.get("GROQ_MODEL", "").strip()
 
-# --- Provider primaire (xAI / Groq) ---
-if GROQ_API_KEY.startswith("xai-"):
-    AI_PROVIDER = "xai"
-    AI_BASE_URL = "https://api.x.ai/v1"
-    AI_MODEL = _user_model if _user_model and _user_model != "mixtral-8x7b-32768" else "grok-2-latest"
-elif GROQ_API_KEY.startswith("gsk_"):
-    AI_PROVIDER = "groq"
-    AI_BASE_URL = "https://api.groq.com/openai/v1"
-    AI_MODEL = _user_model or "mixtral-8x7b-32768"
-else:
-    AI_PROVIDER = "groq"
-    AI_BASE_URL = "https://api.groq.com/openai/v1"
-    AI_MODEL = _user_model or "mixtral-8x7b-32768"
+# --- Provider PRIMAIRE : OpenAI GPT-4o-mini (fiable + pas cher) ---
+AI_PROVIDER = "openai"
+AI_BASE_URL = "https://api.openai.com/v1"
+AI_MODEL = "gpt-4o-mini"
 
-# --- Fallback OpenAI (GPT-4o-mini, ~1€/mois) ---
-FALLBACK_PROVIDER = "openai"
-FALLBACK_BASE_URL = "https://api.openai.com/v1"
-FALLBACK_MODEL = "gpt-4o-mini"
+# --- Fallback : xAI/Groq (si OpenAI indisponible) ---
+if GROQ_API_KEY.startswith("xai-"):
+    FALLBACK_PROVIDER = "xai"
+    FALLBACK_BASE_URL = "https://api.x.ai/v1"
+    FALLBACK_MODEL = _user_model if _user_model and _user_model != "mixtral-8x7b-32768" else "grok-2-latest"
+elif GROQ_API_KEY.startswith("gsk_"):
+    FALLBACK_PROVIDER = "groq"
+    FALLBACK_BASE_URL = "https://api.groq.com/openai/v1"
+    FALLBACK_MODEL = _user_model or "mixtral-8x7b-32768"
+else:
+    FALLBACK_PROVIDER = "groq"
+    FALLBACK_BASE_URL = "https://api.groq.com/openai/v1"
+    FALLBACK_MODEL = _user_model or "mixtral-8x7b-32768"
 
 # Compat
 GROQ_MODEL = AI_MODEL
@@ -55,42 +55,42 @@ _fallback_client = None
 
 
 def _get_client():
-    """Initialise le client IA primaire (lazy loading)."""
+    """Initialise le client IA primaire — OpenAI GPT-4o-mini (lazy loading)."""
     global _client
     if _client is not None:
         return _client
-    if not GROQ_API_KEY:
+    if not OPENAI_API_KEY:
         return None
     try:
         from openai import OpenAI
         _client = OpenAI(
-            api_key=GROQ_API_KEY,
+            api_key=OPENAI_API_KEY,
             base_url=AI_BASE_URL,
         )
         logger.info(f"✅ Client IA primaire — provider: {AI_PROVIDER}, modèle: {AI_MODEL}")
         return _client
     except Exception as e:
-        logger.error(f"❌ Impossible d'initialiser le client IA primaire: {e}")
+        logger.error(f"❌ Impossible d'initialiser le client IA primaire (OpenAI): {e}")
         return None
 
 
 def _get_fallback_client():
-    """Initialise le client OpenAI fallback (lazy loading)."""
+    """Initialise le client IA fallback — xAI/Groq (lazy loading)."""
     global _fallback_client
     if _fallback_client is not None:
         return _fallback_client
-    if not OPENAI_API_KEY:
+    if not GROQ_API_KEY:
         return None
     try:
         from openai import OpenAI
         _fallback_client = OpenAI(
-            api_key=OPENAI_API_KEY,
+            api_key=GROQ_API_KEY,
             base_url=FALLBACK_BASE_URL,
         )
         logger.info(f"✅ Client IA fallback — {FALLBACK_PROVIDER}/{FALLBACK_MODEL}")
         return _fallback_client
     except Exception as e:
-        logger.warning(f"⚠️ Fallback OpenAI non disponible: {e}")
+        logger.warning(f"⚠️ Fallback {FALLBACK_PROVIDER} non disponible: {e}")
         return None
 
 
@@ -108,16 +108,16 @@ def _call_ai(messages: List[Dict], temperature: float = 0.1,
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
 
-    # 1. Essayer le provider primaire
+    # 1. Essayer OpenAI (provider primaire)
     client = _get_client()
     if client:
         try:
-            resp = client.chat.completions.create(model=GROQ_MODEL, **kwargs)
+            resp = client.chat.completions.create(model=AI_MODEL, **kwargs)
             return resp.choices[0].message.content.strip()
         except Exception as e:
-            logger.warning(f"⚠️ {AI_PROVIDER} échoué: {e} — fallback OpenAI")
+            logger.warning(f"⚠️ {AI_PROVIDER}/{AI_MODEL} échoué: {e} — fallback {FALLBACK_PROVIDER}")
 
-    # 2. Fallback OpenAI
+    # 2. Fallback xAI/Groq
     fb = _get_fallback_client()
     if fb:
         try:
@@ -126,14 +126,14 @@ def _call_ai(messages: List[Dict], temperature: float = 0.1,
             logger.info(f"✅ Fallback {FALLBACK_PROVIDER}/{FALLBACK_MODEL} OK")
             return content
         except Exception as e:
-            logger.error(f"❌ Fallback OpenAI aussi échoué: {e}")
+            logger.error(f"❌ Fallback {FALLBACK_PROVIDER} aussi échoué: {e}")
 
     return None
 
 
 def is_available() -> bool:
     """Vérifie si au moins un service IA est disponible."""
-    return bool(GROQ_API_KEY and _get_client()) or bool(OPENAI_API_KEY and _get_fallback_client())
+    return bool(OPENAI_API_KEY and _get_client()) or bool(GROQ_API_KEY and _get_fallback_client())
 
 
 # ============================================================
