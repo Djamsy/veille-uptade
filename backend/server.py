@@ -61,7 +61,7 @@ DB_NAME = os.environ.get("DB_NAME", "veille_media")
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "development")
 VERSION = "5.2.0-NO-OLLAMA"
 START_TIME = datetime.utcnow()
-RUN_SCHEDULER = os.environ.get("RUN_SCHEDULER", "true").lower() == "true"
+RUN_SCHEDULER = os.environ.get("RUN_SCHEDULER", "true").strip().lower() in ("true", "1", "yes", "on")
 GRAVITY_THRESHOLD = float(os.environ.get("AFFAIR_GRAVITY_THRESHOLD", "0.6"))
 
 logger.info("=" * 60)
