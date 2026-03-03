@@ -926,6 +926,9 @@ async def analyze_text(request: Request):
 
 # ========== SCHEDULER ==========
 
+_scheduler_error = None
+_scheduler_loaded = False
+
 if RUN_SCHEDULER:
     try:
         try:
@@ -939,9 +942,58 @@ if RUN_SCHEDULER:
             attach_scheduler(app)
             logger.info("✅ Scheduler APScheduler démarré")
 
+        _scheduler_loaded = True
         logger.info("✅ Scheduler routes ajoutées")
     except Exception as e:
-        logger.warning(f"⚠️ Scheduler routes non disponibles: {e}")
+        _scheduler_error = f"{type(e).__name__}: {e}"
+        logger.error(f"❌ SCHEDULER ÉCHEC CRITIQUE: {_scheduler_error}")
+        import traceback
+        logger.error(traceback.format_exc())
+else:
+    _scheduler_error = "RUN_SCHEDULER is disabled (env var)"
+    logger.warning(f"⚠️ Scheduler désactivé: RUN_SCHEDULER={os.environ.get('RUN_SCHEDULER', '(non défini)')}")
+
+
+@app.get("/api/debug/scheduler")
+async def debug_scheduler():
+    """Diagnostic scheduler — toujours disponible même si le scheduler a crashé"""
+    import importlib
+    diag = {
+        "RUN_SCHEDULER_env": os.environ.get("RUN_SCHEDULER", "(non défini, default=true)"),
+        "RUN_SCHEDULER_bool": RUN_SCHEDULER,
+        "scheduler_loaded": _scheduler_loaded,
+        "scheduler_error": _scheduler_error,
+        "imports": {},
+    }
+
+    # Tester chaque import individuellement
+    for mod_name in ["apscheduler", "apscheduler.schedulers.asyncio",
+                     "apscheduler.triggers.cron", "certifi"]:
+        try:
+            importlib.import_module(mod_name)
+            diag["imports"][mod_name] = "OK"
+        except Exception as ex:
+            diag["imports"][mod_name] = f"FAIL: {ex}"
+
+    # Tester l'import du scheduler_service
+    try:
+        try:
+            from backend.scheduler_service import _scheduler, _db
+        except ImportError:
+            from scheduler_service import _scheduler, _db
+        diag["scheduler_service_import"] = "OK"
+        diag["scheduler_instance"] = _scheduler is not None
+        diag["scheduler_running"] = _scheduler.running if _scheduler else False
+        diag["scheduler_db"] = _db is not None
+        if _scheduler:
+            diag["jobs"] = [
+                {"id": j.id, "name": j.name, "next_run": str(j.next_run_time)}
+                for j in _scheduler.get_jobs()
+            ]
+    except Exception as ex:
+        diag["scheduler_service_import"] = f"FAIL: {type(ex).__name__}: {ex}"
+
+    return diag
 
 # ========== ROUTES RADIO CARDS ==========
 try:
