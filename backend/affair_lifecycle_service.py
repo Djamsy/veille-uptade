@@ -1175,12 +1175,49 @@ class AffairLifecycleService:
             ],
         }).sort("gravity_score", -1).limit(60))
 
-        logger.info(f"📰 {len(unprocessed)} articles non traités trouvés")
+        # ── DIAGNOSTIC : état de la base ──
+        total_articles = self.articles.count_documents({})
+        total_enriched = self.articles.count_documents({"_analysis_method": {"$exists": True}})
+        total_processed = self.articles.count_documents({"_affair_processed": True})
+        total_affairs = self.affairs.count_documents({})
+        active_count = self.affairs.count_documents({"status": "active"})
+        logger.info(f"📊 DB: {total_articles} articles total, {total_enriched} enrichis, "
+                     f"{total_processed} déjà traités (affaires), "
+                     f"{total_affairs} affaires ({active_count} actives)")
+        logger.info(f"📰 {len(unprocessed)} articles non traités trouvés (gravity>=0.15, enrichis, 3j)")
+
+        if len(unprocessed) == 0 and total_enriched > 0:
+            # Diagnostic : pourquoi aucun article non traité ?
+            recent_enriched = self.articles.count_documents({
+                "scraped_at": {"$gte": cutoff_3d},
+                "_analysis_method": {"$exists": True},
+            })
+            recent_not_processed = self.articles.count_documents({
+                "scraped_at": {"$gte": cutoff_3d},
+                "_analysis_method": {"$exists": True},
+                "$or": [
+                    {"_affair_processed": {"$exists": False}},
+                    {"_affair_processed": False},
+                ],
+            })
+            logger.warning(f"⚠️ Diagnostic 0 articles: {recent_enriched} enrichis en 3j, "
+                          f"{recent_not_processed} non traités parmi eux")
+            # Examiner un exemple
+            sample = self.articles.find_one({
+                "scraped_at": {"$gte": cutoff_3d},
+                "_analysis_method": {"$exists": True},
+            })
+            if sample:
+                logger.warning(f"   Exemple: scraped_at={sample.get('scraped_at')} "
+                              f"(type={type(sample.get('scraped_at')).__name__}), "
+                              f"_affair_processed={sample.get('_affair_processed', 'ABSENT')}, "
+                              f"_analysis_method={sample.get('_analysis_method')}")
 
         # Charger les affaires actives
         active_affairs = list(self.affairs.find({"status": "active"}))
 
         # ── ÉTAPE 2 : Pour chaque article → créer ou fusionner ──
+        ignored_count = 0
         for art in unprocessed:
             art_id = str(art["_id"])
             gravity = art.get("gravity_score", 0)
@@ -1191,6 +1228,8 @@ class AffairLifecycleService:
                     {"_id": art["_id"]},
                     {"$set": {"_affair_processed": True, "_affair_ignored": True}}
                 )
+                ignored_count += 1
+                logger.debug(f"   ⏭️ Ignoré (gravity={gravity:.2f}): {art.get('title', '?')[:60]}")
                 continue
 
             art_elected = set(
@@ -1218,8 +1257,19 @@ class AffairLifecycleService:
                     best_score = score
                     best_match = affair
 
+            # Log de la décision de matching
+            logger.info(f"   📄 Art: '{art.get('title', '?')[:60]}' | gravity={gravity:.2f} "
+                        f"| élus={list(art_elected)[:3]} | instit={list(art_institutions)[:3]} "
+                        f"| thème={art_theme}")
+            if best_match:
+                logger.info(f"      → Meilleur match: '{best_match.get('title', '?')[:50]}' "
+                            f"(score={best_score}, seuil=3)")
+            else:
+                logger.info(f"      → Aucun match trouvé parmi {len(active_affairs)} affaires actives → CRÉATION")
+
             if best_match and best_score >= 3:
                 # Fusionner avec l'affaire existante
+                logger.info(f"      ✅ FUSION avec affaire existante (score={best_score})")
                 self.affairs.update_one(
                     {"_id": best_match["_id"]},
                     {
@@ -1302,8 +1352,10 @@ class AffairLifecycleService:
 
         logger.info(
             f"✅ Cycle simplifié: {stats['created']} créées, {stats['merged']} fusionnées, "
-            f"{stats['consolidated']} consolidées, {stats['radio_linked']} radio liées"
+            f"{stats['consolidated']} consolidées, {stats['radio_linked']} radio liées, "
+            f"{ignored_count} ignorées (gravity<0.15)"
         )
+        logger.info(f"📊 Bilan: {active_count + stats['created']} affaires actives maintenant")
         return stats
 
     def _match_score(
@@ -1334,6 +1386,14 @@ class AffairLifecycleService:
         score += len(common_institutions) * 2  # Institution en commun
         score += (2 if same_theme else 0)      # Même thème
         score += min(len(common_title), 3)     # Mots du titre en commun (max 3 pts)
+
+        if score >= 2:  # Log uniquement les matchs significatifs
+            logger.debug(
+                f"      🔍 Score={score} vs '{affair.get('title', '?')[:40]}': "
+                f"élus={list(common_elected)}, instit={list(common_institutions)}, "
+                f"thème={'✓' if same_theme else '✗'} ({art_theme}), "
+                f"mots_titre={list(common_title)[:5]}"
+            )
         return score
 
     def _consolidate_affairs_24h(self, active_affairs: list) -> int:
@@ -1353,6 +1413,8 @@ class AffairLifecycleService:
                 {"_affair_ignored": True, "_affair_attempts": {"$lt": 3}},
             ],
         }).limit(100))
+
+        logger.info(f"🔗 Consolidation 24h: {len(candidates)} candidats, {len(active_affairs)} affaires actives")
 
         for art in candidates:
             art_id = str(art["_id"])
@@ -1383,6 +1445,8 @@ class AffairLifecycleService:
                     best_match = affair
 
             if best_match and best_score >= 3:
+                logger.info(f"   🔗 Consolidé: '{art.get('title', '?')[:50]}' → "
+                           f"affaire '{best_match.get('title', '?')[:40]}' (score={best_score})")
                 self.affairs.update_one(
                     {"_id": best_match["_id"]},
                     {
@@ -1408,8 +1472,7 @@ class AffairLifecycleService:
                 })
                 consolidated += 1
 
-        if consolidated:
-            logger.info(f"🔗 Consolidation 24h: {consolidated} articles rattachés")
+        logger.info(f"🔗 Consolidation 24h: {consolidated}/{len(candidates)} articles rattachés")
         return consolidated
 
     def _link_radio_to_affairs(self, active_affairs: list) -> int:
@@ -1422,6 +1485,9 @@ class AffairLifecycleService:
             "captured_at": {"$gte": cutoff},
             "_affair_processed": {"$ne": True},
         }).limit(30))
+
+        logger.info(f"📻 Liaison radio: {len(transcriptions)} transcriptions non traitées, "
+                    f"{len(active_affairs)} affaires actives")
 
         for trans in transcriptions:
             trans_id = str(trans["_id"])
@@ -1447,6 +1513,9 @@ class AffairLifecycleService:
                 )
                 common = trans_entities & aff_entities
                 if len(common) >= 1:
+                    logger.info(f"   📻 Radio '{trans.get('station', '?')}' → "
+                               f"affaire '{affair.get('title', '?')[:40]}' "
+                               f"(entités communes: {list(common)[:3]})")
                     self.affairs.update_one(
                         {"_id": affair["_id"]},
                         {
@@ -1463,8 +1532,7 @@ class AffairLifecycleService:
                     linked += 1
                     break  # 1 affaire par transcription suffit
 
-        if linked:
-            logger.info(f"📻 {linked} transcriptions radio liées à des affaires")
+        logger.info(f"📻 {linked}/{len(transcriptions)} transcriptions radio liées à des affaires")
         return linked
 
     # ============================================================

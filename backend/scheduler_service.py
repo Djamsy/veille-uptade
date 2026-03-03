@@ -268,6 +268,7 @@ async def job_affair_cycle():
     """
     async with _locks['affairs']:
         if _db is None:
+            logger.warning("⚠️ job_affair_cycle: DB non disponible")
             return
 
         try:
@@ -278,8 +279,17 @@ async def job_affair_cycle():
 
             loop = asyncio.get_running_loop()
 
-            # Cycle simplifié : créer → consolider → radio → BMG
-            logger.info("🔄 Lancement cycle simplifié affaires...")
+            # Pré-diagnostic
+            affairs_count = _db["affairs"].count_documents({"status": "active"})
+            articles_total = _db["articles_guadeloupe"].count_documents({})
+            not_processed = _db["articles_guadeloupe"].count_documents({
+                "$or": [
+                    {"_affair_processed": {"$exists": False}},
+                    {"_affair_processed": False},
+                ]
+            })
+            logger.info(f"🔄 Lancement cycle affaires — {affairs_count} actives, "
+                        f"{articles_total} articles total, {not_processed} non traités")
             result = await loop.run_in_executor(None, svc.run_simple_cycle)
 
             if result:
@@ -319,6 +329,7 @@ def _ingest_enriched_articles(svc) -> int:
     }).limit(200))
 
     if not enriched:
+        logger.info("📥 Ingestion: 0 articles enrichis en 3j — rien à ingérer")
         return 0
 
     # IDs déjà ingérés
@@ -326,22 +337,28 @@ def _ingest_enriched_articles(svc) -> int:
     for c in candidates_col.find({"source_type": "article"}, {"item_id": 1}):
         existing_ids.add(c.get("item_id", ""))
 
+    already_exists = 0
     ingested = 0
+    errors = 0
     for article in enriched:
         art_id = str(article["_id"])
         if art_id in existing_ids:
+            already_exists += 1
             continue
 
         try:
             result = svc.ingest_item(article, source_type="article")
             if result.get("success") and result.get("action") != "already_exists":
                 ingested += 1
+            elif result.get("action") == "already_exists":
+                already_exists += 1
         except Exception as e:
+            errors += 1
             logger.debug(f"Ingestion article {art_id}: {e}")
             continue
 
-    if ingested:
-        logger.info(f"📥 {ingested} articles ingérés dans topic_candidates")
+    logger.info(f"📥 Ingestion: {ingested} nouveaux, {already_exists} déjà existants, "
+                f"{errors} erreurs (sur {len(enriched)} enrichis)")
     return ingested
 
 
@@ -365,11 +382,17 @@ async def job_update_affairs():
             # Affaires actives
             active = list(affairs_col.find({"status": "active"}))
             if not active:
+                logger.info("📊 MAJ affaires: 0 affaires actives, rien à mettre à jour")
                 return
 
             # Contenus récents (3h)
             cutoff_dt = datetime.now() - timedelta(hours=3)
             cutoff_str = cutoff_dt.isoformat()
+            recent_articles = articles_col.count_documents({"$or": [
+                {"scraped_at": {"$gte": cutoff_dt}},
+                {"scraped_at": {"$gte": cutoff_str}},
+            ]})
+            logger.info(f"📊 MAJ affaires: {len(active)} actives, {recent_articles} articles récents (3h)")
             updated_count = 0
 
             for affair in active:
@@ -387,6 +410,7 @@ async def job_update_affairs():
                         affair_entities.add(e.lower().strip())
 
                 if not affair_entities:
+                    logger.debug(f"   ⏭️ Affaire '{affair.get('title', '?')[:40]}' sans entités, skip")
                     continue  # Pas d'entités → pas de matching possible
 
                 existing_ids = set(str(a) for a in affair.get("articles", []))
@@ -458,10 +482,12 @@ async def job_update_affairs():
                     logger.info(f"📈 MAJ: {affair.get('title', '?')} (+{len(updates)} via entités)")
 
             if updated_count:
-                logger.info(f"✅ {updated_count} affaires mises à jour (matching entités+thème)")
+                logger.info(f"✅ {updated_count}/{len(active)} affaires mises à jour (matching entités+thème)")
+            else:
+                logger.info(f"ℹ️ 0 affaires mises à jour — aucun nouvel article ne match les entités des affaires actives")
 
         except Exception as e:
-            logger.error(f"❌ Erreur MAJ affaires: {e}")
+            logger.error(f"❌ Erreur MAJ affaires: {e}", exc_info=True)
 
 
 # ============================================================
