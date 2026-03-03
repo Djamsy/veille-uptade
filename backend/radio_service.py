@@ -88,7 +88,7 @@ class RadioTranscriptionService:
                 "section": "6H20 RCI",
                 "description": "RCI — Journal matinal 6h20",
                 "type": "radio",
-                "url": "https://player.rci.fm/live/rci",
+                "url": "https://rci.streamakaci.com/rci971.mp3",
                 "duration_minutes": 25,
                 "schedule": {"days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"], "hour": 6, "minute": 20},
                 "priority": 1,
@@ -99,7 +99,7 @@ class RadioTranscriptionService:
                 "section": "7H RCI",
                 "description": "RCI — Journal matinal 7h00",
                 "type": "radio",
-                "url": "https://player.rci.fm/live/rci",
+                "url": "https://rci.streamakaci.com/rci971.mp3",
                 "duration_minutes": 20,
                 "schedule": {"days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"], "hour": 7, "minute": 0},
                 "priority": 2,
@@ -110,7 +110,7 @@ class RadioTranscriptionService:
                 "section": "12H RCI",
                 "description": "RCI — Journal de midi",
                 "type": "radio",
-                "url": "https://player.rci.fm/live/rci",
+                "url": "https://rci.streamakaci.com/rci971.mp3",
                 "duration_minutes": 20,
                 "schedule": {"days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"], "hour": 12, "minute": 0},
                 "priority": 3,
@@ -121,7 +121,7 @@ class RadioTranscriptionService:
                 "section": "19H RCI",
                 "description": "RCI — Journal du soir",
                 "type": "radio",
-                "url": "https://player.rci.fm/live/rci",
+                "url": "https://rci.streamakaci.com/rci971.mp3",
                 "duration_minutes": 20,
                 "schedule": {"days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"], "hour": 19, "minute": 0},
                 "priority": 4,
@@ -154,7 +154,7 @@ class RadioTranscriptionService:
                 "section": "7H30 RCI",
                 "description": "RCI — Émission politique matinale",
                 "type": "radio",
-                "url": "https://player.rci.fm/live/rci",
+                "url": "https://rci.streamakaci.com/rci971.mp3",
                 "duration_minutes": 50,
                 "schedule": {"days": ["mon", "tue", "wed", "thu", "fri"], "hour": 7, "minute": 30},
                 "priority": 7,
@@ -364,36 +364,51 @@ class RadioTranscriptionService:
         )
 
         try:
-            # Capture audio
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            # Capture audio en MP3 (plus compact que WAV, respecte la limite Whisper 25MB)
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
                 tmp_path = tmp.name
 
             cmd = [
                 "ffmpeg", "-y", "-i", resolved_url,
                 "-t", str(duration_secs),
                 "-ar", "16000", "-ac", "1",
+                "-codec:a", "libmp3lame", "-b:a", "64k",
                 tmp_path
             ]
 
             self._update_status(key, progress_percentage=30)
-            
+
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=duration_secs + 60)
-            
+
             if result.returncode != 0:
                 os.unlink(tmp_path)
                 self._update_status(key, in_progress=False, current_step="error")
-                return {"success": False, "error": f"FFmpeg failed: {result.stderr}"}
+                return {"success": False, "error": f"FFmpeg failed: {result.stderr[-500:]}"}
+
+            # Vérifier la taille avant envoi à Whisper (limite 25MB)
+            file_size = os.path.getsize(tmp_path)
+            logger.info(f"🎙️ {key}: capture {file_size / 1024 / 1024:.1f}MB ({duration_secs}s)")
+            if file_size > 25 * 1024 * 1024:
+                logger.warning(f"⚠️ {key}: fichier trop gros ({file_size / 1024 / 1024:.1f}MB), re-compression...")
+                # Re-compresser en bitrate plus bas
+                with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp2:
+                    tmp_path2 = tmp2.name
+                cmd2 = ["ffmpeg", "-y", "-i", tmp_path, "-ar", "16000", "-ac", "1",
+                        "-codec:a", "libmp3lame", "-b:a", "32k", tmp_path2]
+                subprocess.run(cmd2, capture_output=True, timeout=120)
+                os.unlink(tmp_path)
+                tmp_path = tmp_path2
 
             self._update_status(key, current_step="transcription", progress_percentage=60)
 
             # Transcription
             transcription_text = self._transcribe_audio(tmp_path)
-            
+
             self._update_status(key, current_step="saving", progress_percentage=80)
 
             # Sauvegarde
             doc = self._save_transcription(key, cfg, tmp_path, transcription_text)
-            
+
             # Nettoyage
             os.unlink(tmp_path)
             

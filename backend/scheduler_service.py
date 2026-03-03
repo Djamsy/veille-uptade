@@ -163,22 +163,49 @@ async def job_enrich():
         try:
             articles_col = _db["articles_guadeloupe"]
 
+            # Diagnostic : compter les articles par _analysis_method
+            total_col = articles_col.count_documents({})
+            preliminary = articles_col.count_documents({"_analysis_method": "rules_preliminary"})
+            ultra_strict = articles_col.count_documents({"_analysis_method": "rule_based_ultra_strict"})
+            no_method = articles_col.count_documents({"_analysis_method": {"$exists": False}})
+            logger.info(
+                f"📊 DB: {total_col} articles total, "
+                f"{preliminary} rules_preliminary, {ultra_strict} ultra_strict, "
+                f"{no_method} sans méthode"
+            )
+
             # Articles à enrichir : soit jamais enrichis, soit seulement pré-enrichis
-            # par règles (rules_preliminary) — l'IA peut faire mieux
-            cutoff = (datetime.now() - timedelta(days=3)).isoformat()
-            query = {
-                "$or": [
+            cutoff_dt = datetime.now() - timedelta(days=3)
+            cutoff_str = cutoff_dt.isoformat()
+
+            # Requête simple — chercher les articles à ré-enrichir
+            # On utilise $and explicite pour combiner les conditions proprement
+            query = {"$and": [
+                {"$or": [
                     {"_analysis_method": {"$exists": False}},
                     {"_analysis_method": "rules_preliminary"},
                     {"_analysis_method": "rule_based_ultra_strict"},
-                ],
-                "scraped_at": {"$gte": cutoff}
-            }
+                ]},
+                {"$or": [
+                    {"scraped_at": {"$gte": cutoff_dt}},
+                    {"scraped_at": {"$gte": cutoff_str}},
+                ]}
+            ]}
 
             articles = list(articles_col.find(query).limit(50))
 
             if not articles:
-                logger.info("ℹ️ Pas d'articles à enrichir")
+                # Diagnostic supplémentaire
+                any_preliminary = articles_col.find_one({"_analysis_method": "rules_preliminary"})
+                if any_preliminary:
+                    logger.warning(
+                        f"⚠️ {preliminary} articles rules_preliminary en base mais "
+                        f"aucun ne match la requête ! scraped_at type: "
+                        f"{type(any_preliminary.get('scraped_at'))}, "
+                        f"valeur: {any_preliminary.get('scraped_at')}"
+                    )
+                else:
+                    logger.info("ℹ️ Pas d'articles à enrichir (aucun rules_preliminary)")
                 return {"enriched": 0}
 
             logger.info(f"🧠 Enrichissement de {len(articles)} articles via {method}...")
@@ -281,10 +308,14 @@ def _ingest_enriched_articles(svc) -> int:
     candidates_col = _db["topic_candidates"]
 
     # Articles enrichis des 3 derniers jours
-    cutoff = (datetime.now() - timedelta(days=3)).isoformat()
+    cutoff_dt = datetime.now() - timedelta(days=3)
+    cutoff_str = cutoff_dt.isoformat()
     enriched = list(articles_col.find({
         "_analysis_method": {"$exists": True},
-        "scraped_at": {"$gte": cutoff},
+        "$or": [
+            {"scraped_at": {"$gte": cutoff_dt}},
+            {"scraped_at": {"$gte": cutoff_str}},
+        ],
     }).limit(200))
 
     if not enriched:
@@ -337,7 +368,8 @@ async def job_update_affairs():
                 return
 
             # Contenus récents (3h)
-            cutoff = (datetime.now() - timedelta(hours=3)).isoformat()
+            cutoff_dt = datetime.now() - timedelta(hours=3)
+            cutoff_str = cutoff_dt.isoformat()
             updated_count = 0
 
             for affair in active:
@@ -361,7 +393,10 @@ async def job_update_affairs():
                 updates = []
 
                 # Nouveaux articles liés
-                for article in articles_col.find({"scraped_at": {"$gte": cutoff}}):
+                for article in articles_col.find({"$or": [
+                    {"scraped_at": {"$gte": cutoff_dt}},
+                    {"scraped_at": {"$gte": cutoff_str}},
+                ]}):
                     art_id = str(article["_id"])
                     if art_id in existing_ids:
                         continue
@@ -584,8 +619,12 @@ async def scheduler_dashboard():
     total_articles = articles_col.count_documents({})
     enriched_articles = articles_col.count_documents({"_analysis_method": {"$exists": True}})
 
-    cutoff_24h = (datetime.now() - timedelta(hours=24)).isoformat()
-    recent_articles = articles_col.count_documents({"scraped_at": {"$gte": cutoff_24h}})
+    cutoff_24h_dt = datetime.now() - timedelta(hours=24)
+    cutoff_24h_str = cutoff_24h_dt.isoformat()
+    recent_articles = articles_col.count_documents({"$or": [
+        {"scraped_at": {"$gte": cutoff_24h_dt}},
+        {"scraped_at": {"$gte": cutoff_24h_str}},
+    ]})
 
     # Stats affaires
     total_affairs = affairs_col.count_documents({})

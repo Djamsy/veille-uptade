@@ -80,14 +80,20 @@ THEME_TAXONOMY: Dict[str, List[str]] = {
         "insecurite", "delinquance", "violence", "police", "gendarmerie",
         "brigade", "tribunal", "justice", "parquet", "procureur", "prison",
         "incendie", "pompiers", "secours", "accident", "controle", "douane",
-        "homicide", "agression", "vol", "cambriolage", "meurtre"
+        "homicide", "agression", "vol", "cambriolage", "meurtre",
+        "correctionnel", "correctionnelle", "poursuivi", "poursuivie", "poursuites",
+        "convoque", "convoquee", "mise en examen", "garde a vue", "condamne",
+        "condamnation", "cour d appel", "chambre correctionnelle", "enquete",
+        "instruction", "jugement", "inculpe", "prevenu", "detournement",
+        "corruption", "abus de confiance", "escroquerie", "blanchiment"
     ],
     "politique_institutions": [
         "departement", "region", "collectivite", "prefet", "prefecture",
-        "mairie", "municipal", "gouvernement", "ministere", "assemblee",
+        "mairie", "municipal", "municipales", "gouvernement", "ministere", "assemblee",
         "conseil municipal", "conseil regional", "conseil departemental",
         "commission", "budget primitif", "deliberation", "depute", "senateur",
-        "election", "vote"
+        "election", "elections", "vote", "scrutin", "candidat", "candidate",
+        "liste", "campagne electorale", "premier tour", "second tour"
     ],
     "catastrophes_risques": [
         "cyclone", "ouragan", "tempete", "vigilance", "pluie", "inondation",

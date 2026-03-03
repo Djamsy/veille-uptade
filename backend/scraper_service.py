@@ -56,36 +56,47 @@ _GUADELOUPE_KEYWORDS = {
 def _is_guadeloupe_relevant(title: str, content: str, url: str = "") -> bool:
     """
     Vérifie si un article concerne la Guadeloupe / Antilles.
-    Retourne True si au moins un mot-clé local est trouvé.
-    Pour les sites déjà locaux (France-Antilles Guadeloupe, RCI, KaribInfo),
-    on est plus permissif (accepte tout sauf les articles clairement internationaux).
+    - Rejette d'abord les articles clairement internationaux (même sur sites locaux)
+    - Puis vérifie la présence de mots-clés locaux
+    - Les sites locaux sont acceptés par défaut (sauf contenu international)
     """
-    text = f"{title} {content[:1500]}".lower()
-    # Supprimer les accents pour matching plus souple
     import unicodedata
+
+    title_lower = title.lower().strip()
+    text = f"{title} {content[:1500]}".lower()
     text_norm = unicodedata.normalize("NFKD", text)
     text_norm = "".join(ch for ch in text_norm if not unicodedata.combining(ch))
 
-    # Vérifier la présence de mots-clés locaux
+    # 1. EXCLUSION FORTE — articles clairement internationaux
+    #    Même sur un site local, ces articles ne sont pas pertinents
+    _INTL_EXCLUSIONS = [
+        "ukraine", "russie", "gaza", "israel", "palestine", "liban",
+        "venezuela", "mexique", "philippines", "japon", "chine",
+        "iran", "irak", "syrie", "afghanistan", "coree du nord",
+        "trump", "biden", "poutine", "zelensky", "macron",
+        "premier league", "champions league", "liga", "bundesliga", "serie a",
+        "ambassade americaine", "guerre contre",
+    ]
+    # Si le TITRE contient un mot-clé international → rejet immédiat
+    title_norm = unicodedata.normalize("NFKD", title_lower)
+    title_norm = "".join(ch for ch in title_norm if not unicodedata.combining(ch))
+    title_intl = sum(1 for kw in _INTL_EXCLUSIONS if kw in title_norm)
+    if title_intl >= 1:
+        return False
+
+    # Si le contenu contient 2+ mots-clés internationaux → rejet
+    intl_count = sum(1 for kw in _INTL_EXCLUSIONS if kw in text_norm)
+    if intl_count >= 2:
+        return False
+
+    # 2. MOTS-CLÉS LOCAUX — si trouvés, c'est pertinent
     for kw in _GUADELOUPE_KEYWORDS:
         kw_norm = unicodedata.normalize("NFKD", kw)
         kw_norm = "".join(ch for ch in kw_norm if not unicodedata.combining(ch))
         if kw_norm in text_norm:
             return True
 
-    # Mots-clés d'exclusion forte (article clairement hors-zone)
-    _INTL_EXCLUSIONS = [
-        "ukraine", "russie", "gaza", "israel", "palestine", "liban",
-        "venezuela", "mexique", "philippines", "japon", "chine",
-        "etats-unis", "trump", "biden", "poutine", "zelensky",
-        "premier league", "champions league", "liga", "bundesliga", "serie a",
-    ]
-    intl_count = sum(1 for kw in _INTL_EXCLUSIONS if kw in text_norm)
-    if intl_count >= 2:
-        return False
-
-    # Si l'URL est d'un site local guadeloupéen, on accepte par défaut
-    # (les articles locaux ne mentionnent pas toujours "Guadeloupe" explicitement)
+    # 3. SITES LOCAUX — accepter par défaut (contenu local implicite)
     local_domains = ["guadeloupe.franceantilles.fr", "rci.fm/guadeloupe",
                      "la1ere.franceinfo.fr/guadeloupe", "karibinfo.com"]
     for domain in local_domains:
@@ -150,9 +161,13 @@ class GuadeloupeScraper:
             },
             "la1ere": {
                 "name": "La 1ère Guadeloupe",
-                "url": "https://la1ere.franceinfo.fr/guadeloupe/",
-                "selectors": ["a.teaser__title", "article a[href*='/guadeloupe/']"],
-                "content_selectors": [".article__content", ".text", ".content"],
+                "url": "https://la1ere.franceinfo.fr/guadeloupe",
+                "selectors": [
+                    "a[href*='/guadeloupe/']",
+                    "a.card__link", "a.teaser__link", "a.teaser__title",
+                    ".card a", "article a", "h2 a", "h3 a",
+                ],
+                "content_selectors": [".article__content", ".article-body", ".text", ".content", "article"],
                 "base_url": "https://la1ere.franceinfo.fr",
             },
             "karibinfo": {
