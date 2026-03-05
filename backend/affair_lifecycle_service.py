@@ -1156,7 +1156,8 @@ class AffairLifecycleService:
         logger.info("=" * 50)
 
         now = datetime.utcnow()
-        cutoff_3d = (now - timedelta(days=3)).isoformat()
+        cutoff_3d_dt = now - timedelta(days=3)
+        cutoff_3d_str = cutoff_3d_dt.isoformat()
         stats = {
             "method": "simple_cycle",
             "created": 0,
@@ -1166,13 +1167,19 @@ class AffairLifecycleService:
         }
 
         # ── ÉTAPE 1 : Récupérer les articles enrichis non traités ──
+        # IMPORTANT: scraped_at peut être datetime OU string ISO en base
         unprocessed = list(self.articles.find({
-            "scraped_at": {"$gte": cutoff_3d},
-            "_analysis_method": {"$exists": True},
-            "$or": [
-                {"_affair_processed": {"$exists": False}},
-                {"_affair_processed": False},
-            ],
+            "$and": [
+                {"_analysis_method": {"$exists": True}},
+                {"$or": [
+                    {"_affair_processed": {"$exists": False}},
+                    {"_affair_processed": False},
+                ]},
+                {"$or": [
+                    {"scraped_at": {"$gte": cutoff_3d_dt}},
+                    {"scraped_at": {"$gte": cutoff_3d_str}},
+                ]},
+            ]
         }).sort("gravity_score", -1).limit(60))
 
         # ── DIAGNOSTIC : état de la base ──
@@ -1188,24 +1195,21 @@ class AffairLifecycleService:
 
         if len(unprocessed) == 0 and total_enriched > 0:
             # Diagnostic : pourquoi aucun article non traité ?
-            recent_enriched = self.articles.count_documents({
-                "scraped_at": {"$gte": cutoff_3d},
-                "_analysis_method": {"$exists": True},
-            })
-            recent_not_processed = self.articles.count_documents({
-                "scraped_at": {"$gte": cutoff_3d},
-                "_analysis_method": {"$exists": True},
-                "$or": [
-                    {"_affair_processed": {"$exists": False}},
-                    {"_affair_processed": False},
-                ],
-            })
+            recent_enriched = self.articles.count_documents({"$or": [
+                {"scraped_at": {"$gte": cutoff_3d_dt}, "_analysis_method": {"$exists": True}},
+                {"scraped_at": {"$gte": cutoff_3d_str}, "_analysis_method": {"$exists": True}},
+            ]})
+            recent_not_processed = self.articles.count_documents({"$and": [
+                {"_analysis_method": {"$exists": True}},
+                {"$or": [{"_affair_processed": {"$exists": False}}, {"_affair_processed": False}]},
+                {"$or": [{"scraped_at": {"$gte": cutoff_3d_dt}}, {"scraped_at": {"$gte": cutoff_3d_str}}]},
+            ]})
             logger.warning(f"⚠️ Diagnostic 0 articles: {recent_enriched} enrichis en 3j, "
                           f"{recent_not_processed} non traités parmi eux")
             # Examiner un exemple
             sample = self.articles.find_one({
-                "scraped_at": {"$gte": cutoff_3d},
                 "_analysis_method": {"$exists": True},
+                "$or": [{"scraped_at": {"$gte": cutoff_3d_dt}}, {"scraped_at": {"$gte": cutoff_3d_str}}],
             })
             if sample:
                 logger.warning(f"   Exemple: scraped_at={sample.get('scraped_at')} "
@@ -1338,22 +1342,25 @@ class AffairLifecycleService:
         # ── ÉTAPE 3 : Consolidation — chercher d'autres sources 24h ──
         stats["consolidated"] = self._consolidate_affairs_24h(active_affairs)
 
-        # ── ÉTAPE 4 : Lier les transcriptions radio ──
+        # ── ÉTAPE 4 : Enrichir les transcriptions radio avec l'IA ──
+        stats["radio_enriched"] = self._enrich_radio_transcriptions()
+
+        # ── ÉTAPE 5 : Lier les transcriptions radio ──
         stats["radio_linked"] = self._link_radio_to_affairs(active_affairs)
 
-        # ── ÉTAPE 5 : Enforcer la limite ──
+        # ── ÉTAPE 6 : Enforcer la limite ──
         self._enforce_max_affairs()
 
-        # ── ÉTAPE 6 : Recalculer BMG ──
+        # ── ÉTAPE 7 : Recalculer BMG ──
         self._recalculate_active_bmg()
 
-        # ── ÉTAPE 7 : Lifecycle ──
+        # ── ÉTAPE 8 : Lifecycle ──
         stats["lifecycle"] = self.update_affair_lifecycle()
 
         logger.info(
             f"✅ Cycle simplifié: {stats['created']} créées, {stats['merged']} fusionnées, "
-            f"{stats['consolidated']} consolidées, {stats['radio_linked']} radio liées, "
-            f"{ignored_count} ignorées (gravity<0.15)"
+            f"{stats['consolidated']} consolidées, {stats['radio_enriched']} radio enrichies, "
+            f"{stats['radio_linked']} radio liées, {ignored_count} ignorées (gravity<0.15)"
         )
         logger.info(f"📊 Bilan: {active_count + stats['created']} affaires actives maintenant")
         return stats
@@ -1399,19 +1406,26 @@ class AffairLifecycleService:
     def _consolidate_affairs_24h(self, active_affairs: list) -> int:
         """Cherche dans les 24h si des articles non traités correspondent
         à des affaires récemment créées. Consolide multi-source."""
-        cutoff_24h = (datetime.utcnow() - timedelta(hours=24)).isoformat()
         now = datetime.utcnow()
+        cutoff_24h_dt = now - timedelta(hours=24)
+        cutoff_24h_str = cutoff_24h_dt.isoformat()
         consolidated = 0
 
         # Articles des 24h, même ceux déjà "ignorés" avec peu de tentatives
+        # IMPORTANT: scraped_at peut être datetime OU string ISO
         candidates = list(self.articles.find({
-            "scraped_at": {"$gte": cutoff_24h},
-            "_analysis_method": {"$exists": True},
-            "$or": [
-                {"_affair_processed": {"$exists": False}},
-                {"_affair_processed": False},
-                {"_affair_ignored": True, "_affair_attempts": {"$lt": 3}},
-            ],
+            "$and": [
+                {"_analysis_method": {"$exists": True}},
+                {"$or": [
+                    {"_affair_processed": {"$exists": False}},
+                    {"_affair_processed": False},
+                    {"_affair_ignored": True, "_affair_attempts": {"$lt": 3}},
+                ]},
+                {"$or": [
+                    {"scraped_at": {"$gte": cutoff_24h_dt}},
+                    {"scraped_at": {"$gte": cutoff_24h_str}},
+                ]},
+            ]
         }).limit(100))
 
         logger.info(f"🔗 Consolidation 24h: {len(candidates)} candidats, {len(active_affairs)} affaires actives")
@@ -1475,14 +1489,96 @@ class AffairLifecycleService:
         logger.info(f"🔗 Consolidation 24h: {consolidated}/{len(candidates)} articles rattachés")
         return consolidated
 
+    def _enrich_radio_transcriptions(self) -> int:
+        """Enrichit les transcriptions radio récentes avec l'IA (split_radio_transcription).
+        Extrait les sujets, entités, thèmes et gravité de chaque transcription."""
+        try:
+            from backend.ai_groq_service import split_radio_transcription
+        except ImportError:
+            try:
+                from ai_groq_service import split_radio_transcription
+            except ImportError:
+                logger.warning("⚠️ split_radio_transcription non disponible — pas d'enrichissement radio")
+                return 0
+
+        now = datetime.utcnow()
+        cutoff_dt = now - timedelta(days=3)
+        cutoff_str = cutoff_dt.isoformat()
+
+        # Transcriptions non encore enrichies (pas de ai_topics)
+        unenriched = list(self.transcriptions.find({
+            "$and": [
+                {"$or": [
+                    {"captured_at": {"$gte": cutoff_dt}},
+                    {"captured_at": {"$gte": cutoff_str}},
+                ]},
+                {"$or": [
+                    {"ai_topics": {"$exists": False}},
+                    {"ai_topics": []},
+                    {"ai_topics": None},
+                ]},
+                {"status": "completed"},
+            ]
+        }).sort("captured_at", -1).limit(10))
+
+        logger.info(f"🎙️ Enrichissement radio: {len(unenriched)} transcriptions à enrichir")
+
+        enriched_count = 0
+        for trans in unenriched:
+            text = trans.get("text") or trans.get("transcription") or ""
+            if len(text) < 50:
+                logger.debug(f"   ⏭️ Transcription trop courte ({len(text)} chars): {trans.get('name', '?')}")
+                continue
+
+            radio_name = trans.get("radio") or trans.get("stream_name") or trans.get("name") or ""
+            try:
+                topics = split_radio_transcription(text, radio_name=radio_name)
+            except Exception as e:
+                logger.warning(f"   ⚠️ Erreur split_radio pour '{radio_name}': {e}")
+                continue
+
+            if topics:
+                all_entities = []
+                all_themes = []
+                max_gravity = 0.0
+                for topic in topics:
+                    all_entities.extend(topic.get("entities", []))
+                    all_themes.append(topic.get("theme", "general"))
+                    max_gravity = max(max_gravity, topic.get("gravity", 0))
+
+                self.transcriptions.update_one(
+                    {"_id": trans["_id"]},
+                    {"$set": {
+                        "ai_topics": topics,
+                        "ai_topics_count": len(topics),
+                        "entities": list(set(all_entities)),
+                        "themes": list(set(all_themes)),
+                        "gravity_score": round(max_gravity, 3),
+                        "enriched_at": now.isoformat(),
+                        "_analysis_method": "ai_split",
+                    }}
+                )
+                enriched_count += 1
+                logger.info(f"   🎙️ {radio_name}: {len(topics)} sujets extraits "
+                           f"(entités: {all_entities[:5]}, gravity: {max_gravity:.2f})")
+            else:
+                logger.info(f"   ℹ️ {radio_name}: aucun sujet extrait par l'IA")
+
+        logger.info(f"🎙️ Enrichissement radio: {enriched_count}/{len(unenriched)} transcriptions enrichies")
+        return enriched_count
+
     def _link_radio_to_affairs(self, active_affairs: list) -> int:
         """Lie les transcriptions radio récentes aux affaires par entités."""
-        cutoff = (datetime.utcnow() - timedelta(days=3)).isoformat()
         now = datetime.utcnow()
+        cutoff_dt = now - timedelta(days=3)
+        cutoff_str = cutoff_dt.isoformat()
         linked = 0
 
         transcriptions = list(self.transcriptions.find({
-            "captured_at": {"$gte": cutoff},
+            "$or": [
+                {"captured_at": {"$gte": cutoff_dt}},
+                {"captured_at": {"$gte": cutoff_str}},
+            ],
             "_affair_processed": {"$ne": True},
         }).limit(30))
 
@@ -1599,10 +1695,14 @@ class AffairLifecycleService:
             for aid in aff.get("articles", []):
                 existing_article_ids.add(str(aid))
 
+        cutoff_str = cutoff.isoformat()
         new_articles_raw = list(
             self.articles.find({
                 "_analysis_method": {"$exists": True},
-                "scraped_at": {"$gte": cutoff.isoformat()},
+                "$or": [
+                    {"scraped_at": {"$gte": cutoff}},
+                    {"scraped_at": {"$gte": cutoff_str}},
+                ],
                 "_affair_processed": {"$ne": True},
             })
             .sort("scraped_at", -1)
@@ -1635,7 +1735,10 @@ class AffairLifecycleService:
 
             new_transcriptions = list(
                 self.transcriptions.find({
-                    "captured_at": {"$gte": cutoff.isoformat()},
+                    "$or": [
+                        {"captured_at": {"$gte": cutoff}},
+                        {"captured_at": {"$gte": cutoff_str}},
+                    ],
                     "_affair_processed": {"$ne": True},
                 })
                 .sort("captured_at", -1)
@@ -2039,15 +2142,21 @@ class AffairLifecycleService:
         """Ré-essaye de lier les articles orphelins récents aux affaires actives.
         Utilise un matching plus souple : 1 entité spécifique (personne) suffit,
         ou 1 entité + même thème."""
-        cutoff = (datetime.utcnow() - timedelta(days=5)).isoformat()
+        cutoff_dt = datetime.utcnow() - timedelta(days=5)
+        cutoff_str = cutoff_dt.isoformat()
 
         orphans = list(self.articles.find({
-            "scraped_at": {"$gte": cutoff},
-            "_analysis_method": {"$exists": True},
-            "$or": [
-                {"_affair_processed": {"$exists": False}},
-                {"_affair_processed": False},
-            ],
+            "$and": [
+                {"_analysis_method": {"$exists": True}},
+                {"$or": [
+                    {"_affair_processed": {"$exists": False}},
+                    {"_affair_processed": False},
+                ]},
+                {"$or": [
+                    {"scraped_at": {"$gte": cutoff_dt}},
+                    {"scraped_at": {"$gte": cutoff_str}},
+                ]},
+            ]
         }).limit(50))
 
         if not orphans:
@@ -2210,18 +2319,24 @@ class AffairLifecycleService:
         if self.db is None:
             return {"error": "no_db"}
 
-        cutoff = (datetime.utcnow() - timedelta(days=3)).isoformat()
         now = datetime.utcnow()
+        cutoff_dt = now - timedelta(days=3)
+        cutoff_str = cutoff_dt.isoformat()
 
         # Articles enrichis non traités avec gravité >= 0.35
         unprocessed = list(self.articles.find({
-            "scraped_at": {"$gte": cutoff},
-            "_analysis_method": {"$exists": True},
-            "$or": [
-                {"_affair_processed": {"$exists": False}},
-                {"_affair_processed": False},
-            ],
-            "gravity_score": {"$gte": 0.35},
+            "$and": [
+                {"_analysis_method": {"$exists": True}},
+                {"gravity_score": {"$gte": 0.35}},
+                {"$or": [
+                    {"_affair_processed": {"$exists": False}},
+                    {"_affair_processed": False},
+                ]},
+                {"$or": [
+                    {"scraped_at": {"$gte": cutoff_dt}},
+                    {"scraped_at": {"$gte": cutoff_str}},
+                ]},
+            ]
         }).sort("gravity_score", -1).limit(30))
 
         if not unprocessed:
