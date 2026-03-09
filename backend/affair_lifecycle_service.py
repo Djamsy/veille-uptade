@@ -912,6 +912,22 @@ class AffairLifecycleService:
     # ============================================================
     # ÉTAPE 4 : CALCUL BMG — Bruit Médiatique Global
     # ============================================================
+    def _safe_object_ids(self, ids: list) -> list:
+        """Convertit une liste d'IDs en ObjectId de manière robuste.
+        Accepte: str, ObjectId, ou tout format valide."""
+        result = []
+        for a in ids:
+            if not a:
+                continue
+            if isinstance(a, ObjectId):
+                result.append(a)
+            else:
+                try:
+                    result.append(ObjectId(str(a)))
+                except Exception:
+                    pass
+        return result
+
     def calculate_bmg(self, affair: Dict) -> Dict[str, Any]:
         """
         Calcule le BMG d'une affaire à partir de ses items réels.
@@ -925,12 +941,17 @@ class AffairLifecycleService:
             "reseaux_sociaux": {"score_sum": 0, "weight_sum": 0, "count": 0, "items": []},
         }
 
+        affair_title = affair.get("title", "?")[:40]
+
         # Presse (articles)
         article_ids = affair.get("articles", [])
         if article_ids:
             try:
-                obj_ids = [ObjectId(a) for a in article_ids if a and len(a) == 24]
+                obj_ids = self._safe_object_ids(article_ids)
+                logger.info(f"   📊 BMG '{affair_title}': {len(article_ids)} articles IDs → "
+                           f"{len(obj_ids)} ObjectId valides")
                 docs = list(self.articles.find({"_id": {"$in": obj_ids}})) if obj_ids else []
+                logger.info(f"   📊 BMG '{affair_title}': {len(docs)} articles trouvés en base")
                 for doc in docs:
                     importance = doc.get("importance_score") or doc.get("gravity_score", 0.3)
                     source = doc.get("source", "")
@@ -952,7 +973,7 @@ class AffairLifecycleService:
         trans_ids = affair.get("radio_transcriptions", [])
         if trans_ids:
             try:
-                obj_ids = [ObjectId(t) for t in trans_ids if t and len(t) == 24]
+                obj_ids = self._safe_object_ids(trans_ids)
                 docs = list(self.transcriptions.find({"_id": {"$in": obj_ids}})) if obj_ids else []
                 for doc in docs:
                     importance = doc.get("importance_score") or doc.get("score_importance", 0.4)
@@ -977,7 +998,7 @@ class AffairLifecycleService:
         social_ids = affair.get("social_posts", [])
         if social_ids:
             try:
-                obj_ids = [ObjectId(s) for s in social_ids if s and len(s) == 24]
+                obj_ids = self._safe_object_ids(social_ids)
                 docs = list(self.social.find({"_id": {"$in": obj_ids}})) if obj_ids else []
                 for doc in docs:
                     likes = doc.get("likes", 0) or doc.get("reactions", 0)
@@ -1027,6 +1048,13 @@ class AffairLifecycleService:
 
         total_items = sum(d["count"] for d in canal_data.values())
         dominant = max(bnp_by_canal, key=bnp_by_canal.get) if any(bnp_by_canal.values()) else None
+
+        logger.info(f"   📊 BMG '{affair_title}': {round(bmg, 3)} ({niveau}) — "
+                    f"presse={round(bnp_by_canal.get('presse', 0), 3)} "
+                    f"radio={round(bnp_by_canal.get('radio', 0), 3)} "
+                    f"tv={round(bnp_by_canal.get('television', 0), 3)} "
+                    f"social={round(bnp_by_canal.get('reseaux_sociaux', 0), 3)} — "
+                    f"{total_items} items, {active_canals} canaux")
 
         return {
             "bmg": round(bmg, 3),
@@ -2183,7 +2211,7 @@ class AffairLifecycleService:
                     }
                 )
             except Exception as e:
-                logger.debug(f"BMG recalc: {e}")
+                logger.error(f"❌ BMG recalc pour '{aff.get('title', '?')[:40]}': {e}", exc_info=True)
 
     def _reaffiliate_orphans(self) -> int:
         """Ré-essaye de lier les articles orphelins récents aux affaires actives.

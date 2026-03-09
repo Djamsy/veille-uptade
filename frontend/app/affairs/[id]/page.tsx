@@ -258,7 +258,7 @@ export default function AffairDetailPage() {
 
               {/* BMG Gauge large */}
               <div className="flex flex-col items-center gap-2">
-                <BmgGauge value={affair.bmg || 0} size={120} label={bmg?.niveau_alerte} />
+                <BmgGauge value={(affair.bmg || 0) * 100} size={120} label={bmg?.niveau_alerte} />
                 <button
                   onClick={handleRecalculate}
                   disabled={recalculating}

@@ -133,7 +133,7 @@ function AffairCard({ affair }: { affair: Affair }) {
                 : timeAgo(affair.last_activity || affair.created_at)}
             </p>
           </div>
-          <BmgGauge value={affair.bmg || 0} size={52} />
+          <BmgGauge value={(affair.bmg || 0) * 100} size={52} />
         </div>
         <div className="flex flex-wrap gap-1 mb-2">
           <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${themeColor(affair.theme)}`}>
@@ -169,7 +169,7 @@ function AlertRow({ affair }: { affair: Affair }) {
           </p>
         </div>
         <span className="text-xs text-red-600 font-medium flex-shrink-0">
-          BMG {Math.round(affair.bmg || 0)}
+          BMG {Math.round((affair.bmg || 0) * 100)}
         </span>
       </div>
     </Link>

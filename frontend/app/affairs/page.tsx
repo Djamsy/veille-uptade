@@ -224,7 +224,7 @@ export default function AffairsPage() {
                           <p className="text-xs text-slate-500 truncate mt-0.5">{affair.primary_entity}</p>
                         )}
                       </div>
-                      <BmgGauge value={affair.bmg || 0} size={60} />
+                      <BmgGauge value={(affair.bmg || 0) * 100} size={60} />
                     </div>
 
                     {/* Description snippet */}

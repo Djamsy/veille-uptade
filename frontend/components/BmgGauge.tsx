@@ -20,10 +20,11 @@ export default function BmgGauge({ value, size = 80, label }: BmgGaugeProps) {
   }
 
   const getLevel = (v: number) => {
-    if (v >= 75) return 'Critique'
-    if (v >= 50) return 'Élevé'
-    if (v >= 25) return 'Modéré'
-    return 'Faible'
+    if (v >= 75) return 'CRITIQUE'
+    if (v >= 55) return 'ÉLEVÉ'
+    if (v >= 35) return 'MODÉRÉ'
+    if (v >= 15) return 'FAIBLE'
+    return 'MINIMAL'
   }
 
   const color = getColor(clamped)
