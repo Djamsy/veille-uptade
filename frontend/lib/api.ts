@@ -119,6 +119,14 @@ export interface OrphanArticle {
   scraped_at: string;
 }
 
+export interface TrendData {
+  articles_this_week: number;
+  articles_last_week: number;
+  articles_trend_pct: number;
+  affairs_created_this_week: number;
+  affairs_created_last_week: number;
+}
+
 export interface EnrichedDashboardData {
   top_affairs: Affair[];
   critical_alerts: Affair[];
@@ -130,6 +138,12 @@ export interface EnrichedDashboardData {
   orphan_articles: OrphanArticle[];
   recent_timeline: TimelineEvent[];
   top_sources: TopSource[];
+  gravity_distribution?: { low: number; medium: number; high: number; critical: number };
+  avg_gravity?: number;
+  sentiment_distribution?: Record<string, number>;
+  priority_counts?: Record<string, number>;
+  avg_bmg?: number;
+  trends?: TrendData;
   timestamp: string;
 }
 

@@ -466,6 +466,62 @@ async def enriched_dashboard():
             source_counter[src] += 1
     top_sources = [{"name": n, "count": c} for n, c in source_counter.most_common(8)]
 
+    # ── Distribution de gravité des articles (7j) ──
+    gravity_distribution = {"low": 0, "medium": 0, "high": 0, "critical": 0}
+    sentiment_counter = Counter()
+    for art in svc.articles.find(
+        {"scraped_at": {"$gte": cutoff_7d}, "_analysis_method": {"$exists": True}},
+        {"gravity_score": 1, "sentiment": 1}
+    ).limit(1000):
+        g = art.get("gravity_score", 0)
+        if g < 0.25:
+            gravity_distribution["low"] += 1
+        elif g < 0.50:
+            gravity_distribution["medium"] += 1
+        elif g < 0.70:
+            gravity_distribution["high"] += 1
+        else:
+            gravity_distribution["critical"] += 1
+        sent = art.get("sentiment", "neutre")
+        if sent:
+            sentiment_counter[sent] += 1
+    avg_gravity = 0
+    enriched_with_gravity = list(svc.articles.find(
+        {"scraped_at": {"$gte": cutoff_7d}, "gravity_score": {"$exists": True}},
+        {"gravity_score": 1}
+    ).limit(500))
+    if enriched_with_gravity:
+        avg_gravity = round(
+            sum(a.get("gravity_score", 0) for a in enriched_with_gravity) / len(enriched_with_gravity), 3
+        )
+
+    # ── Priority counts des affaires actives ──
+    priority_counts = Counter()
+    for a in active_affairs:
+        priority_counts[a.get("priority", "minor")] += 1
+
+    # ── Comparaison semaine courante vs semaine précédente ──
+    cutoff_14d = (now - timedelta(days=14)).isoformat()
+    articles_prev_week = svc.articles.count_documents({
+        "scraped_at": {"$gte": cutoff_14d, "$lt": cutoff_7d}
+    })
+    affairs_created_7d = svc.timeline.count_documents({
+        "event": "created",
+        "timestamp": {"$gte": now - timedelta(days=7)}
+    })
+    affairs_created_prev = svc.timeline.count_documents({
+        "event": "created",
+        "timestamp": {"$gte": now - timedelta(days=14), "$lt": now - timedelta(days=7)}
+    })
+
+    # ── BMG moyen des affaires actives ──
+    avg_bmg = 0
+    if active_affairs:
+        avg_bmg = round(sum(a.get("bmg", 0) for a in active_affairs) / len(active_affairs), 3)
+
+    # ── Top affaires par BMG (top 5) ──
+    top_5_affairs = active_affairs[:5]
+
     return {
         "top_affairs": active_affairs,
         "critical_alerts": critical,
@@ -486,6 +542,21 @@ async def enriched_dashboard():
         "orphan_articles": orphans_serialized,
         "recent_timeline": recent_timeline,
         "top_sources": top_sources,
+        "gravity_distribution": gravity_distribution,
+        "avg_gravity": avg_gravity,
+        "sentiment_distribution": dict(sentiment_counter.most_common(10)),
+        "priority_counts": dict(priority_counts),
+        "avg_bmg": avg_bmg,
+        "trends": {
+            "articles_this_week": total_articles_7d,
+            "articles_last_week": articles_prev_week,
+            "articles_trend_pct": round(
+                ((total_articles_7d - articles_prev_week) / articles_prev_week * 100)
+                if articles_prev_week > 0 else 0, 1
+            ),
+            "affairs_created_this_week": affairs_created_7d,
+            "affairs_created_last_week": affairs_created_prev,
+        },
         "timestamp": now.isoformat(),
     }
 
