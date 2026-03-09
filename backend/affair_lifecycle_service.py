@@ -59,9 +59,9 @@ PROMOTION_MIN_GRAVITY = 0.50           # Gravité minimum du cluster
 PROMOTION_MIN_ITEMS = 2                # Minimum d'items — 1 seul article ne fait pas une affaire
 
 # --- Cycle de vie ---
-AFFAIR_ACTIVE_DAYS = 5                 # Durée de vie active (5 jours, archivage rapide)
-AFFAIR_STALE_DAYS = 3                  # Jours sans activité → statut "stale"
-MAX_ACTIVE_AFFAIRS = 50                # Maximum d'affaires actives simultanées
+AFFAIR_ACTIVE_DAYS = 7                 # Durée de vie active (1 semaine)
+AFFAIR_STALE_DAYS = 4                  # Jours sans activité → statut "stale"
+MAX_ACTIVE_AFFAIRS = 100               # Maximum d'affaires actives — le frontend gère via priorités
 
 # --- Priorité des affaires ---
 # 3 niveaux : hot (rouge), watch (jaune), minor (vert)
@@ -1288,14 +1288,14 @@ class AffairLifecycleService:
             art_id = str(art["_id"])
             gravity = art.get("gravity_score", 0)
 
-            # Ignorer les contenus sous le seuil d'affaire (gravity < 0.40)
-            if gravity < 0.40:
+            # Ignorer les contenus sous le seuil d'affaire (gravity < 0.30)
+            if gravity < 0.30:
                 self.articles.update_one(
                     {"_id": art["_id"]},
                     {"$set": {"_affair_processed": True, "_affair_ignored": True}}
                 )
                 ignored_count += 1
-                logger.debug(f"   ⏭️ Ignoré (gravity={gravity:.2f} < 0.40): {art.get('title', '?')[:60]}")
+                logger.debug(f"   ⏭️ Ignoré (gravity={gravity:.2f} < 0.30): {art.get('title', '?')[:60]}")
                 continue
 
             art_elected = set(
@@ -1360,11 +1360,11 @@ class AffairLifecycleService:
                 )
                 stats["merged"] += 1
             else:
-                # Créer une nouvelle affaire UNIQUEMENT si critères stricts :
-                # - gravity >= 0.50 (événement vraiment significatif)
-                # - OU gravity >= 0.40 + au moins un élu identifié
+                # Créer une nouvelle affaire si critères remplis :
+                # - gravity >= 0.40 (événement significatif)
+                # - OU gravity >= 0.30 + au moins un élu identifié
                 has_key_entity = len(art_elected) >= 1
-                if gravity >= 0.50 or (gravity >= 0.40 and has_key_entity):
+                if gravity >= 0.40 or (gravity >= 0.30 and has_key_entity):
                     title = art.get("title", "Nouvelle affaire")[:200]
                     new_affair = {
                         "title": title,
@@ -1443,7 +1443,7 @@ class AffairLifecycleService:
         logger.info(
             f"✅ Cycle simplifié: {stats['created']} créées, {stats['merged']} fusionnées, "
             f"{stats['consolidated']} consolidées, {stats['radio_enriched']} radio enrichies, "
-            f"{stats['radio_linked']} radio liées, {ignored_count} ignorées (gravity<0.40 ou seuil création)"
+            f"{stats['radio_linked']} radio liées, {ignored_count} ignorées (gravity<0.30 ou seuil création)"
         )
         logger.info(f"📊 Bilan: {active_count + stats['created']} affaires actives maintenant")
         return stats
@@ -2452,11 +2452,11 @@ class AffairLifecycleService:
         cutoff_dt = now - timedelta(days=3)
         cutoff_str = cutoff_dt.isoformat()
 
-        # Articles enrichis non traités avec gravité >= 0.40
+        # Articles enrichis non traités avec gravité >= 0.30
         unprocessed = list(self.articles.find({
             "$and": [
                 {"_analysis_method": {"$exists": True}},
-                {"gravity_score": {"$gte": 0.40}},
+                {"gravity_score": {"$gte": 0.30}},
                 {"$or": [
                     {"_affair_processed": {"$exists": False}},
                     {"_affair_processed": False},
