@@ -61,32 +61,48 @@ export default function Sidebar() {
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 flex flex-col z-40"
-      style={{ background: 'linear-gradient(180deg, #0e7490 0%, #065f46 100%)' }}
+      style={{
+        background: 'rgba(255,255,255,0.02)',
+        backdropFilter: 'blur(20px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+        borderRight: '1px solid rgba(255,255,255,0.06)',
+      }}
     >
       {/* Logo */}
-      <div className="px-6 py-5 border-b border-white/10">
+      <div className="px-6 py-6" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-400 flex items-center justify-center shadow-lg">
-            <span className="text-lg">🏝️</span>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+            style={{
+              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+              boxShadow: '0 4px 15px rgba(99,102,241,0.4)',
+            }}
+          >
+            <span className="text-sm font-bold text-white">VM</span>
           </div>
           <div>
-            <h1 className="text-sm font-bold text-white leading-tight">Veille Média</h1>
-            <p className="text-[10px] text-cyan-200/70 font-medium tracking-wider uppercase">Guadeloupe</p>
+            <h1 className="text-sm font-semibold text-white leading-tight tracking-tight">Veille Média</h1>
+            <p className="text-[10px] font-medium tracking-widest uppercase" style={{ color: 'rgba(139,92,246,0.7)' }}>
+              Guadeloupe
+            </p>
           </div>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav className="flex-1 px-3 py-5 space-y-1">
         {navItems.map((item) => (
           <Link
             key={item.href}
             href={item.href}
-            className={`sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+            className={`sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
               isActive(item.href)
-                ? 'active bg-white/15 text-amber-300'
-                : 'text-white/70 hover:text-white hover:bg-white/10'
+                ? 'active text-white'
+                : 'text-white/40 hover:text-white/80 hover:bg-white/[0.04]'
             }`}
+            style={isActive(item.href) ? {
+              background: 'rgba(99,102,241,0.12)',
+              boxShadow: '0 0 20px rgba(99,102,241,0.08)',
+            } : undefined}
           >
             {item.icon}
             {item.label}
@@ -95,10 +111,12 @@ export default function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-4 py-4 border-t border-white/10">
-        <div className="flex items-center gap-2 text-xs text-white/50">
-          <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-          Connecté au backend
+      <div className="px-4 py-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="flex items-center gap-2 text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>
+          <div className="w-1.5 h-1.5 rounded-full animate-pulse"
+            style={{ background: '#10b981', boxShadow: '0 0 6px rgba(16,185,129,0.5)' }}
+          />
+          Connecté
         </div>
       </div>
     </aside>

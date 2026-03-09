@@ -17,19 +17,19 @@ function timeAgo(dateStr: string): string {
 }
 
 function sentimentColor(s?: string): string {
-  if (!s) return 'text-slate-500'
+  if (!s) return 'text-[rgba(255,255,255,0.4)]'
   const l = s.toLowerCase()
-  if (l.includes('positif') || l.includes('positive')) return 'text-emerald-600'
-  if (l.includes('négatif') || l.includes('negative')) return 'text-red-600'
-  return 'text-slate-500'
+  if (l.includes('positif') || l.includes('positive')) return 'text-[#34d399]'
+  if (l.includes('négatif') || l.includes('negative')) return 'text-[#f87171]'
+  return 'text-[rgba(255,255,255,0.4)]'
 }
 
 function sentimentBg(s?: string): string {
-  if (!s) return 'bg-slate-100'
+  if (!s) return 'bg-[rgba(255,255,255,0.04)] border-[rgba(255,255,255,0.08)]'
   const l = s.toLowerCase()
-  if (l.includes('positif') || l.includes('positive')) return 'bg-emerald-50 border-emerald-200'
-  if (l.includes('négatif') || l.includes('negative')) return 'bg-red-50 border-red-200'
-  return 'bg-slate-100 border-slate-200'
+  if (l.includes('positif') || l.includes('positive')) return 'bg-[rgba(16,185,129,0.1)] border-[rgba(16,185,129,0.3)]'
+  if (l.includes('négatif') || l.includes('negative')) return 'bg-[rgba(239,68,68,0.1)] border-[rgba(239,68,68,0.3)]'
+  return 'bg-[rgba(255,255,255,0.04)] border-[rgba(255,255,255,0.08)]'
 }
 
 function themeLabel(theme?: string): string {
@@ -44,16 +44,16 @@ function themeLabel(theme?: string): string {
 }
 
 function themeColor(theme?: string): string {
-  if (!theme) return 'bg-slate-100 text-slate-500 border-slate-200'
+  if (!theme) return 'bg-[rgba(255,255,255,0.04)] text-[rgba(255,255,255,0.35)] border-[rgba(255,255,255,0.06)]'
   const map: Record<string, string> = {
-    politique: 'bg-purple-100 text-purple-600 border-purple-200',
-    economie: 'bg-emerald-100 text-emerald-600 border-emerald-200',
-    social: 'bg-blue-100 text-blue-400 border-blue-200',
-    sante: 'bg-rose-100 text-rose-400 border-rose-200',
-    justice: 'bg-amber-100 text-amber-400 border-amber-200',
-    securite: 'bg-red-100 text-red-600 border-red-200',
+    politique: 'bg-[rgba(168,85,247,0.15)] text-[#c084fc] border-[rgba(168,85,247,0.3)]',
+    economie: 'bg-[rgba(16,185,129,0.1)] text-[#34d399] border-[rgba(16,185,129,0.3)]',
+    social: 'bg-[rgba(96,165,250,0.1)] text-[#60a5fa] border-[rgba(96,165,250,0.3)]',
+    sante: 'bg-[rgba(244,63,94,0.1)] text-[#f43f5e] border-[rgba(244,63,94,0.3)]',
+    justice: 'bg-[rgba(251,146,60,0.1)] text-[#fb923c] border-[rgba(251,146,60,0.3)]',
+    securite: 'bg-[rgba(239,68,68,0.1)] text-[#f87171] border-[rgba(239,68,68,0.3)]',
   }
-  return map[theme] || 'bg-slate-100 text-slate-500 border-slate-200'
+  return map[theme] || 'bg-[rgba(255,255,255,0.04)] text-[rgba(255,255,255,0.35)] border-[rgba(255,255,255,0.06)]'
 }
 
 function sourceLogo(source: string): string {
@@ -115,30 +115,30 @@ export default function ArticlesPage() {
   return (
     <div className="flex">
       <Sidebar />
-      <main className="ml-64 flex-1 p-8 min-h-screen">
+      <main className="ml-64 flex-1 p-8 min-h-screen" style={{ backgroundColor: '#06060a' }}>
         <div className="max-w-7xl mx-auto animate-fade-in">
 
           {/* ── Header ──────────────────────────── */}
           <div className="flex items-start justify-between mb-6">
             <div>
-              <h1 className="text-2xl font-bold text-slate-800">Articles</h1>
-              <p className="text-sm text-slate-500 mt-0.5">
+              <h1 className="text-2xl font-bold text-white">Articles</h1>
+              <p className="text-sm text-[rgba(255,255,255,0.6)] mt-0.5">
                 {total} article{total > 1 ? 's' : ''} en base
               </p>
             </div>
             <button
               onClick={loadArticles}
-              className="px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 text-sm hover:bg-slate-100 transition-colors"
+              className="btn-glass px-3 py-2"
             >
               Actualiser
             </button>
           </div>
 
           {/* ── Search + Source badges ──────────── */}
-          <div className="flex flex-wrap items-center gap-3 mb-6 p-4 bg-white/60 rounded-xl border border-slate-200">
+          <div className="glass-card-static flex flex-wrap items-center gap-3 mb-6 p-4">
             {/* Search */}
             <div className="relative flex-1 min-w-[200px]">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[rgba(255,255,255,0.35)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               <input
@@ -146,14 +146,14 @@ export default function ArticlesPage() {
                 placeholder="Rechercher un article..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-600 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                className="input-dark w-full pl-9 pr-3 py-2"
               />
             </div>
 
             {/* Source badges */}
             <div className="flex flex-wrap gap-1.5">
               {Object.entries(sourceCounts).slice(0, 6).map(([src, count]) => (
-                <span key={src} className="text-[10px] px-2 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                <span key={src} className="text-[10px] px-2 py-1 rounded-full text-[rgba(255,255,255,0.4)]" style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.08)', borderWidth: '1px' }}>
                   {src} ({count})
                 </span>
               ))}
@@ -162,7 +162,7 @@ export default function ArticlesPage() {
 
           {/* ── Error ───────────────────────────── */}
           {error && (
-            <div className="mb-6 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">
+            <div className="mb-6 px-4 py-3 rounded-lg text-[#f87171] text-sm" style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.3)', borderWidth: '1px' }}>
               {error}
             </div>
           )}
@@ -171,18 +171,18 @@ export default function ArticlesPage() {
           {loading ? (
             <div className="space-y-3">
               {[...Array(8)].map((_, i) => (
-                <div key={i} className="bg-white shadow-sm rounded-xl border border-slate-200 p-4">
+                <div key={i} className="glass-card-static p-4">
                   <div className="skeleton h-4 w-2/3 mb-2" />
                   <div className="skeleton h-3 w-1/3" />
                 </div>
               ))}
             </div>
           ) : filtered.length === 0 ? (
-            <div className="bg-white/60 rounded-xl border border-slate-200 p-16 text-center">
-              <svg className="w-12 h-12 mx-auto text-slate-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="glass-card-static p-16 text-center">
+              <svg className="w-12 h-12 mx-auto text-[rgba(255,255,255,0.35)] mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
               </svg>
-              <p className="text-slate-500 text-sm">
+              <p className="text-[rgba(255,255,255,0.35)] text-sm">
                 {search ? `Aucun article pour "${search}"` : 'Aucun article trouvé'}
               </p>
             </div>
@@ -190,10 +190,10 @@ export default function ArticlesPage() {
             /* ── Article list ──────────────── */
             <div className="space-y-3">
               {filtered.map((article) => (
-                <div key={article._id} className="bg-white shadow-sm rounded-xl border border-slate-200 p-4 card-hover">
+                <div key={article._id} className="glass-card p-4 card-hover">
                   <div className="flex items-start gap-4">
                     {/* Source icon */}
-                    <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500 flex-shrink-0">
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 text-[rgba(255,255,255,0.4)]" style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}>
                       {sourceLogo(article.source)}
                     </div>
 
@@ -201,16 +201,16 @@ export default function ArticlesPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-semibold text-slate-800 mb-1 line-clamp-2">
+                          <h3 className="text-sm font-semibold text-white mb-1 line-clamp-2">
                             {article.title}
                           </h3>
                           <div className="flex flex-wrap items-center gap-2 text-xs">
-                            <span className="text-slate-500">{article.source}</span>
-                            <span className="text-slate-700">|</span>
-                            <span className="text-slate-500">{timeAgo(article.date || article.scraped_at || '')}</span>
+                            <span className="text-[rgba(255,255,255,0.6)]">{article.source}</span>
+                            <span className="text-[rgba(255,255,255,0.25)]">|</span>
+                            <span className="text-[rgba(255,255,255,0.6)]">{timeAgo(article.date || article.scraped_at || '')}</span>
                             {article.theme && (
                               <>
-                                <span className="text-slate-700">|</span>
+                                <span className="text-[rgba(255,255,255,0.25)]">|</span>
                                 <span className={`badge border ${themeColor(article.theme)}`}>
                                   {themeLabel(article.theme)}
                                 </span>
@@ -228,14 +228,14 @@ export default function ArticlesPage() {
                           )}
                           {article.gravity_score !== undefined && article.gravity_score > 0 && (
                             <span className={`text-[10px] font-medium ${
-                              article.gravity_score >= 0.8 ? 'text-red-600' :
-                              article.gravity_score >= 0.5 ? 'text-orange-600' : 'text-slate-500'
+                              article.gravity_score >= 0.8 ? 'text-[#f87171]' :
+                              article.gravity_score >= 0.5 ? 'text-[#fb923c]' : 'text-[rgba(255,255,255,0.3)]'
                             }`}>
                               Gravité {Math.round(article.gravity_score * 100)}%
                             </span>
                           )}
                           {article.is_affair && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-100 text-teal-600 border border-teal-200">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded text-[#34d399]" style={{ backgroundColor: 'rgba(16,185,129,0.1)', borderColor: 'rgba(16,185,129,0.3)', borderWidth: '1px' }}>
                               Affaire
                             </span>
                           )}
@@ -246,12 +246,12 @@ export default function ArticlesPage() {
                       {(article.elected || article.institutions) && (
                         <div className="flex flex-wrap gap-1 mt-2">
                           {(article.elected || []).map((e, i) => (
-                            <span key={`e-${i}`} className="text-[10px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-600">
+                            <span key={`e-${i}`} className="text-[10px] px-1.5 py-0.5 rounded text-[#c084fc]" style={{ backgroundColor: 'rgba(168,85,247,0.1)' }}>
                               {e}
                             </span>
                           ))}
                           {(article.institutions || []).map((e, i) => (
-                            <span key={`i-${i}`} className="text-[10px] px-1.5 py-0.5 rounded bg-teal-50 text-teal-600">
+                            <span key={`i-${i}`} className="text-[10px] px-1.5 py-0.5 rounded text-[#34d399]" style={{ backgroundColor: 'rgba(16,185,129,0.1)' }}>
                               {e}
                             </span>
                           ))}
@@ -264,7 +264,7 @@ export default function ArticlesPage() {
                           href={article.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[10px] text-teal-600 hover:text-teal-600 mt-2"
+                          className="inline-flex items-center gap-1 text-[10px] text-[#818cf8] hover:text-[#818cf8] mt-2"
                         >
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -285,17 +285,17 @@ export default function ArticlesPage() {
               <button
                 onClick={() => setPage(Math.max(0, page - 1))}
                 disabled={page === 0}
-                className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-500 text-xs disabled:opacity-30 hover:bg-slate-100 transition-colors"
+                className="btn-glass px-3 py-1.5 text-xs disabled:opacity-30"
               >
                 Précédent
               </button>
-              <span className="text-xs text-slate-500">
+              <span className="text-xs text-[rgba(255,255,255,0.35)]">
                 Page {page + 1} / {totalPages}
               </span>
               <button
                 onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
                 disabled={page >= totalPages - 1}
-                className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-500 text-xs disabled:opacity-30 hover:bg-slate-100 transition-colors"
+                className="btn-glass px-3 py-1.5 text-xs disabled:opacity-30"
               >
                 Suivant
               </button>

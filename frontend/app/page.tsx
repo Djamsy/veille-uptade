@@ -44,43 +44,54 @@ function themeLabel(theme: string): string {
 
 function themeColor(theme: string): string {
   const map: Record<string, string> = {
-    politique: 'bg-purple-100 text-purple-700 border-purple-200',
-    economie: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-    economie_emploi: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-    social: 'bg-blue-100 text-blue-700 border-blue-200',
-    sante_social: 'bg-rose-100 text-rose-700 border-rose-200',
-    environnement: 'bg-green-100 text-green-700 border-green-200',
-    eau_env: 'bg-green-100 text-green-700 border-green-200',
-    energie_transports: 'bg-orange-100 text-orange-700 border-orange-200',
-    sante: 'bg-rose-100 text-rose-700 border-rose-200',
-    justice: 'bg-amber-100 text-amber-700 border-amber-200',
-    securite: 'bg-red-100 text-red-700 border-red-200',
-    securite_justice: 'bg-red-100 text-red-700 border-red-200',
-    education: 'bg-indigo-100 text-indigo-700 border-indigo-200',
-    culture: 'bg-pink-100 text-pink-700 border-pink-200',
-    culture_patrimoine: 'bg-pink-100 text-pink-700 border-pink-200',
-    sport: 'bg-cyan-100 text-cyan-700 border-cyan-200',
-    infrastructure: 'bg-orange-100 text-orange-700 border-orange-200',
+    politique: 'rgba(168,85,247,0.15)_#c084fc_rgba(168,85,247,0.3)',
+    economie: 'rgba(16,185,129,0.15)_#34d399_rgba(16,185,129,0.3)',
+    economie_emploi: 'rgba(16,185,129,0.15)_#34d399_rgba(16,185,129,0.3)',
+    social: 'rgba(96,165,250,0.15)_#93c5fd_rgba(96,165,250,0.3)',
+    sante_social: 'rgba(251,113,133,0.15)_#fda4af_rgba(251,113,133,0.3)',
+    environnement: 'rgba(74,222,128,0.15)_#86efac_rgba(74,222,128,0.3)',
+    eau_env: 'rgba(74,222,128,0.15)_#86efac_rgba(74,222,128,0.3)',
+    energie_transports: 'rgba(251,146,60,0.15)_#fdba74_rgba(251,146,60,0.3)',
+    sante: 'rgba(251,113,133,0.15)_#fda4af_rgba(251,113,133,0.3)',
+    justice: 'rgba(251,191,36,0.15)_#fde68a_rgba(251,191,36,0.3)',
+    securite: 'rgba(248,113,113,0.15)_#fca5a5_rgba(248,113,113,0.3)',
+    securite_justice: 'rgba(248,113,113,0.15)_#fca5a5_rgba(248,113,113,0.3)',
+    education: 'rgba(129,140,248,0.15)_#a5b4fc_rgba(129,140,248,0.3)',
+    culture: 'rgba(244,114,182,0.15)_#f9a8d4_rgba(244,114,182,0.3)',
+    culture_patrimoine: 'rgba(244,114,182,0.15)_#f9a8d4_rgba(244,114,182,0.3)',
+    sport: 'rgba(34,211,238,0.15)_#67e8f9_rgba(34,211,238,0.3)',
+    infrastructure: 'rgba(251,146,60,0.15)_#fdba74_rgba(251,146,60,0.3)',
   }
-  return map[theme] || 'bg-slate-100 text-slate-600 border-slate-200'
+  const parts = (map[theme] || 'rgba(148,163,184,0.15)_#cbd5e1_rgba(148,163,184,0.3)').split('_')
+  return parts.join('_')
+}
+
+function ThemeBadge({ theme }: { theme: string }) {
+  const parts = themeColor(theme).split('_')
+  return (
+    <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{
+      background: parts[0], color: parts[1], border: `1px solid ${parts[2]}`,
+    }}>
+      {themeLabel(theme)}
+    </span>
+  )
 }
 
 // ── Rate Bar ────────────────────────────────────────────
 function RateBar({ label, rate, count, total, color }: {
   label: string; rate: number; count: number; total: number; color: string
 }) {
-  const barColor = rate >= 70 ? 'bg-emerald-500' : rate >= 40 ? 'bg-amber-500' : 'bg-red-400'
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        <span className="text-xs text-slate-600 font-medium">{label}</span>
-        <span className={`text-xs font-bold ${color}`}>{rate}%</span>
+        <span className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.5)' }}>{label}</span>
+        <span className="text-xs font-bold" style={{ color }}>{rate}%</span>
       </div>
-      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full transition-all duration-500 ${barColor}`}
-          style={{ width: `${Math.min(100, rate)}%` }} />
+      <div className="progress-bar-bg h-1.5">
+        <div className="h-full rounded-full transition-all duration-700"
+          style={{ width: `${Math.min(100, rate)}%`, background: color, boxShadow: `0 0 8px ${color}40` }} />
       </div>
-      <p className="text-[10px] text-slate-400">{count} / {total}</p>
+      <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.25)' }}>{count} / {total}</p>
     </div>
   )
 }
@@ -94,12 +105,23 @@ function ActivityChart({ data }: { data: DailyActivity[] }) {
       {data.map((d, i) => (
         <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
           <div className="w-full flex flex-col-reverse gap-0.5" style={{ height: '72px' }}>
-            <div className="bg-teal-400 rounded-t-sm transition-all duration-300"
-              style={{ height: `${(d.articles / maxArticles) * 100}%`, minHeight: d.articles > 0 ? '3px' : '0' }} />
-            <div className="bg-purple-400 rounded-t-sm transition-all duration-300"
-              style={{ height: `${(d.events / maxEvents) * 40}%`, minHeight: d.events > 0 ? '2px' : '0' }} />
+            <div className="rounded-t-sm transition-all duration-500"
+              style={{
+                height: `${(d.articles / maxArticles) * 100}%`,
+                minHeight: d.articles > 0 ? '3px' : '0',
+                background: 'linear-gradient(180deg, #818cf8, #6366f1)',
+                boxShadow: d.articles > 0 ? '0 0 6px rgba(99,102,241,0.4)' : 'none',
+              }} />
+            <div className="rounded-t-sm transition-all duration-500"
+              style={{
+                height: `${(d.events / maxEvents) * 40}%`,
+                minHeight: d.events > 0 ? '2px' : '0',
+                background: 'rgba(168,85,247,0.6)',
+              }} />
           </div>
-          <span className="text-[9px] text-slate-400 leading-none">{d.label.split(' ')[0]}</span>
+          <span className="text-[9px] leading-none" style={{ color: 'rgba(255,255,255,0.25)' }}>
+            {d.label.split(' ')[0]}
+          </span>
         </div>
       ))}
     </div>
@@ -109,7 +131,7 @@ function ActivityChart({ data }: { data: DailyActivity[] }) {
 // ── Skeleton ──────────────────────────────────────────────
 function SkeletonCard() {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+    <div className="glass-card-static p-5">
       <div className="skeleton h-4 w-24 mb-3" />
       <div className="skeleton h-8 w-16 mb-2" />
       <div className="skeleton h-3 w-20" />
@@ -121,13 +143,13 @@ function SkeletonCard() {
 function AffairCard({ affair }: { affair: Affair }) {
   return (
     <Link href={`/affairs/${affair._id}`}>
-      <div className="bg-white rounded-xl border border-slate-200 p-4 card-hover cursor-pointer shadow-sm">
+      <div className="glass-card p-4 cursor-pointer card-hover h-full">
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-semibold text-slate-800 truncate">
+            <h3 className="text-sm font-semibold text-white truncate">
               {affair.title || affair.primary_entity || 'Affaire'}
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
               {affair.primary_entity && affair.title !== affair.primary_entity
                 ? affair.primary_entity
                 : timeAgo(affair.last_activity || affair.created_at)}
@@ -136,19 +158,19 @@ function AffairCard({ affair }: { affair: Affair }) {
           <BmgGauge value={(affair.bmg || 0) * 100} size={52} />
         </div>
         <div className="flex flex-wrap gap-1 mb-2">
-          <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${themeColor(affair.theme)}`}>
-            {themeLabel(affair.theme)}
-          </span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-200">
+          <ThemeBadge theme={affair.theme} />
+          <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+            style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.08)' }}>
             {affair.item_count || 0} items
           </span>
           {(affair.source_types?.length || 0) >= 2 && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-teal-50 text-teal-600 border border-teal-200">
+            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+              style={{ background: 'rgba(99,102,241,0.1)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.2)' }}>
               multi-canal
             </span>
           )}
         </div>
-        <div className="flex items-center justify-between text-[10px] text-slate-400">
+        <div className="flex items-center justify-between text-[10px]" style={{ color: 'rgba(255,255,255,0.25)' }}>
           <span>Gravité {Math.round((affair.gravity_score || 0) * 100)}%</span>
           <span>{timeAgo(affair.last_activity || affair.created_at)}</span>
         </div>
@@ -161,14 +183,20 @@ function AffairCard({ affair }: { affair: Affair }) {
 function AlertRow({ affair }: { affair: Affair }) {
   return (
     <Link href={`/affairs/${affair._id}`}>
-      <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg bg-red-50 border border-red-200 hover:bg-red-100 transition-colors cursor-pointer">
-        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+      <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl cursor-pointer transition-all"
+        style={{
+          background: 'rgba(239,68,68,0.08)',
+          border: '1px solid rgba(239,68,68,0.2)',
+        }}
+      >
+        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0"
+          style={{ boxShadow: '0 0 8px rgba(239,68,68,0.5)' }} />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-slate-800 truncate">
+          <p className="text-sm font-medium text-white truncate">
             {affair.title || affair.primary_entity}
           </p>
         </div>
-        <span className="text-xs text-red-600 font-medium flex-shrink-0">
+        <span className="text-xs font-medium flex-shrink-0" style={{ color: '#f87171' }}>
           BMG {Math.round((affair.bmg || 0) * 100)}
         </span>
       </div>
@@ -186,12 +214,12 @@ function TimelineItem({ event }: { event: TimelineEvent }) {
     <div className="flex items-start gap-2 py-1.5">
       <span className="text-xs flex-shrink-0">{iconMap[event.event] || '•'}</span>
       <div className="flex-1 min-w-0">
-        <p className="text-xs text-slate-600 truncate">
+        <p className="text-xs truncate" style={{ color: 'rgba(255,255,255,0.5)' }}>
           {(event.details as Record<string, string>)?.title ||
            (event.details as Record<string, string>)?.reason ||
            event.event}
         </p>
-        <p className="text-[10px] text-slate-400">{timeAgo(event.timestamp)}</p>
+        <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.2)' }}>{timeAgo(event.timestamp)}</p>
       </div>
     </div>
   )
@@ -243,7 +271,7 @@ export default function DashboardPage() {
     return (
       <div className="flex">
         <Sidebar />
-        <main className="ml-64 flex-1 p-8 min-h-screen bg-[#faf9f6]">
+        <main className="ml-64 flex-1 p-8 min-h-screen">
           <div className="max-w-7xl mx-auto">
             <div className="skeleton h-8 w-48 mb-8" />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -269,39 +297,40 @@ export default function DashboardPage() {
   return (
     <div className="flex">
       <Sidebar />
-      <main className="ml-64 flex-1 p-6 min-h-screen bg-[#faf9f6]">
+      <main className="ml-64 flex-1 p-6 min-h-screen">
         <div className="max-w-[1400px] mx-auto animate-fade-in">
 
           {/* Header */}
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-2xl font-bold text-slate-800">Tableau de bord</h1>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <h1 className="text-2xl font-bold text-white tracking-tight">Tableau de bord</h1>
+              <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
                 MAJ : {lastRefresh.toLocaleTimeString('fr-FR')} — 7 derniers jours
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={loadData}
-                className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-500 text-xs hover:bg-slate-50 transition-colors shadow-sm">
+              <button onClick={loadData} className="btn-glass px-3 py-1.5 text-xs">
                 ↻ Rafraîchir
               </button>
-              <button onClick={handleRunCycle} disabled={cycleRunning}
-                className="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-medium transition-colors disabled:opacity-50 shadow-sm">
+              <button onClick={handleRunCycle} disabled={cycleRunning} className="btn-primary px-4 py-1.5 text-xs">
                 {cycleRunning ? '⟳ Cycle en cours...' : '▶ Lancer le cycle'}
               </button>
             </div>
           </div>
 
           {error && (
-            <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">{error}</div>
+            <div className="mb-4 px-4 py-3 rounded-xl text-sm" style={{
+              background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171'
+            }}>{error}</div>
           )}
 
           {/* Alertes critiques */}
           {criticals.length > 0 && (
             <div className="mb-6">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                <h2 className="text-xs font-semibold text-red-600 uppercase tracking-wider">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"
+                  style={{ boxShadow: '0 0 8px rgba(239,68,68,0.5)' }} />
+                <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#f87171' }}>
                   Alertes ({criticals.length})
                 </h2>
               </div>
@@ -313,104 +342,104 @@ export default function DashboardPage() {
 
           {/* ── ROW 1 : Métriques clés ─────────────────── */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-              <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Affaires actives</p>
-              <p className="text-3xl font-bold text-teal-600">{stats?.affairs_active ?? 0}</p>
-              <p className="text-[10px] text-slate-400 mt-0.5">{stats?.affairs_stale ?? 0} en veille</p>
-            </div>
-            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-              <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Articles 7j</p>
-              <p className="text-3xl font-bold text-slate-800">{coverage?.total_articles_7d ?? 0}</p>
-              <p className="text-[10px] text-slate-400 mt-0.5">{coverage?.enriched_articles_7d ?? 0} enrichis</p>
-            </div>
-            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-              <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Taux affiliation</p>
-              <p className={`text-3xl font-bold ${
-                (coverage?.affiliation_rate ?? 0) >= 60 ? 'text-emerald-600' :
-                (coverage?.affiliation_rate ?? 0) >= 30 ? 'text-amber-600' : 'text-red-500'
-              }`}>{coverage?.affiliation_rate ?? 0}%</p>
-              <p className="text-[10px] text-slate-400 mt-0.5">{coverage?.affiliated_articles_7d ?? 0} affiliés</p>
-            </div>
-            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-              <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Radio 7j</p>
-              <p className="text-3xl font-bold text-purple-600">{coverage?.total_transcriptions_7d ?? 0}</p>
-              <p className="text-[10px] text-slate-400 mt-0.5">{coverage?.radio_rate ?? 0}% traités</p>
-            </div>
+            {[
+              { label: 'Affaires actives', value: stats?.affairs_active ?? 0, sub: `${stats?.affairs_stale ?? 0} en veille`, color: '#818cf8' },
+              { label: 'Articles 7j', value: coverage?.total_articles_7d ?? 0, sub: `${coverage?.enriched_articles_7d ?? 0} enrichis`, color: '#f0f0f5' },
+              { label: 'Taux affiliation', value: `${coverage?.affiliation_rate ?? 0}%`, sub: `${coverage?.affiliated_articles_7d ?? 0} affiliés`,
+                color: (coverage?.affiliation_rate ?? 0) >= 60 ? '#34d399' : (coverage?.affiliation_rate ?? 0) >= 30 ? '#fbbf24' : '#f87171' },
+              { label: 'Radio 7j', value: coverage?.total_transcriptions_7d ?? 0, sub: `${coverage?.radio_rate ?? 0}% traités`, color: '#c084fc' },
+            ].map((metric, i) => (
+              <div key={i} className="glass-card-static p-4">
+                <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'rgba(255,255,255,0.3)' }}>{metric.label}</p>
+                <p className="text-3xl font-bold" style={{ color: metric.color }}>{metric.value}</p>
+                <p className="text-[10px] mt-0.5" style={{ color: 'rgba(255,255,255,0.2)' }}>{metric.sub}</p>
+              </div>
+            ))}
           </div>
 
           {/* ── ROW 2 : Couverture + Activité ─────────── */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
             {/* Taux de couverture */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">Couverture pipeline</h2>
+            <div className="glass-card-static p-5">
+              <h2 className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                Couverture pipeline
+              </h2>
               <div className="space-y-4">
                 <RateBar label="Enrichissement IA" rate={coverage?.enrichment_rate ?? 0}
                   count={coverage?.enriched_articles_7d ?? 0} total={coverage?.total_articles_7d ?? 0}
-                  color="text-blue-600" />
+                  color="#818cf8" />
                 <RateBar label="Affiliation aux affaires" rate={coverage?.affiliation_rate ?? 0}
                   count={coverage?.affiliated_articles_7d ?? 0} total={coverage?.total_articles_7d ?? 0}
-                  color="text-teal-600" />
+                  color="#34d399" />
                 <RateBar label="Radio traitées" rate={coverage?.radio_rate ?? 0}
                   count={coverage?.processed_transcriptions_7d ?? 0} total={coverage?.total_transcriptions_7d ?? 0}
-                  color="text-purple-600" />
+                  color="#c084fc" />
               </div>
             </div>
 
             {/* Activité 7 jours */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">Activité 7 jours</h2>
+            <div className="glass-card-static p-5">
+              <h2 className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                Activité 7 jours
+              </h2>
               {activity.length > 0 ? (
                 <>
                   <ActivityChart data={activity} />
                   <div className="flex items-center gap-4 mt-3 justify-center">
-                    <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 rounded-full bg-teal-400" />
-                      <span className="text-[10px] text-slate-400">Articles</span>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full" style={{ background: '#6366f1' }} />
+                      <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>Articles</span>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 rounded-full bg-purple-400" />
-                      <span className="text-[10px] text-slate-400">Événements</span>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full" style={{ background: 'rgba(168,85,247,0.6)' }} />
+                      <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>Événements</span>
                     </div>
                   </div>
                 </>
               ) : (
-                <p className="text-xs text-slate-400 text-center py-8">Pas de données</p>
+                <p className="text-xs text-center py-8" style={{ color: 'rgba(255,255,255,0.25)' }}>Pas de données</p>
               )}
             </div>
 
             {/* Répartition thématique + sources */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Thèmes des affaires</h2>
+            <div className="glass-card-static p-5">
+              <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                Thèmes des affaires
+              </h2>
               {Object.keys(themes).length > 0 ? (
                 <div className="space-y-2 mb-4">
                   {Object.entries(themes).map(([theme, count]) => {
                     const maxCount = Math.max(...Object.values(themes))
                     return (
                       <div key={theme} className="flex items-center gap-2">
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded border ${themeColor(theme)} flex-shrink-0`}>
-                          {themeLabel(theme)}
-                        </span>
-                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-teal-400 rounded-full"
-                            style={{ width: `${(count / maxCount) * 100}%` }} />
+                        <span className="flex-shrink-0"><ThemeBadge theme={theme} /></span>
+                        <div className="flex-1 progress-bar-bg h-1.5">
+                          <div className="h-full rounded-full" style={{
+                            width: `${(count / maxCount) * 100}%`,
+                            background: 'linear-gradient(90deg, #6366f1, #818cf8)',
+                          }} />
                         </div>
-                        <span className="text-[10px] text-slate-400 w-4 text-right">{count}</span>
+                        <span className="text-[10px] w-4 text-right" style={{ color: 'rgba(255,255,255,0.3)' }}>{count}</span>
                       </div>
                     )
                   })}
                 </div>
               ) : (
-                <p className="text-xs text-slate-400 mb-4">Aucune affaire active</p>
+                <p className="text-xs mb-4" style={{ color: 'rgba(255,255,255,0.25)' }}>Aucune affaire active</p>
               )}
 
               {sources.length > 0 && (
                 <>
-                  <h3 className="text-[10px] text-slate-400 uppercase tracking-wider mb-2 pt-3 border-t border-slate-100">
+                  <h3 className="text-[10px] uppercase tracking-wider mb-2 pt-3" style={{
+                    color: 'rgba(255,255,255,0.25)', borderTop: '1px solid rgba(255,255,255,0.06)'
+                  }}>
                     Sources actives 7j
                   </h3>
                   <div className="flex flex-wrap gap-1">
                     {sources.map((s, i) => (
-                      <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-200">
+                      <span key={i} className="text-[10px] px-2 py-0.5 rounded-full" style={{
+                        background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.08)'
+                      }}>
                         {s.name} ({s.count})
                       </span>
                     ))}
@@ -425,15 +454,15 @@ export default function DashboardPage() {
             {/* Affaires majeures (3 cols) */}
             <div className="lg:col-span-3">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold text-slate-700">Affaires majeures</h2>
-                <Link href="/affairs" className="text-xs text-teal-600 hover:text-teal-500 transition-colors">
+                <h2 className="text-sm font-semibold text-white">Affaires majeures</h2>
+                <Link href="/affairs" className="text-xs transition-colors" style={{ color: '#818cf8' }}>
                   Voir tout →
                 </Link>
               </div>
               {topAffairs.length === 0 ? (
-                <div className="bg-white/60 rounded-xl border border-slate-200 p-10 text-center shadow-sm">
-                  <p className="text-slate-400 text-sm">Aucune affaire active</p>
-                  <p className="text-slate-300 text-xs mt-1">Lancez le cycle pour détecter de nouvelles affaires</p>
+                <div className="glass-card-static p-10 text-center">
+                  <p className="text-sm" style={{ color: 'rgba(255,255,255,0.35)' }}>Aucune affaire active</p>
+                  <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.2)' }}>Lancez le cycle pour détecter de nouvelles affaires</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -444,29 +473,31 @@ export default function DashboardPage() {
 
             {/* Sidebar : Timeline + Entités */}
             <div className="space-y-4">
-              {/* Timeline récente */}
-              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-                <h3 className="text-[10px] text-slate-400 uppercase tracking-wider mb-2">Activité récente</h3>
+              <div className="glass-card-static p-4">
+                <h3 className="text-[10px] uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                  Activité récente
+                </h3>
                 {timeline.length > 0 ? (
-                  <div className="divide-y divide-slate-50">
+                  <div className="space-y-0" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
                     {timeline.slice(0, 8).map((evt) => (
                       <TimelineItem key={evt._id} event={evt} />
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-400 py-4 text-center">Aucune activité</p>
+                  <p className="text-xs py-4 text-center" style={{ color: 'rgba(255,255,255,0.25)' }}>Aucune activité</p>
                 )}
               </div>
 
-              {/* Top entités */}
               {entities.length > 0 && (
-                <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-                  <h3 className="text-[10px] text-slate-400 uppercase tracking-wider mb-2">Top entités</h3>
+                <div className="glass-card-static p-4">
+                  <h3 className="text-[10px] uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                    Top entités
+                  </h3>
                   <div className="space-y-1">
                     {entities.slice(0, 10).map((e, i) => (
                       <div key={i} className="flex items-center justify-between">
-                        <span className="text-xs text-slate-600 truncate">{e.name}</span>
-                        <span className="text-[10px] text-slate-400 ml-2 flex-shrink-0">×{e.count}</span>
+                        <span className="text-xs truncate" style={{ color: 'rgba(255,255,255,0.5)' }}>{e.name}</span>
+                        <span className="text-[10px] ml-2 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.25)' }}>×{e.count}</span>
                       </div>
                     ))}
                   </div>
@@ -480,36 +511,38 @@ export default function DashboardPage() {
             <div className="mb-6">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <h2 className="text-sm font-semibold text-slate-700">Articles non affiliés</h2>
-                  <p className="text-[10px] text-slate-400">Articles enrichis sans affaire — à surveiller</p>
+                  <h2 className="text-sm font-semibold text-white">Articles non affiliés</h2>
+                  <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.25)' }}>Articles enrichis sans affaire — à surveiller</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-200">
+                  <span className="text-xs px-2 py-1 rounded-full" style={{
+                    background: 'rgba(245,158,11,0.1)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.2)'
+                  }}>
                     {orphans.length} orphelins
                   </span>
                   <button onClick={handleReaffiliate} disabled={reaffiliating}
-                    className="text-xs px-3 py-1 rounded-lg bg-teal-50 text-teal-600 border border-teal-200 hover:bg-teal-100 transition-colors disabled:opacity-50">
+                    className="btn-glass text-xs px-3 py-1 disabled:opacity-50">
                     {reaffiliating ? '⟳ En cours...' : '🔗 Ré-affilier'}
                   </button>
                 </div>
               </div>
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="divide-y divide-slate-100">
-                  {orphans.map((art) => (
-                    <div key={art._id} className="flex items-center gap-3 px-4 py-2.5">
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded border flex-shrink-0 ${themeColor(art.theme)}`}>
-                        {themeLabel(art.theme)}
-                      </span>
+              <div className="glass-card-static overflow-hidden">
+                <div>
+                  {orphans.map((art, idx) => (
+                    <div key={art._id} className="flex items-center gap-3 px-4 py-2.5"
+                      style={{ borderBottom: idx < orphans.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                      <ThemeBadge theme={art.theme} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-slate-700 truncate">{art.title}</p>
-                        <p className="text-[10px] text-slate-400">{art.source} — {timeAgo(art.scraped_at)}</p>
+                        <p className="text-xs truncate" style={{ color: 'rgba(255,255,255,0.6)' }}>{art.title}</p>
+                        <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                          {art.source} — {timeAgo(art.scraped_at)}
+                        </p>
                       </div>
                       <div className="flex-shrink-0 text-right">
-                        <p className="text-[10px] text-slate-400">gravité</p>
-                        <p className={`text-xs font-bold ${
-                          art.gravity_score >= 0.7 ? 'text-red-500' :
-                          art.gravity_score >= 0.4 ? 'text-amber-500' : 'text-slate-400'
-                        }`}>{Math.round(art.gravity_score * 100)}%</p>
+                        <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.2)' }}>gravité</p>
+                        <p className={`text-xs font-bold`} style={{
+                          color: art.gravity_score >= 0.7 ? '#f87171' : art.gravity_score >= 0.4 ? '#fbbf24' : 'rgba(255,255,255,0.3)'
+                        }}>{Math.round(art.gravity_score * 100)}%</p>
                       </div>
                     </div>
                   ))}
@@ -520,26 +553,29 @@ export default function DashboardPage() {
 
           {/* ── ROW 5 : Pipeline technique ─────────────── */}
           {stats && (
-            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-              <h2 className="text-[10px] text-slate-400 uppercase tracking-wider mb-3">Pipeline technique</h2>
+            <div className="glass-card-static p-4">
+              <h2 className="text-[10px] uppercase tracking-wider mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                Pipeline technique
+              </h2>
               <div className="flex items-center gap-4 overflow-x-auto">
                 {[
-                  { label: 'Candidats', value: stats.candidates_total, sub: 'Ingestion', color: 'amber' },
-                  { label: 'Non classés', value: stats.candidates_unclustered, sub: 'En attente', color: 'red' },
-                  { label: 'Clusters', value: stats.clusters_active, sub: 'Groupement', color: 'purple' },
-                  { label: 'Affaires', value: stats.affairs_active, sub: 'Promues', color: 'teal' },
-                  { label: 'En veille', value: stats.affairs_stale, sub: 'Archivage', color: 'slate' },
+                  { label: 'Candidats', value: stats.candidates_total, sub: 'Ingestion', color: '#fbbf24', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.2)' },
+                  { label: 'Non classés', value: stats.candidates_unclustered, sub: 'En attente', color: '#f87171', bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.2)' },
+                  { label: 'Clusters', value: stats.clusters_active, sub: 'Groupement', color: '#c084fc', bg: 'rgba(168,85,247,0.1)', border: 'rgba(168,85,247,0.2)' },
+                  { label: 'Affaires', value: stats.affairs_active, sub: 'Promues', color: '#818cf8', bg: 'rgba(99,102,241,0.1)', border: 'rgba(99,102,241,0.2)' },
+                  { label: 'En veille', value: stats.affairs_stale, sub: 'Archivage', color: 'rgba(255,255,255,0.4)', bg: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.08)' },
                 ].map((step, i, arr) => (
                   <div key={i} className="flex items-center gap-3 flex-shrink-0">
-                    <div className={`w-9 h-9 rounded-full bg-${step.color}-50 border border-${step.color}-200 flex items-center justify-center`}>
-                      <span className={`text-xs font-bold text-${step.color}-600`}>{step.value ?? 0}</span>
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center"
+                      style={{ background: step.bg, border: `1px solid ${step.border}` }}>
+                      <span className="text-xs font-bold" style={{ color: step.color }}>{step.value ?? 0}</span>
                     </div>
                     <div>
-                      <p className="text-[10px] font-medium text-slate-600">{step.label}</p>
-                      <p className="text-[9px] text-slate-400">{step.sub}</p>
+                      <p className="text-[10px] font-medium" style={{ color: 'rgba(255,255,255,0.5)' }}>{step.label}</p>
+                      <p className="text-[9px]" style={{ color: 'rgba(255,255,255,0.2)' }}>{step.sub}</p>
                     </div>
                     {i < arr.length - 1 && (
-                      <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.15)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
                     )}

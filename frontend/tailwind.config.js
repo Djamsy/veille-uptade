@@ -1,6 +1,5 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  // Light tropical theme — no dark mode
   content: [
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
@@ -9,21 +8,21 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        slate: {
-          850: '#1a2332',
-          950: '#0c1220',
+        dark: {
+          50: '#f0f0f5',
+          100: '#e0e0eb',
+          200: '#c0c0d6',
+          300: '#8b8fa3',
+          400: '#5a5e73',
+          500: '#3a3e53',
+          600: '#1e2035',
+          700: '#14162a',
+          800: '#0d0d14',
+          900: '#06060a',
+          950: '#03030a',
         },
-        caribbean: {
-          50: '#f0fbff',
-          100: '#e0f8ff',
-          200: '#baf0ff',
-          300: '#7de3ff',
-          400: '#38d2ff',
-          500: '#0bbef1',
-          600: '#0096ce',
-          700: '#0278a6',
-          800: '#06608a',
-          900: '#0b4f72',
+        indigo: {
+          950: '#1e1b4b',
         },
         bmg: {
           low: '#10b981',
@@ -34,8 +33,10 @@ module.exports = {
       },
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'fade-in': 'fadeIn 0.3s ease-out',
-        'slide-up': 'slideUp 0.3s ease-out',
+        'fade-in': 'fadeIn 0.5s ease-out',
+        'slide-up': 'slideUp 0.4s ease-out',
+        'slide-in-left': 'slideInLeft 0.3s ease-out',
+        'glow': 'glow 2s ease-in-out infinite alternate',
       },
       keyframes: {
         fadeIn: {
@@ -43,9 +44,24 @@ module.exports = {
           '100%': { opacity: '1' },
         },
         slideUp: {
-          '0%': { opacity: '0', transform: 'translateY(10px)' },
+          '0%': { opacity: '0', transform: 'translateY(16px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
+        slideInLeft: {
+          '0%': { opacity: '0', transform: 'translateX(-12px)' },
+          '100%': { opacity: '1', transform: 'translateX(0)' },
+        },
+        glow: {
+          '0%': { boxShadow: '0 0 20px rgba(99,102,241,0.1)' },
+          '100%': { boxShadow: '0 0 40px rgba(99,102,241,0.2)' },
+        },
+      },
+      backdropBlur: {
+        xs: '2px',
+      },
+      borderRadius: {
+        '2xl': '16px',
+        '3xl': '24px',
       },
     },
   },
