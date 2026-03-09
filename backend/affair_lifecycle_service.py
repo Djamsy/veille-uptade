@@ -59,9 +59,15 @@ PROMOTION_MIN_GRAVITY = 0.50           # Gravité minimum du cluster
 PROMOTION_MIN_ITEMS = 2                # Minimum d'items — 1 seul article ne fait pas une affaire
 
 # --- Cycle de vie ---
-AFFAIR_ACTIVE_DAYS = 7                 # Durée de vie active (1 semaine)
-AFFAIR_STALE_DAYS = 5                  # Jours sans activité → statut "stale"
-MAX_ACTIVE_AFFAIRS = 20                # Maximum d'affaires actives simultanées
+AFFAIR_ACTIVE_DAYS = 5                 # Durée de vie active (5 jours, archivage rapide)
+AFFAIR_STALE_DAYS = 3                  # Jours sans activité → statut "stale"
+MAX_ACTIVE_AFFAIRS = 50                # Maximum d'affaires actives simultanées
+
+# --- Priorité des affaires ---
+# 3 niveaux : hot (rouge), watch (jaune), minor (vert)
+PRIORITY_HOT_GRAVITY = 0.65           # Gravité >= 0.65 → priorité HOT
+PRIORITY_WATCH_GRAVITY = 0.45         # Gravité >= 0.45 → priorité WATCH
+# En dessous → MINOR
 
 # --- BMG ---
 CANAL_WEIGHTS = {
@@ -154,11 +160,32 @@ class AffairLifecycleService:
             self.clusters.create_index("status")
             self.affairs.create_index([("created_at", DESCENDING)])
             self.affairs.create_index("status")
+            self.affairs.create_index("priority")
             self.affairs.create_index([("last_activity", DESCENDING)])
             self.timeline.create_index("affair_id")
             self.timeline.create_index([("timestamp", DESCENDING)])
         except Exception as e:
             logger.warning(f"⚠️ Index creation: {e}")
+
+    # ============================================================
+    # PRIORITÉ DES AFFAIRES
+    # ============================================================
+    @staticmethod
+    def compute_priority(gravity: float, bmg: float = 0, item_count: int = 1) -> str:
+        """
+        Calcule le niveau de priorité d'une affaire.
+        - 'hot'   : affaire grave/brûlante — toujours visible en premier
+        - 'watch' : affaire à surveiller
+        - 'minor' : affaire mineure — repliée par défaut dans le frontend
+        """
+        # BMG élevé surclasse la gravité (beaucoup de bruit médiatique)
+        if bmg >= 0.6:
+            return "hot"
+        if gravity >= PRIORITY_HOT_GRAVITY:
+            return "hot"
+        if gravity >= PRIORITY_WATCH_GRAVITY or bmg >= 0.3:
+            return "watch"
+        return "minor"
 
     # ============================================================
     # ÉTAPE 1 : INGESTION — Enregistrer un candidat
@@ -764,6 +791,9 @@ class AffairLifecycleService:
             bmg_result = self.calculate_bmg(affair)
             affair["bmg"] = bmg_result["bmg"]
             affair["bmg_details"] = bmg_result
+            affair["priority"] = self.compute_priority(
+                affair["gravity_score"], affair["bmg"], affair.get("item_count", 1)
+            )
 
             result = self.affairs.insert_one(affair)
             affair_id = str(result.inserted_id)
@@ -1128,9 +1158,13 @@ class AffairLifecycleService:
                 bmg = self.calculate_bmg(affair)
                 old_bmg = affair.get("bmg", 0)
 
+                new_priority = self.compute_priority(
+                    affair.get("gravity_score", 0), bmg["bmg"], affair.get("item_count", 1)
+                )
                 update_set = {
                     "bmg": bmg["bmg"],
                     "bmg_details": bmg,
+                    "priority": new_priority,
                 }
 
                 # Sauvegarder l'historique BMG
@@ -1304,6 +1338,10 @@ class AffairLifecycleService:
                 # IMPORTANT : NE PAS ajouter les entités de l'article dans l'affaire
                 # pour éviter l'effet boule de neige (une affaire qui matche tout)
                 logger.info(f"      ✅ FUSION avec affaire existante (score={best_score})")
+                merged_gravity = max(gravity, best_match.get("gravity_score", 0))
+                merged_bmg = best_match.get("bmg", 0)
+                merged_items = best_match.get("item_count", 1) + 1
+                new_priority = self.compute_priority(merged_gravity, merged_bmg, merged_items)
                 self.affairs.update_one(
                     {"_id": best_match["_id"]},
                     {
@@ -1312,7 +1350,7 @@ class AffairLifecycleService:
                             "sources": art.get("source", ""),
                         },
                         "$inc": {"item_count": 1},
-                        "$set": {"last_activity": now},
+                        "$set": {"last_activity": now, "priority": new_priority},
                         "$max": {"gravity_score": gravity},
                     }
                 )
@@ -1339,6 +1377,7 @@ class AffairLifecycleService:
                         "theme": art_theme,
                         "gravity_score": round(gravity, 3),
                         "affair_type": self._classify_affair_type_by_gravity(gravity),
+                        "priority": self.compute_priority(gravity),
                         "status": "active",
                         "articles": [art_id],
                         "radio_transcriptions": [],

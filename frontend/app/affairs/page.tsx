@@ -48,6 +48,47 @@ function alertBadgeStyle(niveau: string): { bg: string; color: string; border: s
   return { bg: 'rgba(16,185,129,0.15)', color: '#34d399', border: 'rgba(16,185,129,0.3)' }
 }
 
+// Priority helpers
+type Priority = 'hot' | 'watch' | 'minor'
+
+const PRIORITY_CONFIG: Record<Priority, { label: string; icon: string; color: string; glow: string; bg: string; border: string }> = {
+  hot: {
+    label: 'Urgentes',
+    icon: '🔴',
+    color: '#f87171',
+    glow: 'rgba(239,68,68,0.3)',
+    bg: 'rgba(239,68,68,0.06)',
+    border: 'rgba(239,68,68,0.15)',
+  },
+  watch: {
+    label: 'À surveiller',
+    icon: '🟡',
+    color: '#fbbf24',
+    glow: 'rgba(251,191,36,0.2)',
+    bg: 'rgba(251,191,36,0.04)',
+    border: 'rgba(251,191,36,0.12)',
+  },
+  minor: {
+    label: 'Mineures',
+    icon: '🟢',
+    color: '#34d399',
+    glow: 'rgba(16,185,129,0.2)',
+    bg: 'rgba(16,185,129,0.04)',
+    border: 'rgba(16,185,129,0.12)',
+  },
+}
+
+function getAffairPriority(a: Affair): Priority {
+  // Use backend priority if available
+  if (a.priority === 'hot' || a.priority === 'watch' || a.priority === 'minor') return a.priority
+  // Fallback: compute client-side
+  const g = a.gravity_score || 0
+  const bmg = a.bmg || 0
+  if (bmg >= 0.6 || g >= 0.65) return 'hot'
+  if (g >= 0.45 || bmg >= 0.3) return 'watch'
+  return 'minor'
+}
+
 type SortField = 'bmg' | 'gravity' | 'recent' | 'items'
 type StatusFilter = 'all' | 'active' | 'stale' | 'archived'
 
@@ -59,6 +100,7 @@ export default function AffairsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
   const [sortBy, setSortBy] = useState<SortField>('bmg')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [minorExpanded, setMinorExpanded] = useState(false)
 
   const loadAffairs = useCallback(async () => {
     setLoading(true)
@@ -75,6 +117,7 @@ export default function AffairsPage() {
 
   useEffect(() => { loadAffairs() }, [loadAffairs])
 
+  // Sort affairs
   const sortedAffairs = [...affairs].sort((a, b) => {
     switch (sortBy) {
       case 'bmg': return (b.bmg || 0) - (a.bmg || 0)
@@ -86,7 +129,163 @@ export default function AffairsPage() {
     }
   })
 
-  const criticalCount = affairs.filter(a => (a.bmg_details?.niveau_alerte || '').toLowerCase() === 'critique').length
+  // Group by priority
+  const grouped: Record<Priority, Affair[]> = { hot: [], watch: [], minor: [] }
+  sortedAffairs.forEach(a => {
+    const p = getAffairPriority(a)
+    grouped[p].push(a)
+  })
+
+  const hotCount = grouped.hot.length
+  const watchCount = grouped.watch.length
+  const minorCount = grouped.minor.length
+
+  // ── Render an affair card (grid) ──
+  const renderGridCard = (affair: Affair) => {
+    const ts = themeStyle(affair.theme)
+    const as_ = affair.bmg_details?.niveau_alerte ? alertBadgeStyle(affair.bmg_details.niveau_alerte) : null
+    const priority = getAffairPriority(affair)
+    const pc = PRIORITY_CONFIG[priority]
+    return (
+      <Link key={affair._id} href={`/affairs/${affair._id}`}>
+        <div className="glass-card p-5 cursor-pointer card-hover h-full" style={{
+          borderLeft: `2px solid ${pc.color}`,
+        }}>
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-semibold text-white truncate">{affair.title || affair.primary_entity || 'Affaire'}</h3>
+              {affair.primary_entity && affair.title !== affair.primary_entity && (
+                <p className="text-xs truncate mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>{affair.primary_entity}</p>
+              )}
+            </div>
+            <BmgGauge value={(affair.bmg || 0) * 100} size={60} />
+          </div>
+          {affair.description && <p className="text-xs line-clamp-2 mb-3" style={{ color: 'rgba(255,255,255,0.4)' }}>{affair.description}</p>}
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: ts.bg, color: ts.color, border: `1px solid ${ts.border}` }}>{themeLabel(affair.theme)}</span>
+            {as_ && <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: as_.bg, color: as_.color, border: `1px solid ${as_.border}` }}>{affair.bmg_details!.niveau_alerte}</span>}
+            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{
+              background: affair.status === 'active' ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.04)',
+              color: affair.status === 'active' ? '#34d399' : 'rgba(255,255,255,0.3)',
+              border: `1px solid ${affair.status === 'active' ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.08)'}`,
+            }}>{affair.status}</span>
+          </div>
+          {affair.entities && affair.entities.length > 0 && (
+            <div className="flex flex-wrap gap-1 mb-3">
+              {affair.entities.slice(0, 3).map((e, i) => (
+                <span key={i} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.35)' }}>{e}</span>
+              ))}
+              {affair.entities.length > 3 && <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.25)' }}>+{affair.entities.length - 3}</span>}
+            </div>
+          )}
+          <div className="flex items-center justify-between text-xs pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.3)' }}>
+            <div className="flex items-center gap-3"><span>{affair.item_count || 0} items</span><span>{affair.source_types?.length || 0} canaux</span></div>
+            <span>{timeAgo(affair.last_activity || affair.created_at)}</span>
+          </div>
+        </div>
+      </Link>
+    )
+  }
+
+  // ── Render an affair row (list) ──
+  const renderListRow = (affair: Affair) => {
+    const ts = themeStyle(affair.theme)
+    const as_ = affair.bmg_details?.niveau_alerte ? alertBadgeStyle(affair.bmg_details.niveau_alerte) : null
+    const priority = getAffairPriority(affair)
+    const pc = PRIORITY_CONFIG[priority]
+    return (
+      <Link key={affair._id} href={`/affairs/${affair._id}`}>
+        <div className="flex items-center gap-4 p-4 glass-card cursor-pointer" style={{ borderLeft: `2px solid ${pc.color}` }}>
+          <BmgGauge value={(affair.bmg || 0) * 100} size={48} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="text-sm font-semibold text-white truncate">{affair.title || affair.primary_entity || 'Affaire'}</h3>
+              <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: ts.bg, color: ts.color, border: `1px solid ${ts.border}` }}>{themeLabel(affair.theme)}</span>
+            </div>
+            <div className="flex items-center gap-3 text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              <span>{affair.item_count || 0} items</span>
+              <span>{affair.source_types?.length || 0} canaux</span>
+              <span>Gravité {Math.round((affair.gravity_score || 0) * 100)}%</span>
+              <span>{timeAgo(affair.last_activity || affair.created_at)}</span>
+            </div>
+          </div>
+          {as_ && <span className="text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0" style={{ background: as_.bg, color: as_.color, border: `1px solid ${as_.border}` }}>{affair.bmg_details!.niveau_alerte}</span>}
+          <svg className="w-4 h-4 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.2)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+        </div>
+      </Link>
+    )
+  }
+
+  // ── Render a priority section ──
+  const renderSection = (priority: Priority, items: Affair[], collapsible: boolean = false) => {
+    if (items.length === 0) return null
+    const config = PRIORITY_CONFIG[priority]
+    const isCollapsed = collapsible && !minorExpanded
+
+    return (
+      <div key={priority} className="mb-8">
+        {/* Section header */}
+        <div
+          className="flex items-center gap-3 mb-4 cursor-pointer select-none"
+          onClick={() => collapsible && setMinorExpanded(!minorExpanded)}
+        >
+          <div className="w-2 h-2 rounded-full" style={{
+            backgroundColor: config.color,
+            boxShadow: `0 0 8px ${config.glow}`,
+          }} />
+          <h2 className="text-sm font-semibold" style={{ color: config.color }}>
+            {config.label}
+          </h2>
+          <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{
+            background: config.bg,
+            color: config.color,
+            border: `1px solid ${config.border}`,
+          }}>
+            {items.length}
+          </span>
+          <div className="flex-1 h-px" style={{ background: config.border }} />
+          {collapsible && (
+            <svg
+              className="w-4 h-4 transition-transform"
+              style={{
+                color: config.color,
+                transform: isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)',
+              }}
+              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          )}
+        </div>
+
+        {/* Section content */}
+        {!isCollapsed && (
+          viewMode === 'grid' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {items.map(renderGridCard)}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {items.map(renderListRow)}
+            </div>
+          )
+        )}
+
+        {/* Collapsed summary */}
+        {isCollapsed && (
+          <div
+            className="glass-card-static p-3 text-center cursor-pointer"
+            onClick={() => setMinorExpanded(true)}
+            style={{ borderColor: config.border }}
+          >
+            <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              {items.length} affaire{items.length > 1 ? 's' : ''} mineure{items.length > 1 ? 's' : ''} — cliquer pour déplier
+            </p>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="flex">
@@ -100,13 +299,33 @@ export default function AffairsPage() {
               <h1 className="text-2xl font-bold text-white tracking-tight">Affaires</h1>
               <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
                 {total} affaire{total > 1 ? 's' : ''} au total
-                {criticalCount > 0 && (
-                  <span style={{ color: '#f87171' }}> — {criticalCount} critique{criticalCount > 1 ? 's' : ''}</span>
+                {hotCount > 0 && (
+                  <span style={{ color: '#f87171' }}> — {hotCount} urgente{hotCount > 1 ? 's' : ''}</span>
                 )}
               </p>
             </div>
             <button onClick={loadAffairs} className="btn-glass px-3 py-2 text-sm">Actualiser</button>
           </div>
+
+          {/* Priority summary pills */}
+          {!loading && sortedAffairs.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-4">
+              {(['hot', 'watch', 'minor'] as Priority[]).map(p => {
+                const count = grouped[p].length
+                if (count === 0) return null
+                const c = PRIORITY_CONFIG[p]
+                return (
+                  <div key={p} className="flex items-center gap-2 px-3 py-1.5 rounded-xl" style={{
+                    background: c.bg,
+                    border: `1px solid ${c.border}`,
+                  }}>
+                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c.color }} />
+                    <span className="text-xs font-medium" style={{ color: c.color }}>{count} {c.label.toLowerCase()}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
           {/* Filters */}
           <div className="flex flex-wrap items-center gap-3 mb-6 glass-card-static p-4">
@@ -160,77 +379,12 @@ export default function AffairsPage() {
               <p className="text-sm" style={{ color: 'rgba(255,255,255,0.35)' }}>Aucune affaire avec ce filtre</p>
               <button onClick={() => setStatusFilter('all')} className="text-sm mt-2" style={{ color: '#818cf8' }}>Voir toutes les affaires</button>
             </div>
-          ) : viewMode === 'grid' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {sortedAffairs.map((affair) => {
-                const ts = themeStyle(affair.theme)
-                const as_ = affair.bmg_details?.niveau_alerte ? alertBadgeStyle(affair.bmg_details.niveau_alerte) : null
-                return (
-                  <Link key={affair._id} href={`/affairs/${affair._id}`}>
-                    <div className="glass-card p-5 cursor-pointer card-hover h-full">
-                      <div className="flex items-start justify-between gap-3 mb-3">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-semibold text-white truncate">{affair.title || affair.primary_entity || 'Affaire'}</h3>
-                          {affair.primary_entity && affair.title !== affair.primary_entity && (
-                            <p className="text-xs truncate mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>{affair.primary_entity}</p>
-                          )}
-                        </div>
-                        <BmgGauge value={(affair.bmg || 0) * 100} size={60} />
-                      </div>
-                      {affair.description && <p className="text-xs line-clamp-2 mb-3" style={{ color: 'rgba(255,255,255,0.4)' }}>{affair.description}</p>}
-                      <div className="flex flex-wrap gap-1.5 mb-3">
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: ts.bg, color: ts.color, border: `1px solid ${ts.border}` }}>{themeLabel(affair.theme)}</span>
-                        {as_ && <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: as_.bg, color: as_.color, border: `1px solid ${as_.border}` }}>{affair.bmg_details!.niveau_alerte}</span>}
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{
-                          background: affair.status === 'active' ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.04)',
-                          color: affair.status === 'active' ? '#34d399' : 'rgba(255,255,255,0.3)',
-                          border: `1px solid ${affair.status === 'active' ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.08)'}`,
-                        }}>{affair.status}</span>
-                      </div>
-                      {affair.entities && affair.entities.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-3">
-                          {affair.entities.slice(0, 3).map((e, i) => (
-                            <span key={i} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.35)' }}>{e}</span>
-                          ))}
-                          {affair.entities.length > 3 && <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.25)' }}>+{affair.entities.length - 3}</span>}
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between text-xs pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.3)' }}>
-                        <div className="flex items-center gap-3"><span>{affair.item_count || 0} items</span><span>{affair.source_types?.length || 0} canaux</span></div>
-                        <span>{timeAgo(affair.last_activity || affair.created_at)}</span>
-                      </div>
-                    </div>
-                  </Link>
-                )
-              })}
-            </div>
           ) : (
-            <div className="space-y-2">
-              {sortedAffairs.map((affair) => {
-                const ts = themeStyle(affair.theme)
-                const as_ = affair.bmg_details?.niveau_alerte ? alertBadgeStyle(affair.bmg_details.niveau_alerte) : null
-                return (
-                  <Link key={affair._id} href={`/affairs/${affair._id}`}>
-                    <div className="flex items-center gap-4 p-4 glass-card cursor-pointer">
-                      <BmgGauge value={(affair.bmg || 0) * 100} size={48} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="text-sm font-semibold text-white truncate">{affair.title || affair.primary_entity || 'Affaire'}</h3>
-                          <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: ts.bg, color: ts.color, border: `1px solid ${ts.border}` }}>{themeLabel(affair.theme)}</span>
-                        </div>
-                        <div className="flex items-center gap-3 text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                          <span>{affair.item_count || 0} items</span>
-                          <span>{affair.source_types?.length || 0} canaux</span>
-                          <span>Gravité {Math.round((affair.gravity_score || 0) * 100)}%</span>
-                          <span>{timeAgo(affair.last_activity || affair.created_at)}</span>
-                        </div>
-                      </div>
-                      {as_ && <span className="text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0" style={{ background: as_.bg, color: as_.color, border: `1px solid ${as_.border}` }}>{affair.bmg_details!.niveau_alerte}</span>}
-                      <svg className="w-4 h-4 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.2)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                    </div>
-                  </Link>
-                )
-              })}
+            /* Priority-grouped sections */
+            <div>
+              {renderSection('hot', grouped.hot)}
+              {renderSection('watch', grouped.watch)}
+              {renderSection('minor', grouped.minor, true)}
             </div>
           )}
         </div>

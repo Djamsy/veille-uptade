@@ -868,18 +868,22 @@ async def get_articles(
 
 @app.get("/api/affairs")
 async def get_affairs(
-    status: str = Query("active", regex="^(active|closed|all)$"),
-    limit: int = Query(20, ge=1, le=100)
+    status: str = Query("active", regex="^(active|stale|closed|all)$"),
+    limit: int = Query(50, ge=1, le=200)
 ):
-    """Récupérer les affaires"""
+    """Récupérer les affaires (triées par priorité puis BMG)"""
     try:
         query = {} if status == "all" else {"status": status}
+        # Tri : hot en premier, puis watch, puis minor — et BMG décroissant
+        PRIORITY_ORDER = {"hot": 0, "watch": 1, "minor": 2}
         affairs = list(
             collections['affairs']
             .find(query)
-            .sort("bmg", -1)
+            .sort([("bmg", -1)])
             .limit(limit)
         )
+        # Tri python pour la priorité (MongoDB ne supporte pas facilement un tri custom)
+        affairs.sort(key=lambda a: (PRIORITY_ORDER.get(a.get("priority", "minor"), 2), -(a.get("bmg", 0))))
         return {"affairs": [serialize_doc(a) for a in affairs]}
     except Exception as e:
         logger.error(f"Erreur récupération affaires: {e}")

@@ -25,6 +25,7 @@ export interface Affair {
   gravity_score: number;
   affair_type: string;
   status: string;
+  priority?: 'hot' | 'watch' | 'minor';
   bmg: number;
   bmg_details?: BmgDetails;
   bmg_history?: Array<{ bmg: number; at: string }>;
