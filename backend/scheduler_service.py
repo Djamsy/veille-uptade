@@ -395,23 +395,30 @@ async def job_update_affairs():
             logger.info(f"📊 MAJ affaires: {len(active)} actives, {recent_articles} articles récents (3h)")
             updated_count = 0
 
+            # Institutions trop génériques — ne comptent pas pour le matching
+            GENERIC_INSTITUTIONS = {
+                "préfecture", "prefecture", "parquet", "parquet de pointe-à-pitre",
+                "tribunal", "tribunal administratif", "agence régionale de santé", "ars",
+                "conseil départemental", "conseil régional", "rectorat",
+                "france travail", "caisse générale de sécurité sociale", "cgss",
+                "edf", "edf guadeloupe", "sdis", "sdis guadeloupe",
+                "parc national", "ordre des avocats", "chambre des métiers",
+                "insee", "pôle emploi",
+            }
+
             for affair in active:
-                # Entités de l'affaire (noms de personnes + institutions)
+                # Entités de l'affaire — UNIQUEMENT elected + institutions d'ORIGINE
+                # PAS le champ "entities" accumulé (effet boule de neige)
                 affair_elected = set(
                     e.lower().strip() for e in affair.get("elected", []) if e and len(e) > 3
                 )
                 affair_institutions = set(
                     e.lower().strip() for e in affair.get("institutions", []) if e and len(e) > 3
-                )
-                affair_entities = affair_elected | affair_institutions
-                # Aussi utiliser le champ "entities" générique
-                for e in affair.get("entities", []):
-                    if e and len(e) > 3:
-                        affair_entities.add(e.lower().strip())
+                ) - GENERIC_INSTITUTIONS
 
-                if not affair_entities:
-                    logger.debug(f"   ⏭️ Affaire '{affair.get('title', '?')[:40]}' sans entités, skip")
-                    continue  # Pas d'entités → pas de matching possible
+                if not affair_elected and not affair_institutions:
+                    logger.debug(f"   ⏭️ Affaire '{affair.get('title', '?')[:40]}' sans entités spécifiques, skip")
+                    continue
 
                 existing_ids = set(str(a) for a in affair.get("articles", []))
                 updates = []
@@ -434,30 +441,28 @@ async def job_update_affairs():
                     for e in (article.get("institutions", []) or []):
                         if e and len(e) > 3:
                             art_institutions.add(e.lower().strip())
-                    for e in (article.get("entities", []) or []):
-                        if e and len(e) > 3:
-                            art_elected.add(e.lower().strip())
-                    art_entities = art_elected | art_institutions
+                    art_institutions -= GENERIC_INSTITUTIONS
 
-                    # Match assoupli :
-                    # - 2 entités en commun (toujours OK), OU
-                    # - 1 personne en commun + même thème
-                    common_entities = affair_entities & art_entities
+                    # Match STRICT :
+                    # - 1 élu en commun (personne nommée) = signal fort
+                    # - OU 2 institutions SPÉCIFIQUES en commun
                     common_elected = affair_elected & art_elected
+                    common_institutions = affair_institutions & art_institutions
                     same_theme = (
                         affair.get("theme", "") == article.get("theme", "")
-                        and affair.get("theme", "") not in ("", "general")
+                        and affair.get("theme", "") not in ("", "general", "sante_social")
                     )
                     match = (
-                        len(common_entities) >= 2
-                        or (len(common_elected) >= 1 and same_theme)
+                        len(common_elected) >= 1
+                        or (len(common_institutions) >= 1 and same_theme)
                     )
                     if match:
+                        matched = list(common_elected | common_institutions)[:5]
                         updates.append({
                             "type": "article",
                             "id": art_id,
                             "title": article.get("title"),
-                            "matched_entities": list(common_entities)[:5],
+                            "matched_entities": matched,
                             "time": datetime.now().isoformat()
                         })
 

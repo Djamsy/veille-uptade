@@ -1271,8 +1271,10 @@ class AffairLifecycleService:
             else:
                 logger.info(f"      → Aucun match trouvé parmi {len(active_affairs)} affaires actives → CRÉATION")
 
-            if best_match and best_score >= 3:
+            if best_match and best_score >= 4:
                 # Fusionner avec l'affaire existante
+                # IMPORTANT : NE PAS ajouter les entités de l'article dans l'affaire
+                # pour éviter l'effet boule de neige (une affaire qui matche tout)
                 logger.info(f"      ✅ FUSION avec affaire existante (score={best_score})")
                 self.affairs.update_one(
                     {"_id": best_match["_id"]},
@@ -1280,7 +1282,6 @@ class AffairLifecycleService:
                         "$addToSet": {
                             "articles": art_id,
                             "sources": art.get("source", ""),
-                            "entities": {"$each": list(art_entities)[:10]},
                         },
                         "$inc": {"item_count": 1},
                         "$set": {"last_activity": now},
@@ -1365,36 +1366,71 @@ class AffairLifecycleService:
         logger.info(f"📊 Bilan: {active_count + stats['created']} affaires actives maintenant")
         return stats
 
+    # Institutions trop génériques — présentes dans beaucoup d'articles
+    # sans lien direct. Ne comptent PAS comme signal de matching.
+    GENERIC_INSTITUTIONS = {
+        "préfecture", "prefecture", "préfecture de guadeloupe",
+        "parquet", "parquet de pointe-à-pitre", "parquet de pointe-a-pitre",
+        "tribunal", "tribunal administratif", "tribunal administratif de la guadeloupe",
+        "agence régionale de santé", "agence regionale de sante", "ars",
+        "conseil départemental", "conseil departemental", "conseil régional", "conseil regional",
+        "rectorat", "académie", "academie",
+        "insee", "institut national de la statistique et des études économiques",
+        "france travail", "pôle emploi", "pole emploi",
+        "caisse générale de sécurité sociale", "cgss",
+        "edf", "edf guadeloupe",
+        "sdis", "sdis guadeloupe",
+        "chambre des métiers", "chambre des metiers",
+        "parc national", "parc national de la guadeloupe",
+        "ordre des avocats",
+    }
+
     def _match_score(
         self, art_elected: set, art_institutions: set, art_entities: set,
         art_theme: str, art_title_words: set, affair: dict
     ) -> int:
-        """Calcule un score de similarité entre un article et une affaire."""
+        """Calcule un score de similarité entre un article et une affaire.
+
+        RÈGLES DE MATCHING STRICTES :
+        - Seules les entités SPÉCIFIQUES comptent (pas préfecture, ARS, etc.)
+        - Les élus (personnes nommées) sont le signal le plus fort
+        - Le thème seul ne suffit JAMAIS à fusionner
+        - Les mots du titre doivent être discriminants (>6 chars)
+        """
+        # Entités de l'affaire — utiliser UNIQUEMENT les entités d'ORIGINE
+        # (pas celles accumulées par les fusions successives)
         aff_elected = set(
             e.lower().strip() for e in (affair.get("elected", []) or []) if e and len(e) > 3
         )
-        aff_institutions = set(
+        aff_institutions_raw = set(
             e.lower().strip() for e in (affair.get("institutions", []) or []) if e and len(e) > 3
         )
+        # Filtrer les institutions génériques
+        aff_institutions = aff_institutions_raw - self.GENERIC_INSTITUTIONS
+        art_institutions_filtered = art_institutions - self.GENERIC_INSTITUTIONS
+
         aff_entities = aff_elected | aff_institutions
+        art_entities_filtered = art_elected | art_institutions_filtered
+
         aff_theme = affair.get("theme", "general")
+        # Mots du titre discriminants (>6 chars pour éviter "guadeloupe", "mairie", etc.)
         aff_title_words = set(
-            w.lower() for w in (affair.get("title", "").split()) if len(w) > 4
+            w.lower() for w in (affair.get("title", "").split()) if len(w) > 6
         )
+        art_title_words_strict = set(w for w in art_title_words if len(w) > 6)
 
         common_elected = art_elected & aff_elected
-        common_institutions = art_institutions & aff_institutions
-        common_entities = art_entities & aff_entities
-        same_theme = (art_theme == aff_theme and art_theme not in ("", "general"))
-        common_title = art_title_words & aff_title_words
+        common_institutions = art_institutions_filtered & aff_institutions
+        same_theme = (art_theme == aff_theme and art_theme not in ("", "general", "sante_social"))
+        common_title = art_title_words_strict & aff_title_words
 
         score = 0
-        score += len(common_elected) * 4      # Personne en commun = signal fort
-        score += len(common_institutions) * 2  # Institution en commun
-        score += (2 if same_theme else 0)      # Même thème
-        score += min(len(common_title), 3)     # Mots du titre en commun (max 3 pts)
+        score += len(common_elected) * 5      # Personne en commun = signal TRÈS fort
+        score += len(common_institutions) * 3  # Institution spécifique en commun
+        score += (1 if same_theme else 0)      # Même thème = indice faible (réduit de 2→1)
+        score += min(len(common_title), 2)     # Mots du titre en commun (max 2 pts, réduit de 3)
 
-        if score >= 2:  # Log uniquement les matchs significatifs
+        if score >= 2:
             logger.debug(
                 f"      🔍 Score={score} vs '{affair.get('title', '?')[:40]}': "
                 f"élus={list(common_elected)}, instit={list(common_institutions)}, "
@@ -1458,7 +1494,7 @@ class AffairLifecycleService:
                     best_score = score
                     best_match = affair
 
-            if best_match and best_score >= 3:
+            if best_match and best_score >= 4:
                 logger.info(f"   🔗 Consolidé: '{art.get('title', '?')[:50]}' → "
                            f"affaire '{best_match.get('title', '?')[:40]}' (score={best_score})")
                 self.affairs.update_one(

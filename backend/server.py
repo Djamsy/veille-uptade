@@ -995,6 +995,50 @@ async def debug_scheduler():
 
     return diag
 
+
+@app.post("/api/debug/reset-affairs")
+async def reset_affairs():
+    """Remet à zéro les affaires pour re-traitement propre.
+    Supprime toutes les affaires et reset les flags _affair_processed."""
+    if db is None:
+        return {"error": "no_db"}
+    try:
+        # Supprimer toutes les affaires
+        del_affairs = db["affairs"].delete_many({})
+        del_timeline = db["affair_timeline"].delete_many({})
+        del_candidates = db["topic_candidates"].delete_many({})
+        del_clusters = db["topic_clusters"].delete_many({})
+
+        # Reset les flags sur les articles
+        reset_articles = db["articles_guadeloupe"].update_many(
+            {},
+            {"$unset": {
+                "_affair_processed": "",
+                "_affair_id": "",
+                "_affair_ignored": "",
+                "_affair_attempts": "",
+            }}
+        )
+
+        # Reset les flags sur les transcriptions
+        reset_trans = db["radio_transcriptions"].update_many(
+            {},
+            {"$unset": {"_affair_processed": ""}}
+        )
+
+        return {
+            "success": True,
+            "deleted_affairs": del_affairs.deleted_count,
+            "deleted_timeline": del_timeline.deleted_count,
+            "deleted_candidates": del_candidates.deleted_count,
+            "deleted_clusters": del_clusters.deleted_count,
+            "articles_reset": reset_articles.modified_count,
+            "transcriptions_reset": reset_trans.modified_count,
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
 # ========== ROUTES RADIO CARDS ==========
 try:
     from backend.radio_cards_routes import router as radio_cards_router
