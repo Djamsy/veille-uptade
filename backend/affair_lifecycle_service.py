@@ -65,9 +65,10 @@ MAX_ACTIVE_AFFAIRS = 100               # Maximum d'affaires actives — le front
 
 # --- Priorité des affaires ---
 # 3 niveaux : hot (rouge), watch (jaune), minor (vert)
-PRIORITY_HOT_GRAVITY = 0.65           # Gravité >= 0.65 → priorité HOT
-PRIORITY_WATCH_GRAVITY = 0.45         # Gravité >= 0.45 → priorité WATCH
-# En dessous → MINOR
+# IMPORTANT : avec la calibration IA stricte, gravity 0.70+ = vraiment grave
+PRIORITY_HOT_GRAVITY = 0.75           # Gravité >= 0.75 → priorité HOT (meurtre, cyclone, crise)
+PRIORITY_WATCH_GRAVITY = 0.55         # Gravité >= 0.55 → priorité WATCH (scandale, grève générale)
+# En dessous → MINOR (tout le reste : faits divers, travaux, événements locaux)
 
 # --- BMG ---
 CANAL_WEIGHTS = {
@@ -174,17 +175,23 @@ class AffairLifecycleService:
     def compute_priority(gravity: float, bmg: float = 0, item_count: int = 1) -> str:
         """
         Calcule le niveau de priorité d'une affaire.
-        - 'hot'   : affaire grave/brûlante — toujours visible en premier
-        - 'watch' : affaire à surveiller
+        - 'hot'   : crise avérée — toujours visible en premier
+        - 'watch' : affaire sérieuse à surveiller
         - 'minor' : affaire mineure — repliée par défaut dans le frontend
+
+        Distribution cible : ~10% hot, ~30% watch, ~60% minor
         """
-        # BMG élevé surclasse la gravité (beaucoup de bruit médiatique)
-        if bmg >= 0.6:
+        # HOT : crise réelle (gravity très haute OU BMG élevé avec plusieurs sources)
+        if bmg >= 0.65 and item_count >= 2:
             return "hot"
         if gravity >= PRIORITY_HOT_GRAVITY:
             return "hot"
-        if gravity >= PRIORITY_WATCH_GRAVITY or bmg >= 0.3:
+        # WATCH : affaire sérieuse
+        if gravity >= PRIORITY_WATCH_GRAVITY:
             return "watch"
+        if bmg >= 0.35 and item_count >= 2:
+            return "watch"
+        # MINOR : tout le reste
         return "minor"
 
     # ============================================================

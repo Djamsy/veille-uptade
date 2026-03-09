@@ -81,11 +81,14 @@ const PRIORITY_CONFIG: Record<Priority, { label: string; icon: string; color: st
 function getAffairPriority(a: Affair): Priority {
   // Use backend priority if available
   if (a.priority === 'hot' || a.priority === 'watch' || a.priority === 'minor') return a.priority
-  // Fallback: compute client-side
+  // Fallback: compute client-side (mêmes seuils que le backend)
   const g = a.gravity_score || 0
   const bmg = a.bmg || 0
-  if (bmg >= 0.6 || g >= 0.65) return 'hot'
-  if (g >= 0.45 || bmg >= 0.3) return 'watch'
+  const items = a.item_count || 1
+  if (g >= 0.75) return 'hot'
+  if (bmg >= 0.65 && items >= 2) return 'hot'
+  if (g >= 0.55) return 'watch'
+  if (bmg >= 0.35 && items >= 2) return 'watch'
   return 'minor'
 }
 

@@ -561,6 +561,32 @@ async def enriched_dashboard():
     }
 
 
+@router.post("/recalculate-priorities")
+async def recalculate_all_priorities():
+    """Recalcule la priorité de TOUTES les affaires actives/stale avec les nouveaux seuils."""
+    svc = _svc()
+    updated = 0
+    distribution = {"hot": 0, "watch": 0, "minor": 0}
+    for affair in svc.affairs.find({"status": {"$in": ["active", "stale"]}}):
+        gravity = affair.get("gravity_score", 0)
+        bmg = affair.get("bmg", 0)
+        item_count = affair.get("item_count", 1)
+        new_priority = svc.compute_priority(gravity, bmg, item_count)
+        old_priority = affair.get("priority", "unknown")
+        svc.affairs.update_one(
+            {"_id": affair["_id"]},
+            {"$set": {"priority": new_priority}}
+        )
+        distribution[new_priority] = distribution.get(new_priority, 0) + 1
+        if old_priority != new_priority:
+            updated += 1
+    return {
+        "success": True,
+        "updated": updated,
+        "distribution": distribution,
+    }
+
+
 @router.post("/purge-v1")
 async def purge_v1_affairs():
     """Supprime les affaires créées par le V1 (sans promoted_at)
