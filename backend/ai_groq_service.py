@@ -149,18 +149,39 @@ Analyse l'article fourni et retourne un JSON avec EXACTEMENT ces champs :
   "elected": ["liste des personnalités politiques/publiques mentionnées (nom complet)"],
   "institutions": ["liste des institutions mentionnées (CHU, SMGEAG, EDF, Préfecture, etc.)"],
   "sentiment": "positif, negatif ou neutre",
-  "gravity_score": 0.0 à 1.0 (0=anodin, 0.5=notable, 0.7+=affaire grave, 0.9+=crise),
-  "is_affair": true/false (true si gravity_score >= 0.65),
+  "gravity_score": 0.0 à 1.0,
+  "is_affair": true/false,
   "affair_type": "routine, incident_mineur, affaire_importante, affaire_grave ou crise_majeure",
   "summary": "résumé en 1-2 phrases de l'article",
   "keywords": ["mots-clés principaux de l'article"]
 }
 
-Règles :
+=== CALIBRATION GRAVITY_SCORE (TRÈS IMPORTANT — sois STRICT) ===
+
+La MAJORITÉ des articles doivent avoir une gravity basse. Distribution attendue :
+- 60% des articles → gravity 0.05 à 0.25 (routine, info générale)
+- 25% des articles → gravity 0.25 à 0.50 (événement notable mais pas grave)
+- 10% des articles → gravity 0.50 à 0.70 (affaire significative)
+- 4% des articles → gravity 0.70 à 0.85 (affaire grave, crise locale)
+- 1% des articles → gravity 0.85+ (crise majeure exceptionnelle)
+
+Exemples concrets pour la Guadeloupe :
+- gravity 0.05-0.15 : météo, résultats sportifs locaux, programme culturel, événement associatif, ouverture de commerce, agenda
+- gravity 0.15-0.25 : travaux routiers, coupure d'eau programmée, annonce institutionnelle, bilan d'activité, inauguration
+- gravity 0.25-0.40 : grève limitée (1 entreprise), accident de la route, interpellation de délinquants, fermeture d'entreprise
+- gravity 0.40-0.55 : grève touchant un service public, pénurie temporaire, polémique politique locale, incendie important
+- gravity 0.55-0.70 : scandale financier public, grève générale d'un secteur, contamination eau potable, mort suspecte
+- gravity 0.70-0.85 : meurtre, corruption d'élu avérée, cyclone imminent, crise sanitaire, émeute
+- gravity 0.85-1.0 : catastrophe naturelle majeure, crise sociale généralisée (blocages île entière), multiple victimes
+
+RÈGLE CLEF : si l'article est informatif, factuel et sans conséquence directe sur la population → gravity <= 0.20.
+Un article n'est PAS une "affaire" s'il rapporte simplement un fait divers ou un événement ordinaire.
+
+is_affair : true UNIQUEMENT si gravity_score >= 0.55 ET l'article implique des personnalités publiques ou des institutions dans un contexte problématique.
+
+Autres règles :
 - Sois précis sur les noms : utilise le prénom ET le nom pour les personnalités
 - Les institutions locales de Guadeloupe sont importantes : CHU, SMGEAG, EDF Guadeloupe, ARS, Préfecture, Région, Département, CAF
-- Un décès, une agression, une grève majeure = gravity >= 0.7
-- Une simple annonce culturelle ou sportive = gravity < 0.3
 - Réponds UNIQUEMENT en JSON valide, pas de texte autour."""
 
 
@@ -204,8 +225,8 @@ def enrich_article_with_groq(article: Dict[str, Any]) -> Optional[Dict[str, Any]
         elected = result.get("elected", [])
         institutions = result.get("institutions", [])
         sentiment = result.get("sentiment", "neutre")
-        gravity_score = float(result.get("gravity_score", 0.3))
-        is_affair = result.get("is_affair", gravity_score >= 0.65)
+        gravity_score = float(result.get("gravity_score", 0.15))
+        is_affair = result.get("is_affair", gravity_score >= 0.55)
         affair_type = result.get("affair_type", "routine")
         summary = result.get("summary", "")
         keywords = result.get("keywords", [])

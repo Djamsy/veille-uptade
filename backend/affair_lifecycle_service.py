@@ -55,8 +55,8 @@ CLUSTER_MERGE_THRESHOLD = 0.50         # Seuil pour fusionner deux clusters
 # --- Promotion en affaire ---
 PROMOTION_MIN_SOURCES = 1              # Au moins 1 source (assoupli, était 2)
 PROMOTION_MIN_MEDIA_TYPES = 1          # Au moins 1 type de média (article OU transcription)
-PROMOTION_MIN_GRAVITY = 0.40           # Gravité minimum du cluster (assoupli, était 0.50)
-PROMOTION_MIN_ITEMS = 1                # Minimum d'items (assoupli, était 2)
+PROMOTION_MIN_GRAVITY = 0.50           # Gravité minimum du cluster
+PROMOTION_MIN_ITEMS = 2                # Minimum d'items — 1 seul article ne fait pas une affaire
 
 # --- Cycle de vie ---
 AFFAIR_ACTIVE_DAYS = 7                 # Durée de vie active (1 semaine)
@@ -1219,7 +1219,7 @@ class AffairLifecycleService:
         logger.info(f"📊 DB: {total_articles} articles total, {total_enriched} enrichis, "
                      f"{total_processed} déjà traités (affaires), "
                      f"{total_affairs} affaires ({active_count} actives)")
-        logger.info(f"📰 {len(unprocessed)} articles non traités trouvés (gravity>=0.15, enrichis, 3j)")
+        logger.info(f"📰 {len(unprocessed)} articles non traités trouvés (enrichis, 3j)")
 
         if len(unprocessed) == 0 and total_enriched > 0:
             # Diagnostic : pourquoi aucun article non traité ?
@@ -1254,14 +1254,14 @@ class AffairLifecycleService:
             art_id = str(art["_id"])
             gravity = art.get("gravity_score", 0)
 
-            # Ignorer seulement les contenus vraiment anodins
-            if gravity < 0.15:
+            # Ignorer les contenus sous le seuil d'affaire (gravity < 0.40)
+            if gravity < 0.40:
                 self.articles.update_one(
                     {"_id": art["_id"]},
                     {"$set": {"_affair_processed": True, "_affair_ignored": True}}
                 )
                 ignored_count += 1
-                logger.debug(f"   ⏭️ Ignoré (gravity={gravity:.2f}): {art.get('title', '?')[:60]}")
+                logger.debug(f"   ⏭️ Ignoré (gravity={gravity:.2f} < 0.40): {art.get('title', '?')[:60]}")
                 continue
 
             art_elected = set(
@@ -1322,51 +1322,66 @@ class AffairLifecycleService:
                 )
                 stats["merged"] += 1
             else:
-                # Créer une nouvelle affaire
-                title = art.get("title", "Nouvelle affaire")[:200]
-                new_affair = {
-                    "title": title,
-                    "description": (art.get("ai_summary", "") or "")[:300],
-                    "primary_entity": list(art_elected)[0] if art_elected else None,
-                    "entities": list(art_entities)[:20],
-                    "elected": list(art_elected)[:10],
-                    "institutions": list(art_institutions)[:10],
-                    "keywords": art.get("keywords_found", []) or [],
-                    "theme": art_theme,
-                    "gravity_score": round(max(gravity, 0.3), 3),
-                    "affair_type": self._classify_affair_type_by_gravity(gravity),
-                    "status": "active",
-                    "articles": [art_id],
-                    "radio_transcriptions": [],
-                    "social_posts": [],
-                    "sources": [art.get("source", "")],
-                    "source_types": ["article"],
-                    "item_count": 1,
-                    "created_at": now,
-                    "last_activity": now,
-                    "promoted_at": now,
-                    "bmg": 0, "bmg_details": {}, "bmg_history": [],
-                    "ai_managed": False,
-                    "_creation_method": "simple_cycle",
-                }
-                result = self.affairs.insert_one(new_affair)
-                new_id = str(result.inserted_id)
-                new_affair["_id"] = result.inserted_id
+                # Créer une nouvelle affaire UNIQUEMENT si critères stricts :
+                # - gravity >= 0.50 (événement vraiment significatif)
+                # - OU gravity >= 0.40 + au moins un élu identifié
+                has_key_entity = len(art_elected) >= 1
+                if gravity >= 0.50 or (gravity >= 0.40 and has_key_entity):
+                    title = art.get("title", "Nouvelle affaire")[:200]
+                    new_affair = {
+                        "title": title,
+                        "description": (art.get("ai_summary", "") or "")[:300],
+                        "primary_entity": list(art_elected)[0] if art_elected else None,
+                        "entities": list(art_entities)[:20],
+                        "elected": list(art_elected)[:10],
+                        "institutions": list(art_institutions)[:10],
+                        "keywords": art.get("keywords_found", []) or [],
+                        "theme": art_theme,
+                        "gravity_score": round(gravity, 3),
+                        "affair_type": self._classify_affair_type_by_gravity(gravity),
+                        "status": "active",
+                        "articles": [art_id],
+                        "radio_transcriptions": [],
+                        "social_posts": [],
+                        "sources": [art.get("source", "")],
+                        "source_types": ["article"],
+                        "item_count": 1,
+                        "created_at": now,
+                        "last_activity": now,
+                        "promoted_at": now,
+                        "bmg": 0, "bmg_details": {}, "bmg_history": [],
+                        "ai_managed": False,
+                        "_creation_method": "simple_cycle",
+                    }
+                    result = self.affairs.insert_one(new_affair)
+                    new_id = str(result.inserted_id)
+                    new_affair["_id"] = result.inserted_id
 
-                self.articles.update_one(
-                    {"_id": art["_id"]},
-                    {"$set": {"_affair_processed": True, "_affair_id": new_id}}
-                )
-                self.timeline.insert_one({
-                    "affair_id": new_id,
-                    "event": "created",
-                    "details": {"method": "simple_cycle", "title": title[:80],
-                                "source": art.get("source", ""), "gravity": gravity},
-                    "timestamp": now,
-                })
-                active_affairs.append(new_affair)
-                stats["created"] += 1
-                logger.info(f"🆕 Affaire: '{title[:50]}' (gravity={gravity:.2f}, source={art.get('source', '')})")
+                    self.articles.update_one(
+                        {"_id": art["_id"]},
+                        {"$set": {"_affair_processed": True, "_affair_id": new_id}}
+                    )
+                    self.timeline.insert_one({
+                        "affair_id": new_id,
+                        "event": "created",
+                        "details": {"method": "simple_cycle", "title": title[:80],
+                                    "source": art.get("source", ""), "gravity": gravity},
+                        "timestamp": now,
+                    })
+                    active_affairs.append(new_affair)
+                    stats["created"] += 1
+                    logger.info(f"🆕 Affaire: '{title[:50]}' (gravity={gravity:.2f}, "
+                                f"élus={list(art_elected)[:2]}, source={art.get('source', '')})")
+                else:
+                    # Gravity trop basse pour créer une affaire seule, marquer comme traité
+                    self.articles.update_one(
+                        {"_id": art["_id"]},
+                        {"$set": {"_affair_processed": True, "_affair_ignored": True,
+                                  "_affair_ignore_reason": f"gravity={gravity:.2f} < seuil création"}}
+                    )
+                    ignored_count += 1
+                    logger.debug(f"   ⏭️ Pas assez grave pour créer une affaire (gravity={gravity:.2f}): "
+                                 f"{art.get('title', '?')[:60]}")
 
         # ── ÉTAPE 3 : Consolidation — chercher d'autres sources 24h ──
         stats["consolidated"] = self._consolidate_affairs_24h(active_affairs)
@@ -1389,7 +1404,7 @@ class AffairLifecycleService:
         logger.info(
             f"✅ Cycle simplifié: {stats['created']} créées, {stats['merged']} fusionnées, "
             f"{stats['consolidated']} consolidées, {stats['radio_enriched']} radio enrichies, "
-            f"{stats['radio_linked']} radio liées, {ignored_count} ignorées (gravity<0.15)"
+            f"{stats['radio_linked']} radio liées, {ignored_count} ignorées (gravity<0.40 ou seuil création)"
         )
         logger.info(f"📊 Bilan: {active_count + stats['created']} affaires actives maintenant")
         return stats
@@ -2398,11 +2413,11 @@ class AffairLifecycleService:
         cutoff_dt = now - timedelta(days=3)
         cutoff_str = cutoff_dt.isoformat()
 
-        # Articles enrichis non traités avec gravité >= 0.35
+        # Articles enrichis non traités avec gravité >= 0.40
         unprocessed = list(self.articles.find({
             "$and": [
                 {"_analysis_method": {"$exists": True}},
-                {"gravity_score": {"$gte": 0.35}},
+                {"gravity_score": {"$gte": 0.40}},
                 {"$or": [
                     {"_affair_processed": {"$exists": False}},
                     {"_affair_processed": False},
