@@ -1577,16 +1577,27 @@ class AffairLifecycleService:
                 all_entities = []
                 all_themes = []
                 max_gravity = 0.0
+                summary_parts = []
                 for topic in topics:
                     all_entities.extend(topic.get("entities", []))
                     all_themes.append(topic.get("theme", "general"))
                     max_gravity = max(max_gravity, topic.get("gravity", 0))
+                    # Construire le résumé texte pour l'affichage
+                    t_title = topic.get("title", "").strip()
+                    t_summary = topic.get("summary", "").strip()
+                    if t_title and t_summary:
+                        summary_parts.append(f"{t_title} — {t_summary}")
+                    elif t_title:
+                        summary_parts.append(t_title)
+
+                ai_summary = "\n\n".join(summary_parts) if summary_parts else ""
 
                 self.transcriptions.update_one(
                     {"_id": trans["_id"]},
                     {"$set": {
                         "ai_topics": topics,
                         "ai_topics_count": len(topics),
+                        "ai_summary": ai_summary,
                         "entities": list(set(all_entities)),
                         "themes": list(set(all_themes)),
                         "gravity_score": round(max_gravity, 3),

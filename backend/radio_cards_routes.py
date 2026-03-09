@@ -68,8 +68,29 @@ def _choose_best(*vals: Any) -> str:
             return s
     return ""
 
+def _build_summary_from_ai_topics(ai_topics: list) -> str:
+    """Construit un résumé lisible à partir des ai_topics (split_radio_transcription)."""
+    if not ai_topics or not isinstance(ai_topics, list):
+        return ""
+    parts = []
+    for topic in ai_topics:
+        if not isinstance(topic, dict):
+            continue
+        title = topic.get("title", "").strip()
+        summary = topic.get("summary", "").strip()
+        if title and summary:
+            parts.append(f"**{title}** — {summary}")
+        elif title:
+            parts.append(f"**{title}**")
+        elif summary:
+            parts.append(summary)
+    return "\n\n".join(parts) if parts else ""
+
+
 def _extract_gpt_and_transcription(doc: Dict[str, Any]) -> Dict[str, str]:
-    """Extraction robuste des champs de transcription."""
+    """Extraction robuste des champs de transcription.
+    Supporte aussi bien les anciens champs (ai_summary, gpt_summary)
+    que le nouveau format ai_topics (tableau de sujets extraits par l'IA)."""
     gpt_summary = _choose_best(
         doc.get("ai_summary"),
         doc.get("ai_summary_html"),
@@ -79,6 +100,12 @@ def _extract_gpt_and_transcription(doc: Dict[str, Any]) -> Dict[str, str]:
         doc.get("summary_gpt"),
         doc.get("summary"),
     )
+    # Si pas de résumé classique, essayer de construire depuis ai_topics
+    if not gpt_summary:
+        ai_topics = doc.get("ai_topics")
+        if ai_topics:
+            gpt_summary = _build_summary_from_ai_topics(ai_topics)
+
     raw_transcription = _choose_best(
         doc.get("transcription"),
         doc.get("transcription_text"),
