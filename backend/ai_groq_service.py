@@ -17,45 +17,27 @@ from typing import Dict, Any, Optional, List
 logger = logging.getLogger("ai_groq_service")
 
 # ============================================================
-# Configuration — OpenAI en priorité, fallback Groq/xAI
+# Configuration — OpenAI GPT-4o-mini uniquement
 # ============================================================
 
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "").strip()
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
-_user_model = os.environ.get("GROQ_MODEL", "").strip()
 
-# --- Provider PRIMAIRE : OpenAI GPT-4o-mini (fiable + pas cher) ---
 AI_PROVIDER = "openai"
 AI_BASE_URL = "https://api.openai.com/v1"
 AI_MODEL = "gpt-4o-mini"
 
-# --- Fallback : xAI/Groq (si OpenAI indisponible) ---
-if GROQ_API_KEY.startswith("xai-"):
-    FALLBACK_PROVIDER = "xai"
-    FALLBACK_BASE_URL = "https://api.x.ai/v1"
-    FALLBACK_MODEL = _user_model if _user_model and _user_model != "mixtral-8x7b-32768" else "grok-2-latest"
-elif GROQ_API_KEY.startswith("gsk_"):
-    FALLBACK_PROVIDER = "groq"
-    FALLBACK_BASE_URL = "https://api.groq.com/openai/v1"
-    FALLBACK_MODEL = _user_model or "mixtral-8x7b-32768"
-else:
-    FALLBACK_PROVIDER = "groq"
-    FALLBACK_BASE_URL = "https://api.groq.com/openai/v1"
-    FALLBACK_MODEL = _user_model or "mixtral-8x7b-32768"
-
-# Compat
+# Compat (ancien code peut référencer GROQ_MODEL)
 GROQ_MODEL = AI_MODEL
 
 # ============================================================
-# Clients IA (primaire + fallback)
+# Client IA (OpenAI uniquement)
 # ============================================================
 
 _client = None
-_fallback_client = None
 
 
 def _get_client():
-    """Initialise le client IA primaire — OpenAI GPT-4o-mini (lazy loading)."""
+    """Initialise le client OpenAI GPT-4o-mini (lazy loading)."""
     global _client
     if _client is not None:
         return _client
@@ -67,38 +49,17 @@ def _get_client():
             api_key=OPENAI_API_KEY,
             base_url=AI_BASE_URL,
         )
-        logger.info(f"✅ Client IA primaire — provider: {AI_PROVIDER}, modèle: {AI_MODEL}")
+        logger.info(f"✅ Client IA — {AI_PROVIDER}/{AI_MODEL}")
         return _client
     except Exception as e:
-        logger.error(f"❌ Impossible d'initialiser le client IA primaire (OpenAI): {e}")
-        return None
-
-
-def _get_fallback_client():
-    """Initialise le client IA fallback — xAI/Groq (lazy loading)."""
-    global _fallback_client
-    if _fallback_client is not None:
-        return _fallback_client
-    if not GROQ_API_KEY:
-        return None
-    try:
-        from openai import OpenAI
-        _fallback_client = OpenAI(
-            api_key=GROQ_API_KEY,
-            base_url=FALLBACK_BASE_URL,
-        )
-        logger.info(f"✅ Client IA fallback — {FALLBACK_PROVIDER}/{FALLBACK_MODEL}")
-        return _fallback_client
-    except Exception as e:
-        logger.warning(f"⚠️ Fallback {FALLBACK_PROVIDER} non disponible: {e}")
+        logger.error(f"❌ Impossible d'initialiser OpenAI: {e}")
         return None
 
 
 def _call_ai(messages: List[Dict], temperature: float = 0.1,
              max_tokens: int = 800, json_mode: bool = True) -> Optional[str]:
     """
-    Appel IA avec fallback automatique : xAI/Grok → OpenAI GPT-4o-mini.
-    Retourne le contenu brut de la réponse ou None.
+    Appel OpenAI GPT-4o-mini. Retourne le contenu brut ou None.
     """
     kwargs = {
         "messages": messages,
@@ -108,32 +69,22 @@ def _call_ai(messages: List[Dict], temperature: float = 0.1,
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
 
-    # 1. Essayer OpenAI (provider primaire)
     client = _get_client()
-    if client:
-        try:
-            resp = client.chat.completions.create(model=AI_MODEL, **kwargs)
-            return resp.choices[0].message.content.strip()
-        except Exception as e:
-            logger.warning(f"⚠️ {AI_PROVIDER}/{AI_MODEL} échoué: {e} — fallback {FALLBACK_PROVIDER}")
+    if not client:
+        logger.warning("⚠️ Client OpenAI non disponible (OPENAI_API_KEY manquant ?)")
+        return None
 
-    # 2. Fallback xAI/Groq
-    fb = _get_fallback_client()
-    if fb:
-        try:
-            resp = fb.chat.completions.create(model=FALLBACK_MODEL, **kwargs)
-            content = resp.choices[0].message.content.strip()
-            logger.info(f"✅ Fallback {FALLBACK_PROVIDER}/{FALLBACK_MODEL} OK")
-            return content
-        except Exception as e:
-            logger.error(f"❌ Fallback {FALLBACK_PROVIDER} aussi échoué: {e}")
-
-    return None
+    try:
+        resp = client.chat.completions.create(model=AI_MODEL, **kwargs)
+        return resp.choices[0].message.content.strip()
+    except Exception as e:
+        logger.error(f"❌ {AI_PROVIDER}/{AI_MODEL} échoué: {e}")
+        return None
 
 
 def is_available() -> bool:
-    """Vérifie si au moins un service IA est disponible."""
-    return bool(OPENAI_API_KEY and _get_client()) or bool(GROQ_API_KEY and _get_fallback_client())
+    """Vérifie si OpenAI est disponible."""
+    return bool(OPENAI_API_KEY and _get_client())
 
 
 # ============================================================
@@ -713,6 +664,121 @@ def cluster_articles_with_ai(
     except Exception as e:
         logger.warning(f"⚠️ Clustering IA échoué: {e}")
         return None
+
+
+# ============================================================
+# Enrichissement des posts sociaux (Facebook/Instagram/Twitter)
+# ============================================================
+
+SOCIAL_POST_PROMPT = """Tu es un analyste média spécialisé dans l'actualité de la Guadeloupe et des Antilles françaises.
+
+On te donne un lot de posts de réseaux sociaux. Analyse CHAQUE post et retourne un JSON.
+Les posts sont souvent courts, informels, parfois en créole guadeloupéen.
+
+Pour CHAQUE post, détermine :
+1. S'il concerne l'actualité/la vie publique de la Guadeloupe (pertinent = true) ou non (pub, perso, hors-sujet)
+2. Les entités nommées (élus, institutions, lieux spécifiques)
+3. Le thème
+4. La gravité (impact sur la population)
+
+Réponds UNIQUEMENT en JSON :
+{
+  "posts": [
+    {
+      "index": 1,
+      "relevant": true,
+      "elected": ["Guy Losbar"],
+      "institutions": ["SMGEAG"],
+      "theme": "eau_env",
+      "gravity": 0.45,
+      "summary": "Coupure d'eau à Petit-Pérou, habitants mécontents",
+      "keywords": ["eau", "coupure", "Petit-Pérou"]
+    }
+  ]
+}
+
+Thèmes possibles : eau_env, energie_transports, sante_social, education, economie_emploi, culture_patrimoine, securite_justice, politique, sport, general
+
+RÈGLES :
+- Un post sur un match de foot local → relevant=true, theme=sport, gravity=0.05
+- Un post personnel (selfie, anniversaire, pub) → relevant=false
+- Un post en créole sur une grève → relevant=true, traduis en français pour le summary
+- Même calibration gravity que pour les articles (60% < 0.25, 10% > 0.50)
+- Sois précis sur les noms : utilise prénom + nom pour les personnalités
+- Les institutions : CHU, SMGEAG, EDF, ARS, Préfecture, Région, Département, SDIS, CAF, IEDOM"""
+
+
+def enrich_social_posts_batch(posts: List[Dict[str, Any]], batch_size: int = 15) -> List[Dict[str, Any]]:
+    """
+    Enrichit un lot de posts sociaux via IA en un seul appel.
+    Retourne la liste des posts enrichis (seuls les pertinents sont marqués).
+    Batch de 15 max pour rester dans les limites de tokens.
+    """
+    if not is_available():
+        return []
+
+    if not posts:
+        return []
+
+    # Construire le texte des posts
+    lines = []
+    for i, post in enumerate(posts[:batch_size], 1):
+        platform = post.get("platform", "?")
+        author = post.get("author", "?")
+        text = (post.get("text") or "")[:300]
+        if not text.strip():
+            continue
+        lines.append(f"{i}. [{platform}] @{author}: {text}")
+
+    if not lines:
+        return []
+
+    user_content = "\n".join(lines)
+
+    try:
+        raw = _call_ai(
+            messages=[
+                {"role": "system", "content": SOCIAL_POST_PROMPT},
+                {"role": "user", "content": user_content},
+            ],
+            temperature=0.1,
+            max_tokens=1500,
+            json_mode=True,
+        )
+        if raw is None:
+            return []
+
+        result = json.loads(raw)
+        ai_posts = result.get("posts", [])
+
+        enriched = []
+        for ai_post in ai_posts:
+            idx = ai_post.get("index", 0) - 1
+            if 0 <= idx < len(posts):
+                original = posts[idx]
+                original["ai_enriched"] = True
+                original["ai_relevant"] = ai_post.get("relevant", False)
+                original["elected"] = ai_post.get("elected", [])
+                original["institutions"] = ai_post.get("institutions", [])
+                original["entities"] = list(set(
+                    ai_post.get("elected", []) + ai_post.get("institutions", [])
+                ))
+                original["theme"] = ai_post.get("theme", "general")
+                original["gravity_score"] = float(ai_post.get("gravity", 0.1))
+                original["ai_summary"] = ai_post.get("summary", "")
+                original["keywords_found"] = ai_post.get("keywords", [])
+                original["_analysis_method"] = f"{AI_PROVIDER}_{AI_MODEL}_social"
+                enriched.append(original)
+
+        logger.info(f"📱 Enrichissement social: {len(enriched)}/{len(posts)} posts enrichis par IA")
+        return enriched
+
+    except json.JSONDecodeError as e:
+        logger.warning(f"⚠️ Social enrichissement: JSON invalide: {e}")
+        return []
+    except Exception as e:
+        logger.warning(f"⚠️ Social enrichissement échoué: {e}")
+        return []
 
 
 # ============================================================

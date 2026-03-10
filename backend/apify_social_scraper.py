@@ -344,8 +344,69 @@ class ApifySocialScraper:
                 logger.error(f"❌ Erreur scraping {platform}: {e}")
                 results[platform] = {"platform": platform, "error": str(e)}
 
-        logger.info(f"📊 Scraping social terminé: {total_saved} nouveaux posts au total")
-        return {"success": True, "total_saved": total_saved, "platforms": results, "timestamp": datetime.now(TZ).isoformat()}
+        # Enrichir les nouveaux posts via IA
+        enriched = 0
+        if total_saved > 0:
+            enriched = self.enrich_new_posts()
+
+        logger.info(f"📊 Scraping social terminé: {total_saved} nouveaux posts, {enriched} enrichis par IA")
+        return {"success": True, "total_saved": total_saved, "enriched": enriched, "platforms": results, "timestamp": datetime.now(TZ).isoformat()}
+
+    # =========================
+    # Enrichissement IA des posts
+    # =========================
+    def enrich_new_posts(self, limit: int = 50) -> int:
+        """Enrichit les posts non encore analysés par IA (batch de 15)."""
+        if self.collection is None:
+            return 0
+
+        try:
+            try:
+                from backend.ai_groq_service import enrich_social_posts_batch
+            except ImportError:
+                from ai_groq_service import enrich_social_posts_batch
+        except Exception:
+            logger.warning("⚠️ enrich_social_posts_batch non disponible")
+            return 0
+
+        # Posts non enrichis
+        unenriched = list(self.collection.find({
+            "ai_enriched": {"$ne": True},
+            "text": {"$exists": True, "$ne": ""},
+        }).sort("scraped_at", -1).limit(limit))
+
+        if not unenriched:
+            return 0
+
+        enriched_total = 0
+        # Traiter par batch de 15
+        for i in range(0, len(unenriched), 15):
+            batch = unenriched[i:i + 15]
+            enriched = enrich_social_posts_batch(batch, batch_size=15)
+
+            for post in enriched:
+                try:
+                    self.collection.update_one(
+                        {"_id": post["_id"]},
+                        {"$set": {
+                            "ai_enriched": post.get("ai_enriched", True),
+                            "ai_relevant": post.get("ai_relevant", False),
+                            "elected": post.get("elected", []),
+                            "institutions": post.get("institutions", []),
+                            "entities": post.get("entities", []),
+                            "theme": post.get("theme", "general"),
+                            "gravity_score": post.get("gravity_score", 0.1),
+                            "ai_summary": post.get("ai_summary", ""),
+                            "keywords_found": post.get("keywords_found", []),
+                            "_analysis_method": post.get("_analysis_method", ""),
+                        }}
+                    )
+                    enriched_total += 1
+                except Exception as e:
+                    logger.warning(f"⚠️ Update enriched post: {e}")
+
+        logger.info(f"🧠 {enriched_total}/{len(unenriched)} posts enrichis par IA")
+        return enriched_total
 
     # =========================
     # Stats

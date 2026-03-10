@@ -1055,7 +1055,7 @@ class AffairLifecycleService:
             except Exception as e:
                 logger.debug(f"BMG radio: {e}")
 
-        # Réseaux sociaux
+        # Réseaux sociaux — utilise gravity_score IA si disponible
         social_ids = affair.get("social_posts", [])
         if social_ids:
             try:
@@ -1064,15 +1064,29 @@ class AffairLifecycleService:
                 for doc in docs:
                     likes = doc.get("likes", 0) or doc.get("reactions", 0)
                     shares = doc.get("shares", 0) or doc.get("retweets", 0)
-                    comments = doc.get("comments_count", 0) or doc.get("replies", 0)
+                    comments = doc.get("comments_count", 0) or doc.get("comments", 0) or doc.get("replies", 0)
                     engagement = min(1.0, (likes + shares * 3 + comments * 2) / 500)
-                    importance = doc.get("relevance_score", 0.3)
-                    weight = 0.5  # Poids moyen RS
+
+                    # Utiliser gravity_score IA si enrichi, sinon fallback
+                    importance = doc.get("gravity_score") or doc.get("relevance_score", 0.3)
+
+                    # Poids selon la plateforme
+                    platform = doc.get("platform", "")
+                    if platform == "facebook":
+                        weight = 0.6  # Pages médias locales = haute valeur
+                    elif platform == "twitter":
+                        weight = 0.5
+                    else:
+                        weight = 0.4  # Instagram
 
                     bnp = importance * max(engagement, 0.1) * weight
                     canal_data["reseaux_sociaux"]["score_sum"] += bnp
                     canal_data["reseaux_sociaux"]["weight_sum"] += weight
                     canal_data["reseaux_sociaux"]["count"] += 1
+                    canal_data["reseaux_sociaux"]["items"].append({
+                        "platform": platform, "author": doc.get("author", ""),
+                        "importance": round(importance, 2), "bnp": round(bnp, 3),
+                    })
             except Exception as e:
                 logger.debug(f"BMG social: {e}")
 
@@ -1857,70 +1871,105 @@ class AffairLifecycleService:
         return linked
 
     def _link_social_to_affairs(self, active_affairs: list) -> int:
-        """Lie les posts sociaux récents (Apify) aux affaires par entités et mots-clés."""
+        """Lie les posts sociaux enrichis par IA aux affaires.
+
+        Utilise les champs IA (elected, institutions, theme, gravity_score)
+        extraits par enrich_social_posts_batch — même logique que _match_score.
+        Ignore les posts non pertinents (ai_relevant=false).
+        """
         now = datetime.utcnow()
         cutoff_dt = now - timedelta(days=3)
         linked = 0
 
+        # Seulement les posts enrichis par IA et pertinents
         posts = list(self.social.find({
             "scraped_at": {"$gte": cutoff_dt},
             "_affair_processed": {"$ne": True},
+            "ai_enriched": True,
+            "ai_relevant": True,
         }).limit(100))
 
-        logger.info(f"📱 Liaison social: {len(posts)} posts non traités, "
+        # Aussi traiter les posts NON enrichis pour les marquer comme traités
+        non_enriched = list(self.social.find({
+            "scraped_at": {"$gte": cutoff_dt},
+            "_affair_processed": {"$ne": True},
+            "$or": [
+                {"ai_enriched": {"$ne": True}},
+                {"ai_relevant": {"$ne": True}},
+            ],
+        }).limit(200))
+
+        # Marquer les non-pertinents/non-enrichis comme traités
+        for post in non_enriched:
+            self.social.update_one({"_id": post["_id"]}, {"$set": {"_affair_processed": True}})
+
+        logger.info(f"📱 Liaison social: {len(posts)} posts IA pertinents, "
+                    f"{len(non_enriched)} ignorés (non enrichis/non pertinents), "
                     f"{len(active_affairs)} affaires actives")
 
         for post in posts:
             post_id = str(post["_id"])
-            text = (post.get("text") or "").lower()
-            if len(text) < 20:
-                # Post trop court pour matcher
-                self.social.update_one({"_id": post["_id"]}, {"$set": {"_affair_processed": True}})
-                continue
 
-            # Extraire les mots significatifs du post (>5 chars)
-            post_words = set(w for w in text.split() if len(w) > 5)
+            # Utiliser les entités enrichies par IA
+            post_elected = set(
+                e.lower().strip() for e in (post.get("elected", []) or []) if e and len(e) > 3
+            )
+            post_institutions = set(
+                e.lower().strip() for e in (post.get("institutions", []) or []) if e and len(e) > 3
+            ) - self.GENERIC_INSTITUTIONS
+            post_theme = post.get("theme", "general")
+            post_keywords = set(
+                w.lower() for w in (post.get("keywords_found", []) or []) if len(w) > 4
+            )
 
             best_affair = None
             best_score = 0
 
             for affair in active_affairs:
-                score = 0
                 aff_elected = set(
                     e.lower().strip() for e in (affair.get("elected", []) or []) if e and len(e) > 3
                 )
                 aff_institutions = set(
                     e.lower().strip() for e in (affair.get("institutions", []) or []) if e and len(e) > 3
                 ) - self.GENERIC_INSTITUTIONS
-                aff_title_words = set(
-                    w.lower() for w in (affair.get("title", "").split())
-                    if len(w) > 5 and w.lower() not in self.GENERIC_TITLE_WORDS
+
+                aff_theme = affair.get("theme", "general")
+                aff_keywords = set(
+                    w.lower() for w in (affair.get("keywords", []) or []) if len(w) > 4
                 )
 
-                # Vérifier si des élus sont mentionnés dans le texte
-                for elu in aff_elected:
-                    if elu in text:
-                        if elu in self.GENERIC_ELECTED:
-                            score += 2
-                        else:
-                            score += 5
+                score = 0
 
-                # Vérifier les institutions
-                for inst in aff_institutions:
-                    if inst in text:
-                        score += 3
+                # Élus communs (IA vs affaire)
+                common_elected = post_elected & aff_elected
+                for elu in common_elected:
+                    if elu in self.GENERIC_ELECTED:
+                        score += 2
+                    else:
+                        score += 5
 
-                # Mots du titre en commun
-                common_title = post_words & aff_title_words
-                score += min(len(common_title), 3)
+                # Institutions communes
+                common_institutions = post_institutions & aff_institutions
+                score += len(common_institutions) * 3
+
+                # Thème = bonus faible, seulement si entité commune
+                same_theme = (post_theme == aff_theme and post_theme not in (
+                    "", "general", "sante_social", "securite_justice"
+                ))
+                if same_theme and (common_elected or common_institutions):
+                    score += 1
+
+                # Keywords communs (max 2 pts)
+                common_kw = post_keywords & aff_keywords
+                score += min(len(common_kw), 2)
 
                 if score > best_score:
                     best_score = score
                     best_affair = affair
 
-            # Seuil : au moins 5 pts pour lier (un élu spécifique OU institution+mots-clés)
+            # Seuil 5 : un élu spécifique OU une institution + keywords
             if best_affair and best_score >= 5:
-                logger.info(f"   📱 Post '{text[:50]}...' → "
+                logger.info(f"   📱 Post '{post.get('ai_summary', post.get('text', '?'))[:50]}' → "
                            f"affaire '{best_affair.get('title', '?')[:40]}' (score={best_score})")
                 self.affairs.update_one(
                     {"_id": best_affair["_id"]},
