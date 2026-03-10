@@ -8,7 +8,11 @@ import {
   captureRadioNow,
   refreshRadioSnapshot,
   fetchRadioDebugStreams,
+  fetchRadioHealthCheck,
+  fetchRadioHealthCheckSingle,
   type RadioCard,
+  type StreamHealthResult,
+  type StreamHealthResponse,
 } from '../../lib/api'
 
 // ============================================================
@@ -133,6 +137,186 @@ function RadioCardItem({
 }
 
 // ============================================================
+// Stream Health Panel
+// ============================================================
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: string }> = {
+  ok:       { label: 'OK',         color: 'text-emerald-400', bg: 'bg-emerald-500', icon: '●' },
+  warning:  { label: 'Attention',  color: 'text-amber-400',   bg: 'bg-amber-500',   icon: '▲' },
+  error:    { label: 'Erreur',     color: 'text-red-400',     bg: 'bg-red-500',     icon: '✕' },
+  disabled: { label: 'Désactivé',  color: 'text-white text-opacity-30', bg: 'bg-white', icon: '○' },
+  unknown:  { label: 'Inconnu',    color: 'text-white text-opacity-40', bg: 'bg-white', icon: '?' },
+}
+
+function HealthScoreRing({ score }: { score: number }) {
+  const r = 28, stroke = 5
+  const c = 2 * Math.PI * r
+  const offset = c - (score / 100) * c
+  const color = score >= 80 ? '#34d399' : score >= 50 ? '#fbbf24' : '#f87171'
+  return (
+    <svg width="72" height="72" viewBox="0 0 72 72" className="shrink-0">
+      <circle cx="36" cy="36" r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={stroke} />
+      <circle cx="36" cy="36" r={r} fill="none" stroke={color} strokeWidth={stroke}
+        strokeDasharray={c} strokeDashoffset={offset} strokeLinecap="round"
+        transform="rotate(-90 36 36)" className="transition-all duration-700" />
+      <text x="36" y="36" textAnchor="middle" dominantBaseline="central"
+        className="text-sm font-bold" fill={color}>{score}%</text>
+    </svg>
+  )
+}
+
+function StreamHealthPanel({
+  healthData,
+  checking,
+  onCheckAll,
+  onCheckSingle,
+  checkingSingle,
+}: {
+  healthData: StreamHealthResponse | null
+  checking: boolean
+  onCheckAll: () => void
+  onCheckSingle: (key: string) => void
+  checkingSingle: string | null
+}) {
+  if (!healthData) {
+    return (
+      <div className="glass-card-static rounded-xl p-5 text-center">
+        <p className="text-sm text-white text-opacity-40 mb-3">
+          Aucun health-check effectué
+        </p>
+        <button onClick={onCheckAll} disabled={checking}
+          className="btn-primary px-4 py-2 text-sm font-medium disabled:opacity-50">
+          {checking ? '⟳ Vérification...' : '🩺 Lancer le diagnostic'}
+        </button>
+      </div>
+    )
+  }
+
+  const { summary, streams, checked_at } = healthData
+  const enabledStreams = streams.filter(s => s.status !== 'disabled')
+  const disabledStreams = streams.filter(s => s.status === 'disabled')
+
+  return (
+    <div className="space-y-4">
+      {/* Summary bar */}
+      <div className="glass-card-static rounded-xl p-5">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-4">
+            <HealthScoreRing score={summary.health_score} />
+            <div>
+              <h3 className="text-sm font-semibold text-white">Santé des flux radio</h3>
+              <p className="text-xs text-white text-opacity-40 mt-0.5">
+                {summary.ok} OK · {summary.warning} attention · {summary.error} erreur{summary.error > 1 ? 's' : ''} · {summary.disabled} désactivé{summary.disabled > 1 ? 's' : ''}
+              </p>
+              {checked_at && (
+                <p className="text-[10px] text-white text-opacity-25 mt-1">
+                  Dernière vérif : {new Date(checked_at).toLocaleString('fr-FR')}
+                </p>
+              )}
+            </div>
+          </div>
+          <button onClick={onCheckAll} disabled={checking}
+            className="btn-glass px-3 py-1.5 text-xs font-medium disabled:opacity-50 shrink-0">
+            {checking ? (
+              <span className="flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                </svg>
+                Vérification...
+              </span>
+            ) : '🩺 Re-tester tout'}
+          </button>
+        </div>
+      </div>
+
+      {/* Stream cards grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        {enabledStreams.map((stream) => {
+          const cfg = STATUS_CONFIG[stream.status] || STATUS_CONFIG.unknown
+          const isChecking = checkingSingle === stream.key
+          return (
+            <div key={stream.key}
+              className="glass-card-static rounded-lg p-4 relative overflow-hidden"
+              style={{
+                borderLeft: `3px solid ${
+                  stream.status === 'ok' ? '#34d399' :
+                  stream.status === 'warning' ? '#fbbf24' :
+                  stream.status === 'error' ? '#f87171' : 'rgba(255,255,255,0.1)'
+                }`
+              }}
+            >
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-xs font-semibold text-white truncate">{stream.name}</h4>
+                  <p className="text-[10px] text-white text-opacity-35 truncate">{stream.section}</p>
+                </div>
+                <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${cfg.color}`}
+                  style={{ backgroundColor: stream.status === 'ok' ? 'rgba(52,211,153,0.1)' :
+                    stream.status === 'warning' ? 'rgba(251,191,36,0.1)' :
+                    stream.status === 'error' ? 'rgba(248,113,113,0.1)' : 'rgba(255,255,255,0.05)' }}>
+                  {cfg.icon} {cfg.label}
+                </span>
+              </div>
+
+              {/* Détails */}
+              <div className="space-y-1 mb-2">
+                {stream.latency_ms !== null && (
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-white text-opacity-35">Latence</span>
+                    <span className={stream.latency_ms > 3000 ? 'text-amber-400' : 'text-white text-opacity-60'}>
+                      {stream.latency_ms}ms
+                    </span>
+                  </div>
+                )}
+                {stream.content_type && (
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-white text-opacity-35">Type</span>
+                    <span className="text-white text-opacity-60 truncate ml-2">{stream.content_type.split(';')[0]}</span>
+                  </div>
+                )}
+                {stream.error && (
+                  <p className="text-[10px] text-red-400 mt-1 leading-snug">{stream.error}</p>
+                )}
+              </div>
+
+              {/* URL + re-test button */}
+              <div className="flex items-center justify-between pt-2 border-t border-white border-opacity-5">
+                <span className="text-[9px] text-white text-opacity-20 truncate flex-1 mr-2"
+                  title={stream.url}>{stream.url}</span>
+                <button
+                  onClick={() => onCheckSingle(stream.key)}
+                  disabled={isChecking}
+                  className="text-[10px] text-emerald-400 hover:text-emerald-300 transition-colors disabled:opacity-50 shrink-0"
+                >
+                  {isChecking ? '⟳' : '↻ Tester'}
+                </button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Disabled streams */}
+      {disabledStreams.length > 0 && (
+        <div className="glass-card-static rounded-lg p-3">
+          <p className="text-[10px] text-white text-opacity-25 mb-1">
+            {disabledStreams.length} flux désactivé{disabledStreams.length > 1 ? 's' : ''} :
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {disabledStreams.map(s => (
+              <span key={s.key} className="text-[10px] text-white text-opacity-20 bg-white bg-opacity-5 px-2 py-0.5 rounded">
+                {s.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================
 // Main Page
 // ============================================================
 
@@ -149,6 +333,10 @@ export default function RadioPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [total, setTotal] = useState(0)
   const [showCapturePanel, setShowCapturePanel] = useState(false)
+  const [showHealthPanel, setShowHealthPanel] = useState(false)
+  const [healthData, setHealthData] = useState<StreamHealthResponse | null>(null)
+  const [healthChecking, setHealthChecking] = useState(false)
+  const [checkingSingle, setCheckingSingle] = useState<string | null>(null)
   const mounted = useRef(true)
 
   const loadCards = useCallback(async () => {
@@ -228,6 +416,46 @@ export default function RadioPage() {
     }
   }
 
+  const handleHealthCheckAll = async () => {
+    setHealthChecking(true)
+    try {
+      const res = await fetchRadioHealthCheck()
+      if (mounted.current && res.success) setHealthData(res)
+    } catch (err: any) {
+      if (mounted.current) setError(`Health-check échoué: ${err.message}`)
+    } finally {
+      if (mounted.current) setHealthChecking(false)
+    }
+  }
+
+  const handleHealthCheckSingle = async (key: string) => {
+    setCheckingSingle(key)
+    try {
+      const res = await fetchRadioHealthCheckSingle(key)
+      if (mounted.current && res.success && healthData) {
+        setHealthData({
+          ...healthData,
+          streams: healthData.streams.map(s => s.key === key ? res.stream : s),
+          checked_at: new Date().toISOString(),
+          summary: {
+            ...healthData.summary,
+            ok: healthData.streams.filter(s => (s.key === key ? res.stream.status : s.status) === 'ok').length,
+            warning: healthData.streams.filter(s => (s.key === key ? res.stream.status : s.status) === 'warning').length,
+            error: healthData.streams.filter(s => (s.key === key ? res.stream.status : s.status) === 'error').length,
+            health_score: Math.round(
+              healthData.streams.filter(s => (s.key === key ? res.stream.status : s.status) === 'ok').length /
+              Math.max(1, healthData.streams.filter(s => s.status !== 'disabled').length) * 100
+            ),
+          },
+        })
+      }
+    } catch (err: any) {
+      if (mounted.current) setError(`Test ${key} échoué: ${err.message}`)
+    } finally {
+      if (mounted.current) setCheckingSingle(null)
+    }
+  }
+
   return (
     <>
       <Sidebar />
@@ -285,6 +513,13 @@ export default function RadioPage() {
           </button>
 
           <button
+            onClick={() => { setShowHealthPanel(!showHealthPanel); if (!healthData && !showHealthPanel) handleHealthCheckAll() }}
+            className={`btn-glass px-3 py-1.5 text-xs font-medium transition-colors ${showHealthPanel ? 'ring-1 ring-emerald-500 ring-opacity-40' : ''}`}
+          >
+            🩺 Diagnostic
+          </button>
+
+          <button
             onClick={() => setShowCapturePanel(!showCapturePanel)}
             className="btn-primary px-3 py-1.5 text-xs font-medium"
           >
@@ -339,6 +574,17 @@ export default function RadioPage() {
             Laissez le flux vide pour utiliser le stream prioritaire par défaut (RCI replay).
           </p>
         </div>
+      )}
+
+      {/* Health panel */}
+      {showHealthPanel && (
+        <StreamHealthPanel
+          healthData={healthData}
+          checking={healthChecking}
+          onCheckAll={handleHealthCheckAll}
+          onCheckSingle={handleHealthCheckSingle}
+          checkingSingle={checkingSingle}
+        />
       )}
 
       {/* Error */}

@@ -542,6 +542,32 @@ async def job_radio_capture():
 
 
 # ============================================================
+# JOB 6: Health-check automatique des flux radio
+# ============================================================
+
+async def job_radio_health_check():
+    """Vérifie l'accessibilité de tous les flux radio configurés."""
+    try:
+        try:
+            from backend.radio_cards_routes import run_auto_health_check
+        except Exception:
+            from radio_cards_routes import run_auto_health_check
+
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, run_auto_health_check)
+        ok = result.get("ok", 0)
+        errors = result.get("errors", 0)
+        if errors > 0:
+            logger.warning(f"🩺 Radio health: {ok} OK, {errors} en erreur")
+        else:
+            logger.info(f"🩺 Radio health: {ok} flux OK")
+        return result
+    except Exception as e:
+        logger.error(f"❌ Erreur health-check radio: {e}")
+        return {"error": str(e)}
+
+
+# ============================================================
 # JOB combiné : Scrape → Enrich → Cycle affaires
 # ============================================================
 
@@ -612,6 +638,14 @@ def _ensure_scheduler():
         name="Capture radio/TV (flux planifiés)"
     )
 
+    # 🩺 Health-check des flux radio toutes les 30 min
+    _scheduler.add_job(
+        job_radio_health_check,
+        CronTrigger(minute="5,35", timezone=TZ),
+        id="radio_health_check",
+        name="Health-check flux radio"
+    )
+
     return _scheduler
 
 
@@ -619,7 +653,7 @@ def attach_scheduler(app):
     sched = _ensure_scheduler()
     if not sched.running:
         sched.start()
-        logger.info("✅ Scheduler démarré (pipeline 1h + MAJ 15min + enrichissement 30min + radio 5min)")
+        logger.info("✅ Scheduler démarré (pipeline 1h + MAJ 15min + enrichissement 30min + radio 5min + health 30min)")
     app.state.scheduler = sched
 
 
@@ -722,6 +756,13 @@ async def detect_now():
 async def radio_capture_now():
     """Lance la capture radio maintenant"""
     result = await job_radio_capture()
+    return {"success": True, "result": result}
+
+
+@router.post("/radio-health-check-now")
+async def radio_health_check_now():
+    """Lance le health-check radio maintenant"""
+    result = await job_radio_health_check()
     return {"success": True, "result": result}
 
 

@@ -320,6 +320,49 @@ export const fetchRadioDebugStreams = () =>
     '/api/radio/debug/streams'
   );
 
+export interface StreamHealthResult {
+  key: string;
+  name: string;
+  section: string;
+  type: string;
+  url: string;
+  enabled: boolean;
+  status: 'ok' | 'warning' | 'error' | 'disabled' | 'unknown';
+  latency_ms: number | null;
+  content_type: string | null;
+  http_status?: number;
+  bytes_received?: number;
+  error: string | null;
+  checked_at: string;
+}
+
+export interface StreamHealthResponse {
+  success: boolean;
+  summary: {
+    total: number;
+    ok: number;
+    warning: number;
+    error: number;
+    disabled: number;
+    health_score: number;
+  };
+  streams: StreamHealthResult[];
+  checked_at: string;
+}
+
+export const fetchRadioHealthCheck = () =>
+  apiFetch<StreamHealthResponse>('/api/radio/health-check');
+
+export const fetchRadioHealthCheckSingle = (key: string) =>
+  apiFetch<{ success: boolean; stream: StreamHealthResult }>(
+    `/api/radio/health-check/${key}`, { method: 'POST' }
+  );
+
+export const fetchRadioHealthCheckLast = () =>
+  apiFetch<{ success: boolean; streams: StreamHealthResult[]; checked_at?: string; ok?: number; errors?: number }>(
+    '/api/radio/health-check/last'
+  );
+
 // --- Santé système ---
 export const fetchHealth = () => apiFetch<Record<string, unknown>>('/health');
 

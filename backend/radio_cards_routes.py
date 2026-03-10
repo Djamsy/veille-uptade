@@ -712,10 +712,10 @@ def debug_test_capture(stream_key: str = Body(...)):
     streams = getattr(radio_service, "streams", {})
     if stream_key not in streams:
         return {"success": False, "error": f"Stream {stream_key} not found"}
-    
+
     config = streams[stream_key]
     working_url = _get_working_url(config)
-    
+
     return {
         "success": True,
         "stream_key": stream_key,
@@ -724,3 +724,161 @@ def debug_test_capture(stream_key: str = Body(...)):
         "url_valid": _validate_url(working_url, timeout=10),
         "config": config
     }
+
+
+# =========================
+# Health-check flux radio
+# =========================
+
+def _check_stream_health(key: str, config: Dict[str, Any], timeout: int = 8) -> Dict[str, Any]:
+    """Vérifie la santé d'un flux radio individuel.
+    Teste : accessibilité HTTP + entêtes audio + latence."""
+    url = config.get("url", "")
+    enabled = config.get("enabled", True)
+    result = {
+        "key": key,
+        "name": config.get("name", ""),
+        "section": config.get("section", ""),
+        "type": config.get("type", "radio"),
+        "url": url,
+        "enabled": enabled,
+        "status": "unknown",
+        "latency_ms": None,
+        "content_type": None,
+        "error": None,
+        "checked_at": datetime.now(TZ).isoformat(),
+    }
+    if not enabled:
+        result["status"] = "disabled"
+        return result
+    if not url:
+        result["status"] = "error"
+        result["error"] = "URL vide"
+        return result
+
+    import time as _time
+    try:
+        t0 = _time.monotonic()
+        resp = requests.get(url, stream=True, timeout=timeout, allow_redirects=True)
+        latency = round((_time.monotonic() - t0) * 1000)
+        result["latency_ms"] = latency
+        result["content_type"] = resp.headers.get("Content-Type", "")
+        result["http_status"] = resp.status_code
+
+        if resp.status_code >= 400:
+            result["status"] = "error"
+            result["error"] = f"HTTP {resp.status_code}"
+        else:
+            ct = (resp.headers.get("Content-Type") or "").lower()
+            is_audio = any(t in ct for t in ["audio", "mpeg", "mp3", "ogg", "mpegurl", "octet-stream"])
+            if is_audio:
+                # Tenter de lire quelques octets pour vérifier que le flux envoie des données
+                chunk = resp.raw.read(4096)
+                if chunk and len(chunk) > 0:
+                    result["status"] = "ok"
+                    result["bytes_received"] = len(chunk)
+                else:
+                    result["status"] = "warning"
+                    result["error"] = "Flux accessible mais aucune donnée reçue"
+            else:
+                result["status"] = "warning"
+                result["error"] = f"Content-Type inattendu: {ct}"
+        resp.close()
+    except requests.exceptions.Timeout:
+        result["status"] = "error"
+        result["error"] = f"Timeout après {timeout}s"
+    except requests.exceptions.ConnectionError as e:
+        result["status"] = "error"
+        result["error"] = f"Connexion refusée: {str(e)[:120]}"
+    except Exception as e:
+        result["status"] = "error"
+        result["error"] = str(e)[:200]
+
+    return result
+
+
+@router.get("/health-check")
+def radio_health_check():
+    """Vérifie l'accessibilité de TOUS les flux radio configurés.
+    Retourne le statut de chaque flux + un résumé global."""
+    streams = getattr(radio_service, "streams", {})
+    if not streams:
+        return {"success": False, "error": "Aucun flux configuré"}
+
+    results = []
+    for key, config in streams.items():
+        results.append(_check_stream_health(key, config))
+
+    ok = sum(1 for r in results if r["status"] == "ok")
+    warning = sum(1 for r in results if r["status"] == "warning")
+    error = sum(1 for r in results if r["status"] == "error")
+    disabled = sum(1 for r in results if r["status"] == "disabled")
+
+    return {
+        "success": True,
+        "summary": {
+            "total": len(results),
+            "ok": ok,
+            "warning": warning,
+            "error": error,
+            "disabled": disabled,
+            "health_score": round(ok / max(1, ok + warning + error) * 100),
+        },
+        "streams": results,
+        "checked_at": datetime.now(TZ).isoformat(),
+    }
+
+
+@router.post("/health-check/{stream_key}")
+def radio_health_check_single(stream_key: str):
+    """Vérifie un flux radio spécifique."""
+    streams = getattr(radio_service, "streams", {})
+    if stream_key not in streams:
+        raise HTTPException(status_code=404, detail=f"Flux '{stream_key}' introuvable")
+    return {
+        "success": True,
+        "stream": _check_stream_health(stream_key, streams[stream_key]),
+    }
+
+
+# Variable pour stocker le dernier health-check auto
+_last_auto_health: Dict[str, Any] = {}
+
+def run_auto_health_check() -> Dict[str, Any]:
+    """Exécute le health-check automatique (appelé par le scheduler).
+    Stocke les résultats pour consultation ultérieure et log les erreurs."""
+    global _last_auto_health
+    streams = getattr(radio_service, "streams", {})
+    if not streams:
+        return {"error": "no_streams"}
+
+    results = []
+    for key, config in streams.items():
+        results.append(_check_stream_health(key, config))
+
+    ok = sum(1 for r in results if r["status"] == "ok")
+    error_streams = [r for r in results if r["status"] == "error"]
+
+    _last_auto_health = {
+        "streams": results,
+        "checked_at": datetime.now(TZ).isoformat(),
+        "ok": ok,
+        "errors": len(error_streams),
+    }
+
+    # Log les flux en erreur
+    if error_streams:
+        names = ", ".join(f"{r['name']} ({r['error']})" for r in error_streams)
+        logger.warning(f"⚠️ Radio health-check: {len(error_streams)} flux en erreur — {names}")
+    else:
+        logger.info(f"✅ Radio health-check: {ok} flux OK")
+
+    return _last_auto_health
+
+
+@router.get("/health-check/last")
+def radio_health_check_last():
+    """Retourne le dernier résultat du health-check automatique."""
+    if not _last_auto_health:
+        return {"success": True, "message": "Aucun health-check automatique exécuté", "streams": []}
+    return {"success": True, **_last_auto_health}
