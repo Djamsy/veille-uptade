@@ -33,7 +33,7 @@ router = APIRouter(prefix="/radio", tags=["radio"])
 # Configuration URLs de fallback
 # =========================
 FALLBACK_URLS = {
-    "rci": "https://rci.streamakaci.com/rci971.mp3",
+    "rci": "https://n10.rcs.revma.com/v4hf7bwspwzuv",
     "guadeloupe_premiere": "http://guadeloupe.ice.infomaniak.ch/guadeloupe-128.mp3",
     "test": "https://www.soundjay.com/misc/sounds/bell-ringing-05.wav"  # URL de test courte
 }
