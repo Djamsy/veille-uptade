@@ -587,6 +587,161 @@ async def recalculate_all_priorities():
     }
 
 
+@router.post("/clean-parasites")
+async def clean_parasitic_articles():
+    """Nettoie les affaires existantes :
+    1. Supprime les articles parasites (pas assez liés à l'affaire d'origine)
+    2. Fusionne les affaires doublons (titres quasi-identiques)
+    3. Supprime les affaires vides après nettoyage
+    """
+    svc = _svc()
+    from difflib import SequenceMatcher
+
+    stats = {"articles_removed": 0, "affairs_merged": 0, "affairs_deleted": 0, "affairs_cleaned": 0}
+
+    active = list(svc.affairs.find({"status": {"$in": ["active", "stale"]}}))
+
+    # ── Phase 1 : Nettoyer les articles parasites de chaque affaire ──
+    for affair in active:
+        original_elected = set(
+            e.lower().strip() for e in (affair.get("elected", []) or []) if e and len(e) > 3
+        )
+        original_institutions = set(
+            e.lower().strip() for e in (affair.get("institutions", []) or []) if e and len(e) > 3
+        ) - svc.GENERIC_INSTITUTIONS
+        affair_theme = affair.get("theme", "general")
+        affair_title = affair.get("title", "")
+
+        # Titre : mots discriminants
+        affair_title_words = set(
+            w.lower() for w in affair_title.split()
+            if len(w) > 7 and w.lower() not in svc.GENERIC_TITLE_WORDS
+        )
+
+        articles_to_keep = []
+        articles_removed = []
+
+        for art_id in (affair.get("articles", []) or []):
+            try:
+                art = svc.articles.find_one({"_id": ObjectId(art_id)}) if len(str(art_id)) == 24 else None
+            except Exception:
+                art = None
+
+            if not art:
+                articles_to_keep.append(art_id)  # Garder — on ne peut pas vérifier
+                continue
+
+            art_elected = set(
+                e.lower().strip() for e in (art.get("elected", []) or []) if e and len(e) > 3
+            )
+            art_institutions = set(
+                e.lower().strip() for e in (art.get("institutions", []) or []) if e and len(e) > 3
+            ) - svc.GENERIC_INSTITUTIONS
+            art_title = art.get("title", "")
+
+            # Vérifier : l'article est-il lié par au moins 1 entité spécifique
+            # OU par un titre très similaire ?
+            common_elected = art_elected & original_elected
+            common_elected_specific = common_elected - svc.GENERIC_ELECTED
+            common_institutions = art_institutions & original_institutions
+
+            # Titre similaire ?
+            title_ratio = SequenceMatcher(None, affair_title.lower(), art_title.lower()).ratio()
+
+            keep = (
+                len(common_elected_specific) >= 1
+                or len(common_institutions) >= 1
+                or title_ratio >= 0.5
+                or (len(common_elected) >= 1 and affair_theme == art.get("theme", ""))
+            )
+
+            if keep:
+                articles_to_keep.append(art_id)
+            else:
+                articles_removed.append(art_id)
+                stats["articles_removed"] += 1
+
+        if articles_removed:
+            svc.affairs.update_one(
+                {"_id": affair["_id"]},
+                {
+                    "$set": {
+                        "articles": articles_to_keep,
+                        "item_count": len(articles_to_keep) + len(affair.get("radio_transcriptions", [])),
+                    }
+                }
+            )
+            # Remettre les articles comme non-traités pour qu'ils soient re-évalués
+            for art_id in articles_removed:
+                try:
+                    svc.articles.update_one(
+                        {"_id": ObjectId(art_id)},
+                        {"$set": {"_affair_processed": False, "_affair_id": None, "_affair_ignored": False}}
+                    )
+                except Exception:
+                    pass
+            stats["affairs_cleaned"] += 1
+
+    # ── Phase 2 : Fusionner les affaires doublons ──
+    # Recharger après nettoyage
+    active = list(svc.affairs.find({"status": {"$in": ["active", "stale"]}}))
+    merged_ids = set()
+
+    for i, aff_a in enumerate(active):
+        if str(aff_a["_id"]) in merged_ids:
+            continue
+        title_a = aff_a.get("title", "").lower()
+        for j in range(i + 1, len(active)):
+            aff_b = active[j]
+            if str(aff_b["_id"]) in merged_ids:
+                continue
+            title_b = aff_b.get("title", "").lower()
+
+            ratio = SequenceMatcher(None, title_a, title_b).ratio()
+            if ratio >= 0.65:
+                # Fusionner B dans A (garder le plus ancien ou le plus fourni)
+                keep = aff_a if aff_a.get("item_count", 0) >= aff_b.get("item_count", 0) else aff_b
+                absorb = aff_b if keep == aff_a else aff_a
+
+                svc.affairs.update_one(
+                    {"_id": keep["_id"]},
+                    {
+                        "$addToSet": {
+                            "articles": {"$each": absorb.get("articles", [])},
+                            "radio_transcriptions": {"$each": absorb.get("radio_transcriptions", [])},
+                            "sources": {"$each": absorb.get("sources", [])},
+                        },
+                        "$max": {"gravity_score": absorb.get("gravity_score", 0)},
+                        "$set": {"last_activity": datetime.utcnow()},
+                    }
+                )
+                # Recalculer item_count
+                updated_keep = svc.affairs.find_one({"_id": keep["_id"]})
+                if updated_keep:
+                    new_count = (
+                        len(updated_keep.get("articles", []))
+                        + len(updated_keep.get("radio_transcriptions", []))
+                    )
+                    svc.affairs.update_one({"_id": keep["_id"]}, {"$set": {"item_count": new_count}})
+
+                # Supprimer le doublon
+                svc.affairs.delete_one({"_id": absorb["_id"]})
+                merged_ids.add(str(absorb["_id"]))
+                stats["affairs_merged"] += 1
+
+    # ── Phase 3 : Supprimer les affaires vides ──
+    empty = svc.affairs.delete_many({
+        "status": {"$in": ["active", "stale"]},
+        "$or": [
+            {"articles": {"$size": 0}, "radio_transcriptions": {"$size": 0}},
+            {"articles": {"$exists": False}},
+        ]
+    })
+    stats["affairs_deleted"] = empty.deleted_count
+
+    return {"success": True, "stats": stats}
+
+
 @router.post("/purge-v1")
 async def purge_v1_affairs():
     """Supprime les affaires créées par le V1 (sans promoted_at)

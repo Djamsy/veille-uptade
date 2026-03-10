@@ -1336,11 +1336,11 @@ class AffairLifecycleService:
                         f"| thème={art_theme}")
             if best_match:
                 logger.info(f"      → Meilleur match: '{best_match.get('title', '?')[:50]}' "
-                            f"(score={best_score}, seuil=3)")
+                            f"(score={best_score}, seuil=6)")
             else:
                 logger.info(f"      → Aucun match trouvé parmi {len(active_affairs)} affaires actives → CRÉATION")
 
-            if best_match and best_score >= 4:
+            if best_match and best_score >= 6:
                 # Fusionner avec l'affaire existante
                 # IMPORTANT : NE PAS ajouter les entités de l'article dans l'affaire
                 # pour éviter l'effet boule de neige (une affaire qui matche tout)
@@ -1472,6 +1472,30 @@ class AffairLifecycleService:
         "chambre des métiers", "chambre des metiers",
         "parc national", "parc national de la guadeloupe",
         "ordre des avocats",
+        "gendarmerie", "samu", "pompiers", "sapeurs-pompiers",
+        "centre régional opérationnel de surveillance et de sauvetage",
+    }
+
+    # Élus/personnalités trop génériques — présents dans beaucoup de contextes
+    # différents. Comptent MOINS (2 pts au lieu de 5) car leur présence
+    # dans un article n'implique pas qu'il s'agit de la même affaire.
+    GENERIC_ELECTED = {
+        "victorin lurel", "ary chalus", "eric jalton", "éric jalton",
+        "guy losbar", "josette borel-lincertin", "max mathiasin",
+        "harry durimel", "hélène vainqueur-christophe", "helene vainqueur-christophe",
+        "dominique théophile", "dominique theophile", "justine bénin", "justine benin",
+        "olivier serva", "christian baptiste", "ferdy louisy",
+        "marie-luce penchard", "lucette michaux-chevry",
+    }
+
+    # Mots de titre trop génériques — présents dans beaucoup de titres
+    # sans valeur discriminante. Ne comptent PAS pour le matching.
+    GENERIC_TITLE_WORDS = {
+        "guadeloupe", "guadeloupe.", "antilles", "martinique", "caraïbes",
+        "france", "français", "française", "nouveau", "nouvelle",
+        "pourquoi", "comment", "situation", "premier", "première",
+        "département", "région", "municipales", "elections",
+        "selon", "encore", "depuis", "toujours", "également",
     }
 
     def _match_score(
@@ -1480,11 +1504,13 @@ class AffairLifecycleService:
     ) -> int:
         """Calcule un score de similarité entre un article et une affaire.
 
-        RÈGLES DE MATCHING STRICTES :
+        RÈGLES DE MATCHING STRICTES v2 :
         - Seules les entités SPÉCIFIQUES comptent (pas préfecture, ARS, etc.)
-        - Les élus (personnes nommées) sont le signal le plus fort
+        - Les élus spécifiques = signal très fort (5 pts)
+        - Les élus génériques (politiciens omniprésents) = signal faible (2 pts)
         - Le thème seul ne suffit JAMAIS à fusionner
-        - Les mots du titre doivent être discriminants (>6 chars)
+        - Les mots du titre doivent être très discriminants (>7 chars, pas génériques)
+        - SEUIL DE FUSION = 6 (était 4)
         """
         # Entités de l'affaire — utiliser UNIQUEMENT les entités d'ORIGINE
         # (pas celles accumulées par les fusions successives)
@@ -1498,28 +1524,54 @@ class AffairLifecycleService:
         aff_institutions = aff_institutions_raw - self.GENERIC_INSTITUTIONS
         art_institutions_filtered = art_institutions - self.GENERIC_INSTITUTIONS
 
-        aff_entities = aff_elected | aff_institutions
-        art_entities_filtered = art_elected | art_institutions_filtered
-
         aff_theme = affair.get("theme", "general")
-        # Mots du titre discriminants (>6 chars pour éviter "guadeloupe", "mairie", etc.)
-        aff_title_words = set(
-            w.lower() for w in (affair.get("title", "").split()) if len(w) > 6
-        )
-        art_title_words_strict = set(w for w in art_title_words if len(w) > 6)
 
+        # Mots du titre discriminants (>7 chars, pas génériques)
+        aff_title_words = set(
+            w.lower() for w in (affair.get("title", "").split())
+            if len(w) > 7 and w.lower() not in self.GENERIC_TITLE_WORDS
+        )
+        art_title_words_strict = set(
+            w for w in art_title_words
+            if len(w) > 7 and w not in self.GENERIC_TITLE_WORDS
+        )
+
+        # Calcul des intersections
         common_elected = art_elected & aff_elected
         common_institutions = art_institutions_filtered & aff_institutions
-        same_theme = (art_theme == aff_theme and art_theme not in ("", "general", "sante_social"))
+        same_theme = (art_theme == aff_theme and art_theme not in (
+            "", "general", "sante_social", "securite_justice"
+        ))
         common_title = art_title_words_strict & aff_title_words
 
+        # ── Scoring ──
         score = 0
-        score += len(common_elected) * 5      # Personne en commun = signal TRÈS fort
-        score += len(common_institutions) * 3  # Institution spécifique en commun
-        score += (1 if same_theme else 0)      # Même thème = indice faible (réduit de 2→1)
-        score += min(len(common_title), 2)     # Mots du titre en commun (max 2 pts, réduit de 3)
 
-        if score >= 2:
+        # Élus : spécifiques = 5 pts, génériques = 2 pts
+        for elu in common_elected:
+            if elu in self.GENERIC_ELECTED:
+                score += 2
+            else:
+                score += 5
+
+        # Institutions spécifiques
+        score += len(common_institutions) * 3
+
+        # Thème = indice très faible (1 pt), et SEULEMENT si au moins 1 entité commune
+        if same_theme and (common_elected or common_institutions):
+            score += 1
+
+        # Mots du titre en commun (max 2 pts, seulement si significatifs)
+        score += min(len(common_title), 2)
+
+        # ── Bonus titre quasi-identique (détection doublons) ──
+        # Si les titres sont très similaires (>60% overlap), bonus fort
+        if len(aff_title_words) >= 3 and len(art_title_words_strict) >= 3:
+            overlap = len(common_title) / min(len(aff_title_words), len(art_title_words_strict))
+            if overlap >= 0.6:
+                score += 5  # Quasi-doublon détecté
+
+        if score >= 3:
             logger.debug(
                 f"      🔍 Score={score} vs '{affair.get('title', '?')[:40]}': "
                 f"élus={list(common_elected)}, instit={list(common_institutions)}, "
@@ -1583,7 +1635,7 @@ class AffairLifecycleService:
                     best_score = score
                     best_match = affair
 
-            if best_match and best_score >= 4:
+            if best_match and best_score >= 6:
                 logger.info(f"   🔗 Consolidé: '{art.get('title', '?')[:50]}' → "
                            f"affaire '{best_match.get('title', '?')[:40]}' (score={best_score})")
                 self.affairs.update_one(
@@ -1738,13 +1790,23 @@ class AffairLifecycleService:
                 continue
 
             for affair in active_affairs:
-                aff_entities = set(
+                aff_elected = set(
                     e.lower().strip() for e in (affair.get("elected", []) or []) if e and len(e) > 3
-                ) | set(
-                    e.lower().strip() for e in (affair.get("institutions", []) or []) if e and len(e) > 3
                 )
+                aff_institutions = set(
+                    e.lower().strip() for e in (affair.get("institutions", []) or []) if e and len(e) > 3
+                ) - self.GENERIC_INSTITUTIONS
+                aff_entities = aff_elected | aff_institutions
+
                 common = trans_entities & aff_entities
-                if len(common) >= 1:
+                # Exiger 2+ entités communes (une transcription mentionne des dizaines de sujets)
+                # OU 1 élu spécifique (pas un politicien omniprésent)
+                specific_common = common - self.GENERIC_ELECTED
+                match = (
+                    len(common) >= 2
+                    or len(specific_common) >= 1
+                )
+                if match:
                     logger.info(f"   📻 Radio '{trans.get('station', '?')}' → "
                                f"affaire '{affair.get('title', '?')[:40]}' "
                                f"(entités communes: {list(common)[:3]})")

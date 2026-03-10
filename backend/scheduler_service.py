@@ -403,7 +403,16 @@ async def job_update_affairs():
                 "france travail", "caisse générale de sécurité sociale", "cgss",
                 "edf", "edf guadeloupe", "sdis", "sdis guadeloupe",
                 "parc national", "ordre des avocats", "chambre des métiers",
-                "insee", "pôle emploi",
+                "insee", "pôle emploi", "gendarmerie", "samu", "pompiers",
+                "centre régional opérationnel de surveillance et de sauvetage",
+            }
+
+            # Élus omniprésents — présents dans beaucoup de contextes différents
+            GENERIC_ELECTED = {
+                "victorin lurel", "ary chalus", "eric jalton", "éric jalton",
+                "guy losbar", "josette borel-lincertin", "max mathiasin",
+                "harry durimel", "hélène vainqueur-christophe",
+                "dominique théophile", "justine bénin", "olivier serva",
             }
 
             for affair in active:
@@ -443,18 +452,21 @@ async def job_update_affairs():
                             art_institutions.add(e.lower().strip())
                     art_institutions -= GENERIC_INSTITUTIONS
 
-                    # Match STRICT :
-                    # - 1 élu en commun (personne nommée) = signal fort
-                    # - OU 2 institutions SPÉCIFIQUES en commun
+                    # Match STRICT v2 :
+                    # - 1 élu SPÉCIFIQUE en commun = signal fort
+                    # - OU 2 élus génériques en commun + même thème
+                    # - OU 2 institutions SPÉCIFIQUES en commun + même thème
                     common_elected = affair_elected & art_elected
+                    common_elected_specific = common_elected - GENERIC_ELECTED
                     common_institutions = affair_institutions & art_institutions
                     same_theme = (
                         affair.get("theme", "") == article.get("theme", "")
-                        and affair.get("theme", "") not in ("", "general", "sante_social")
+                        and affair.get("theme", "") not in ("", "general", "sante_social", "securite_justice")
                     )
                     match = (
-                        len(common_elected) >= 1
-                        or (len(common_institutions) >= 1 and same_theme)
+                        len(common_elected_specific) >= 1
+                        or (len(common_elected) >= 2 and same_theme)
+                        or (len(common_institutions) >= 2 and same_theme)
                     )
                     if match:
                         matched = list(common_elected | common_institutions)[:5]
