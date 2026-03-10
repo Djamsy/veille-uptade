@@ -840,9 +840,16 @@ class AffairLifecycleService:
             return None
 
     def _find_similar_affair(self, cluster: Dict) -> Optional[Dict]:
-        """Cherche une affaire existante similaire au cluster."""
+        """Cherche une affaire existante similaire au cluster.
+
+        Détection doublons renforcée :
+        - Comparaison titre (SequenceMatcher) : seuil 0.60
+        - Entités communes pondérées (spécifiques vs génériques)
+        - Score combiné titre + entités + tokens
+        """
         cluster_entities = set(cluster.get("all_entities", []))
         cluster_tokens = set(cluster.get("all_tokens", []))
+        cluster_title = cluster.get("title", "").lower().strip()
 
         recent_affairs = self.affairs.find({
             "status": "active",
@@ -855,17 +862,34 @@ class AffairLifecycleService:
         for affair in recent_affairs:
             aff_entities = set(affair.get("entities", []))
             aff_tokens = set(affair.get("keywords", []))
+            aff_title = affair.get("title", "").lower().strip()
 
-            # Entités communes
+            # 1) Similarité titre (SequenceMatcher) — détecte les quasi-doublons
+            title_sim = SequenceMatcher(None, cluster_title, aff_title).ratio()
+            if title_sim >= 0.65:
+                # Titres quasi-identiques → c'est un doublon
+                logger.info(f"   🔗 Doublon détecté par titre (sim={title_sim:.2f}): "
+                           f"'{cluster_title[:40]}' ≈ '{aff_title[:40]}'")
+                return affair
+
+            # 2) Entités communes (pondérées)
             common_entities = cluster_entities & aff_entities
-            entity_score = len(common_entities) / max(len(cluster_entities | aff_entities), 1)
+            # Filtrer les entités génériques pour le scoring
+            specific_common = set()
+            for e in common_entities:
+                if e.lower() not in self.GENERIC_ELECTED:
+                    specific_common.add(e)
+            entity_score = (len(specific_common) * 2 + len(common_entities - specific_common)) / max(len(cluster_entities | aff_entities), 1)
 
-            # Tokens communs
+            # 3) Tokens communs
             common_tokens = cluster_tokens & aff_tokens
             token_score = len(common_tokens) / max(min(len(cluster_tokens), len(aff_tokens)), 1)
 
-            combined = entity_score * 0.6 + token_score * 0.4
-            if combined > best_score and combined >= 0.4:
+            # 4) Bonus titre partiel
+            title_bonus = title_sim * 0.3 if title_sim >= 0.4 else 0
+
+            combined = entity_score * 0.5 + token_score * 0.3 + title_bonus
+            if combined > best_score and combined >= 0.35:
                 best_score = combined
                 best = affair
 
@@ -1438,6 +1462,9 @@ class AffairLifecycleService:
         # ── ÉTAPE 5 : Lier les transcriptions radio ──
         stats["radio_linked"] = self._link_radio_to_affairs(active_affairs)
 
+        # ── ÉTAPE 5b : Lier les posts sociaux ──
+        stats["social_linked"] = self._link_social_to_affairs(active_affairs)
+
         # ── ÉTAPE 6 : Enforcer la limite ──
         self._enforce_max_affairs()
 
@@ -1827,6 +1854,87 @@ class AffairLifecycleService:
                     break  # 1 affaire par transcription suffit
 
         logger.info(f"📻 {linked}/{len(transcriptions)} transcriptions radio liées à des affaires")
+        return linked
+
+    def _link_social_to_affairs(self, active_affairs: list) -> int:
+        """Lie les posts sociaux récents (Apify) aux affaires par entités et mots-clés."""
+        now = datetime.utcnow()
+        cutoff_dt = now - timedelta(days=3)
+        linked = 0
+
+        posts = list(self.social.find({
+            "scraped_at": {"$gte": cutoff_dt},
+            "_affair_processed": {"$ne": True},
+        }).limit(100))
+
+        logger.info(f"📱 Liaison social: {len(posts)} posts non traités, "
+                    f"{len(active_affairs)} affaires actives")
+
+        for post in posts:
+            post_id = str(post["_id"])
+            text = (post.get("text") or "").lower()
+            if len(text) < 20:
+                # Post trop court pour matcher
+                self.social.update_one({"_id": post["_id"]}, {"$set": {"_affair_processed": True}})
+                continue
+
+            # Extraire les mots significatifs du post (>5 chars)
+            post_words = set(w for w in text.split() if len(w) > 5)
+
+            best_affair = None
+            best_score = 0
+
+            for affair in active_affairs:
+                score = 0
+                aff_elected = set(
+                    e.lower().strip() for e in (affair.get("elected", []) or []) if e and len(e) > 3
+                )
+                aff_institutions = set(
+                    e.lower().strip() for e in (affair.get("institutions", []) or []) if e and len(e) > 3
+                ) - self.GENERIC_INSTITUTIONS
+                aff_title_words = set(
+                    w.lower() for w in (affair.get("title", "").split())
+                    if len(w) > 5 and w.lower() not in self.GENERIC_TITLE_WORDS
+                )
+
+                # Vérifier si des élus sont mentionnés dans le texte
+                for elu in aff_elected:
+                    if elu in text:
+                        if elu in self.GENERIC_ELECTED:
+                            score += 2
+                        else:
+                            score += 5
+
+                # Vérifier les institutions
+                for inst in aff_institutions:
+                    if inst in text:
+                        score += 3
+
+                # Mots du titre en commun
+                common_title = post_words & aff_title_words
+                score += min(len(common_title), 3)
+
+                if score > best_score:
+                    best_score = score
+                    best_affair = affair
+
+            # Seuil : au moins 5 pts pour lier (un élu spécifique OU institution+mots-clés)
+            if best_affair and best_score >= 5:
+                logger.info(f"   📱 Post '{text[:50]}...' → "
+                           f"affaire '{best_affair.get('title', '?')[:40]}' (score={best_score})")
+                self.affairs.update_one(
+                    {"_id": best_affair["_id"]},
+                    {
+                        "$addToSet": {"social_posts": post_id, "source_types": "social"},
+                        "$inc": {"item_count": 1},
+                        "$set": {"last_activity": now},
+                    }
+                )
+                linked += 1
+
+            self.social.update_one({"_id": post["_id"]}, {"$set": {"_affair_processed": True}})
+
+        logger.info(f"📱 {linked}/{len(posts)} posts sociaux liés à des affaires")
         return linked
 
     # ============================================================

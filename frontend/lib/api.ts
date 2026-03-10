@@ -363,6 +363,48 @@ export const fetchRadioHealthCheckLast = () =>
     '/api/radio/health-check/last'
   );
 
+// --- Réseaux sociaux (Apify) ---
+export interface SocialPost {
+  _id: string;
+  platform: 'facebook' | 'instagram' | 'twitter';
+  author: string;
+  text: string;
+  url: string;
+  posted_at: string;
+  likes: number;
+  comments?: number;
+  shares?: number;
+  retweets?: number;
+  scraped_at: string;
+}
+
+export interface SocialStats {
+  stats: Record<string, {
+    total: number;
+    last_24h: number;
+    last_7d: number;
+    last_scraped: string | null;
+  }>;
+  timestamp: string;
+}
+
+export const fetchSocialStats = () =>
+  apiFetch<SocialStats>('/api/social/stats');
+
+export const fetchSocialPosts = (platform?: string, limit = 50) =>
+  apiFetch<{ posts: SocialPost[]; count: number }>(
+    `/api/social/posts?limit=${limit}${platform ? `&platform=${platform}` : ''}`
+  );
+
+export const fetchSocialScrapeAll = () =>
+  apiFetch<Record<string, unknown>>('/api/social/scrape', { method: 'POST' });
+
+export const fetchSocialScrapeSingle = (platform: string) =>
+  apiFetch<Record<string, unknown>>(`/api/social/scrape/${platform}`, { method: 'POST' });
+
+export const fetchSocialConfig = () =>
+  apiFetch<Record<string, unknown>>('/api/social/config');
+
 // --- Santé système ---
 export const fetchHealth = () => apiFetch<Record<string, unknown>>('/health');
 

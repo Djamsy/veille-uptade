@@ -1051,6 +1051,22 @@ try:
 except Exception as e:
     logger.warning(f"⚠️ Routes radio cards non disponibles: {e}")
 
+# ========== SCRAPING RÉSEAUX SOCIAUX (Apify) ==========
+try:
+    try:
+        from backend.apify_social_scraper import get_social_scraper
+        from backend.social_scraper_routes import router as social_router, set_scraper
+    except ImportError:
+        from apify_social_scraper import get_social_scraper
+        from social_scraper_routes import router as social_router, set_scraper
+
+    social_scraper = get_social_scraper()
+    set_scraper(social_scraper)
+    app.include_router(social_router, prefix="/api")
+    logger.info(f"✅ Routes social scraper chargées (/api/social/*) — Apify {'configuré' if social_scraper.is_ready() else 'NON configuré (APIFY_TOKEN manquant)'}")
+except Exception as e:
+    logger.warning(f"⚠️ Routes social scraper non disponibles: {e}")
+
 # ========== RÉCONCILIATION ENTITÉS ==========
 reconciliation_service = None
 try:

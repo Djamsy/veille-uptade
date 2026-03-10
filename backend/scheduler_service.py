@@ -580,6 +580,37 @@ async def job_radio_health_check():
 
 
 # ============================================================
+# JOB 7: Scraping réseaux sociaux via Apify (1x/heure)
+# ============================================================
+
+async def job_social_scrape():
+    """Scrape batché Facebook + Instagram + Twitter via Apify."""
+    try:
+        try:
+            from backend.apify_social_scraper import get_social_scraper
+        except ImportError:
+            from apify_social_scraper import get_social_scraper
+
+        scraper = get_social_scraper()
+        if not scraper.is_ready():
+            logger.debug("ℹ️ Apify social: APIFY_TOKEN non configuré, skip")
+            return {"success": False, "reason": "apify_not_configured"}
+
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, scraper.scrape_all)
+        total = result.get("total_saved", 0)
+        if total > 0:
+            logger.info(f"📱 Social scrape: {total} nouveaux posts")
+        else:
+            logger.info("📱 Social scrape: aucun nouveau post")
+        return result
+
+    except Exception as e:
+        logger.error(f"❌ Erreur social scrape: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ============================================================
 # JOB combiné : Scrape → Enrich → Cycle affaires
 # ============================================================
 
@@ -658,6 +689,14 @@ def _ensure_scheduler():
         name="Health-check flux radio"
     )
 
+    # 📱 Scraping réseaux sociaux toutes les heures (minute 10)
+    _scheduler.add_job(
+        job_social_scrape,
+        CronTrigger(minute="10", timezone=TZ),
+        id="social_scrape",
+        name="Scraping réseaux sociaux (Apify)"
+    )
+
     return _scheduler
 
 
@@ -665,7 +704,7 @@ def attach_scheduler(app):
     sched = _ensure_scheduler()
     if not sched.running:
         sched.start()
-        logger.info("✅ Scheduler démarré (pipeline 1h + MAJ 15min + enrichissement 30min + radio 5min + health 30min)")
+        logger.info("✅ Scheduler démarré (pipeline 1h + MAJ 15min + enrichissement 30min + radio 5min + health 30min + social 1h)")
     app.state.scheduler = sched
 
 
@@ -775,6 +814,13 @@ async def radio_capture_now():
 async def radio_health_check_now():
     """Lance le health-check radio maintenant"""
     result = await job_radio_health_check()
+    return {"success": True, "result": result}
+
+
+@router.post("/social-scrape-now")
+async def social_scrape_now():
+    """Lance le scraping social maintenant"""
+    result = await job_social_scrape()
     return {"success": True, "result": result}
 
 
