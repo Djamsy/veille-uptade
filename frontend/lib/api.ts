@@ -264,6 +264,12 @@ export const recalculateBmg = (id: string) =>
 export const runFullCycle = () =>
   apiFetch<Record<string, unknown>>('/api/affairs/cycle/run', { method: 'POST' });
 
+export const runScrapeNow = () =>
+  apiFetch<Record<string, unknown>>('/api/scheduler/scrape-now', { method: 'POST' });
+
+export const runFullPipeline = () =>
+  apiFetch<Record<string, unknown>>('/api/scheduler/run-pipeline', { method: 'POST' });
+
 export const runReaffiliate = () =>
   apiFetch<{ success: boolean; reaffiliated: number; message: string }>(
     '/api/affairs/cycle/reaffiliate', { method: 'POST' }

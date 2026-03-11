@@ -671,12 +671,12 @@ def _ensure_scheduler():
         job_defaults={"coalesce": True, "max_instances": 1}
     )
 
-    # Pipeline complet toutes les 30 min (scrape + enrich + affaires)
+    # Pipeline complet toutes les 15 min (scrape + enrich + affaires)
     _scheduler.add_job(
         job_full_pipeline,
-        CronTrigger(minute="0,30", timezone=TZ),
+        CronTrigger(minute="*/15", timezone=TZ),
         id="full_pipeline",
-        name="Pipeline complet (scrape → enrich → affaires) 2x/h"
+        name="Pipeline complet (scrape → enrich → affaires) 4x/h"
     )
 
     # Mise à jour des affaires toutes les 15 min
@@ -726,7 +726,7 @@ def attach_scheduler(app):
     sched = _ensure_scheduler()
     if not sched.running:
         sched.start()
-        logger.info("✅ Scheduler démarré (pipeline 30min + MAJ 15min + enrichissement 30min + radio 5min + health 30min + social 1h)")
+        logger.info("✅ Scheduler démarré (pipeline 15min + MAJ 15min + enrichissement 30min + radio 5min + health 30min + social 1h)")
     app.state.scheduler = sched
 
 

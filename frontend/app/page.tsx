@@ -8,6 +8,8 @@ import {
   fetchEnrichedDashboard,
   runFullCycle,
   runReaffiliate,
+  runScrapeNow,
+  runFullPipeline,
   type EnrichedDashboardData,
   type Affair,
   type DailyActivity,
@@ -228,6 +230,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [cycleRunning, setCycleRunning] = useState(false)
+  const [scraping, setScraping] = useState(false)
   const [reaffiliating, setReaffiliating] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
 
@@ -253,6 +256,13 @@ export default function DashboardPage() {
     try { await runFullCycle(); await loadData() }
     catch (e: unknown) { console.error('Cycle error:', e) }
     finally { setCycleRunning(false) }
+  }
+
+  const handleScrape = async () => {
+    setScraping(true)
+    try { await runScrapeNow(); await loadData() }
+    catch (e: unknown) { console.error('Scrape error:', e) }
+    finally { setScraping(false) }
   }
 
   const handleReaffiliate = async () => {
@@ -316,6 +326,10 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center gap-2">
               <button onClick={loadData} className="btn-glass px-3 py-1.5 text-xs">↻ Rafraîchir</button>
+              <button onClick={handleScrape} disabled={scraping} className="btn-glass px-3 py-1.5 text-xs disabled:opacity-50"
+                style={scraping ? { background: 'rgba(99,102,241,0.15)', borderColor: 'rgba(99,102,241,0.3)' } : {}}>
+                {scraping ? '⟳ Scraping...' : '🌐 Scraper'}
+              </button>
               <button onClick={handleRunCycle} disabled={cycleRunning} className="btn-primary px-4 py-1.5 text-xs">
                 {cycleRunning ? '⟳ Cycle...' : '▶ Lancer le cycle'}
               </button>
