@@ -1354,6 +1354,7 @@ class AffairLifecycleService:
             art_title_words = set(
                 w.lower() for w in (art.get("title", "").split()) if len(w) > 4
             )
+            art_embedding = art.get("embedding")
 
             # Chercher une affaire existante similaire
             best_match = None
@@ -1362,7 +1363,8 @@ class AffairLifecycleService:
             for affair in active_affairs:
                 score = self._match_score(
                     art_elected, art_institutions, art_entities,
-                    art_theme, art_title_words, affair
+                    art_theme, art_title_words, affair,
+                    art_embedding=art_embedding,
                 )
                 if score > best_score:
                     best_score = score
@@ -1420,6 +1422,7 @@ class AffairLifecycleService:
                         "institutions": list(art_institutions)[:10],
                         "keywords": art.get("keywords_found", []) or [],
                         "theme": art_theme,
+                        "event_structured": art.get("event_structured", {}),
                         "gravity_score": round(gravity, 3),
                         "affair_type": self._classify_affair_type_by_gravity(gravity),
                         "priority": self.compute_priority(gravity),
@@ -1437,6 +1440,9 @@ class AffairLifecycleService:
                         "ai_managed": False,
                         "_creation_method": "simple_cycle",
                     }
+                    # Stocker l'embedding de l'article fondateur sur l'affaire
+                    if art_embedding:
+                        new_affair["embedding"] = art_embedding
                     result = self.affairs.insert_one(new_affair)
                     new_id = str(result.inserted_id)
                     new_affair["_id"] = result.inserted_id
@@ -1541,17 +1547,18 @@ class AffairLifecycleService:
 
     def _match_score(
         self, art_elected: set, art_institutions: set, art_entities: set,
-        art_theme: str, art_title_words: set, affair: dict
+        art_theme: str, art_title_words: set, affair: dict,
+        art_embedding: list = None,
     ) -> int:
         """Calcule un score de similarité entre un article et une affaire.
 
-        RÈGLES DE MATCHING STRICTES v2 :
-        - Seules les entités SPÉCIFIQUES comptent (pas préfecture, ARS, etc.)
+        RÈGLES DE MATCHING v3 (hybride embeddings + entités) :
+        - Si embeddings disponibles : bonus sémantique fort (+5 si sim > 0.75)
         - Les élus spécifiques = signal très fort (5 pts)
         - Les élus génériques (politiciens omniprésents) = signal faible (2 pts)
         - Le thème seul ne suffit JAMAIS à fusionner
         - Les mots du titre doivent être très discriminants (>7 chars, pas génériques)
-        - SEUIL DE FUSION = 6 (était 4)
+        - SEUIL DE FUSION = 6
         """
         # Entités de l'affaire — utiliser UNIQUEMENT les entités d'ORIGINE
         # (pas celles accumulées par les fusions successives)
@@ -1611,6 +1618,22 @@ class AffairLifecycleService:
             overlap = len(common_title) / min(len(aff_title_words), len(art_title_words_strict))
             if overlap >= 0.6:
                 score += 5  # Quasi-doublon détecté
+
+        # ── Bonus embedding sémantique ──
+        if art_embedding:
+            aff_embedding = affair.get("embedding")
+            if aff_embedding:
+                try:
+                    from backend.embedding_service import cosine_similarity
+                    sim = cosine_similarity(art_embedding, aff_embedding)
+                    if sim >= 0.80:
+                        score += 6  # Très similaire sémantiquement
+                    elif sim >= 0.70:
+                        score += 4
+                    elif sim >= 0.60:
+                        score += 2
+                except ImportError:
+                    pass
 
         if score >= 3:
             logger.debug(
@@ -2873,47 +2896,72 @@ class AffairLifecycleService:
         tokens_b: Set[str], theme_b: str, entities_b: Set[str],
         date_a: Optional[datetime] = None,
         date_b: Optional[datetime] = None,
+        embedding_a: Optional[List] = None,
+        embedding_b: Optional[List] = None,
     ) -> float:
-        """Similarité entre deux ensembles de tokens/thème/entités,
-        avec prise en compte de la proximité temporelle.
+        """Similarité hybride entre deux items :
+        - 0.55 similarité sémantique (embeddings) ou tokens fallback
+        - 0.25 entités communes (avec résolution d'alias)
+        - 0.20 proximité temporelle
 
-        Même jour  → bonus +0.10 (un "accident" le même jour = probablement le même)
-        1 jour     → bonus +0.05
-        2+ jours   → pénalité progressive (2 "accidents" à 3j d'écart = probablement différents)
+        Si embeddings non disponibles, fallback sur tokens + thème.
         """
-        # Tokens communs (Jaccard)
-        common_tokens = tokens_a & tokens_b
-        if not common_tokens:
-            return 0.0
-        min_size = min(len(tokens_a), len(tokens_b))
-        token_score = len(common_tokens) / max(min_size, 1)
+        # ── 1. Similarité sémantique (55%) ──
+        semantic_score = 0.0
+        if embedding_a and embedding_b:
+            try:
+                from backend.embedding_service import cosine_similarity
+                semantic_score = max(0, cosine_similarity(embedding_a, embedding_b))
+            except ImportError:
+                pass
 
-        # Thème
-        theme_score = 1.0 if (theme_a and theme_a == theme_b) else 0.0
+        if not embedding_a or not embedding_b:
+            # Fallback : tokens + thème
+            common_tokens = tokens_a & tokens_b
+            if not common_tokens and not (entities_a & entities_b):
+                return 0.0
+            min_size = min(len(tokens_a), len(tokens_b))
+            token_score = len(common_tokens) / max(min_size, 1)
+            theme_bonus = 0.2 if (theme_a and theme_a == theme_b and theme_a != "general") else 0.0
+            semantic_score = min(1.0, token_score + theme_bonus)
 
-        # Entités communes
-        common_entities = entities_a & entities_b
-        entity_score = len(common_entities) / max(len(entities_a | entities_b), 1) if (entities_a or entities_b) else 0
+        # ── 2. Entités communes (25%) ──
+        entity_score = 0.0
+        if entities_a or entities_b:
+            # Résolution d'alias
+            try:
+                from backend.entity_aliases import entities_match
+                common_ent, jaccard = entities_match(list(entities_a), list(entities_b))
+                entity_score = jaccard
+                # Bonus : entité spécifique commune vaut plus
+                for e in common_ent:
+                    if e.lower() not in self.GENERIC_ELECTED:
+                        entity_score = min(1.0, entity_score + 0.3)
+                        break
+            except ImportError:
+                common_entities = entities_a & entities_b
+                entity_score = len(common_entities) / max(len(entities_a | entities_b), 1)
 
-        base_score = token_score * 0.40 + theme_score * 0.20 + entity_score * 0.30
-
-        # Proximité temporelle (10% du score)
+        # ── 3. Proximité temporelle (20%) ──
         temporal_score = 0.5  # Défaut si pas de dates
         if date_a and date_b:
             try:
                 delta_hours = abs((date_a - date_b).total_seconds()) / 3600
                 if delta_hours <= 12:
-                    temporal_score = 1.0    # Même demi-journée
+                    temporal_score = 1.0
                 elif delta_hours <= 24:
-                    temporal_score = 0.8    # Même jour
+                    temporal_score = 0.8
                 elif delta_hours <= 48:
-                    temporal_score = 0.5    # Lendemain
+                    temporal_score = 0.5
+                elif delta_hours <= 72:
+                    temporal_score = 0.3
                 else:
-                    temporal_score = 0.2    # Plus vieux = probablement différent
+                    temporal_score = 0.1
             except (TypeError, ValueError):
                 temporal_score = 0.5
 
-        return base_score + temporal_score * 0.10
+        # ── Score final pondéré ──
+        return semantic_score * 0.55 + entity_score * 0.25 + temporal_score * 0.20
 
     def _candidate_cluster_similarity(
         self, cand_tokens: Set[str], cand_theme: str, cand_entities: Set[str],

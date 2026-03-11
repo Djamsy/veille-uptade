@@ -248,6 +248,28 @@ async def job_enrich():
                     continue
 
             logger.info(f"✅ {enriched_count}/{len(articles)} articles enrichis ({method})")
+
+            # Générer les embeddings pour les articles enrichis sans embedding
+            try:
+                from backend.embedding_service import is_available as emb_ok, enrich_batch_with_embeddings, build_text_for_embedding
+                if emb_ok():
+                    no_emb = list(articles_col.find({
+                        "embedding": {"$exists": False},
+                        "_analysis_method": {"$exists": True},
+                        "$or": [
+                            {"scraped_at": {"$gte": cutoff_dt}},
+                            {"scraped_at": {"$gte": cutoff_str}},
+                        ],
+                    }).limit(50))
+                    if no_emb:
+                        emb_count = await loop.run_in_executor(
+                            None, enrich_batch_with_embeddings,
+                            no_emb, "article", articles_col
+                        )
+                        logger.info(f"🧮 {emb_count}/{len(no_emb)} articles enrichis avec embeddings")
+            except Exception as e:
+                logger.warning(f"⚠️ Embeddings: {e}")
+
             return {"enriched": enriched_count, "method": method}
 
         except Exception as e:
@@ -649,12 +671,12 @@ def _ensure_scheduler():
         job_defaults={"coalesce": True, "max_instances": 1}
     )
 
-    # Pipeline complet toutes les heures (scrape + enrich + affaires)
+    # Pipeline complet toutes les 30 min (scrape + enrich + affaires)
     _scheduler.add_job(
         job_full_pipeline,
-        CronTrigger(minute="0", timezone=TZ),
+        CronTrigger(minute="0,30", timezone=TZ),
         id="full_pipeline",
-        name="Pipeline complet (scrape → enrich → affaires)"
+        name="Pipeline complet (scrape → enrich → affaires) 2x/h"
     )
 
     # Mise à jour des affaires toutes les 15 min
@@ -704,7 +726,7 @@ def attach_scheduler(app):
     sched = _ensure_scheduler()
     if not sched.running:
         sched.start()
-        logger.info("✅ Scheduler démarré (pipeline 1h + MAJ 15min + enrichissement 30min + radio 5min + health 30min + social 1h)")
+        logger.info("✅ Scheduler démarré (pipeline 30min + MAJ 15min + enrichissement 30min + radio 5min + health 30min + social 1h)")
     app.state.scheduler = sched
 
 

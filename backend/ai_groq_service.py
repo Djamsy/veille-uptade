@@ -99,6 +99,13 @@ Analyse l'article fourni et retourne un JSON avec EXACTEMENT ces champs :
   "theme": "un parmi: eau_env, energie_transports, sante_social, education, economie_emploi, culture_patrimoine, securite_justice, politique, sport, general",
   "elected": ["liste des personnalités politiques/publiques mentionnées (nom complet)"],
   "institutions": ["liste des institutions mentionnées (CHU, SMGEAG, EDF, Préfecture, etc.)"],
+  "event": {
+    "subject": "qui fait l'action (personne, institution, groupe)",
+    "action": "verbe/action principale (annonce, dénonce, grève, inaugure, arrête...)",
+    "object": "sur quoi/qui porte l'action (plan eau, budget, suspect...)",
+    "event_type": "un parmi: declaration, decision, incident, mobilisation, bilan, nomination, judiciaire, catastrophe, routine",
+    "location": "lieu précis si mentionné (commune, quartier) ou vide"
+  },
   "sentiment": "positif, negatif ou neutre",
   "gravity_score": 0.0 à 1.0,
   "is_affair": true/false,
@@ -129,6 +136,14 @@ RÈGLE CLEF : si l'article est informatif, factuel et sans conséquence directe 
 Un article n'est PAS une "affaire" s'il rapporte simplement un fait divers ou un événement ordinaire.
 
 is_affair : true UNIQUEMENT si gravity_score >= 0.55 ET l'article implique des personnalités publiques ou des institutions dans un contexte problématique.
+
+EXTRACTION D'ÉVÉNEMENT (champ "event") :
+- subject : qui est l'acteur principal ? (nom complet de la personne ou institution)
+- action : quel est le verbe/action ? (annonce, dénonce, lance une grève, inaugure, est arrêté, conteste, etc.)
+- object : sur quoi porte l'action ? (plan de rénovation, budget 2025, un suspect, etc.)
+- event_type : catégorise l'événement (declaration, decision, incident, mobilisation, bilan, nomination, judiciaire, catastrophe, routine)
+- location : lieu précis si mentionné (Pointe-à-Pitre, Baie-Mahault, Les Abymes, etc.)
+- Ceci permet de distinguer "Losbar annonce un plan" de "Losbar critiqué pour un plan" : même personne, événements différents.
 
 Autres règles :
 - Sois précis sur les noms : utilise le prénom ET le nom pour les personnalités
@@ -182,6 +197,16 @@ def enrich_article_with_groq(article: Dict[str, Any]) -> Optional[Dict[str, Any]
         summary = result.get("summary", "")
         keywords = result.get("keywords", [])
 
+        # Extraction événement structuré
+        event_raw = result.get("event", {})
+        event_structured = {
+            "subject": event_raw.get("subject", ""),
+            "action": event_raw.get("action", ""),
+            "object": event_raw.get("object", ""),
+            "event_type": event_raw.get("event_type", "routine"),
+            "location": event_raw.get("location", ""),
+        } if event_raw else {}
+
         # S'assurer que les listes sont bien des listes
         if isinstance(elected, str):
             elected = [elected] if elected else []
@@ -193,12 +218,22 @@ def enrich_article_with_groq(article: Dict[str, Any]) -> Optional[Dict[str, Any]
         # Construire entities combinées
         all_entities = list(set(elected + institutions))
 
+        # Résoudre les alias d'entités
+        try:
+            from backend.entity_aliases import resolve_entities
+            elected = resolve_entities(elected)
+            institutions = resolve_entities(institutions)
+            all_entities = list(set(elected + institutions))
+        except ImportError:
+            pass
+
         # Mise à jour de l'article (même format que tags_index)
         article.update({
             "theme": theme,
             "elected": elected,
             "institutions": institutions,
             "entities": all_entities,
+            "event_structured": event_structured,
             "sentiment": sentiment,
             "is_affair": is_affair,
             "affair_type": affair_type,
@@ -518,6 +553,13 @@ Réponds UNIQUEMENT en JSON :
       "gravity": 0.7,
       "entities": ["Nom Prénom", "Institution"],
       "theme": "securite_justice",
+      "event": {
+        "subject": "qui fait l'action",
+        "action": "verbe/action principale",
+        "object": "sur quoi porte l'action",
+        "event_type": "declaration/decision/incident/mobilisation/bilan/nomination/judiciaire/catastrophe/routine",
+        "location": "lieu si mentionné"
+      },
       "text_excerpt": "passage clé de la transcription (50 mots max)"
     }
   ]
@@ -531,6 +573,28 @@ Règles :
 - Minimum 1 sujet, pas de limite haute"""
 
 
+def _segment_transcription(text: str, segment_seconds: int = 45, words_per_second: float = 2.5) -> List[str]:
+    """
+    Segmente une transcription en blocs de ~30-60 secondes.
+    Estime ~2.5 mots/seconde pour la parole radio française.
+    Retourne des segments de texte numérotés.
+    """
+    words = text.split()
+    words_per_segment = int(segment_seconds * words_per_second)  # ~112 mots par segment
+
+    if len(words) <= words_per_segment * 1.5:
+        # Transcription courte, pas besoin de segmenter
+        return [text]
+
+    segments = []
+    for i in range(0, len(words), words_per_segment):
+        segment = " ".join(words[i:i + words_per_segment])
+        if len(segment) > 30:  # Ignorer les segments trop courts
+            segments.append(segment)
+
+    return segments
+
+
 def split_radio_transcription(
     transcription_text: str,
     radio_name: str = "",
@@ -538,7 +602,8 @@ def split_radio_transcription(
 ) -> Optional[List[Dict[str, Any]]]:
     """
     Découpe une transcription radio en sujets individuels via IA.
-    Chaque sujet peut ensuite être assigné à une affaire différente.
+    Segmente d'abord en blocs de ~45s pour aider l'IA à identifier
+    les changements de sujet, puis envoie à l'IA pour extraction.
     Retourne une liste de topics ou None si échec.
     """
     if not is_available():
@@ -547,8 +612,16 @@ def split_radio_transcription(
     if not transcription_text or len(transcription_text.strip()) < 50:
         return None
 
+    # Segmenter en blocs pour aider l'IA
+    segments = _segment_transcription(transcription_text)
+
     header = f"Radio: {radio_name}\n" if radio_name else ""
-    user_content = f"{header}Transcription:\n{transcription_text[:max_chars]}"
+    if len(segments) > 1:
+        # Envoyer les segments numérotés pour aider l'IA à repérer les transitions
+        seg_text = "\n\n".join(f"[Bloc {i+1}/{len(segments)}]\n{seg}" for i, seg in enumerate(segments))
+        user_content = f"{header}Transcription segmentée en {len(segments)} blocs de ~45 secondes:\n\n{seg_text[:max_chars]}"
+    else:
+        user_content = f"{header}Transcription:\n{transcription_text[:max_chars]}"
 
     try:
         raw = _call_ai(
@@ -569,13 +642,35 @@ def split_radio_transcription(
         if not topics:
             return None
 
+        # Résolution d'alias pour radio
+        try:
+            from backend.entity_aliases import resolve_entities
+        except ImportError:
+            try:
+                from entity_aliases import resolve_entities
+            except ImportError:
+                resolve_entities = None
+
         # Valider chaque topic
         valid_topics = []
         for t in topics:
             if t.get("title") and t.get("summary"):
                 t["gravity"] = float(t.get("gravity", 0.3))
-                t["entities"] = t.get("entities", [])
+                entities = t.get("entities", [])
+                if resolve_entities:
+                    entities = resolve_entities(entities)
+                t["entities"] = entities
                 t["theme"] = t.get("theme", "general")
+                # Événement structuré
+                event_raw = t.get("event", {})
+                if event_raw:
+                    t["event_structured"] = {
+                        "subject": event_raw.get("subject", ""),
+                        "action": event_raw.get("action", ""),
+                        "object": event_raw.get("object", ""),
+                        "event_type": event_raw.get("event_type", "routine"),
+                        "location": event_raw.get("location", ""),
+                    }
                 valid_topics.append(t)
 
         logger.info(
@@ -692,7 +787,8 @@ Réponds UNIQUEMENT en JSON :
       "theme": "eau_env",
       "gravity": 0.45,
       "summary": "Coupure d'eau à Petit-Pérou, habitants mécontents",
-      "keywords": ["eau", "coupure", "Petit-Pérou"]
+      "keywords": ["eau", "coupure", "Petit-Pérou"],
+      "event": {"subject": "SMGEAG", "action": "coupe l'eau", "object": "habitants de Petit-Pérou", "event_type": "incident", "location": "Petit-Pérou"}
     }
   ]
 }
@@ -751,22 +847,44 @@ def enrich_social_posts_batch(posts: List[Dict[str, Any]], batch_size: int = 15)
         result = json.loads(raw)
         ai_posts = result.get("posts", [])
 
+        # Résolution d'alias
+        try:
+            from backend.entity_aliases import resolve_entities
+        except ImportError:
+            try:
+                from entity_aliases import resolve_entities
+            except ImportError:
+                resolve_entities = None
+
         enriched = []
         for ai_post in ai_posts:
             idx = ai_post.get("index", 0) - 1
             if 0 <= idx < len(posts):
                 original = posts[idx]
+                elected = ai_post.get("elected", [])
+                institutions = ai_post.get("institutions", [])
+                if resolve_entities:
+                    elected = resolve_entities(elected)
+                    institutions = resolve_entities(institutions)
                 original["ai_enriched"] = True
                 original["ai_relevant"] = ai_post.get("relevant", False)
-                original["elected"] = ai_post.get("elected", [])
-                original["institutions"] = ai_post.get("institutions", [])
-                original["entities"] = list(set(
-                    ai_post.get("elected", []) + ai_post.get("institutions", [])
-                ))
+                original["elected"] = elected
+                original["institutions"] = institutions
+                original["entities"] = list(set(elected + institutions))
                 original["theme"] = ai_post.get("theme", "general")
                 original["gravity_score"] = float(ai_post.get("gravity", 0.1))
                 original["ai_summary"] = ai_post.get("summary", "")
                 original["keywords_found"] = ai_post.get("keywords", [])
+                # Événement structuré
+                event_raw = ai_post.get("event", {})
+                if event_raw:
+                    original["event_structured"] = {
+                        "subject": event_raw.get("subject", ""),
+                        "action": event_raw.get("action", ""),
+                        "object": event_raw.get("object", ""),
+                        "event_type": event_raw.get("event_type", "routine"),
+                        "location": event_raw.get("location", ""),
+                    }
                 original["_analysis_method"] = f"{AI_PROVIDER}_{AI_MODEL}_social"
                 enriched.append(original)
 
