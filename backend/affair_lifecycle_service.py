@@ -38,6 +38,18 @@ from collections import Counter, defaultdict
 from difflib import SequenceMatcher
 
 from pymongo import MongoClient, DESCENDING
+
+# Notifications Telegram (optionnel)
+try:
+    from backend.telegram_service import notify_new_affair as _tg_notify
+    _telegram_ok = True
+except ImportError:
+    try:
+        from telegram_service import notify_new_affair as _tg_notify
+        _telegram_ok = True
+    except ImportError:
+        _telegram_ok = False
+        _tg_notify = None
 from bson import ObjectId
 
 logger = logging.getLogger("affair_lifecycle")
@@ -1463,6 +1475,12 @@ class AffairLifecycleService:
                     stats["created"] += 1
                     logger.info(f"🆕 Affaire: '{title[:50]}' (gravity={gravity:.2f}, "
                                 f"élus={list(art_elected)[:2]}, source={art.get('source', '')})")
+                    # Notification Telegram
+                    if _telegram_ok and _tg_notify:
+                        try:
+                            _tg_notify(new_affair, source_type="article")
+                        except Exception as tg_err:
+                            logger.debug(f"Telegram notify: {tg_err}")
                 else:
                     # Gravity trop basse pour créer une affaire seule, marquer comme traité
                     self.articles.update_one(
@@ -2050,6 +2068,12 @@ class AffairLifecycleService:
                 })
                 logger.info(f"🆕📻 Affaire radio: '{title[:50]}' (gravity={gravity:.2f}, "
                            f"entités={list(topic_entities)[:3]})")
+                # Notification Telegram
+                if _telegram_ok and _tg_notify:
+                    try:
+                        _tg_notify(new_affair, source_type="transcription")
+                    except Exception as tg_err:
+                        logger.debug(f"Telegram notify radio: {tg_err}")
 
             # Marquer la transcription comme traitée pour création d'affaires
             self.transcriptions.update_one(

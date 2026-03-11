@@ -949,4 +949,20 @@ async def bulk_enrich(
     }
 
 
+@router.post("/telegram-test")
+async def telegram_test():
+    """Teste la connexion Telegram."""
+    try:
+        from backend.telegram_service import test_connection
+    except ImportError:
+        try:
+            from telegram_service import test_connection
+        except ImportError:
+            raise HTTPException(503, "telegram_service non disponible")
+    result = test_connection()
+    if not result.get("ok"):
+        raise HTTPException(400, result.get("error", "Échec"))
+    return {"success": True, "message": "Notification Telegram envoyée !"}
+
+
 __all__ = ['router', 'attach_scheduler', 'stop_scheduler', 'job_full_pipeline']
