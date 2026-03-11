@@ -175,7 +175,8 @@ async def job_enrich():
             )
 
             # Articles à enrichir : soit jamais enrichis, soit seulement pré-enrichis
-            cutoff_dt = datetime.now() - timedelta(days=3)
+            # Fenêtre large (30j) pour rattraper le backlog, batch 200
+            cutoff_dt = datetime.now() - timedelta(days=30)
             cutoff_str = cutoff_dt.isoformat()
 
             # Requête simple — chercher les articles à ré-enrichir
@@ -192,7 +193,7 @@ async def job_enrich():
                 ]}
             ]}
 
-            articles = list(articles_col.find(query).limit(50))
+            articles = list(articles_col.find(query).sort("scraped_at", -1).limit(200))
 
             if not articles:
                 # Diagnostic supplémentaire
@@ -260,7 +261,7 @@ async def job_enrich():
                             {"scraped_at": {"$gte": cutoff_dt}},
                             {"scraped_at": {"$gte": cutoff_str}},
                         ],
-                    }).limit(50))
+                    }).limit(200))
                     if no_emb:
                         emb_count = await loop.run_in_executor(
                             None, enrich_batch_with_embeddings,
@@ -339,8 +340,8 @@ def _ingest_enriched_articles(svc) -> int:
     articles_col = _db["articles_guadeloupe"]
     candidates_col = _db["topic_candidates"]
 
-    # Articles enrichis des 3 derniers jours
-    cutoff_dt = datetime.now() - timedelta(days=3)
+    # Articles enrichis des 30 derniers jours
+    cutoff_dt = datetime.now() - timedelta(days=30)
     cutoff_str = cutoff_dt.isoformat()
     enriched = list(articles_col.find({
         "_analysis_method": {"$exists": True},
@@ -348,10 +349,10 @@ def _ingest_enriched_articles(svc) -> int:
             {"scraped_at": {"$gte": cutoff_dt}},
             {"scraped_at": {"$gte": cutoff_str}},
         ],
-    }).limit(200))
+    }).limit(500))
 
     if not enriched:
-        logger.info("📥 Ingestion: 0 articles enrichis en 3j — rien à ingérer")
+        logger.info("📥 Ingestion: 0 articles enrichis en 30j — rien à ingérer")
         return 0
 
     # IDs déjà ingérés
@@ -844,6 +845,108 @@ async def social_scrape_now():
     """Lance le scraping social maintenant"""
     result = await job_social_scrape()
     return {"success": True, "result": result}
+
+
+@router.post("/bulk-enrich")
+async def bulk_enrich(
+    batch_size: int = Query(default=100, ge=10, le=500),
+    days: int = Query(default=90, ge=1, le=365),
+):
+    """Rattrapage massif : enrichit les vieux articles jamais analysés.
+    Utile au premier déploiement pour traiter le backlog.
+    """
+    if _db is None:
+        raise HTTPException(503, "DB indisponible")
+
+    enrich_fn, method = _get_enrichment()
+    if enrich_fn is None:
+        raise HTTPException(503, "Aucun service d'enrichissement disponible")
+
+    articles_col = _db["articles_guadeloupe"]
+    cutoff_dt = datetime.now() - timedelta(days=days)
+    cutoff_str = cutoff_dt.isoformat()
+
+    query = {"$and": [
+        {"$or": [
+            {"_analysis_method": {"$exists": False}},
+            {"_analysis_method": "rules_preliminary"},
+            {"_analysis_method": "rule_based_ultra_strict"},
+        ]},
+        {"$or": [
+            {"scraped_at": {"$gte": cutoff_dt}},
+            {"scraped_at": {"$gte": cutoff_str}},
+        ]}
+    ]}
+
+    remaining = articles_col.count_documents(query)
+    articles = list(articles_col.find(query).sort("scraped_at", -1).limit(batch_size))
+
+    if not articles:
+        return {"success": True, "enriched": 0, "remaining": 0, "message": "Aucun article à enrichir"}
+
+    logger.info(f"🔄 Bulk enrich: {len(articles)} articles (sur {remaining} restants) via {method}")
+
+    enriched_count = 0
+    loop = asyncio.get_running_loop()
+
+    for article in articles:
+        try:
+            article_data = {
+                "title": article.get("title", ""),
+                "content": article.get("content", "") or article.get("text", ""),
+            }
+            enriched = await loop.run_in_executor(None, enrich_fn, article_data)
+            if enriched:
+                update_fields = {}
+                for key in ["theme", "elected", "institutions", "entities",
+                             "sentiment", "is_affair", "affair_type",
+                             "gravity_score", "importance_score", "keywords_found",
+                             "ai_summary", "classification_confidence",
+                             "_analysis_method", "_tags",
+                             "event_structured"]:
+                    if key in enriched:
+                        update_fields[key] = enriched[key]
+
+                if update_fields:
+                    update_fields["enriched_at"] = datetime.now().isoformat()
+                    articles_col.update_one(
+                        {"_id": article["_id"]},
+                        {"$set": update_fields}
+                    )
+                    enriched_count += 1
+        except Exception as e:
+            logger.warning(f"⚠️ Bulk enrich erreur {article.get('_id')}: {e}")
+            continue
+
+    # Embeddings pour les articles fraîchement enrichis
+    emb_count = 0
+    try:
+        from backend.embedding_service import is_available as emb_ok, enrich_batch_with_embeddings
+        if emb_ok():
+            no_emb = list(articles_col.find({
+                "embedding": {"$exists": False},
+                "_analysis_method": {"$exists": True},
+            }).sort("enriched_at", -1).limit(batch_size))
+            if no_emb:
+                emb_count = await loop.run_in_executor(
+                    None, enrich_batch_with_embeddings,
+                    no_emb, "article", articles_col
+                )
+    except Exception as e:
+        logger.warning(f"⚠️ Bulk embeddings: {e}")
+
+    remaining_after = articles_col.count_documents(query)
+    logger.info(f"✅ Bulk enrich: {enriched_count}/{len(articles)} enrichis, "
+                f"{emb_count} embeddings, {remaining_after} restants")
+
+    return {
+        "success": True,
+        "enriched": enriched_count,
+        "embeddings": emb_count,
+        "remaining": remaining_after,
+        "method": method,
+        "message": f"{enriched_count} articles enrichis. {remaining_after} restants à traiter."
+    }
 
 
 __all__ = ['router', 'attach_scheduler', 'stop_scheduler', 'job_full_pipeline']

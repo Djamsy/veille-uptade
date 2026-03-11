@@ -270,6 +270,11 @@ export const runScrapeNow = () =>
 export const runFullPipeline = () =>
   apiFetch<Record<string, unknown>>('/api/scheduler/run-pipeline', { method: 'POST' });
 
+export const runBulkEnrich = (batchSize = 100, days = 90) =>
+  apiFetch<{ success: boolean; enriched: number; embeddings: number; remaining: number; message: string }>(
+    `/api/scheduler/bulk-enrich?batch_size=${batchSize}&days=${days}`, { method: 'POST' }
+  );
+
 export const runReaffiliate = () =>
   apiFetch<{ success: boolean; reaffiliated: number; message: string }>(
     '/api/affairs/cycle/reaffiliate', { method: 'POST' }

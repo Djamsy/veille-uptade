@@ -10,6 +10,7 @@ import {
   runReaffiliate,
   runScrapeNow,
   runFullPipeline,
+  runBulkEnrich,
   type EnrichedDashboardData,
   type Affair,
   type DailyActivity,
@@ -232,6 +233,8 @@ export default function DashboardPage() {
   const [cycleRunning, setCycleRunning] = useState(false)
   const [scraping, setScraping] = useState(false)
   const [reaffiliating, setReaffiliating] = useState(false)
+  const [bulkEnriching, setBulkEnriching] = useState(false)
+  const [bulkMsg, setBulkMsg] = useState('')
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
 
   const loadData = useCallback(async () => {
@@ -270,6 +273,17 @@ export default function DashboardPage() {
     try { await runReaffiliate(); await loadData() }
     catch (e: unknown) { console.error('Reaffiliate error:', e) }
     finally { setReaffiliating(false) }
+  }
+
+  const handleBulkEnrich = async () => {
+    setBulkEnriching(true)
+    setBulkMsg('')
+    try {
+      const res = await runBulkEnrich(200, 90)
+      setBulkMsg(res.message || `${res.enriched} enrichis`)
+      await loadData()
+    } catch (e: unknown) { console.error('Bulk enrich error:', e); setBulkMsg('Erreur') }
+    finally { setBulkEnriching(false) }
   }
 
   if (loading) {
@@ -330,10 +344,18 @@ export default function DashboardPage() {
                 style={scraping ? { background: 'rgba(99,102,241,0.15)', borderColor: 'rgba(99,102,241,0.3)' } : {}}>
                 {scraping ? '⟳ Scraping...' : '🌐 Scraper'}
               </button>
+              <button onClick={handleBulkEnrich} disabled={bulkEnriching} className="btn-glass px-3 py-1.5 text-xs disabled:opacity-50"
+                style={bulkEnriching ? { background: 'rgba(234,179,8,0.15)', borderColor: 'rgba(234,179,8,0.3)' } : {}}
+                title="Enrichir massivement les articles non analysés">
+                {bulkEnriching ? '⟳ Enrichissement...' : '🧠 Enrichir tout'}
+              </button>
               <button onClick={handleRunCycle} disabled={cycleRunning} className="btn-primary px-4 py-1.5 text-xs">
                 {cycleRunning ? '⟳ Cycle...' : '▶ Lancer le cycle'}
               </button>
             </div>
+            {bulkMsg && (
+              <div className="text-xs mt-1 text-right" style={{ color: 'rgba(234,179,8,0.7)' }}>{bulkMsg}</div>
+            )}
           </div>
 
           {error && (

@@ -1263,7 +1263,8 @@ class AffairLifecycleService:
         logger.info("=" * 50)
 
         now = datetime.utcnow()
-        cutoff_3d_dt = now - timedelta(days=3)
+        # Fenêtre large (14j) pour rattraper le backlog d'articles enrichis
+        cutoff_3d_dt = now - timedelta(days=14)
         cutoff_3d_str = cutoff_3d_dt.isoformat()
         stats = {
             "method": "simple_cycle",
@@ -1287,7 +1288,7 @@ class AffairLifecycleService:
                     {"scraped_at": {"$gte": cutoff_3d_str}},
                 ]},
             ]
-        }).sort("gravity_score", -1).limit(60))
+        }).sort("gravity_score", -1).limit(200))
 
         # ── DIAGNOSTIC : état de la base ──
         total_articles = self.articles.count_documents({})
@@ -1298,7 +1299,7 @@ class AffairLifecycleService:
         logger.info(f"📊 DB: {total_articles} articles total, {total_enriched} enrichis, "
                      f"{total_processed} déjà traités (affaires), "
                      f"{total_affairs} affaires ({active_count} actives)")
-        logger.info(f"📰 {len(unprocessed)} articles non traités trouvés (enrichis, 3j)")
+        logger.info(f"📰 {len(unprocessed)} articles non traités trouvés (enrichis, 14j)")
 
         if len(unprocessed) == 0 and total_enriched > 0:
             # Diagnostic : pourquoi aucun article non traité ?
