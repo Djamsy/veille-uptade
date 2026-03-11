@@ -230,6 +230,18 @@ export default function AffairDetailPage() {
                   <span className="badge bg-[rgba(255,255,255,0.04)] text-[rgba(255,255,255,0.35)] border border-[rgba(255,255,255,0.06)]">
                     {affair.affair_type}
                   </span>
+                  {affair.sentiment && affair.sentiment !== 'neutre' && (
+                    <span className={`badge border ${
+                      affair.sentiment.includes('négatif') || affair.sentiment.includes('negatif') || affair.sentiment === 'critique'
+                        ? 'bg-[rgba(239,68,68,0.15)] text-red-400 border-[rgba(239,68,68,0.3)]'
+                        : affair.sentiment === 'positif' || affair.sentiment.includes('positif')
+                        ? 'bg-[rgba(16,185,129,0.15)] text-emerald-400 border-[rgba(16,185,129,0.3)]'
+                        : 'bg-[rgba(234,179,8,0.15)] text-amber-400 border-[rgba(234,179,8,0.3)]'
+                    }`}>
+                      {affair.sentiment.includes('négatif') || affair.sentiment.includes('negatif') ? '😠' :
+                       affair.sentiment.includes('positif') ? '😊' : '😐'} {affair.sentiment}
+                    </span>
+                  )}
                 </div>
 
                 {/* Meta */}

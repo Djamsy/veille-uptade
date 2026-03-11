@@ -209,6 +209,16 @@ export default function AffairsPage() {
               <span>{affair.item_count || 0} items</span>
               <span>{affair.source_types?.length || 0} canaux</span>
               <span>Gravité {Math.round((affair.gravity_score || 0) * 100)}%</span>
+              {affair.sentiment && affair.sentiment !== 'neutre' && (
+                <span style={{
+                  color: affair.sentiment.includes('négatif') || affair.sentiment.includes('negatif') || affair.sentiment === 'critique'
+                    ? '#f87171'
+                    : affair.sentiment.includes('positif') ? '#6ee7b7' : '#fbbf24'
+                }}>
+                  {affair.sentiment.includes('négatif') || affair.sentiment.includes('negatif') ? '😠' :
+                   affair.sentiment.includes('positif') ? '😊' : '😐'} {affair.sentiment}
+                </span>
+              )}
               <span>{timeAgo(affair.last_activity || affair.created_at)}</span>
             </div>
           </div>

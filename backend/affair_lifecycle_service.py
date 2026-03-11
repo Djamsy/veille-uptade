@@ -184,27 +184,51 @@ class AffairLifecycleService:
     # PRIORITÉ DES AFFAIRES
     # ============================================================
     @staticmethod
-    def compute_priority(gravity: float, bmg: float = 0, item_count: int = 1) -> str:
+    def compute_priority(gravity: float, bmg: float = 0, item_count: int = 1,
+                          sentiment: str = "neutre") -> str:
         """
         Calcule le niveau de priorité d'une affaire.
         - 'hot'   : crise avérée — toujours visible en premier
         - 'watch' : affaire sérieuse à surveiller
         - 'minor' : affaire mineure — repliée par défaut dans le frontend
 
-        Distribution cible : ~10% hot, ~30% watch, ~60% minor
+        Le sentiment négatif boost la priorité (une affaire négative est plus urgente).
         """
+        # Sentiment négatif = boost de gravity effectif pour le calcul de priorité
+        sentiment_boost = 0.0
+        if sentiment in ("négatif", "negatif", "très négatif", "tres negatif", "critique"):
+            sentiment_boost = 0.08
+        elif sentiment in ("mitigé", "mitige", "controversé"):
+            sentiment_boost = 0.04
+        effective_gravity = gravity + sentiment_boost
+
         # HOT : crise réelle (gravity très haute OU BMG élevé avec plusieurs sources)
         if bmg >= 0.65 and item_count >= 2:
             return "hot"
-        if gravity >= PRIORITY_HOT_GRAVITY:
+        if effective_gravity >= PRIORITY_HOT_GRAVITY:
             return "hot"
         # WATCH : affaire sérieuse
-        if gravity >= PRIORITY_WATCH_GRAVITY:
+        if effective_gravity >= PRIORITY_WATCH_GRAVITY:
             return "watch"
         if bmg >= 0.35 and item_count >= 2:
             return "watch"
         # MINOR : tout le reste
         return "minor"
+
+    @staticmethod
+    def _dominant_sentiment(sentiments: list) -> str:
+        """Retourne le sentiment le plus fréquent. En cas d'égalité, le plus négatif prime."""
+        if not sentiments:
+            return "neutre"
+        counter = Counter(sentiments)
+        # Ordre de priorité : le plus négatif l'emporte en cas d'égalité
+        priority = ["très négatif", "tres negatif", "critique", "négatif", "negatif",
+                     "mitigé", "mitige", "controversé", "neutre", "positif", "très positif"]
+        max_count = max(counter.values())
+        for sent in priority:
+            if counter.get(sent, 0) == max_count:
+                return sent
+        return counter.most_common(1)[0][0]
 
     # ============================================================
     # ÉTAPE 1 : INGESTION — Enregistrer un candidat
@@ -1401,7 +1425,14 @@ class AffairLifecycleService:
                 merged_gravity = max(gravity, best_match.get("gravity_score", 0))
                 merged_bmg = best_match.get("bmg", 0)
                 merged_items = best_match.get("item_count", 1) + 1
-                new_priority = self.compute_priority(merged_gravity, merged_bmg, merged_items)
+                new_priority = self.compute_priority(merged_gravity, merged_bmg, merged_items,
+                                                     sentiment=dominant_sentiment)
+                merge_sentiment = art.get("sentiment", "neutre")
+                # Recalculer le sentiment dominant
+                existing_sentiments = best_match.get("sentiment_history", []) or []
+                updated_sentiments = existing_sentiments + [merge_sentiment]
+                dominant_sentiment = self._dominant_sentiment(updated_sentiments)
+
                 self.affairs.update_one(
                     {"_id": best_match["_id"]},
                     {
@@ -1409,8 +1440,10 @@ class AffairLifecycleService:
                             "articles": art_id,
                             "sources": art.get("source", ""),
                         },
+                        "$push": {"sentiment_history": merge_sentiment},
                         "$inc": {"item_count": 1},
-                        "$set": {"last_activity": now, "priority": new_priority},
+                        "$set": {"last_activity": now, "priority": new_priority,
+                                 "sentiment": dominant_sentiment},
                         "$max": {"gravity_score": gravity},
                     }
                 )
@@ -1426,6 +1459,7 @@ class AffairLifecycleService:
                 has_key_entity = len(art_elected) >= 1
                 if gravity >= 0.40 or (gravity >= 0.30 and has_key_entity):
                     title = art.get("title", "Nouvelle affaire")[:200]
+                    art_sentiment = art.get("sentiment", "neutre")
                     new_affair = {
                         "title": title,
                         "description": (art.get("ai_summary", "") or "")[:300],
@@ -1438,7 +1472,9 @@ class AffairLifecycleService:
                         "event_structured": art.get("event_structured", {}),
                         "gravity_score": round(gravity, 3),
                         "affair_type": self._classify_affair_type_by_gravity(gravity),
-                        "priority": self.compute_priority(gravity),
+                        "priority": self.compute_priority(gravity, sentiment=art_sentiment),
+                        "sentiment": art_sentiment,
+                        "sentiment_history": [art_sentiment],
                         "status": "active",
                         "articles": [art_id],
                         "radio_transcriptions": [],
