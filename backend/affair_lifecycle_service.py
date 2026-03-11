@@ -1965,11 +1965,22 @@ class AffairLifecycleService:
                     common = topic_entities & aff_entities
                     if len(common) >= 1:
                         # Lier le topic à l'affaire existante plutôt que créer
+                        topic_info = {
+                            "transcription_id": trans_id,
+                            "radio": trans.get("radio", trans.get("station", "radio")),
+                            "captured_at": trans.get("captured_at", ""),
+                            "topic_title": topic.get("title", "")[:200],
+                            "topic_summary": topic.get("summary", "")[:300],
+                            "gravity": round(gravity, 3),
+                            "entities": list(topic_entities)[:10],
+                            "theme": topic.get("theme", "general"),
+                        }
                         self.affairs.update_one(
                             {"_id": affair["_id"]},
                             {
                                 "$addToSet": {"radio_transcriptions": trans_id,
-                                              "source_types": "transcription"},
+                                              "source_types": "transcription",
+                                              "radio_topics": topic_info},
                                 "$inc": {"item_count": 1},
                                 "$set": {"last_activity": now},
                                 "$max": {"gravity_score": gravity},
@@ -1986,6 +1997,17 @@ class AffairLifecycleService:
                 description = topic.get("summary", "")[:300]
                 theme = topic.get("theme", "general")
 
+                radio_source = trans.get("radio", trans.get("station", "radio"))
+                topic_info = {
+                    "transcription_id": trans_id,
+                    "radio": radio_source,
+                    "captured_at": trans.get("captured_at", ""),
+                    "topic_title": title,
+                    "topic_summary": description,
+                    "gravity": round(gravity, 3),
+                    "entities": list(topic_entities)[:10],
+                    "theme": theme,
+                }
                 new_affair = {
                     "title": title,
                     "description": description,
@@ -2003,7 +2025,7 @@ class AffairLifecycleService:
                     "articles": [],
                     "radio_transcriptions": [trans_id],
                     "social_posts": [],
-                    "sources": [trans.get("radio", trans.get("station", "radio"))],
+                    "sources": [radio_source],
                     "source_types": ["transcription"],
                     "item_count": 1,
                     "created_at": now,
@@ -2012,6 +2034,7 @@ class AffairLifecycleService:
                     "bmg": 0, "bmg_details": {}, "bmg_history": [],
                     "ai_managed": False,
                     "_creation_method": "radio_topic",
+                    "radio_topics": [topic_info],
                 }
                 result = self.affairs.insert_one(new_affair)
                 new_affair["_id"] = result.inserted_id

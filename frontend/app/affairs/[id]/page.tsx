@@ -429,20 +429,44 @@ export default function AffairDetailPage() {
                 <div className="glass-card border border-[rgba(255,255,255,0.08)] p-5">
                   <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-amber-500 shadow-lg shadow-amber-500/30" />
-                    Transcriptions radio ({linkedRadio.length})
+                    Sujets radio ({linkedRadio.length})
                   </h3>
                   <div className="space-y-3">
-                    {linkedRadio.map((radio) => (
-                      <div key={radio._id} className="glass-card-static rounded-lg border border-[rgba(255,255,255,0.06)] p-3">
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <span className="text-xs font-medium text-amber-400">{radio.radio}</span>
-                          {radio.captured_at && (
-                            <span className="text-[10px] text-[rgba(255,255,255,0.35)]">{radio.captured_at}</span>
+                    {linkedRadio.map((radio, idx) => {
+                      const topicTitle = radio.topic_title
+                      const topicSummary = radio.topic_summary
+                      const topicGravity = radio.gravity
+                      return (
+                        <div key={`${radio._id}-${idx}`} className="glass-card-static rounded-lg border border-[rgba(255,255,255,0.06)] p-3">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className="text-xs font-medium text-amber-400">{radio.radio}</span>
+                            {radio.captured_at && (
+                              <span className="text-[10px] text-[rgba(255,255,255,0.35)]">
+                                {typeof radio.captured_at === 'string' && radio.captured_at.includes('T')
+                                  ? new Date(radio.captured_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+                                  : radio.captured_at}
+                              </span>
+                            )}
+                            {topicGravity != null && topicGravity > 0 && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium"
+                                style={{
+                                  background: topicGravity >= 0.6 ? 'rgba(239,68,68,0.15)' : 'rgba(234,179,8,0.15)',
+                                  color: topicGravity >= 0.6 ? '#f87171' : '#fbbf24',
+                                  border: `1px solid ${topicGravity >= 0.6 ? 'rgba(239,68,68,0.3)' : 'rgba(234,179,8,0.3)'}`,
+                                }}>
+                                {Math.round(topicGravity * 100)}%
+                              </span>
+                            )}
+                          </div>
+                          {topicTitle && (
+                            <p className="text-xs font-medium text-white mb-1">{topicTitle}</p>
                           )}
+                          <p className="text-xs text-[rgba(255,255,255,0.5)] line-clamp-3">
+                            {topicSummary || radio.summary || radio.text}
+                          </p>
                         </div>
-                        <p className="text-xs text-[rgba(255,255,255,0.35)] line-clamp-3">{radio.summary || radio.text}</p>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )}

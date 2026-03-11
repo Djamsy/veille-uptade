@@ -174,6 +174,9 @@ export interface LinkedRadio {
   text: string;
   captured_at?: string;
   summary?: string;
+  topic_title?: string;
+  topic_summary?: string;
+  gravity?: number;
 }
 
 export interface LinkedSocial {

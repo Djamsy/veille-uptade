@@ -158,19 +158,44 @@ async def get_affair_detail(affair_id: str):
         except Exception as e:
             logger.debug(f"Fetch articles liés: {e}")
 
-    # Radio transcriptions
+    # Radio transcriptions — utiliser radio_topics si disponible pour un affichage précis
+    radio_topics = affair.get("radio_topics", [])
     radio_ids = affair.get("radio_transcriptions", [])
-    if radio_ids:
+    if radio_topics:
+        # Affichage enrichi : chaque topic radio avec son titre et résumé
+        for rt in radio_topics:
+            captured = rt.get("captured_at", "")
+            if hasattr(captured, "isoformat"):
+                captured = captured.isoformat()
+            linked_radio.append({
+                "_id": rt.get("transcription_id", ""),
+                "radio": rt.get("radio", ""),
+                "text": rt.get("topic_summary", "")[:300],
+                "captured_at": captured,
+                "summary": f"{rt.get('topic_title', '')} — {rt.get('topic_summary', '')}",
+                "topic_title": rt.get("topic_title", ""),
+                "topic_summary": rt.get("topic_summary", ""),
+                "gravity": rt.get("gravity", 0),
+            })
+    elif radio_ids:
+        # Fallback : affichage classique depuis les transcriptions brutes
         try:
             obj_ids = [ObjectId(r) for r in radio_ids if r and len(str(r)) == 24]
             if obj_ids:
                 for doc in svc.transcriptions.find({"_id": {"$in": obj_ids}}):
+                    # Chercher le meilleur résumé dans ai_topics
+                    ai_summary = ""
+                    ai_topics = doc.get("ai_topics", []) or []
+                    if ai_topics:
+                        summaries = [f"{t.get('title', '')} — {t.get('summary', '')}"
+                                     for t in ai_topics if t.get("title")]
+                        ai_summary = " | ".join(summaries[:3])
                     linked_radio.append({
                         "_id": str(doc["_id"]),
                         "radio": doc.get("radio", "") or doc.get("stream_name", ""),
                         "text": (doc.get("text", "") or doc.get("transcription", ""))[:200],
                         "captured_at": doc.get("captured_at", ""),
-                        "summary": doc.get("summary", ""),
+                        "summary": ai_summary or doc.get("ai_summary", "") or doc.get("summary", ""),
                     })
         except Exception as e:
             logger.debug(f"Fetch radio liés: {e}")
