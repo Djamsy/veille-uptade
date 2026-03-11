@@ -1486,6 +1486,9 @@ class AffairLifecycleService:
         # ── ÉTAPE 5b : Lier les posts sociaux ──
         stats["social_linked"] = self._link_social_to_affairs(active_affairs)
 
+        # ── ÉTAPE 5c : Créer des affaires à partir des topics radio non liés ──
+        stats["radio_created"] = self._create_affairs_from_radio(active_affairs)
+
         # ── ÉTAPE 6 : Enforcer la limite ──
         self._enforce_max_affairs()
 
@@ -1498,7 +1501,8 @@ class AffairLifecycleService:
         logger.info(
             f"✅ Cycle simplifié: {stats['created']} créées, {stats['merged']} fusionnées, "
             f"{stats['consolidated']} consolidées, {stats['radio_enriched']} radio enrichies, "
-            f"{stats['radio_linked']} radio liées, {ignored_count} ignorées (gravity<0.30 ou seuil création)"
+            f"{stats['radio_linked']} radio liées, {stats.get('radio_created', 0)} radio→affaires, "
+            f"{ignored_count} ignorées (gravity<0.30 ou seuil création)"
         )
         logger.info(f"📊 Bilan: {active_count + stats['created']} affaires actives maintenant")
         return stats
@@ -1893,6 +1897,145 @@ class AffairLifecycleService:
 
         logger.info(f"📻 {linked}/{len(transcriptions)} transcriptions radio liées à des affaires")
         return linked
+
+    def _create_affairs_from_radio(self, active_affairs: list) -> int:
+        """Crée des affaires à partir des topics radio enrichis non encore liés.
+
+        Chaque topic de transcription radio qui a une gravity suffisante et des entités
+        peut devenir une affaire s'il ne matche pas une affaire existante.
+        """
+        now = datetime.utcnow()
+        cutoff_dt = now - timedelta(days=7)
+        cutoff_str = cutoff_dt.isoformat()
+        created = 0
+
+        # Transcriptions enrichies mais pas encore traitées pour création d'affaires
+        enriched_radio = list(self.transcriptions.find({
+            "$and": [
+                {"$or": [
+                    {"captured_at": {"$gte": cutoff_dt}},
+                    {"captured_at": {"$gte": cutoff_str}},
+                ]},
+                {"ai_topics": {"$exists": True}},
+                {"ai_topics": {"$ne": []}},
+                {"ai_topics": {"$ne": None}},
+                {"_affair_topics_processed": {"$ne": True}},
+            ]
+        }).sort("captured_at", -1).limit(30))
+
+        logger.info(f"📻 Création affaires radio: {len(enriched_radio)} transcriptions à analyser")
+
+        for trans in enriched_radio:
+            trans_id = str(trans["_id"])
+            topics = trans.get("ai_topics", []) or []
+
+            for topic in topics:
+                gravity = topic.get("gravity", 0)
+                if gravity < 0.35:
+                    continue
+
+                topic_entities = set()
+                topic_elected = set()
+                topic_institutions = set()
+                for e in (topic.get("entities", []) or []):
+                    if e and len(e) > 3:
+                        clean = e.strip()
+                        topic_entities.add(clean.lower())
+                        # Heuristique : les institutions contiennent souvent des mots-clés
+                        if any(kw in clean.lower() for kw in [
+                            "conseil", "mairie", "commune", "région", "département",
+                            "ars", "chu", "smgeag", "préfecture", "cgt", "medef",
+                            "rectorat", "tribunal", "chambre", "port", "aéroport"
+                        ]):
+                            topic_institutions.add(clean)
+                        else:
+                            topic_elected.add(clean)
+
+                if not topic_entities:
+                    continue
+
+                # Vérifier si ce topic matche une affaire existante
+                matched = False
+                for affair in active_affairs:
+                    aff_entities = set(
+                        e.lower().strip() for e in
+                        (affair.get("elected", []) or []) + (affair.get("institutions", []) or [])
+                        if e and len(e) > 3
+                    ) - self.GENERIC_INSTITUTIONS
+                    common = topic_entities & aff_entities
+                    if len(common) >= 1:
+                        # Lier le topic à l'affaire existante plutôt que créer
+                        self.affairs.update_one(
+                            {"_id": affair["_id"]},
+                            {
+                                "$addToSet": {"radio_transcriptions": trans_id,
+                                              "source_types": "transcription"},
+                                "$inc": {"item_count": 1},
+                                "$set": {"last_activity": now},
+                                "$max": {"gravity_score": gravity},
+                            }
+                        )
+                        matched = True
+                        break
+
+                if matched:
+                    continue
+
+                # Pas de match → créer une nouvelle affaire à partir de ce topic radio
+                title = topic.get("title", "Sujet radio")[:200]
+                description = topic.get("summary", "")[:300]
+                theme = topic.get("theme", "general")
+
+                new_affair = {
+                    "title": title,
+                    "description": description,
+                    "primary_entity": list(topic_elected)[0] if topic_elected else None,
+                    "entities": list(topic_entities)[:20],
+                    "elected": list(topic_elected)[:10],
+                    "institutions": list(topic_institutions)[:10],
+                    "keywords": topic.get("keywords", []) or [],
+                    "theme": theme,
+                    "event_structured": topic.get("event", {}),
+                    "gravity_score": round(gravity, 3),
+                    "affair_type": self._classify_affair_type_by_gravity(gravity),
+                    "priority": self.compute_priority(gravity),
+                    "status": "active",
+                    "articles": [],
+                    "radio_transcriptions": [trans_id],
+                    "social_posts": [],
+                    "sources": [trans.get("radio", trans.get("station", "radio"))],
+                    "source_types": ["transcription"],
+                    "item_count": 1,
+                    "created_at": now,
+                    "last_activity": now,
+                    "promoted_at": now,
+                    "bmg": 0, "bmg_details": {}, "bmg_history": [],
+                    "ai_managed": False,
+                    "_creation_method": "radio_topic",
+                }
+                result = self.affairs.insert_one(new_affair)
+                new_affair["_id"] = result.inserted_id
+                active_affairs.append(new_affair)
+                created += 1
+
+                self.timeline.insert_one({
+                    "affair_id": str(result.inserted_id),
+                    "event": "created",
+                    "details": {"method": "radio_topic", "title": title[:80],
+                                "source": trans.get("radio", ""), "gravity": gravity},
+                    "timestamp": now,
+                })
+                logger.info(f"🆕📻 Affaire radio: '{title[:50]}' (gravity={gravity:.2f}, "
+                           f"entités={list(topic_entities)[:3]})")
+
+            # Marquer la transcription comme traitée pour création d'affaires
+            self.transcriptions.update_one(
+                {"_id": trans["_id"]},
+                {"$set": {"_affair_topics_processed": True}}
+            )
+
+        logger.info(f"📻 {created} affaires créées depuis les topics radio")
+        return created
 
     def _link_social_to_affairs(self, active_affairs: list) -> int:
         """Lie les posts sociaux enrichis par IA aux affaires.
