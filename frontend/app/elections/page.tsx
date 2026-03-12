@@ -304,6 +304,71 @@ export default function ElectionsPage() {
                     </p>
                   </div>
                 </div>
+
+                {/* Structures affiliées au Département */}
+                <div className="glass-card border border-[rgba(255,255,255,0.08)] p-5 mt-4">
+                  <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-cyan-500 shadow-lg shadow-cyan-500/30" />
+                    Structures Départementales
+                  </h2>
+                  <p className="text-xs mb-3" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    Organismes rattachés ou financés par le Département
+                  </p>
+                  <div className="space-y-2">
+                    {[
+                      { cat: 'Social & Solidarité', items: [
+                        { name: 'ASE', full: 'Aide Sociale à l\'Enfance' },
+                        { name: 'PMI', full: 'Protection Maternelle et Infantile' },
+                        { name: 'MDPH', full: 'Maison des Personnes Handicapées' },
+                        { name: 'MDA', full: 'Maison de l\'Autonomie' },
+                        { name: 'DICS', full: 'Insertion et Cohésion Sociale' },
+                        { name: 'Foyer de l\'Enfance', full: 'Foyer Départemental de l\'Enfance' },
+                      ]},
+                      { cat: 'Sécurité', items: [
+                        { name: 'SDIS 971', full: 'Sapeurs-Pompiers' },
+                      ]},
+                      { cat: 'Santé', items: [
+                        { name: 'EPSM', full: 'Établissement Public de Santé Mentale' },
+                        { name: 'CHU', full: 'Centre Hospitalier Universitaire' },
+                        { name: 'LDA', full: 'Laboratoire Départemental d\'Analyses' },
+                      ]},
+                      { cat: 'Éducation & Culture', items: [
+                        { name: 'Collèges', full: '42 collèges publics' },
+                        { name: 'Bibliothèque', full: 'Bibliothèque Départementale' },
+                        { name: 'Archives', full: 'Archives Départementales' },
+                      ]},
+                      { cat: 'Aménagement', items: [
+                        { name: 'Routes', full: 'Voirie Départementale' },
+                        { name: 'EPFAG', full: 'Établissement Public Foncier' },
+                        { name: 'SMGEAG', full: 'Syndicat Mixte de Gestion de l\'Eau' },
+                      ]},
+                      { cat: 'Intercommunalités', items: [
+                        { name: 'Cap Excellence', full: 'Abymes, Pointe-à-Pitre, Baie-Mahault' },
+                        { name: 'CARL', full: 'Riviera du Levant' },
+                        { name: 'CANGT', full: 'Nord Grande-Terre' },
+                        { name: 'Grand Sud Caraïbe', full: 'Basse-Terre et sud' },
+                        { name: 'CC Marie-Galante', full: 'Grand-Bourg, Capesterre, Saint-Louis' },
+                      ]},
+                    ].map((group) => (
+                      <div key={group.cat}>
+                        <p className="text-[10px] font-semibold mb-1" style={{ color: 'rgba(6,182,212,0.7)' }}>
+                          {group.cat}
+                        </p>
+                        <div className="grid grid-cols-1 gap-0.5 mb-2">
+                          {group.items.map((item) => (
+                            <div key={item.name} className="flex items-center gap-2 text-[10px] py-0.5">
+                              <span className="text-white font-medium w-24 flex-shrink-0">{item.name}</span>
+                              <span style={{ color: 'rgba(255,255,255,0.3)' }}>{item.full}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[9px] pt-2" style={{ color: 'rgba(255,255,255,0.2)' }}>
+                    Toutes ces structures sont suivies automatiquement par la veille
+                  </p>
+                </div>
               </div>
             </div>
           )}

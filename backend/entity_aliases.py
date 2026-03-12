@@ -279,6 +279,87 @@ INSTITUTION_ALIASES: Dict[str, List[str]] = {
         "cress", "cress guadeloupe",
         "chambre régionale de l'économie sociale et solidaire",
     ],
+    # ── Structures affiliées au Département ──
+    "ASE Guadeloupe": [
+        "ase", "ase guadeloupe", "aide sociale à l'enfance",
+        "aide sociale a l'enfance", "aide sociale à l enfance",
+        "protection de l'enfance",
+    ],
+    "PMI Guadeloupe": [
+        "pmi", "pmi guadeloupe", "protection maternelle et infantile",
+        "protection maternelle infantile",
+    ],
+    "MDPH Guadeloupe": [
+        "mdph", "mdph guadeloupe", "maison départementale des personnes handicapées",
+        "maison departementale des personnes handicapees",
+        "mdph 971",
+    ],
+    "Maison Départementale de l'Autonomie": [
+        "mda", "maison départementale de l'autonomie",
+        "maison de l'autonomie",
+    ],
+    "DICS Guadeloupe": [
+        "dics", "direction de l'insertion et de la cohésion sociale",
+        "direction insertion cohésion sociale",
+    ],
+    "Bibliothèque Départementale": [
+        "bibliothèque départementale", "bibliotheque departementale",
+        "bibliothèque du département",
+    ],
+    "Archives Départementales": [
+        "archives départementales", "archives departementales",
+        "archives de guadeloupe", "archives 971",
+    ],
+    "Laboratoire Départemental d'Analyses": [
+        "lda", "lda 971", "laboratoire départemental",
+        "laboratoire departemental d'analyses",
+    ],
+    "Collèges de Guadeloupe": [
+        "collège", "college", "collèges", "colleges",
+        "collège public", "établissement scolaire départemental",
+    ],
+    "Routes Départementales": [
+        "routes départementales", "routes departementales",
+        "voirie départementale", "rd 971",
+    ],
+    "CNAS Guadeloupe": [
+        "cnas", "cnas guadeloupe",
+        "centre national d'action sociale",
+    ],
+    "Foyer Départemental de l'Enfance": [
+        "foyer départemental de l'enfance", "foyer de l'enfance",
+        "foyer departemental", "fde",
+    ],
+    "EPFAG": [
+        "epfag", "établissement public foncier",
+        "etablissement public foncier et d'aménagement de la guadeloupe",
+        "foncier guadeloupe",
+    ],
+    "SIG 971": [
+        "sig 971", "syndicat intercommunal",
+        "syndicat intercommunal de guadeloupe",
+    ],
+    "CANGT": [
+        "cangt", "communauté d'agglomération nord grande-terre",
+        "nord grande-terre", "communaute d'agglomeration nord grande terre",
+    ],
+    "CARL": [
+        "carl", "communauté d'agglomération la riviera du levant",
+        "riviera du levant",
+    ],
+    "Cap Excellence": [
+        "cap excellence", "communauté d'agglomération cap excellence",
+        "ca cap excellence",
+    ],
+    "Grand Sud Caraïbe": [
+        "grand sud caraïbe", "grand sud caraibe",
+        "communauté d'agglomération grand sud caraïbe",
+    ],
+    "Communauté de communes de Marie-Galante": [
+        "communauté de communes de marie-galante",
+        "cc marie-galante", "cc marie galante",
+        "intercommunalité marie-galante",
+    ],
 }
 
 

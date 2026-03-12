@@ -8,7 +8,7 @@ import {
   fetchSocialConfig,
   SocialPost,
   SocialStats,
-} from '@/lib/api';
+} from '../../lib/api';
 
 const PLATFORM_CONFIG: Record<string, { icon: string; label: string; color: string; bg: string }> = {
   facebook: { icon: '📘', label: 'Facebook', color: '#1877f2', bg: 'rgba(24,119,242,0.1)' },
