@@ -672,12 +672,12 @@ def _ensure_scheduler():
         job_defaults={"coalesce": True, "max_instances": 1}
     )
 
-    # Pipeline complet toutes les 15 min (scrape + enrich + affaires)
+    # Pipeline complet toutes les 2 min (scrape + enrich + affaires)
     _scheduler.add_job(
         job_full_pipeline,
-        CronTrigger(minute="*/15", timezone=TZ),
+        CronTrigger(minute="*/2", timezone=TZ),
         id="full_pipeline",
-        name="Pipeline complet (scrape → enrich → affaires) 4x/h"
+        name="Pipeline complet (scrape → enrich → affaires) 30x/h"
     )
 
     # Mise à jour des affaires toutes les 15 min
