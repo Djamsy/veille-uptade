@@ -669,18 +669,20 @@ async def job_full_pipeline():
             enriched = 0
             if isinstance(enrich_result, dict):
                 enriched = enrich_result.get("enriched", 0) or 0
-            created = merged = ignored = radio = 0
+            created = merged = ignored = radio = inter_merged = geo_cleaned = 0
             if isinstance(affair_result, dict):
                 created = affair_result.get("created", 0) or 0
                 merged = affair_result.get("merged", 0) or 0
                 ignored = affair_result.get("ignored", 0) or 0
                 radio = affair_result.get("radio_created", 0) or 0
+                inter_merged = affair_result.get("inter_merged", 0) or 0
+                geo_cleaned = affair_result.get("geo_cleaned", 0) or 0
             notify_pipeline_result(
                 articles_scraped=scraped,
                 articles_enriched=enriched,
                 affairs_created=created,
-                affairs_merged=merged,
-                affairs_ignored=ignored,
+                affairs_merged=merged + inter_merged,
+                affairs_ignored=ignored + geo_cleaned,
                 radio_created=radio,
             )
         except Exception as e:

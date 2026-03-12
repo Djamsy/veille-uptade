@@ -1168,6 +1168,7 @@ def _is_affair_guadeloupe(affair: dict) -> bool:
     EXCLUSIONS = {
         "martinique", "ducos", "fort-de-france",
         "guyane", "cayenne", "réunion", "mayotte",
+        "haïti", "haiti", "port-au-prince", "jovenel moïse",
         "israël", "israel", "gaza", "liban", "ukraine", "russie",
         "palestine", "syrie", "iran", "irak",
     }

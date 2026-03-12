@@ -1388,8 +1388,10 @@ class AffairLifecycleService:
             )
             art_entities = art_elected | art_institutions
             art_theme = art.get("theme", "general")
+            # Normaliser le titre (tirets→espaces) pour un meilleur matching
+            art_title_norm = self._normalize_title(art.get("title", ""))
             art_title_words = set(
-                w.lower() for w in (art.get("title", "").split()) if len(w) > 4
+                w for w in art_title_norm.split() if len(w) >= 4
             )
             art_embedding = art.get("embedding")
 
@@ -1543,6 +1545,16 @@ class AffairLifecycleService:
         # ── ÉTAPE 3 : Consolidation — chercher d'autres sources 24h ──
         stats["consolidated"] = self._consolidate_affairs_24h(active_affairs)
 
+        # ── ÉTAPE 3b : Fusion inter-affaires (doublons même batch) ──
+        stats["inter_merged"] = self._merge_duplicate_affairs(active_affairs)
+
+        # ── ÉTAPE 3c : Nettoyage géographique (affaires hors-Guadeloupe) ──
+        stats["geo_cleaned"] = self._cleanup_non_guadeloupe_affairs()
+
+        # Recharger active_affairs après fusions/archivages
+        if stats["inter_merged"] > 0 or stats["geo_cleaned"] > 0:
+            active_affairs = list(self.affairs.find({"status": "active"}))
+
         # ── ÉTAPE 4 : Enrichir les transcriptions radio avec l'IA ──
         stats["radio_enriched"] = self._enrich_radio_transcriptions()
 
@@ -1566,11 +1578,13 @@ class AffairLifecycleService:
 
         logger.info(
             f"✅ Cycle simplifié: {stats['created']} créées, {stats['merged']} fusionnées, "
-            f"{stats['consolidated']} consolidées, {stats['radio_enriched']} radio enrichies, "
+            f"{stats['consolidated']} consolidées, {stats.get('inter_merged', 0)} inter-fusionnées, "
+            f"{stats.get('geo_cleaned', 0)} hors-GP archivées, "
+            f"{stats['radio_enriched']} radio enrichies, "
             f"{stats['radio_linked']} radio liées, {stats.get('radio_created', 0)} radio→affaires, "
             f"{ignored_count} ignorées (gravity<0.30 ou seuil création)"
         )
-        logger.info(f"📊 Bilan: {active_count + stats['created']} affaires actives maintenant")
+        logger.info(f"📊 Bilan: {len(active_affairs)} affaires actives maintenant")
         return stats
 
     # Institutions trop génériques — présentes dans beaucoup d'articles
@@ -1614,6 +1628,8 @@ class AffairLifecycleService:
         "pourquoi", "comment", "situation", "premier", "première",
         "département", "région", "municipales", "elections",
         "selon", "encore", "depuis", "toujours", "également",
+        "vidéo", "après", "dans", "pour", "avec", "plus", "vers",
+        "cette", "tout", "tous", "très", "fait", "être", "avoir",
     }
 
     # Lieux hors-Guadeloupe — si l'article mentionne ces lieux SANS mentionner
@@ -1625,6 +1641,7 @@ class AffairLifecycleService:
         "mayotte", "mamoudzou",
         "israël", "israel", "gaza", "liban", "ukraine", "russie",
         "palestine", "syrie", "iran", "irak",
+        "haïti", "haiti", "port-au-prince", "jovenel moïse",
         "états-unis", "etats-unis", "washington", "new york",
         "chine", "pékin", "tokyo", "moscou",
     }
@@ -1669,6 +1686,48 @@ class AffairLifecycleService:
         # Par défaut, on laisse passer (les sources locales scrapent surtout du local)
         return True
 
+    @staticmethod
+    def _normalize_title(title: str) -> str:
+        """Normalise un titre pour le matching : retire tirets, accents partiels, ponctuation."""
+        import unicodedata
+        t = title.lower().strip()
+        # Remplacer tirets par espaces (Petit-Pérou → Petit Pérou)
+        t = t.replace("-", " ").replace("–", " ").replace("—", " ")
+        # Retirer la ponctuation
+        t = re.sub(r"[«»\"'\[\]\(\):;,\.!\?…]", " ", t)
+        # Compacter les espaces
+        t = re.sub(r"\s+", " ", t).strip()
+        return t
+
+    @staticmethod
+    def _fuzzy_entity_match(set_a: set, set_b: set, threshold: float = 0.75) -> int:
+        """Compte le nombre de paires fuzzy-matchées entre deux ensembles d'entités."""
+        if not set_a or not set_b:
+            return 0
+        matches = 0
+        used_b = set()
+        for a in set_a:
+            for b in set_b:
+                if b in used_b:
+                    continue
+                # Match exact
+                if a == b:
+                    matches += 1
+                    used_b.add(b)
+                    break
+                # Substring match (gendarmerie ⊂ gendarmerie de saint-anne)
+                if a in b or b in a:
+                    matches += 1
+                    used_b.add(b)
+                    break
+                # Fuzzy match (naïma moukcho ≈ naïna moutchou)
+                ratio = SequenceMatcher(None, a, b).ratio()
+                if ratio >= threshold:
+                    matches += 1
+                    used_b.add(b)
+                    break
+        return matches
+
     def _match_score(
         self, art_elected: set, art_institutions: set, art_entities: set,
         art_theme: str, art_title_words: set, affair: dict,
@@ -1676,74 +1735,100 @@ class AffairLifecycleService:
     ) -> int:
         """Calcule un score de similarité entre un article et une affaire.
 
-        RÈGLES DE MATCHING v3 (hybride embeddings + entités) :
-        - Si embeddings disponibles : bonus sémantique fort (+5 si sim > 0.75)
-        - Les élus spécifiques = signal très fort (5 pts)
-        - Les élus génériques (politiciens omniprésents) = signal faible (2 pts)
-        - Le thème seul ne suffit JAMAIS à fusionner
-        - Les mots du titre doivent être très discriminants (>7 chars, pas génériques)
+        RÈGLES DE MATCHING v4 :
+        - Titre normalisé (tirets→espaces), mots >= 4 chars
+        - SequenceMatcher pour détecter les titres sémantiquement proches
+        - Fuzzy matching pour entités (transcription ≠ article spelling)
+        - Embeddings en bonus fort
         - SEUIL DE FUSION = 6
         """
-        # Entités de l'affaire — utiliser UNIQUEMENT les entités d'ORIGINE
-        # (pas celles accumulées par les fusions successives)
+        # Entités de l'affaire
         aff_elected = set(
             e.lower().strip() for e in (affair.get("elected", []) or []) if e and len(e) > 3
         )
         aff_institutions_raw = set(
             e.lower().strip() for e in (affair.get("institutions", []) or []) if e and len(e) > 3
         )
-        # Filtrer les institutions génériques
         aff_institutions = aff_institutions_raw - self.GENERIC_INSTITUTIONS
         art_institutions_filtered = art_institutions - self.GENERIC_INSTITUTIONS
 
         aff_theme = affair.get("theme", "general")
 
-        # Mots du titre discriminants (>4 chars, pas génériques)
+        # ── Mots du titre normalisés (>= 4 chars, pas génériques) ──
+        aff_title_norm = self._normalize_title(affair.get("title", ""))
+        art_title_norm = self._normalize_title(" ".join(art_title_words) if art_title_words else "")
+
         aff_title_words = set(
-            w.lower() for w in (affair.get("title", "").split())
-            if len(w) > 4 and w.lower() not in self.GENERIC_TITLE_WORDS
+            w for w in aff_title_norm.split()
+            if len(w) >= 4 and w not in self.GENERIC_TITLE_WORDS
         )
         art_title_words_strict = set(
-            w for w in art_title_words
-            if len(w) > 4 and w not in self.GENERIC_TITLE_WORDS
+            w for w in self._normalize_title(" ".join(art_title_words)).split()
+            if len(w) >= 4 and w not in self.GENERIC_TITLE_WORDS
         )
 
         # Calcul des intersections
-        common_elected = art_elected & aff_elected
-        common_institutions = art_institutions_filtered & aff_institutions
+        common_elected_exact = art_elected & aff_elected
+        common_institutions_exact = art_institutions_filtered & aff_institutions
         same_theme = (art_theme == aff_theme and art_theme not in (
             "", "general", "sante_social", "securite_justice"
         ))
         common_title = art_title_words_strict & aff_title_words
 
+        # ── Fuzzy entity matching ──
+        fuzzy_elected = self._fuzzy_entity_match(art_elected, aff_elected)
+        fuzzy_institutions = self._fuzzy_entity_match(
+            art_institutions_filtered, aff_institutions
+        )
+
         # ── Scoring ──
         score = 0
 
-        # Élus : spécifiques = 5 pts, génériques = 2 pts
-        for elu in common_elected:
+        # Élus : exact match = 5 pts (spécifiques), 2 pts (génériques)
+        for elu in common_elected_exact:
             if elu in self.GENERIC_ELECTED:
                 score += 2
             else:
                 score += 5
+        # Fuzzy-matched élus (ceux pas déjà comptés en exact)
+        fuzzy_extra_elected = max(0, fuzzy_elected - len(common_elected_exact))
+        score += fuzzy_extra_elected * 4  # Légèrement moins que exact
 
-        # Institutions spécifiques
-        score += len(common_institutions) * 3
+        # Institutions spécifiques (exact)
+        score += len(common_institutions_exact) * 3
+        # Fuzzy institutions
+        fuzzy_extra_instit = max(0, fuzzy_institutions - len(common_institutions_exact))
+        score += fuzzy_extra_instit * 2
 
-        # Thème = indice très faible (1 pt), et SEULEMENT si au moins 1 entité commune
-        if same_theme and (common_elected or common_institutions):
+        # Thème = indice très faible (1 pt), seulement si entité commune
+        if same_theme and (fuzzy_elected > 0 or fuzzy_institutions > 0):
             score += 1
 
-        # Mots du titre en commun (max 2 pts, seulement si significatifs)
-        score += min(len(common_title), 2)
+        # Mots du titre en commun (max 3 pts)
+        score += min(len(common_title), 3)
 
-        # ── Bonus titre quasi-identique (détection doublons) ──
-        # Si les titres sont très similaires (>50% overlap), bonus fort
+        # ── Bonus titre quasi-identique (word overlap) ──
         if len(aff_title_words) >= 2 and len(art_title_words_strict) >= 2:
             overlap = len(common_title) / min(len(aff_title_words), len(art_title_words_strict))
             if overlap >= 0.5:
                 score += 6  # Quasi-doublon détecté
             elif overlap >= 0.35:
-                score += 3  # Titres partiellement similaires
+                score += 3
+
+        # ── Bonus SequenceMatcher sur titre complet normalisé ──
+        # Détecte: "Neuf mois sans eau à Petit-Pérou" ≈ "Neuf mois sans eau à Petit Pérou"
+        # et aussi: "Décès d'un plongeur à Saint-Anne" ~ "Mort d'un touriste à Saint-Anne"
+        art_raw_title_norm = self._normalize_title(
+            " ".join(art_title_words) if art_title_words else ""
+        )
+        if aff_title_norm and art_raw_title_norm:
+            seq_ratio = SequenceMatcher(None, art_raw_title_norm, aff_title_norm).ratio()
+            if seq_ratio >= 0.85:
+                score += 8  # Titre presque identique (ponctuation/tirets différents)
+            elif seq_ratio >= 0.65:
+                score += 5  # Titre très similaire
+            elif seq_ratio >= 0.50:
+                score += 3  # Titre partiellement similaire
 
         # ── Bonus embedding sémantique ──
         if art_embedding:
@@ -1753,7 +1838,7 @@ class AffairLifecycleService:
                     from backend.embedding_service import cosine_similarity
                     sim = cosine_similarity(art_embedding, aff_embedding)
                     if sim >= 0.80:
-                        score += 6  # Très similaire sémantiquement
+                        score += 6
                     elif sim >= 0.70:
                         score += 4
                     elif sim >= 0.60:
@@ -1764,11 +1849,166 @@ class AffairLifecycleService:
         if score >= 3:
             logger.debug(
                 f"      🔍 Score={score} vs '{affair.get('title', '?')[:40]}': "
-                f"élus={list(common_elected)}, instit={list(common_institutions)}, "
-                f"thème={'✓' if same_theme else '✗'} ({art_theme}), "
-                f"mots_titre={list(common_title)[:5]}"
+                f"élus_exact={list(common_elected_exact)}, fuzzy_e={fuzzy_elected}, "
+                f"instit_exact={list(common_institutions_exact)}, fuzzy_i={fuzzy_institutions}, "
+                f"thème={'✓' if same_theme else '✗'}, mots_titre={list(common_title)[:5]}"
             )
         return score
+
+    def _merge_duplicate_affairs(self, active_affairs: list) -> int:
+        """Passe inter-affaires: fusionne les affaires actives trop similaires entre elles.
+        Résout le cas où 2+ articles du même batch créent chacun une affaire séparée."""
+        if len(active_affairs) < 2:
+            return 0
+
+        merged_count = 0
+        merged_ids = set()  # IDs déjà absorbées
+
+        for i, affair_a in enumerate(active_affairs):
+            if str(affair_a["_id"]) in merged_ids:
+                continue
+            for j in range(i + 1, len(active_affairs)):
+                affair_b = active_affairs[j]
+                if str(affair_b["_id"]) in merged_ids:
+                    continue
+
+                # Comparer les titres normalisés
+                title_a = self._normalize_title(affair_a.get("title", ""))
+                title_b = self._normalize_title(affair_b.get("title", ""))
+                seq_ratio = SequenceMatcher(None, title_a, title_b).ratio()
+
+                # Comparer les entités (fuzzy)
+                elected_a = set(e.lower().strip() for e in (affair_a.get("elected", []) or []) if e)
+                elected_b = set(e.lower().strip() for e in (affair_b.get("elected", []) or []) if e)
+                instit_a = set(e.lower().strip() for e in (affair_a.get("institutions", []) or []) if e) - self.GENERIC_INSTITUTIONS
+                instit_b = set(e.lower().strip() for e in (affair_b.get("institutions", []) or []) if e) - self.GENERIC_INSTITUTIONS
+
+                fuzzy_e = self._fuzzy_entity_match(elected_a, elected_b)
+                fuzzy_i = self._fuzzy_entity_match(instit_a, instit_b)
+
+                # Titre mots overlap
+                words_a = set(w for w in title_a.split() if len(w) >= 4 and w not in self.GENERIC_TITLE_WORDS)
+                words_b = set(w for w in title_b.split() if len(w) >= 4 and w not in self.GENERIC_TITLE_WORDS)
+                common_words = words_a & words_b
+                word_overlap = len(common_words) / max(min(len(words_a), len(words_b)), 1) if words_a and words_b else 0
+
+                # Critères de fusion inter-affaires (plus stricts que article→affaire)
+                should_merge = False
+                reason = ""
+
+                if seq_ratio >= 0.80:
+                    should_merge = True
+                    reason = f"titre_sim={seq_ratio:.2f}"
+                elif seq_ratio >= 0.60 and (fuzzy_e >= 1 or fuzzy_i >= 1):
+                    should_merge = True
+                    reason = f"titre_sim={seq_ratio:.2f}+entités"
+                elif word_overlap >= 0.6 and (fuzzy_e >= 1 or fuzzy_i >= 1):
+                    should_merge = True
+                    reason = f"word_overlap={word_overlap:.2f}+entités"
+                elif fuzzy_e >= 2:
+                    # 2+ élus en commun (non-génériques) = très probable même sujet
+                    non_generic = elected_a - self.GENERIC_ELECTED
+                    if non_generic & elected_b:
+                        should_merge = True
+                        reason = f"2+élus_communs"
+
+                # Embedding check
+                if not should_merge:
+                    emb_a = affair_a.get("embedding")
+                    emb_b = affair_b.get("embedding")
+                    if emb_a and emb_b:
+                        try:
+                            from backend.embedding_service import cosine_similarity
+                            sim = cosine_similarity(emb_a, emb_b)
+                            if sim >= 0.82:
+                                should_merge = True
+                                reason = f"embedding_sim={sim:.2f}"
+                        except ImportError:
+                            pass
+
+                if should_merge:
+                    # Garder l'affaire avec la plus haute gravité / plus d'items
+                    keep, absorb = (affair_a, affair_b) if (
+                        affair_a.get("gravity_score", 0) >= affair_b.get("gravity_score", 0)
+                    ) else (affair_b, affair_a)
+
+                    logger.info(
+                        f"🔀 FUSION inter-affaires ({reason}): "
+                        f"'{keep.get('title', '?')[:40]}' absorbe "
+                        f"'{absorb.get('title', '?')[:40]}'"
+                    )
+
+                    # Transférer articles, sources, etc.
+                    absorb_articles = absorb.get("articles", [])
+                    absorb_sources = absorb.get("sources", [])
+                    absorb_radio = absorb.get("radio_transcriptions", [])
+                    absorb_social = absorb.get("social_posts", [])
+
+                    self.affairs.update_one(
+                        {"_id": keep["_id"]},
+                        {
+                            "$addToSet": {
+                                "articles": {"$each": absorb_articles},
+                                "sources": {"$each": absorb_sources},
+                                "radio_transcriptions": {"$each": absorb_radio},
+                                "social_posts": {"$each": absorb_social},
+                            },
+                            "$inc": {"item_count": absorb.get("item_count", 1)},
+                            "$max": {"gravity_score": absorb.get("gravity_score", 0)},
+                            "$set": {"last_activity": datetime.utcnow()},
+                        }
+                    )
+
+                    # Archiver l'affaire absorbée
+                    self.affairs.update_one(
+                        {"_id": absorb["_id"]},
+                        {"$set": {
+                            "status": "merged",
+                            "_merged_into": str(keep["_id"]),
+                            "_merged_at": datetime.utcnow(),
+                            "_merge_reason": reason,
+                        }}
+                    )
+                    merged_ids.add(str(absorb["_id"]))
+                    merged_count += 1
+
+        if merged_count > 0:
+            logger.info(f"🔀 {merged_count} affaires fusionnées entre elles")
+        return merged_count
+
+    def _cleanup_non_guadeloupe_affairs(self) -> int:
+        """Désactive les affaires hors-Guadeloupe qui ont glissé avant le filtre."""
+        non_local = []
+        active = list(self.affairs.find({"status": "active"}))
+        for a in active:
+            gravity = a.get("gravity_score", 0)
+            if gravity >= 0.70:
+                continue  # On garde les graves même si hors périmètre
+            # Construire le texte de l'affaire
+            text_parts = [
+                (a.get("title", "") or "").lower(),
+                (a.get("description", "") or "")[:300].lower(),
+                " ".join((a.get("elected", []) or [])[:10]).lower(),
+                " ".join((a.get("institutions", []) or [])[:10]).lower(),
+            ]
+            full = " ".join(text_parts)
+
+            has_local = any(m in full for m in self.GUADELOUPE_MARQUEURS)
+            has_foreign = any(m in full for m in self.HORS_GUADELOUPE_LIEUX)
+
+            if has_foreign and not has_local:
+                non_local.append(a)
+
+        for a in non_local:
+            self.affairs.update_one(
+                {"_id": a["_id"]},
+                {"$set": {"status": "archived", "_archive_reason": "hors_guadeloupe"}}
+            )
+            logger.info(f"🌍 Archivée (hors Guadeloupe): '{a.get('title', '?')[:50]}'")
+
+        if non_local:
+            logger.info(f"🌍 {len(non_local)} affaires hors-Guadeloupe archivées")
+        return len(non_local)
 
     def _consolidate_affairs_24h(self, active_affairs: list) -> int:
         """Cherche dans les 24h si des articles non traités correspondent
