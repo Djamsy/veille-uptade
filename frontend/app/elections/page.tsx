@@ -3,23 +3,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import Sidebar from '../../components/Sidebar'
-import GuadeloupeMap from '../../components/GuadeloupeMap'
-import BmgGauge from '../../components/BmgGauge'
 import { type Affair } from '../../lib/api'
 
 const API = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
-
-interface CommuneInfo {
-  count: number
-  maxGravity: number
-  affairs: Array<{
-    _id: string
-    title: string
-    gravity_score: number
-    sentiment: string
-    theme: string
-  }>
-}
 
 interface ElectionAffair extends Affair {
   communes?: string[]
@@ -49,19 +35,13 @@ function sentimentColor(s: string): string {
 }
 
 export default function ElectionsPage() {
-  const [communeData, setCommuneData] = useState<Record<string, CommuneInfo>>({})
   const [elections, setElections] = useState<ElectionAffair[]>([])
-  const [selectedCommune, setSelectedCommune] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   const loadData = useCallback(async () => {
     try {
-      const [mapRes, elecRes] = await Promise.all([
-        fetch(`${API}/api/affairs/by-commune`).then(r => r.json()),
-        fetch(`${API}/api/affairs/elections`).then(r => r.json()),
-      ])
-      setCommuneData(mapRes.communes || {})
-      setElections(elecRes.affairs || [])
+      const res = await fetch(`${API}/api/affairs/elections`).then(r => r.json())
+      setElections(res.affairs || [])
     } catch (e) {
       console.error('Elections load error:', e)
     } finally {
@@ -70,19 +50,6 @@ export default function ElectionsPage() {
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
-
-  const handleCommuneClick = (commune: string) => {
-    setSelectedCommune(prev => prev === commune ? null : commune)
-  }
-
-  const communeAffairs = selectedCommune
-    ? communeData[selectedCommune]?.affairs || []
-    : []
-
-  const mapData: Record<string, { count: number; maxGravity: number }> = {}
-  for (const [name, info] of Object.entries(communeData)) {
-    mapData[name] = { count: info.count, maxGravity: info.maxGravity }
-  }
 
   return (
     <div className="flex min-h-screen" style={{ background: 'var(--bg-main)' }}>
@@ -96,7 +63,7 @@ export default function ElectionsPage() {
               Elections Municipales 2026
             </h1>
             <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
-              Carte des affaires par commune + suivi des sujets électoraux
+              Suivi des affaires liées aux élections municipales en Guadeloupe
             </p>
           </div>
 
@@ -104,274 +71,65 @@ export default function ElectionsPage() {
             <div className="flex items-center justify-center py-20">
               <div className="w-8 h-8 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
             </div>
+          ) : elections.length === 0 ? (
+            <div className="glass-card border border-[rgba(255,255,255,0.08)] p-10 text-center">
+              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                Aucune affaire électorale détectée pour le moment.
+              </p>
+              <p className="text-xs mt-2" style={{ color: 'rgba(255,255,255,0.2)' }}>
+                Les articles mentionnant les municipales 2026 créeront automatiquement des affaires.
+              </p>
+            </div>
           ) : (
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-
-              {/* Carte — prend 2 colonnes */}
-              <div className="xl:col-span-2">
-                <div className="glass-card border border-[rgba(255,255,255,0.08)] p-5">
-                  <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-indigo-500 shadow-lg shadow-indigo-500/30" />
-                    Carte des affaires par commune
-                  </h2>
-                  <GuadeloupeMap
-                    communeData={mapData}
-                    onCommuneClick={handleCommuneClick}
-                  />
-
-                  {/* Détail commune sélectionnée */}
-                  {selectedCommune && (
-                    <div className="mt-4 p-4 rounded-xl" style={{
-                      background: 'rgba(99,102,241,0.08)',
-                      border: '1px solid rgba(99,102,241,0.2)',
-                    }}>
-                      <h3 className="text-sm font-semibold text-white mb-3">
-                        {selectedCommune} — {communeAffairs.length} affaire{communeAffairs.length > 1 ? 's' : ''}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {elections.map((affair) => (
+                <Link key={affair._id} href={`/affairs/${affair._id}`}>
+                  <div className="glass-card border border-[rgba(255,255,255,0.08)] p-5 cursor-pointer hover:border-[rgba(255,255,255,0.15)] transition-all h-full">
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <h3 className="text-sm font-semibold text-white line-clamp-2 flex-1">
+                        {affair.title}
                       </h3>
-                      {communeAffairs.length === 0 ? (
-                        <p className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                          Aucune affaire active dans cette commune
-                        </p>
-                      ) : (
-                        <div className="space-y-2">
-                          {communeAffairs.map((a) => (
-                            <Link key={a._id} href={`/affairs/${a._id}`}>
-                              <div className="flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors hover:bg-white/5">
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
-                                  a.gravity_score >= 0.7 ? 'bg-red-500/20 text-red-400'
-                                  : a.gravity_score >= 0.5 ? 'bg-orange-500/20 text-orange-400'
-                                  : 'bg-emerald-500/20 text-emerald-400'
-                                }`}>
-                                  {Math.round(a.gravity_score * 100)}%
-                                </span>
-                                <span className="text-xs text-white truncate flex-1">{a.title}</span>
-                                {a.sentiment && a.sentiment !== 'neutre' && (
-                                  <span className="text-[10px]" style={{ color: sentimentColor(a.sentiment) }}>
-                                    {sentimentEmoji(a.sentiment)}
-                                  </span>
-                                )}
-                              </div>
-                            </Link>
-                          ))}
-                        </div>
-                      )}
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0 ${
+                        affair.gravity_score >= 0.7 ? 'bg-red-500/20 text-red-400'
+                        : affair.gravity_score >= 0.5 ? 'bg-orange-500/20 text-orange-400'
+                        : 'bg-emerald-500/20 text-emerald-400'
+                      }`}>
+                        {Math.round(affair.gravity_score * 100)}%
+                      </span>
                     </div>
-                  )}
-                </div>
 
-                {/* Stats communes */}
-                <div className="glass-card border border-[rgba(255,255,255,0.08)] p-5 mt-4">
-                  <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-amber-500 shadow-lg shadow-amber-500/30" />
-                    Communes les plus actives
-                  </h2>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                    {Object.entries(communeData)
-                      .sort(([, a], [, b]) => b.count - a.count)
-                      .slice(0, 12)
-                      .map(([commune, info]) => (
-                        <button
-                          key={commune}
-                          onClick={() => handleCommuneClick(commune)}
-                          className={`p-3 rounded-lg text-left transition-all ${
-                            selectedCommune === commune ? 'ring-1 ring-indigo-500' : ''
-                          }`}
+                    {affair.description && (
+                      <p className="text-[10px] line-clamp-3 mb-3" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                        {affair.description}
+                      </p>
+                    )}
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {affair.communes && affair.communes.slice(0, 3).map((c) => (
+                        <span key={c} className="text-[9px] px-1.5 py-0.5 rounded-full"
                           style={{
-                            background: selectedCommune === commune
-                              ? 'rgba(99,102,241,0.15)'
-                              : 'rgba(255,255,255,0.03)',
-                            border: '1px solid rgba(255,255,255,0.06)',
-                          }}
-                        >
-                          <p className="text-xs font-medium text-white truncate">{commune}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                              {info.count} affaire{info.count > 1 ? 's' : ''}
-                            </span>
-                            <span className={`text-[10px] font-bold ${
-                              info.maxGravity >= 0.7 ? 'text-red-400'
-                              : info.maxGravity >= 0.5 ? 'text-orange-400'
-                              : 'text-emerald-400'
-                            }`}>
-                              {Math.round(info.maxGravity * 100)}%
-                            </span>
-                          </div>
-                        </button>
+                            background: 'rgba(99,102,241,0.15)',
+                            color: '#a5b4fc',
+                            border: '1px solid rgba(99,102,241,0.3)',
+                          }}>
+                          {c}
+                        </span>
                       ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Colonne droite : affaires électorales */}
-              <div>
-                <div className="glass-card border border-[rgba(255,255,255,0.08)] p-5">
-                  <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-purple-500 shadow-lg shadow-purple-500/30" />
-                    Affaires Electorales ({elections.length})
-                  </h2>
-                  {elections.length === 0 ? (
-                    <p className="text-xs py-8 text-center" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                      Aucune affaire électorale détectée pour le moment.
-                      Les articles sur les municipales 2026 créeront automatiquement des affaires.
-                    </p>
-                  ) : (
-                    <div className="space-y-3">
-                      {elections.map((affair) => (
-                        <Link key={affair._id} href={`/affairs/${affair._id}`}>
-                          <div className="glass-card-static rounded-lg border border-[rgba(255,255,255,0.06)] p-3 cursor-pointer hover:border-[rgba(255,255,255,0.15)] transition-all">
-                            <div className="flex items-start gap-2 mb-2">
-                              <div className="flex-1 min-w-0">
-                                <h3 className="text-xs font-semibold text-white line-clamp-2">
-                                  {affair.title}
-                                </h3>
-                              </div>
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0 ${
-                                affair.gravity_score >= 0.7 ? 'bg-red-500/20 text-red-400'
-                                : affair.gravity_score >= 0.5 ? 'bg-orange-500/20 text-orange-400'
-                                : 'bg-emerald-500/20 text-emerald-400'
-                              }`}>
-                                {Math.round(affair.gravity_score * 100)}%
-                              </span>
-                            </div>
-
-                            {affair.description && (
-                              <p className="text-[10px] line-clamp-2 mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                                {affair.description}
-                              </p>
-                            )}
-
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {affair.communes && affair.communes.length > 0 && affair.communes.slice(0, 2).map((c) => (
-                                <span key={c} className="text-[9px] px-1.5 py-0.5 rounded-full"
-                                  style={{
-                                    background: 'rgba(99,102,241,0.15)',
-                                    color: '#a5b4fc',
-                                    border: '1px solid rgba(99,102,241,0.3)',
-                                  }}>
-                                  {c}
-                                </span>
-                              ))}
-                              {affair.sentiment && affair.sentiment !== 'neutre' && (
-                                <span className="text-[9px]" style={{ color: sentimentColor(affair.sentiment) }}>
-                                  {sentimentEmoji(affair.sentiment)} {affair.sentiment}
-                                </span>
-                              )}
-                              <span className="text-[9px]" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                                {affair.item_count} items
-                              </span>
-                              <span className="text-[9px]" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                                {timeAgo(affair.last_activity || affair.created_at)}
-                              </span>
-                            </div>
-                          </div>
-                        </Link>
-                      ))}
+                      {affair.sentiment && affair.sentiment !== 'neutre' && (
+                        <span className="text-[9px]" style={{ color: sentimentColor(affair.sentiment) }}>
+                          {sentimentEmoji(affair.sentiment)} {affair.sentiment}
+                        </span>
+                      )}
+                      <span className="text-[9px]" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                        {affair.item_count} items · {timeAgo(affair.last_activity || affair.created_at)}
+                      </span>
                     </div>
-                  )}
-                </div>
-
-                {/* Conseillers départementaux — résumé */}
-                <div className="glass-card border border-[rgba(255,255,255,0.08)] p-5 mt-4">
-                  <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-teal-500 shadow-lg shadow-teal-500/30" />
-                    Conseil Départemental
-                  </h2>
-                  <p className="text-xs mb-3" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                    42 conseillers — 21 cantons — Mandature 2021-2028
-                  </p>
-                  <div className="space-y-1.5">
-                    {[
-                      { name: 'Guy Losbar', role: 'Président', canton: 'Baie-Mahault 2' },
-                      { name: 'Elie Califer', role: 'Conseiller', canton: 'Basse-Terre' },
-                      { name: 'Henry Angélique', role: 'Conseiller', canton: 'Pointe-à-Pitre' },
-                      { name: 'Tania Galvani', role: 'Conseillère', canton: 'Pointe-à-Pitre' },
-                      { name: 'Catherine Joab', role: 'Conseillère', canton: 'Gosier' },
-                      { name: 'Daniel Dulac', role: 'Conseiller', canton: 'Le Moule' },
-                      { name: 'Gabrielle Louis-Carabin', role: 'Conseillère', canton: 'Le Moule' },
-                      { name: 'Jean Dartron', role: 'Conseiller', canton: "Morne-à-l'Eau" },
-                      { name: 'Maryse Etzol', role: 'Conseillère', canton: 'Marie-Galante' },
-                      { name: 'Jimmy Fausta', role: 'Conseiller', canton: 'Trois-Rivières' },
-                      { name: 'Jean-Philippe Courtois', role: 'Conseiller', canton: 'Capesterre-B-E' },
-                      { name: 'Michel Mado', role: 'Conseiller', canton: 'Baie-Mahault' },
-                    ].map((c) => (
-                      <div key={c.name} className="flex items-center gap-2 text-[10px]">
-                        <span className="text-white font-medium flex-1">{c.name}</span>
-                        <span style={{ color: 'rgba(255,255,255,0.3)' }}>{c.canton}</span>
-                      </div>
-                    ))}
-                    <p className="text-[10px] pt-2" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                      + 30 autres conseillers suivis automatiquement
-                    </p>
                   </div>
-                </div>
-
-                {/* Structures affiliées au Département */}
-                <div className="glass-card border border-[rgba(255,255,255,0.08)] p-5 mt-4">
-                  <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-cyan-500 shadow-lg shadow-cyan-500/30" />
-                    Structures Départementales
-                  </h2>
-                  <p className="text-xs mb-3" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                    Organismes rattachés ou financés par le Département
-                  </p>
-                  <div className="space-y-2">
-                    {[
-                      { cat: 'Social & Solidarité', items: [
-                        { name: 'ASE', full: 'Aide Sociale à l\'Enfance' },
-                        { name: 'PMI', full: 'Protection Maternelle et Infantile' },
-                        { name: 'MDPH', full: 'Maison des Personnes Handicapées' },
-                        { name: 'MDA', full: 'Maison de l\'Autonomie' },
-                        { name: 'DICS', full: 'Insertion et Cohésion Sociale' },
-                        { name: 'Foyer de l\'Enfance', full: 'Foyer Départemental de l\'Enfance' },
-                      ]},
-                      { cat: 'Sécurité', items: [
-                        { name: 'SDIS 971', full: 'Sapeurs-Pompiers' },
-                      ]},
-                      { cat: 'Santé', items: [
-                        { name: 'EPSM', full: 'Établissement Public de Santé Mentale' },
-                        { name: 'CHU', full: 'Centre Hospitalier Universitaire' },
-                        { name: 'LDA', full: 'Laboratoire Départemental d\'Analyses' },
-                      ]},
-                      { cat: 'Éducation & Culture', items: [
-                        { name: 'Collèges', full: '42 collèges publics' },
-                        { name: 'Bibliothèque', full: 'Bibliothèque Départementale' },
-                        { name: 'Archives', full: 'Archives Départementales' },
-                      ]},
-                      { cat: 'Aménagement', items: [
-                        { name: 'Routes', full: 'Voirie Départementale' },
-                        { name: 'EPFAG', full: 'Établissement Public Foncier' },
-                        { name: 'SMGEAG', full: 'Syndicat Mixte de Gestion de l\'Eau' },
-                      ]},
-                      { cat: 'Intercommunalités', items: [
-                        { name: 'Cap Excellence', full: 'Abymes, Pointe-à-Pitre, Baie-Mahault' },
-                        { name: 'CARL', full: 'Riviera du Levant' },
-                        { name: 'CANGT', full: 'Nord Grande-Terre' },
-                        { name: 'Grand Sud Caraïbe', full: 'Basse-Terre et sud' },
-                        { name: 'CC Marie-Galante', full: 'Grand-Bourg, Capesterre, Saint-Louis' },
-                      ]},
-                    ].map((group) => (
-                      <div key={group.cat}>
-                        <p className="text-[10px] font-semibold mb-1" style={{ color: 'rgba(6,182,212,0.7)' }}>
-                          {group.cat}
-                        </p>
-                        <div className="grid grid-cols-1 gap-0.5 mb-2">
-                          {group.items.map((item) => (
-                            <div key={item.name} className="flex items-center gap-2 text-[10px] py-0.5">
-                              <span className="text-white font-medium w-24 flex-shrink-0">{item.name}</span>
-                              <span style={{ color: 'rgba(255,255,255,0.3)' }}>{item.full}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-[9px] pt-2" style={{ color: 'rgba(255,255,255,0.2)' }}>
-                    Toutes ces structures sont suivies automatiquement par la veille
-                  </p>
-                </div>
-              </div>
+                </Link>
+              ))}
             </div>
           )}
+
         </div>
       </main>
     </div>

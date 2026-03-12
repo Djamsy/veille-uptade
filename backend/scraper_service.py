@@ -489,12 +489,36 @@ class GuadeloupeScraper:
             return {"error": str(e)}
 
 
-# Instance globale
-guadeloupe_scraper = GuadeloupeScraper()
+# Instance globale — initialisation paresseuse (lazy) pour éviter crash au module load
+_scraper_instance = None
+
+def _get_or_create_scraper():
+    global _scraper_instance
+    if _scraper_instance is None:
+        try:
+            _scraper_instance = GuadeloupeScraper()
+        except Exception as e:
+            logger.error(f"❌ Impossible d'initialiser le scraper: {e}")
+            return None
+    return _scraper_instance
+
+# Alias pour compatibilité avec les imports existants
+class _LazyScraperProxy:
+    """Proxy qui initialise le scraper au premier appel, pas à l'import du module."""
+    def __getattr__(self, name):
+        scraper = _get_or_create_scraper()
+        if scraper is None:
+            raise RuntimeError("Scraper non disponible (connexion MongoDB échouée)")
+        return getattr(scraper, name)
+
+guadeloupe_scraper = _LazyScraperProxy()
 
 def run_daily_scraping() -> Dict[str, Any]:
     """Point d'entrée pour scraping quotidien"""
-    return guadeloupe_scraper.scrape_all_sites()
+    scraper = _get_or_create_scraper()
+    if scraper is None:
+        return {"error": "Scraper non disponible"}
+    return scraper.scrape_all_sites()
 
 if __name__ == "__main__":
     result = run_daily_scraping()

@@ -4,8 +4,10 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import Sidebar from '../components/Sidebar'
 import BmgGauge from '../components/BmgGauge'
+import GuadeloupeMap from '../components/GuadeloupeMap'
 import {
   fetchEnrichedDashboard,
+  fetchAffairsByCommune,
   runFullCycle,
   runReaffiliate,
   runScrapeNow,
@@ -236,11 +238,17 @@ export default function DashboardPage() {
   const [bulkEnriching, setBulkEnriching] = useState(false)
   const [bulkMsg, setBulkMsg] = useState('')
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
+  const [communeMapData, setCommuneMapData] = useState<Record<string, { count: number; maxGravity: number; affairs: Array<{ _id: string; title: string; gravity_score: number; sentiment: string; theme: string }> }>>({})
+  const [selectedCommune, setSelectedCommune] = useState<string | null>(null)
 
   const loadData = useCallback(async () => {
     try {
-      const result = await fetchEnrichedDashboard()
+      const [result, mapRes] = await Promise.all([
+        fetchEnrichedDashboard(),
+        fetchAffairsByCommune().catch(() => ({ communes: {} })),
+      ])
       setData(result)
+      setCommuneMapData(mapRes.communes || {})
       setError('')
       setLastRefresh(new Date())
     } catch (e: unknown) {
@@ -460,6 +468,94 @@ export default function DashboardPage() {
                 }} />
               </div>
               <p className="text-[10px] mt-1" style={{ color: 'rgba(255,255,255,0.2)' }}>{coverage?.radio_rate ?? 0}% traitées</p>
+            </div>
+          </div>
+
+          {/* ── ROW 1.5 : Carte Guadeloupe ──────────────── */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-6">
+            <div className="xl:col-span-2 glass-card-static p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                  Carte des affaires
+                </h2>
+                {selectedCommune && (
+                  <button onClick={() => setSelectedCommune(null)}
+                    className="text-[10px] px-2 py-0.5 rounded-full"
+                    style={{ background: 'rgba(99,102,241,0.15)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.3)' }}>
+                    ✕ {selectedCommune}
+                  </button>
+                )}
+              </div>
+              <GuadeloupeMap
+                communeData={Object.fromEntries(
+                  Object.entries(communeMapData).map(([k, v]) => [k, { count: v.count, maxGravity: v.maxGravity }])
+                )}
+                onCommuneClick={(c) => setSelectedCommune(prev => prev === c ? null : c)}
+              />
+            </div>
+
+            {/* Détail commune sélectionnée ou communes actives */}
+            <div className="glass-card-static p-5">
+              {selectedCommune ? (
+                <>
+                  <h2 className="text-xs font-semibold text-white mb-3 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                    {selectedCommune}
+                  </h2>
+                  {(communeMapData[selectedCommune]?.affairs || []).length === 0 ? (
+                    <p className="text-xs py-6 text-center" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                      Aucune affaire active
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {(communeMapData[selectedCommune]?.affairs || []).map((a) => (
+                        <Link key={a._id} href={`/affairs/${a._id}`}>
+                          <div className="flex items-center gap-2 p-2 rounded-lg hover:bg-white/5 transition-colors cursor-pointer">
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                              a.gravity_score >= 0.7 ? 'bg-red-500/20 text-red-400'
+                              : a.gravity_score >= 0.5 ? 'bg-orange-500/20 text-orange-400'
+                              : 'bg-emerald-500/20 text-emerald-400'
+                            }`}>
+                              {Math.round(a.gravity_score * 100)}%
+                            </span>
+                            <span className="text-xs text-white truncate flex-1">{a.title}</span>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    Communes actives
+                  </h2>
+                  {Object.keys(communeMapData).length === 0 ? (
+                    <p className="text-xs py-6 text-center" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                      Aucune commune avec affaires
+                    </p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {Object.entries(communeMapData)
+                        .sort(([, a], [, b]) => b.maxGravity - a.maxGravity)
+                        .slice(0, 10)
+                        .map(([commune, info]) => (
+                          <button key={commune} onClick={() => setSelectedCommune(commune)}
+                            className="w-full flex items-center gap-2 p-2 rounded-lg text-left hover:bg-white/5 transition-colors">
+                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{
+                              background: info.maxGravity >= 0.7 ? '#ef4444' : info.maxGravity >= 0.5 ? '#f97316' : info.maxGravity >= 0.3 ? '#eab308' : '#10b981'
+                            }} />
+                            <span className="text-xs text-white truncate flex-1">{commune}</span>
+                            <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>{info.count}</span>
+                            <span className={`text-[10px] font-bold ${
+                              info.maxGravity >= 0.7 ? 'text-red-400' : info.maxGravity >= 0.5 ? 'text-orange-400' : 'text-emerald-400'
+                            }`}>{Math.round(info.maxGravity * 100)}%</span>
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
 

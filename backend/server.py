@@ -618,7 +618,13 @@ def calculate_engagement_score(item: Dict, canal_type: str) -> float:
     """Calcule le score d'engagement selon le type de canal"""
     if canal_type == 'radio':
         duration = item.get('duration_seconds', 0)
-        return min(1.0, duration / 300)
+        # Plancher à 0.5 : si pas de durée (topics radio enrichis), on considère engagement moyen
+        base = min(1.0, duration / 300) if duration > 0 else 0.5
+        # Bonus si la transcription a un score_importance élevé (proxy d'engagement)
+        importance = item.get('score_importance', 0)
+        if importance >= 0.6:
+            base = max(base, 0.6)
+        return base
     elif canal_type == 'television':
         duration = item.get('duration_seconds', 0)
         prime_time = item.get('prime_time', False)
@@ -756,13 +762,27 @@ def calculate_bruit_numerique(affair: Dict) -> Dict[str, Any]:
         else:
             bnp_by_canal[canal] = 0
     
-    # Calculer BMG
-    bmg = sum(bnp_by_canal[canal] * CANAL_WEIGHTS[canal] for canal in CANAL_WEIGHTS)
-    
+    # Calculer BMG pondéré
+    raw_bmg = sum(bnp_by_canal[canal] * CANAL_WEIGHTS[canal] for canal in CANAL_WEIGHTS)
+
     # Calculer indicateurs
     total_items = sum(data['count'] for data in canal_scores.values())
     active_canals = sum(1 for data in canal_scores.values() if data['count'] > 0)
-    
+
+    # Normalisation : avec 1 seul canal actif, le BMG pondéré max ≈ 0.35.
+    # On re-normalise pour que le canal dominant puisse pousser le BMG plus haut.
+    # Formule : si peu de canaux, on boost proportionnellement au BNP dominant.
+    if active_canals > 0 and active_canals < 4:
+        max_bnp = max(bnp_by_canal.values())
+        # Le BMG reflète au minimum 60% du canal dominant quand il est seul
+        canal_floor = max_bnp * (0.6 if active_canals == 1 else 0.5 if active_canals == 2 else 0.4)
+        bmg = max(raw_bmg, canal_floor)
+        # Bonus multi-source : chaque item supplémentaire dans un canal ajoute de la crédibilité
+        item_bonus = min(0.15, total_items * 0.03)
+        bmg = min(1.0, bmg + item_bonus)
+    else:
+        bmg = raw_bmg
+
     # Niveau d'alerte
     if bmg >= 0.8:
         niveau_alerte = "CRITIQUE"
@@ -774,13 +794,17 @@ def calculate_bruit_numerique(affair: Dict) -> Dict[str, Any]:
         niveau_alerte = "FAIBLE"
     else:
         niveau_alerte = "MINIMAL"
-    
+
+    # Multi-canal bonus flag
+    multi_canal_bonus = active_canals >= 2
+
     return {
         'bmg': round(bmg, 3),
         'bnp_by_canal': {k: round(v, 3) for k, v in bnp_by_canal.items()},
         'niveau_alerte': niveau_alerte,
         'total_items': total_items,
         'active_canals': active_canals,
+        'multi_canal_bonus': multi_canal_bonus,
         'dominant_canal': max(bnp_by_canal, key=bnp_by_canal.get) if bnp_by_canal else None,
         'calculated_at': datetime.now().isoformat()
     }
