@@ -420,6 +420,15 @@ export const fetchSocialScrapeSingle = (platform: string) =>
 export const fetchSocialConfig = () =>
   apiFetch<Record<string, unknown>>('/api/social/config');
 
+// --- Elections & Carte ---
+export const fetchAffairsByCommune = () =>
+  apiFetch<{ communes: Record<string, { count: number; maxGravity: number; affairs: Array<{ _id: string; title: string; gravity_score: number; sentiment: string; theme: string }> }>; total_affairs: number }>(
+    '/api/affairs/by-commune'
+  );
+
+export const fetchElectionsAffairs = () =>
+  apiFetch<{ affairs: Affair[]; total: number }>('/api/affairs/elections');
+
 // --- Santé système ---
 export const fetchHealth = () => apiFetch<Record<string, unknown>>('/health');
 

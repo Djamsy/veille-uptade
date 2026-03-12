@@ -92,6 +92,99 @@ ELECTED_ALIASES: Dict[str, List[str]] = {
         "jocelyn sapotille", "m. sapotille", "sapotille",
         "maire de lamentin",
     ],
+    # ── Conseillers départementaux (mandature 2021-2028) ──
+    "Marylène Adhel": [
+        "marylène adhel", "marylene adhel", "adhel", "mme adhel",
+        "conseillère départementale abymes 3",
+    ],
+    "Louis Galantine": [
+        "louis galantine", "galantine", "m. galantine",
+        "conseiller départemental abymes 3",
+    ],
+    "Francesca Faithful": [
+        "francesca faithful", "faithful", "mme faithful",
+        "conseillère départementale abymes 1",
+    ],
+    "Eliane Guiougou-Firpion": [
+        "eliane guiougou-firpion", "guiougou-firpion", "guiougou",
+        "conseillère départementale abymes 2",
+    ],
+    "Fabert Michely": [
+        "fabert michely", "michely", "m. michely",
+        "conseiller départemental abymes 2",
+    ],
+    "Henry Angélique": [
+        "henry angélique", "henry angelique", "angélique", "angelique",
+        "conseiller départemental pointe-à-pitre",
+    ],
+    "Tania Galvani": [
+        "tania galvani", "galvani", "mme galvani",
+        "conseillère départementale pointe-à-pitre",
+    ],
+    "Catherine Joab": [
+        "catherine joab", "joab", "mme joab",
+        "conseillère départementale gosier",
+    ],
+    "Elie Califer": [
+        "elie califer", "califer", "m. califer",
+        "conseiller départemental basse-terre",
+    ],
+    "Jean Dartron": [
+        "jean dartron", "dartron", "m. dartron",
+        "conseiller départemental morne-à-l'eau",
+    ],
+    "Daniel Dulac": [
+        "daniel dulac", "dulac", "m. dulac",
+        "conseiller départemental moule",
+    ],
+    "Gabrielle Louis-Carabin": [
+        "gabrielle louis-carabin", "louis-carabin", "mme louis-carabin",
+        "conseillère départementale moule",
+    ],
+    "Michel Mado": [
+        "michel mado", "mado", "m. mado",
+        "conseiller départemental baie-mahault",
+    ],
+    "Jimmy Fausta": [
+        "jimmy fausta", "fausta", "m. fausta",
+        "conseiller départemental trois-rivières",
+    ],
+    "Jean-Philippe Courtois": [
+        "jean-philippe courtois", "courtois", "m. courtois",
+        "conseiller départemental capesterre-belle-eau",
+    ],
+    "Lydia Faro-Couriol": [
+        "lydia faro-couriol", "faro-couriol", "faro couriol",
+        "conseillère départementale sainte-anne",
+    ],
+    "Eric Latchoumanin": [
+        "eric latchoumanin", "latchoumanin", "m. latchoumanin",
+        "conseiller départemental sainte-anne",
+    ],
+    "Maryse Etzol": [
+        "maryse etzol", "etzol", "mme etzol",
+        "conseillère départementale marie-galante",
+    ],
+    "Jean-Claude Maës": [
+        "jean-claude maës", "jean-claude maes", "maës", "maes",
+        "conseiller départemental marie-galante",
+    ],
+    "Isabelle Amireille-Jomie": [
+        "isabelle amireille-jomie", "amireille-jomie", "amireille",
+        "conseillère départementale sainte-rose",
+    ],
+    "Fred Goubin": [
+        "fred goubin", "goubin", "m. goubin",
+        "conseiller départemental sainte-rose",
+    ],
+    "Nicole De La Rederdière-Ramillon": [
+        "nicole de la rederdière-ramillon", "rederdière-ramillon",
+        "mme ramillon", "ramillon",
+    ],
+    "Adrien Baron": [
+        "adrien baron", "baron", "m. baron",
+        "conseiller départemental sainte-rose 2",
+    ],
 }
 
 # ============================================================
@@ -162,6 +255,29 @@ INSTITUTION_ALIASES: Dict[str, List[str]] = {
     "CTIG": [
         "ctig", "communauté d'agglomération cap excellence",
         "cap excellence",
+    ],
+    "EPSM de Guadeloupe": [
+        "epsm", "epsm de guadeloupe", "établissement public de santé mentale",
+        "etablissement public de sante mentale", "santé mentale",
+    ],
+    "Gardel": [
+        "gardel", "usine gardel", "sucrerie gardel",
+    ],
+    "Chambre Régionale des Comptes": [
+        "chambre régionale des comptes", "chambre regionale des comptes",
+        "crc", "la crc",
+    ],
+    "Tribunal de Basse-Terre": [
+        "tribunal de basse-terre", "cour d'assises de basse-terre",
+        "tribunal judiciaire de basse-terre",
+    ],
+    "Port Autonome de Guadeloupe": [
+        "port autonome", "port autonome de guadeloupe",
+        "grand port maritime", "gpmg",
+    ],
+    "CRESS Guadeloupe": [
+        "cress", "cress guadeloupe",
+        "chambre régionale de l'économie sociale et solidaire",
     ],
 }
 

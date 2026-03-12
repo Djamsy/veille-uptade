@@ -845,6 +845,127 @@ async def debug_radio_transcriptions():
     }
 
 
+GUADELOUPE_COMMUNES = [
+    "Les Abymes", "Anse-Bertrand", "Baie-Mahault", "Baillif", "Basse-Terre",
+    "Bouillante", "Capesterre-Belle-Eau", "Capesterre-de-Marie-Galante",
+    "Deshaies", "Gourbeyre", "Goyave", "Grand-Bourg", "La Désirade",
+    "Lamentin", "Le Gosier", "Le Moule", "Morne-à-l'Eau", "Petit-Bourg",
+    "Petit-Canal", "Pointe-à-Pitre", "Pointe-Noire", "Port-Louis",
+    "Saint-Claude", "Saint-François", "Saint-Louis", "Sainte-Anne",
+    "Sainte-Rose", "Terre-de-Bas", "Terre-de-Haut", "Trois-Rivières",
+    "Vieux-Fort", "Vieux-Habitants",
+]
+
+# Mots-clés associant affaires aux communes
+COMMUNE_KEYWORDS = {c.lower(): c for c in GUADELOUPE_COMMUNES}
+# Ajout variantes sans accents/tirets
+COMMUNE_KEYWORDS.update({
+    "abymes": "Les Abymes", "les abymes": "Les Abymes",
+    "anse bertrand": "Anse-Bertrand", "baie mahault": "Baie-Mahault",
+    "basse terre": "Basse-Terre", "capesterre belle eau": "Capesterre-Belle-Eau",
+    "capesterre belle-eau": "Capesterre-Belle-Eau",
+    "grand bourg": "Grand-Bourg", "la desirade": "La Désirade",
+    "le gosier": "Le Gosier", "gosier": "Le Gosier",
+    "le moule": "Le Moule", "moule": "Le Moule",
+    "morne a l'eau": "Morne-à-l'Eau", "morne-a-l'eau": "Morne-à-l'Eau",
+    "petit bourg": "Petit-Bourg", "petit canal": "Petit-Canal",
+    "pointe a pitre": "Pointe-à-Pitre", "pointe-a-pitre": "Pointe-à-Pitre",
+    "pointe noire": "Pointe-Noire", "port louis": "Port-Louis",
+    "saint claude": "Saint-Claude", "saint francois": "Saint-François",
+    "saint-francois": "Saint-François", "saint louis": "Saint-Louis",
+    "sainte anne": "Sainte-Anne", "sainte rose": "Sainte-Rose",
+    "terre de bas": "Terre-de-Bas", "terre de haut": "Terre-de-Haut",
+    "trois rivieres": "Trois-Rivières", "trois-rivieres": "Trois-Rivières",
+    "vieux fort": "Vieux-Fort", "vieux habitants": "Vieux-Habitants",
+})
+
+
+def _detect_communes(affair: dict) -> list:
+    """Détecte les communes liées à une affaire via titre, entités, description."""
+    found = set()
+    text_parts = [
+        (affair.get("title", "") or "").lower(),
+        (affair.get("description", "") or "").lower(),
+        " ".join((affair.get("entities", []) or [])).lower(),
+        " ".join((affair.get("elected", []) or [])).lower(),
+        " ".join((affair.get("institutions", []) or [])).lower(),
+    ]
+    full_text = " ".join(text_parts)
+
+    for keyword, commune in COMMUNE_KEYWORDS.items():
+        if keyword in full_text:
+            found.add(commune)
+    return list(found)
+
+
+@router.get("/by-commune")
+async def affairs_by_commune():
+    """Retourne les affaires groupées par commune pour la carte."""
+    svc = _svc()
+    affairs = list(svc.affairs.find({"status": "active"}).sort("gravity_score", -1))
+
+    commune_map: dict = {}
+    for affair in affairs:
+        communes = _detect_communes(affair)
+        for commune in communes:
+            if commune not in commune_map:
+                commune_map[commune] = {"count": 0, "maxGravity": 0, "affairs": []}
+            commune_map[commune]["count"] += 1
+            commune_map[commune]["maxGravity"] = max(
+                commune_map[commune]["maxGravity"],
+                affair.get("gravity_score", 0)
+            )
+            commune_map[commune]["affairs"].append({
+                "_id": str(affair["_id"]),
+                "title": affair.get("title", "")[:100],
+                "gravity_score": affair.get("gravity_score", 0),
+                "sentiment": affair.get("sentiment", "neutre"),
+                "theme": affair.get("theme", ""),
+            })
+
+    return {"communes": commune_map, "total_affairs": len(affairs)}
+
+
+@router.get("/elections")
+async def elections_affairs():
+    """Retourne les affaires liées aux élections municipales 2026."""
+    svc = _svc()
+
+    # Chercher par mots-clés électoraux dans le titre et la description
+    election_keywords = [
+        "élection", "election", "municipale", "candidat", "scrutin",
+        "campagne", "liste", "vote", "maire", "premier tour", "second tour",
+        "ballottage",
+    ]
+    regex = "|".join(election_keywords)
+
+    affairs = list(svc.affairs.find({
+        "status": "active",
+        "$or": [
+            {"title": {"$regex": regex, "$options": "i"}},
+            {"description": {"$regex": regex, "$options": "i"}},
+            {"theme": "politique"},
+        ]
+    }).sort("gravity_score", -1))
+
+    # Sérialiser
+    result = []
+    for a in affairs:
+        a["_id"] = str(a["_id"])
+        for k in ("created_at", "last_activity", "promoted_at"):
+            if k in a and hasattr(a.get(k), "isoformat"):
+                a[k] = a[k].isoformat()
+        # Détecter les communes associées
+        a["communes"] = _detect_communes(a)
+        # Supprimer les champs lourds
+        a.pop("embedding", None)
+        a.pop("sentiment_history", None)
+        a.pop("bmg_history", None)
+        result.append(a)
+
+    return {"affairs": result, "total": len(result)}
+
+
 @router.post("/reset")
 async def full_reset():
     """RESET COMPLET — Vide toutes les collections (articles, affaires,
