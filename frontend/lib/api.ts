@@ -429,6 +429,25 @@ export const fetchAffairsByCommune = () =>
 export const fetchElectionsAffairs = () =>
   apiFetch<{ affairs: Affair[]; total: number }>('/api/affairs/elections');
 
+// --- Compétences institutionnelles ---
+export interface CompetenceGroup {
+  color: string;
+  count: number;
+  max_gravity: number;
+  affairs: Array<Affair & { competences?: string[]; communes?: string[] }>;
+}
+
+export interface InstitutionResponse {
+  institution: string;
+  groups: Record<string, CompetenceGroup>;
+  total_matched: number;
+  total_unmatched: number;
+  unmatched: Array<Affair & { communes?: string[] }>;
+}
+
+export const fetchAffairsByInstitution = (institution: 'departement' | 'region') =>
+  apiFetch<InstitutionResponse>(`/api/affairs/by-institution?institution=${institution}`);
+
 // --- Santé système ---
 export const fetchHealth = () => apiFetch<Record<string, unknown>>('/health');
 

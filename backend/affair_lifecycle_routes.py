@@ -966,6 +966,240 @@ async def elections_affairs():
     return {"affairs": result, "total": len(result)}
 
 
+# ============================================================
+# COMPÉTENCES INSTITUTIONNELLES (Département / Région)
+# ============================================================
+
+# Compétences du Département de la Guadeloupe
+DEPARTEMENT_COMPETENCES = {
+    "Social & Solidarité": {
+        "keywords": [
+            "ase", "aide sociale", "enfance", "pmi", "protection maternelle",
+            "mdph", "handicap", "mda", "autonomie", "rsa", "insertion",
+            "cohésion sociale", "foyer", "dics", "cnas", "solidarité",
+            "personnes âgées", "dépendance", "aide aux familles",
+        ],
+        "color": "#818cf8",
+    },
+    "Éducation (Collèges)": {
+        "keywords": [
+            "collège", "college", "collégien", "cantine scolaire",
+            "transport scolaire", "brevet", "éducation",
+        ],
+        "color": "#c084fc",
+    },
+    "Routes & Infrastructures": {
+        "keywords": [
+            "route départementale", "rd ", "voirie", "pont", "ouvrage d'art",
+            "chaussée", "routes", "infrastructure routière", "epfag", "foncier",
+        ],
+        "color": "#fbbf24",
+    },
+    "Sécurité (SDIS)": {
+        "keywords": [
+            "sdis", "pompier", "sapeur", "incendie", "secours",
+            "caserne", "intervention", "feu",
+        ],
+        "color": "#f87171",
+    },
+    "Culture & Patrimoine": {
+        "keywords": [
+            "bibliothèque", "archives", "patrimoine", "musée",
+            "mémorial", "culture", "archéologie", "lecture publique",
+        ],
+        "color": "#f9a8d4",
+    },
+    "Santé & Prévention": {
+        "keywords": [
+            "epsm", "santé mentale", "lda", "laboratoire",
+            "prévention santé", "vaccination", "dépistage", "pmsi",
+        ],
+        "color": "#34d399",
+    },
+    "Environnement & Eau": {
+        "keywords": [
+            "smgeag", "eau potable", "assainissement", "espace naturel",
+            "zone humide", "littoral", "déchets", "environnement",
+            "biodiversité", "mangrove",
+        ],
+        "color": "#67e8f9",
+    },
+    "Aménagement du Territoire": {
+        "keywords": [
+            "intercommunalité", "cangt", "carl", "cap excellence",
+            "grand sud", "marie-galante", "communauté d'agglomération",
+            "aménagement", "urbanisme", "sig 971", "plan local",
+        ],
+        "color": "#fb923c",
+    },
+}
+
+# Compétences de la Région Guadeloupe
+REGION_COMPETENCES = {
+    "Économie & Emploi": {
+        "keywords": [
+            "économie", "emploi", "entreprise", "pme", "artisan",
+            "commerce", "industrie", "sucre", "banane", "rhum",
+            "tourisme", "agriculture", "pêche", "croissance",
+            "chômage", "formation professionnelle", "apprentissage",
+            "chambre de commerce", "cci", "chambre des métiers",
+        ],
+        "color": "#34d399",
+    },
+    "Transports & Mobilité": {
+        "keywords": [
+            "transport", "bus", "réseau", "aéroport", "pôle caraïbes",
+            "port autonome", "maritime", "ferry", "liaison",
+            "mobilité", "train", "tramway", "navette",
+        ],
+        "color": "#818cf8",
+    },
+    "Lycées & Formation": {
+        "keywords": [
+            "lycée", "lyceen", "baccalauréat", "formation",
+            "campus", "université", "uag", "crous", "bts",
+            "enseignement supérieur", "rectorat",
+        ],
+        "color": "#c084fc",
+    },
+    "Énergie & Transition": {
+        "keywords": [
+            "énergie", "edf", "électricité", "photovoltaïque",
+            "éolien", "géothermie", "transition énergétique",
+            "carburant", "essence", "sara",
+        ],
+        "color": "#fbbf24",
+    },
+    "Santé (ARS)": {
+        "keywords": [
+            "ars", "agence régionale", "hôpital", "chu",
+            "clinique", "urgence", "désert médical", "médecin",
+            "dengue", "sargasse", "chlordécone", "épidémie",
+        ],
+        "color": "#f87171",
+    },
+    "Logement & Habitat": {
+        "keywords": [
+            "logement", "habitat", "hlm", "sem", "sig",
+            "construction", "rénovation", "social",
+            "deal", "urbanisme",
+        ],
+        "color": "#fb923c",
+    },
+    "Coopération Caribéenne": {
+        "keywords": [
+            "caraïbe", "caricom", "oecs", "coopération régionale",
+            "antilles", "martinique", "guyane", "outre-mer",
+            "dom", "ultramarin", "interreg",
+        ],
+        "color": "#67e8f9",
+    },
+    "Sécurité & Justice": {
+        "keywords": [
+            "préfecture", "préfet", "police", "gendarmerie",
+            "tribunal", "justice", "procureur", "délinquance",
+            "criminalité", "trafic", "drogue", "violence",
+            "sécurité", "garde à vue", "prison",
+        ],
+        "color": "#fca5a5",
+    },
+}
+
+
+def _match_competences(affair: dict, competences: dict) -> list:
+    """Retourne la liste des compétences matchées pour une affaire."""
+    text_parts = [
+        (affair.get("title", "") or "").lower(),
+        (affair.get("description", "") or "").lower(),
+        " ".join((affair.get("keywords", []) or [])).lower(),
+        " ".join((affair.get("entities", []) or [])).lower(),
+        " ".join((affair.get("institutions", []) or [])).lower(),
+        (affair.get("theme", "") or "").lower(),
+    ]
+    full_text = " ".join(text_parts)
+    matched = []
+    for comp_name, comp_data in competences.items():
+        for kw in comp_data["keywords"]:
+            if kw in full_text:
+                matched.append(comp_name)
+                break
+    return matched
+
+
+def _serialize_affair_light(a: dict, competences: list = None) -> dict:
+    """Sérialise une affaire pour les pages institutionnelles."""
+    out = {
+        "_id": str(a["_id"]),
+        "title": a.get("title", "")[:150],
+        "description": (a.get("description", "") or "")[:200],
+        "gravity_score": a.get("gravity_score", 0),
+        "sentiment": a.get("sentiment", "neutre"),
+        "theme": a.get("theme", ""),
+        "item_count": a.get("item_count", 0),
+        "priority": a.get("priority", "minor"),
+        "bmg": a.get("bmg", 0),
+    }
+    for k in ("created_at", "last_activity"):
+        val = a.get(k)
+        if val and hasattr(val, "isoformat"):
+            out[k] = val.isoformat()
+        elif val:
+            out[k] = str(val)
+        else:
+            out[k] = ""
+    if competences:
+        out["competences"] = competences
+    out["communes"] = _detect_communes(a)
+    return out
+
+
+@router.get("/by-institution")
+async def affairs_by_institution(
+    institution: str = Query(default="departement", description="departement|region"),
+):
+    """Retourne les affaires groupées par compétence institutionnelle."""
+    svc = _svc()
+    competences = DEPARTEMENT_COMPETENCES if institution == "departement" else REGION_COMPETENCES
+
+    affairs = list(svc.affairs.find({"status": "active"}).sort("gravity_score", -1))
+
+    # Grouper par compétence
+    groups: dict = {}
+    for comp_name, comp_data in competences.items():
+        groups[comp_name] = {
+            "color": comp_data["color"],
+            "count": 0,
+            "max_gravity": 0,
+            "affairs": [],
+        }
+
+    unmatched = []
+    for affair in affairs:
+        matched = _match_competences(affair, competences)
+        if not matched:
+            unmatched.append(_serialize_affair_light(affair))
+            continue
+        serialized = _serialize_affair_light(affair, matched)
+        for comp in matched:
+            groups[comp]["count"] += 1
+            groups[comp]["max_gravity"] = max(
+                groups[comp]["max_gravity"], affair.get("gravity_score", 0)
+            )
+            groups[comp]["affairs"].append(serialized)
+
+    # Trier les groupes par nombre d'affaires desc
+    sorted_groups = dict(
+        sorted(groups.items(), key=lambda x: x[1]["count"], reverse=True)
+    )
+
+    return {
+        "institution": institution,
+        "groups": sorted_groups,
+        "total_matched": sum(g["count"] for g in groups.values()),
+        "total_unmatched": len(unmatched),
+        "unmatched": unmatched[:10],
+    }
+
 @router.post("/reset")
 async def full_reset():
     """RESET COMPLET — Vide toutes les collections (articles, affaires,

@@ -14,7 +14,7 @@ function timeAgo(dateStr: string): string {
   return `il y a ${Math.floor(diff / 86400)}j`
 }
 
-export default function DepartementPage() {
+export default function RegionPage() {
   const [groups, setGroups] = useState<Record<string, CompetenceGroup>>({})
   const [totalMatched, setTotalMatched] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -22,14 +22,13 @@ export default function DepartementPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const res = await fetchAffairsByInstitution('departement')
+      const res = await fetchAffairsByInstitution('region')
       setGroups(res.groups || {})
       setTotalMatched(res.total_matched || 0)
-      // Ouvrir le groupe le plus actif par défaut
       const top = Object.entries(res.groups || {}).sort(([, a], [, b]) => b.count - a.count)[0]
       if (top && top[1].count > 0) setOpenGroup(top[0])
     } catch (e) {
-      console.error('Departement load error:', e)
+      console.error('Region load error:', e)
     } finally {
       setLoading(false)
     }
@@ -50,10 +49,10 @@ export default function DepartementPage() {
           {/* Header */}
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-white tracking-tight">
-              Département de la Guadeloupe
+              Région Guadeloupe
             </h1>
             <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
-              Affaires regroupées par compétences départementales — {totalMatched} affaires classées
+              Affaires regroupées par compétences régionales — {totalMatched} affaires classées
             </p>
           </div>
 
@@ -67,7 +66,6 @@ export default function DepartementPage() {
                 const isOpen = openGroup === name
                 return (
                   <div key={name} className="glass-card border border-[rgba(255,255,255,0.08)] overflow-hidden">
-                    {/* Header compétence */}
                     <button
                       onClick={() => toggleGroup(name)}
                       className="w-full flex items-center gap-3 p-4 text-left hover:bg-white/[0.02] transition-colors"
@@ -98,7 +96,6 @@ export default function DepartementPage() {
                       </svg>
                     </button>
 
-                    {/* Affaires de la compétence */}
                     {isOpen && (
                       <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                         {group.affairs.length === 0 ? (
@@ -116,7 +113,6 @@ export default function DepartementPage() {
                                       ? '1px solid rgba(255,255,255,0.04)' : 'none',
                                   }}
                                 >
-                                  {/* Gravité */}
                                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0 ${
                                     affair.gravity_score >= 0.7 ? 'bg-red-500/20 text-red-400'
                                     : affair.gravity_score >= 0.5 ? 'bg-orange-500/20 text-orange-400'
@@ -126,11 +122,8 @@ export default function DepartementPage() {
                                     {Math.round(affair.gravity_score * 100)}%
                                   </span>
 
-                                  {/* Titre + description */}
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-medium text-white truncate">
-                                      {affair.title}
-                                    </p>
+                                    <p className="text-xs font-medium text-white truncate">{affair.title}</p>
                                     {affair.description && (
                                       <p className="text-[10px] truncate mt-0.5"
                                         style={{ color: 'rgba(255,255,255,0.3)' }}>
@@ -139,7 +132,6 @@ export default function DepartementPage() {
                                     )}
                                   </div>
 
-                                  {/* Sentiment */}
                                   {affair.sentiment && affair.sentiment !== 'neutre' && (
                                     <span className="text-[10px] flex-shrink-0" style={{
                                       color: affair.sentiment.includes('négatif') || affair.sentiment.includes('negatif')
@@ -150,7 +142,6 @@ export default function DepartementPage() {
                                     </span>
                                   )}
 
-                                  {/* Communes */}
                                   {affair.communes && affair.communes.length > 0 && (
                                     <span className="text-[9px] px-1.5 py-0.5 rounded-full flex-shrink-0"
                                       style={{
@@ -163,7 +154,6 @@ export default function DepartementPage() {
                                     </span>
                                   )}
 
-                                  {/* Items + date */}
                                   <span className="text-[9px] flex-shrink-0"
                                     style={{ color: 'rgba(255,255,255,0.2)' }}>
                                     {affair.item_count || 0} items · {timeAgo(affair.last_activity || affair.created_at || '')}
