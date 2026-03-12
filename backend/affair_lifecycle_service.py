@@ -1393,6 +1393,18 @@ class AffairLifecycleService:
             )
             art_embedding = art.get("embedding")
 
+            # ── Filtre géographique : focus Guadeloupe ──
+            # Exclure les articles clairement hors Guadeloupe sauf si gravité >= 0.7
+            if gravity < 0.70 and not self._is_guadeloupe_related(art):
+                logger.debug(f"   🌍 Hors Guadeloupe, ignoré: {art.get('title', '?')[:60]}")
+                self.articles.update_one(
+                    {"_id": art["_id"]},
+                    {"$set": {"_affair_processed": True, "_affair_ignored": True,
+                              "_ignore_reason": "hors_guadeloupe"}}
+                )
+                stats["ignored"] = stats.get("ignored", 0) + 1
+                continue
+
             # Chercher une affaire existante similaire
             best_match = None
             best_score = 0
@@ -1604,6 +1616,59 @@ class AffairLifecycleService:
         "selon", "encore", "depuis", "toujours", "également",
     }
 
+    # Lieux hors-Guadeloupe — si l'article mentionne ces lieux SANS mentionner
+    # la Guadeloupe, on le considère comme hors périmètre.
+    HORS_GUADELOUPE_LIEUX = {
+        "martinique", "ducos", "fort-de-france", "lamentin martinique",
+        "guyane", "cayenne", "kourou", "saint-laurent-du-maroni",
+        "réunion", "saint-denis de la réunion", "saint-pierre réunion",
+        "mayotte", "mamoudzou",
+        "israël", "israel", "gaza", "liban", "ukraine", "russie",
+        "palestine", "syrie", "iran", "irak",
+        "états-unis", "etats-unis", "washington", "new york",
+        "chine", "pékin", "tokyo", "moscou",
+    }
+
+    # Marqueurs Guadeloupe — si un de ces termes est présent, l'article est local
+    GUADELOUPE_MARQUEURS = {
+        "guadeloupe", "pointe-à-pitre", "pointe-a-pitre", "basse-terre",
+        "les abymes", "baie-mahault", "le moule", "sainte-anne",
+        "saint-françois", "le gosier", "petit-bourg", "capesterre",
+        "sainte-rose", "deshaies", "bouillante", "goyave", "lamentin",
+        "trois-rivières", "vieux-habitants", "petit-canal",
+        "port-louis", "anse-bertrand", "morne-à-l'eau",
+        "marie-galante", "les saintes", "la désirade",
+        "971", "gwadloup", "antilles françaises",
+        "smgeag", "chu guadeloupe", "ars guadeloupe",
+        "france-antilles", "rci guadeloupe", "guadeloupe 1ère",
+    }
+
+    def _is_guadeloupe_related(self, article: dict) -> bool:
+        """Vérifie si un article concerne la Guadeloupe.
+        Retourne True si local, False si clairement hors-périmètre."""
+        text_parts = [
+            (article.get("title", "") or "").lower(),
+            (article.get("ai_summary", "") or "")[:300].lower(),
+            " ".join((article.get("entities", []) or [])[:10]).lower(),
+            " ".join((article.get("elected", []) or [])[:10]).lower(),
+            " ".join((article.get("institutions", []) or [])[:10]).lower(),
+            (article.get("source", "") or "").lower(),
+        ]
+        full = " ".join(text_parts)
+
+        # Si un marqueur Guadeloupe est présent → c'est local
+        for m in self.GUADELOUPE_MARQUEURS:
+            if m in full:
+                return True
+
+        # Si un lieu hors-Guadeloupe est trouvé sans marqueur local → hors périmètre
+        for lieu in self.HORS_GUADELOUPE_LIEUX:
+            if lieu in full:
+                return False
+
+        # Par défaut, on laisse passer (les sources locales scrapent surtout du local)
+        return True
+
     def _match_score(
         self, art_elected: set, art_institutions: set, art_entities: set,
         art_theme: str, art_title_words: set, affair: dict,
@@ -1633,14 +1698,14 @@ class AffairLifecycleService:
 
         aff_theme = affair.get("theme", "general")
 
-        # Mots du titre discriminants (>7 chars, pas génériques)
+        # Mots du titre discriminants (>4 chars, pas génériques)
         aff_title_words = set(
             w.lower() for w in (affair.get("title", "").split())
-            if len(w) > 7 and w.lower() not in self.GENERIC_TITLE_WORDS
+            if len(w) > 4 and w.lower() not in self.GENERIC_TITLE_WORDS
         )
         art_title_words_strict = set(
             w for w in art_title_words
-            if len(w) > 7 and w not in self.GENERIC_TITLE_WORDS
+            if len(w) > 4 and w not in self.GENERIC_TITLE_WORDS
         )
 
         # Calcul des intersections
@@ -1672,11 +1737,13 @@ class AffairLifecycleService:
         score += min(len(common_title), 2)
 
         # ── Bonus titre quasi-identique (détection doublons) ──
-        # Si les titres sont très similaires (>60% overlap), bonus fort
-        if len(aff_title_words) >= 3 and len(art_title_words_strict) >= 3:
+        # Si les titres sont très similaires (>50% overlap), bonus fort
+        if len(aff_title_words) >= 2 and len(art_title_words_strict) >= 2:
             overlap = len(common_title) / min(len(aff_title_words), len(art_title_words_strict))
-            if overlap >= 0.6:
-                score += 5  # Quasi-doublon détecté
+            if overlap >= 0.5:
+                score += 6  # Quasi-doublon détecté
+            elif overlap >= 0.35:
+                score += 3  # Titres partiellement similaires
 
         # ── Bonus embedding sémantique ──
         if art_embedding:

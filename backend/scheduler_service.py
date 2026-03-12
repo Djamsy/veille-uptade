@@ -638,7 +638,7 @@ async def job_social_scrape():
 # ============================================================
 
 async def job_full_pipeline():
-    """Pipeline complet : scraping → enrichissement → affaires"""
+    """Pipeline complet : scraping → enrichissement → affaires + notif Telegram"""
     logger.info("🚀 Pipeline complet démarré")
 
     # 1. Scraping
@@ -651,6 +651,41 @@ async def job_full_pipeline():
     affair_result = await job_affair_cycle()
 
     logger.info("✅ Pipeline complet terminé")
+
+    # 4. Notification Telegram du résultat
+    try:
+        from backend.telegram_service import notify_pipeline_result
+    except ImportError:
+        try:
+            from telegram_service import notify_pipeline_result
+        except ImportError:
+            notify_pipeline_result = None
+
+    if notify_pipeline_result:
+        try:
+            scraped = 0
+            if isinstance(scrape_result, dict):
+                scraped = scrape_result.get("new_articles", 0) or scrape_result.get("total_new", 0) or 0
+            enriched = 0
+            if isinstance(enrich_result, dict):
+                enriched = enrich_result.get("enriched", 0) or 0
+            created = merged = ignored = radio = 0
+            if isinstance(affair_result, dict):
+                created = affair_result.get("created", 0) or 0
+                merged = affair_result.get("merged", 0) or 0
+                ignored = affair_result.get("ignored", 0) or 0
+                radio = affair_result.get("radio_created", 0) or 0
+            notify_pipeline_result(
+                articles_scraped=scraped,
+                articles_enriched=enriched,
+                affairs_created=created,
+                affairs_merged=merged,
+                affairs_ignored=ignored,
+                radio_created=radio,
+            )
+        except Exception as e:
+            logger.debug(f"Telegram pipeline notif error: {e}")
+
     return {
         "scrape": scrape_result,
         "enrich": enrich_result,
@@ -672,12 +707,12 @@ def _ensure_scheduler():
         job_defaults={"coalesce": True, "max_instances": 1}
     )
 
-    # Pipeline complet toutes les 2 min (scrape + enrich + affaires)
+    # Pipeline complet toutes les 5 min (scrape + enrich + affaires)
     _scheduler.add_job(
         job_full_pipeline,
-        CronTrigger(minute="*/2", timezone=TZ),
+        CronTrigger(minute="*/5", timezone=TZ),
         id="full_pipeline",
-        name="Pipeline complet (scrape → enrich → affaires) 30x/h"
+        name="Pipeline complet (scrape → enrich → affaires) 12x/h"
     )
 
     # Mise à jour des affaires toutes les 15 min

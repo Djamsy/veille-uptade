@@ -1153,6 +1153,41 @@ def _serialize_affair_light(a: dict, competences: list = None) -> dict:
     return out
 
 
+def _is_affair_guadeloupe(affair: dict) -> bool:
+    """Filtre Guadeloupe pour les affaires (département/région)."""
+    MARQUEURS = {
+        "guadeloupe", "pointe-à-pitre", "pointe-a-pitre", "basse-terre",
+        "les abymes", "baie-mahault", "le moule", "sainte-anne",
+        "saint-françois", "le gosier", "petit-bourg", "capesterre",
+        "sainte-rose", "deshaies", "bouillante", "goyave", "lamentin",
+        "trois-rivières", "vieux-habitants", "petit-canal",
+        "port-louis", "anse-bertrand", "morne-à-l'eau",
+        "marie-galante", "les saintes", "la désirade",
+        "971", "gwadloup", "smgeag",
+    }
+    EXCLUSIONS = {
+        "martinique", "ducos", "fort-de-france",
+        "guyane", "cayenne", "réunion", "mayotte",
+        "israël", "israel", "gaza", "liban", "ukraine", "russie",
+        "palestine", "syrie", "iran", "irak",
+    }
+    text_parts = [
+        (affair.get("title", "") or "").lower(),
+        (affair.get("description", "") or "")[:300].lower(),
+        " ".join((affair.get("elected", []) or [])[:10]).lower(),
+        " ".join((affair.get("institutions", []) or [])[:10]).lower(),
+    ]
+    full = " ".join(text_parts)
+
+    for m in MARQUEURS:
+        if m in full:
+            return True
+    for lieu in EXCLUSIONS:
+        if lieu in full:
+            return False
+    return True  # sources locales → par défaut local
+
+
 @router.get("/by-institution")
 async def affairs_by_institution(
     institution: str = Query(default="departement", description="departement|region"),
@@ -1161,7 +1196,9 @@ async def affairs_by_institution(
     svc = _svc()
     competences = DEPARTEMENT_COMPETENCES if institution == "departement" else REGION_COMPETENCES
 
-    affairs = list(svc.affairs.find({"status": "active"}).sort("gravity_score", -1))
+    all_affairs = list(svc.affairs.find({"status": "active"}).sort("gravity_score", -1))
+    # Filtre Guadeloupe — exclut les affaires hors périmètre sauf gravité >= 0.70
+    affairs = [a for a in all_affairs if _is_affair_guadeloupe(a) or a.get("gravity_score", 0) >= 0.70]
 
     # Grouper par compétence
     groups: dict = {}

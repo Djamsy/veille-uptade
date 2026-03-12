@@ -160,6 +160,43 @@ def notify_daily_summary(
     return send_message(text)
 
 
+def notify_pipeline_result(
+    articles_scraped: int = 0,
+    articles_enriched: int = 0,
+    affairs_created: int = 0,
+    affairs_merged: int = 0,
+    affairs_ignored: int = 0,
+    radio_created: int = 0,
+) -> bool:
+    """Résumé envoyé après chaque exécution du pipeline (toutes les 5 min)."""
+    if not is_configured():
+        return False
+
+    # Ne rien envoyer si rien ne s'est passé
+    total_activity = articles_scraped + articles_enriched + affairs_created + affairs_merged + radio_created
+    if total_activity == 0:
+        return False
+
+    now = datetime.now().strftime("%H:%M")
+
+    lines = [f"⚡ <b>Pipeline {now}</b>"]
+
+    if articles_scraped > 0:
+        lines.append(f"📰 {articles_scraped} articles scrapés")
+    if articles_enriched > 0:
+        lines.append(f"🧠 {articles_enriched} enrichis")
+    if affairs_created > 0:
+        lines.append(f"🆕 {affairs_created} affaires créées")
+    if affairs_merged > 0:
+        lines.append(f"🔗 {affairs_merged} fusionnées")
+    if radio_created > 0:
+        lines.append(f"📻 {radio_created} affaires radio")
+    if affairs_ignored > 0:
+        lines.append(f"🌍 {affairs_ignored} hors Guadeloupe ignorées")
+
+    return send_message("\n".join(lines))
+
+
 # ── Endpoint de test ──────────────────────────────────────
 
 def test_connection() -> Dict[str, Any]:
