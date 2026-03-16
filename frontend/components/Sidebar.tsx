@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
@@ -89,21 +90,20 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname()
+  const [mobileOpen, setMobileOpen] = useState(false)
+
+  // Fermer le menu mobile quand on navigue
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [pathname])
 
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/'
     return pathname.startsWith(href)
   }
 
-  return (
-    <aside className="fixed left-0 top-0 h-screen w-64 flex flex-col z-40"
-      style={{
-        background: 'rgba(255,255,255,0.02)',
-        backdropFilter: 'blur(20px) saturate(180%)',
-        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-        borderRight: '1px solid rgba(255,255,255,0.06)',
-      }}
-    >
+  const sidebarContent = (
+    <>
       {/* Logo */}
       <div className="px-6 py-6" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="flex items-center gap-3">
@@ -121,11 +121,21 @@ export default function Sidebar() {
               Guadeloupe
             </p>
           </div>
+          {/* Close button — mobile only */}
+          <button
+            onClick={() => setMobileOpen(false)}
+            className="lg:hidden ml-auto p-1 rounded-lg hover:bg-white/10 transition-colors"
+            aria-label="Fermer le menu"
+          >
+            <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-5 space-y-1">
+      <nav className="flex-1 px-3 py-5 space-y-1 overflow-y-auto">
         {navItems.map((item) => (
           <Link
             key={item.href}
@@ -139,6 +149,7 @@ export default function Sidebar() {
               background: 'rgba(99,102,241,0.12)',
               boxShadow: '0 0 20px rgba(99,102,241,0.08)',
             } : undefined}
+            aria-current={isActive(item.href) ? 'page' : undefined}
           >
             {item.icon}
             {item.label}
@@ -155,6 +166,61 @@ export default function Sidebar() {
           Connecté
         </div>
       </div>
-    </aside>
+    </>
+  )
+
+  return (
+    <>
+      {/* Mobile hamburger button */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-xl transition-colors"
+        style={{
+          background: 'rgba(255,255,255,0.06)',
+          backdropFilter: 'blur(12px)',
+          border: '1px solid rgba(255,255,255,0.1)',
+        }}
+        aria-label="Ouvrir le menu"
+      >
+        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div
+          className="lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      {/* Desktop sidebar — always visible */}
+      <aside className="hidden lg:flex fixed left-0 top-0 h-screen w-64 flex-col z-40"
+        style={{
+          background: 'rgba(255,255,255,0.02)',
+          backdropFilter: 'blur(20px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+          borderRight: '1px solid rgba(255,255,255,0.06)',
+        }}
+      >
+        {sidebarContent}
+      </aside>
+
+      {/* Mobile sidebar — slide in */}
+      <aside
+        className={`lg:hidden fixed left-0 top-0 h-screen w-72 flex flex-col z-50 transform transition-transform duration-300 ease-out ${
+          mobileOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+        style={{
+          background: 'rgba(10,10,20,0.98)',
+          backdropFilter: 'blur(20px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+          borderRight: '1px solid rgba(255,255,255,0.1)',
+        }}
+      >
+        {sidebarContent}
+      </aside>
+    </>
   )
 }

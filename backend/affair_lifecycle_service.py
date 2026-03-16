@@ -52,6 +52,18 @@ except ImportError:
         _tg_notify = None
 from bson import ObjectId
 
+# Dédup IA (optionnel)
+try:
+    from backend.ai_groq_service import detect_duplicate_affairs as _ai_dedup
+    _ai_dedup_ok = True
+except ImportError:
+    try:
+        from ai_groq_service import detect_duplicate_affairs as _ai_dedup
+        _ai_dedup_ok = True
+    except ImportError:
+        _ai_dedup_ok = False
+        _ai_dedup = None
+
 logger = logging.getLogger("affair_lifecycle")
 
 # ============================================================
@@ -1551,8 +1563,11 @@ class AffairLifecycleService:
         # ── ÉTAPE 3c : Nettoyage géographique (affaires hors-Guadeloupe) ──
         stats["geo_cleaned"] = self._cleanup_non_guadeloupe_affairs()
 
+        # ── ÉTAPE 3d : Dédup IA — GPT compare les affaires actives ──
+        stats["ai_deduped"] = self._ai_dedup_affairs(active_affairs)
+
         # Recharger active_affairs après fusions/archivages
-        if stats["inter_merged"] > 0 or stats["geo_cleaned"] > 0:
+        if stats["inter_merged"] > 0 or stats["geo_cleaned"] > 0 or stats["ai_deduped"] > 0:
             active_affairs = list(self.affairs.find({"status": "active"}))
 
         # ── ÉTAPE 4 : Enrichir les transcriptions radio avec l'IA ──
@@ -1579,7 +1594,7 @@ class AffairLifecycleService:
         logger.info(
             f"✅ Cycle simplifié: {stats['created']} créées, {stats['merged']} fusionnées, "
             f"{stats['consolidated']} consolidées, {stats.get('inter_merged', 0)} inter-fusionnées, "
-            f"{stats.get('geo_cleaned', 0)} hors-GP archivées, "
+            f"{stats.get('ai_deduped', 0)} dédup-IA, {stats.get('geo_cleaned', 0)} hors-GP archivées, "
             f"{stats['radio_enriched']} radio enrichies, "
             f"{stats['radio_linked']} radio liées, {stats.get('radio_created', 0)} radio→affaires, "
             f"{ignored_count} ignorées (gravity<0.30 ou seuil création)"
@@ -2009,6 +2024,94 @@ class AffairLifecycleService:
         if non_local:
             logger.info(f"🌍 {len(non_local)} affaires hors-Guadeloupe archivées")
         return len(non_local)
+
+    def _ai_dedup_affairs(self, active_affairs: list) -> int:
+        """Utilise GPT pour identifier les doublons sémantiques que le matching
+        par mots/entités ne peut pas détecter (ex: 'Décès plongeur' ≈ 'Mort touriste').
+
+        Appelle GPT avec la liste compacte des affaires (titres + entités + actions).
+        GPT retourne les groupes à fusionner. On applique les fusions.
+        """
+        if not _ai_dedup_ok or not _ai_dedup:
+            return 0
+
+        if len(active_affairs) < 2:
+            return 0
+
+        try:
+            duplicates = _ai_dedup(active_affairs)
+        except Exception as e:
+            logger.warning(f"⚠️ Dédup IA échoué: {e}")
+            return 0
+
+        if not duplicates:
+            return 0
+
+        merged_count = 0
+        for dup_group in duplicates:
+            keep_id = dup_group.get("keep_id")
+            merge_ids = dup_group.get("merge_ids", [])
+            reason = dup_group.get("reason", "doublon IA")
+
+            if not keep_id or not merge_ids:
+                continue
+
+            # Trouver l'affaire à garder
+            keep_affair = None
+            for a in active_affairs:
+                if str(a.get("_id")) == keep_id:
+                    keep_affair = a
+                    break
+            if not keep_affair:
+                continue
+
+            for mid in merge_ids:
+                # Trouver l'affaire à absorber
+                absorb_affair = None
+                for a in active_affairs:
+                    if str(a.get("_id")) == mid:
+                        absorb_affair = a
+                        break
+                if not absorb_affair:
+                    continue
+
+                logger.info(
+                    f"🤖 FUSION IA: '{keep_affair.get('title', '?')[:40]}' "
+                    f"absorbe '{absorb_affair.get('title', '?')[:40]}' "
+                    f"({reason})"
+                )
+
+                # Transférer articles, sources, etc.
+                self.affairs.update_one(
+                    {"_id": keep_affair["_id"]},
+                    {
+                        "$addToSet": {
+                            "articles": {"$each": absorb_affair.get("articles", [])},
+                            "sources": {"$each": absorb_affair.get("sources", [])},
+                            "radio_transcriptions": {"$each": absorb_affair.get("radio_transcriptions", [])},
+                            "social_posts": {"$each": absorb_affair.get("social_posts", [])},
+                        },
+                        "$inc": {"item_count": absorb_affair.get("item_count", 1)},
+                        "$max": {"gravity_score": absorb_affair.get("gravity_score", 0)},
+                        "$set": {"last_activity": datetime.utcnow()},
+                    }
+                )
+
+                # Archiver l'affaire absorbée
+                self.affairs.update_one(
+                    {"_id": absorb_affair["_id"]},
+                    {"$set": {
+                        "status": "merged",
+                        "_merged_into": keep_id,
+                        "_merged_at": datetime.utcnow(),
+                        "_merge_reason": f"ai_dedup: {reason}",
+                    }}
+                )
+                merged_count += 1
+
+        if merged_count > 0:
+            logger.info(f"🤖 Dédup IA: {merged_count} affaires fusionnées")
+        return merged_count
 
     def _consolidate_affairs_24h(self, active_affairs: list) -> int:
         """Cherche dans les 24h si des articles non traités correspondent

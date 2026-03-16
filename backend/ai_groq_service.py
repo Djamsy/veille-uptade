@@ -12,6 +12,7 @@ Service d'enrichissement IA — supporte Groq ET xAI (Grok)
 import os
 import json
 import logging
+import time
 from typing import Dict, Any, Optional, List
 
 logger = logging.getLogger("ai_groq_service")
@@ -59,7 +60,13 @@ def _get_client():
 def _call_ai(messages: List[Dict], temperature: float = 0.1,
              max_tokens: int = 800, json_mode: bool = True) -> Optional[str]:
     """
-    Appel OpenAI GPT-4o-mini. Retourne le contenu brut ou None.
+    Appel OpenAI GPT-4o-mini avec retry et exponential backoff.
+    Retourne le contenu brut ou None.
+
+    Retry logic:
+    - Max 3 tentatives
+    - Backoff: 1s, 2s, 4s
+    - Retry only on rate limit (429) and server errors (500+)
     """
     kwargs = {
         "messages": messages,
@@ -74,17 +81,120 @@ def _call_ai(messages: List[Dict], temperature: float = 0.1,
         logger.warning("⚠️ Client OpenAI non disponible (OPENAI_API_KEY manquant ?)")
         return None
 
-    try:
-        resp = client.chat.completions.create(model=AI_MODEL, **kwargs)
-        return resp.choices[0].message.content.strip()
-    except Exception as e:
-        logger.error(f"❌ {AI_PROVIDER}/{AI_MODEL} échoué: {e}")
-        return None
+    max_retries = 3
+    backoff_times = [1, 2, 4]  # exponential backoff: 1s, 2s, 4s
+
+    for attempt in range(max_retries):
+        try:
+            resp = client.chat.completions.create(model=AI_MODEL, **kwargs)
+            return resp.choices[0].message.content.strip()
+        except Exception as e:
+            # Check if it's a rate limit (429) or server error (500+)
+            is_retryable = False
+            error_str = str(e)
+
+            # Try to detect rate limit errors
+            if "429" in error_str or "rate" in error_str.lower():
+                is_retryable = True
+            # Try to detect server errors (500+)
+            elif any(code in error_str for code in ["500", "501", "502", "503", "504"]):
+                is_retryable = True
+
+            # If not retryable or last attempt, fail now
+            if not is_retryable or attempt >= max_retries - 1:
+                logger.error(f"❌ {AI_PROVIDER}/{AI_MODEL} échoué: {e}")
+                return None
+
+            # Sleep before retry
+            sleep_time = backoff_times[attempt]
+            logger.warning(
+                f"⚠️ {AI_PROVIDER}/{AI_MODEL} tentative {attempt + 1}/{max_retries} échouée "
+                f"(retryable error). Attente {sleep_time}s avant retry..."
+            )
+            time.sleep(sleep_time)
 
 
 def is_available() -> bool:
     """Vérifie si OpenAI est disponible."""
     return bool(OPENAI_API_KEY and _get_client())
+
+
+def _normalize_entity_name(name: str) -> str:
+    """
+    Normalise un nom d'entité:
+    - Strip leading/trailing whitespace and quotes
+    - Capitalize first letter of each word (title case)
+    - Remove prefixes: M., Mme, Monsieur, Madame
+    """
+    if not isinstance(name, str):
+        return ""
+
+    # Strip whitespace and quotes
+    name = name.strip().strip("'\"")
+
+    if not name:
+        return ""
+
+    # Remove prefixes (case-insensitive)
+    prefixes = ["M.", "Mme", "Monsieur", "Madame", "Dr.", "Pr.", "Prof."]
+    for prefix in prefixes:
+        if name.startswith(prefix):
+            name = name[len(prefix):].strip()
+            break
+
+    # Title case: capitalize first letter of each word
+    name = " ".join(word.capitalize() for word in name.split())
+
+    return name
+
+
+def _clean_entity_list(entities: list) -> list:
+    """
+    Cleans and normalizes a list of entities:
+    - Filter out None, empty strings, strings < 2 chars
+    - Normalize each name
+    - Remove duplicates (case-insensitive)
+    - Return sorted list
+    """
+    if not isinstance(entities, list):
+        return []
+
+    cleaned = []
+    seen = set()
+
+    for ent in entities:
+        if ent is None or not isinstance(ent, str):
+            continue
+
+        ent = ent.strip()
+        if len(ent) < 2:  # Skip strings shorter than 2 chars
+            continue
+
+        normalized = _normalize_entity_name(ent)
+        if not normalized:
+            continue
+
+        # Case-insensitive dedup
+        normalized_lower = normalized.lower()
+        if normalized_lower not in seen:
+            cleaned.append(normalized)
+            seen.add(normalized_lower)
+
+    return sorted(cleaned)
+
+
+# ============================================================
+# Validation — Valid values
+# ============================================================
+
+VALID_THEMES = {"eau_env", "energie_transports", "sante_social", "education",
+                "economie_emploi", "culture_patrimoine", "securite_justice", "politique",
+                "sport", "general"}
+VALID_SENTIMENTS = {"positif", "négatif", "negatif", "neutre", "mixte"}
+VALID_EVENT_TYPES = {"declaration", "decision", "incident", "mobilisation", "bilan",
+                     "nomination", "judiciaire", "catastrophe", "routine"}
+VALID_AFFAIR_TYPES = {"routine", "incident_mineur", "affaire_importante",
+                      "affaire_grave", "crise_majeure"}
 
 
 # ============================================================
@@ -157,8 +267,18 @@ Autres règles :
 
 def enrich_article_with_groq(article: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """
-    Enrichit un article via IA (xAI → fallback OpenAI → fallback tags_index).
+    Enrichit un article via IA avec validation stricte.
     Retourne None si échec (pour permettre le fallback sur tags_index).
+
+    Validation stricte:
+    - gravity_score: float [0.0-1.0], clamped if outside
+    - theme: one of VALID_THEMES, defaults to "general"
+    - sentiment: one of VALID_SENTIMENTS, defaults to "neutre"
+    - elected/institutions: cleaned lists, no empty strings, no None, no short strings
+    - event_type: one of VALID_EVENT_TYPES, defaults to "routine"
+    - affair_type: one of VALID_AFFAIR_TYPES, defaults based on gravity
+    - summary: non-empty string, max 500 chars
+    Entity normalization applied after validation.
     """
     if not is_available():
         return None
@@ -186,34 +306,94 @@ def enrich_article_with_groq(article: Dict[str, Any]) -> Optional[Dict[str, Any]
             return None
         result = json.loads(raw)
 
-        # Normaliser et valider les champs
-        theme = result.get("theme", "general")
-        elected = result.get("elected", [])
-        institutions = result.get("institutions", [])
-        sentiment = result.get("sentiment", "neutre")
-        gravity_score = float(result.get("gravity_score", 0.15))
-        is_affair = result.get("is_affair", gravity_score >= 0.55)
-        affair_type = result.get("affair_type", "routine")
-        summary = result.get("summary", "")
-        keywords = result.get("keywords", [])
+        # === STRICT VALIDATION ===
 
-        # Extraction événement structuré
+        # 1. gravity_score: float [0.0-1.0]
+        try:
+            gravity_score = float(result.get("gravity_score", 0.15))
+        except (ValueError, TypeError):
+            gravity_score = 0.15
+            logger.warning("⚠️ gravity_score invalid, defaulting to 0.15")
+
+        original_gravity = gravity_score
+        if gravity_score < 0.0 or gravity_score > 1.0:
+            gravity_score = max(0.0, min(1.0, gravity_score))
+            logger.warning(f"⚠️ gravity_score {original_gravity} clamped to {gravity_score}")
+
+        # 2. theme: validate against VALID_THEMES
+        theme = result.get("theme", "general")
+        if theme not in VALID_THEMES:
+            logger.warning(f"⚠️ theme '{theme}' invalid, defaulting to 'general'")
+            theme = "general"
+
+        # 3. sentiment: validate against VALID_SENTIMENTS
+        sentiment = result.get("sentiment", "neutre")
+        if sentiment not in VALID_SENTIMENTS:
+            logger.warning(f"⚠️ sentiment '{sentiment}' invalid, defaulting to 'neutre'")
+            sentiment = "neutre"
+
+        # 4. elected & institutions: clean lists
+        elected_raw = result.get("elected", [])
+        institutions_raw = result.get("institutions", [])
+
+        if isinstance(elected_raw, str):
+            elected_raw = [elected_raw] if elected_raw else []
+        if isinstance(institutions_raw, str):
+            institutions_raw = [institutions_raw] if institutions_raw else []
+
+        # Clean and normalize
+        elected = _clean_entity_list(elected_raw)
+        institutions = _clean_entity_list(institutions_raw)
+
+        # 5. event_type: validate within event object
         event_raw = result.get("event", {})
+        event_type = event_raw.get("event_type", "routine") if event_raw else "routine"
+        if event_type not in VALID_EVENT_TYPES:
+            logger.warning(f"⚠️ event_type '{event_type}' invalid, defaulting to 'routine'")
+            event_type = "routine"
+
         event_structured = {
-            "subject": event_raw.get("subject", ""),
-            "action": event_raw.get("action", ""),
-            "object": event_raw.get("object", ""),
-            "event_type": event_raw.get("event_type", "routine"),
-            "location": event_raw.get("location", ""),
+            "subject": str(event_raw.get("subject", "")).strip() if event_raw else "",
+            "action": str(event_raw.get("action", "")).strip() if event_raw else "",
+            "object": str(event_raw.get("object", "")).strip() if event_raw else "",
+            "event_type": event_type,
+            "location": str(event_raw.get("location", "")).strip() if event_raw else "",
         } if event_raw else {}
 
-        # S'assurer que les listes sont bien des listes
-        if isinstance(elected, str):
-            elected = [elected] if elected else []
-        if isinstance(institutions, str):
-            institutions = [institutions] if institutions else []
-        if isinstance(keywords, str):
-            keywords = [keywords] if keywords else []
+        # 6. affair_type: validate against VALID_AFFAIR_TYPES
+        affair_type = result.get("affair_type", "routine")
+        if affair_type not in VALID_AFFAIR_TYPES:
+            # Default based on gravity
+            if gravity_score >= 0.7:
+                affair_type = "affaire_grave"
+            elif gravity_score >= 0.55:
+                affair_type = "affaire_importante"
+            elif gravity_score >= 0.3:
+                affair_type = "incident_mineur"
+            else:
+                affair_type = "routine"
+            logger.warning(f"⚠️ affair_type invalid, defaulted to '{affair_type}' based on gravity")
+
+        # 7. is_affair: computed from gravity
+        is_affair = gravity_score >= 0.55
+
+        # 8. summary: non-empty string, max 500 chars
+        summary = result.get("summary", "")
+        if not isinstance(summary, str):
+            summary = ""
+        summary = summary.strip()
+        if len(summary) > 500:
+            summary = summary[:500].strip()
+            logger.warning("⚠️ summary truncated to 500 chars")
+        if not summary:
+            logger.warning("⚠️ summary empty, using default")
+            summary = f"Article analysé - {theme}"
+
+        # 9. keywords: clean list
+        keywords_raw = result.get("keywords", [])
+        if isinstance(keywords_raw, str):
+            keywords_raw = [keywords_raw] if keywords_raw else []
+        keywords = [k for k in keywords_raw if isinstance(k, str) and k.strip()]
 
         # Construire entities combinées
         all_entities = list(set(elected + institutions))
@@ -237,7 +417,7 @@ def enrich_article_with_groq(article: Dict[str, Any]) -> Optional[Dict[str, Any]
             "sentiment": sentiment,
             "is_affair": is_affair,
             "affair_type": affair_type,
-            "gravity_score": round(min(1.0, max(0.0, gravity_score)), 3),
+            "gravity_score": round(gravity_score, 3),
             "importance_score": round(min(1.0, gravity_score + (0.15 if elected else 0) + (0.10 if institutions else 0)), 3),
             "keywords_found": keywords,
             "ai_summary": summary,
@@ -955,3 +1135,144 @@ def smart_enrich_article(article: Dict[str, Any]) -> Dict[str, Any]:
         except Exception as e:
             logger.error(f"❌ Aucun enrichissement disponible: {e}")
             return article
+
+
+# ============================================================
+# Déduplication IA des affaires — GPT compare les affaires actives
+# ============================================================
+
+DEDUP_PROMPT = """Tu es un analyste média spécialisé Guadeloupe/Antilles.
+
+On te donne une liste d'AFFAIRES ACTIVES. Certaines parlent du MÊME événement ou sujet
+mais ont été créées séparément (titres légèrement différents, sources différentes, etc.).
+
+Identifie les GROUPES D'AFFAIRES QUI SONT DES DOUBLONS (même événement réel).
+
+CRITÈRES POUR CONSIDÉRER COMME DOUBLON :
+- Même événement concret (même incident, même décision, même personne impliquée dans la même action)
+- Même sujet traité sous des angles différents (ex: "Pénurie d'eau à Petit-Pérou" et "Résidents sans eau aux Abymes")
+- Même institution/personne + même action (ex: "Ary Chalus convoqué" et "Arichalus devant le parquet")
+- Même lieu + même type d'incident (ex: "Plongeur décédé à Sainte-Anne" et "Mort d'un touriste à Sainte-Anne")
+
+CE QUI N'EST PAS UN DOUBLON :
+- Même thème mais événements différents (ex: deux accidents différents, deux grèves différentes)
+- Même personne mais actions différentes (ex: "Chalus annonce" vs "Chalus critiqué pour corruption")
+- Même institution mais sujets différents
+
+Réponds UNIQUEMENT en JSON :
+{
+  "duplicates": [
+    {
+      "keep_id": "ID de l'affaire à garder (la plus complète/haute gravité)",
+      "merge_ids": ["ID1", "ID2"],
+      "reason": "explication courte du doublon"
+    }
+  ]
+}
+
+Si aucun doublon → {"duplicates": []}
+Sois CONSERVATEUR : en cas de doute, ne fusionne PAS."""
+
+
+def detect_duplicate_affairs(affairs: List[Dict[str, Any]]) -> Optional[List[Dict[str, Any]]]:
+    """
+    Utilise GPT pour identifier les affaires actives qui sont des doublons.
+    Envoie seulement titre + entités + action (léger en tokens).
+
+    Retourne une liste de groupes à fusionner :
+    [{"keep_id": "...", "merge_ids": ["...", "..."], "reason": "..."}]
+
+    Retourne None si échec ou IA non disponible.
+    """
+    if not is_available():
+        return None
+
+    if len(affairs) < 2:
+        return []
+
+    # Limiter à 40 affaires pour rester dans les limites de tokens
+    affairs_to_check = affairs[:40]
+
+    # Construire la liste compacte
+    lines = ["=== AFFAIRES ACTIVES ==="]
+    for aff in affairs_to_check:
+        aff_id = str(aff.get("_id", "?"))
+        title = (aff.get("title", "") or "")[:120]
+        gravity = aff.get("gravity_score", 0)
+        elected = ", ".join((aff.get("elected", []) or [])[:5])
+        institutions = ", ".join((aff.get("institutions", []) or [])[:5])
+        items = aff.get("item_count", 0)
+
+        # Événement structuré si disponible
+        event = aff.get("event_structured", {}) or {}
+        action_str = ""
+        if event.get("subject") and event.get("action"):
+            action_str = f" | Action: {event['subject']} → {event['action']}"
+            if event.get("object"):
+                action_str += f" ({event['object']})"
+
+        line = f"[{aff_id}] gravity={gravity:.2f} items={items} | {title}"
+        if elected:
+            line += f" | Élus: {elected}"
+        if institutions:
+            line += f" | Instit: {institutions}"
+        if action_str:
+            line += action_str
+        lines.append(line)
+
+    user_content = "\n".join(lines)
+
+    try:
+        raw = _call_ai(
+            messages=[
+                {"role": "system", "content": DEDUP_PROMPT},
+                {"role": "user", "content": user_content},
+            ],
+            temperature=0.05,
+            max_tokens=1000,
+            json_mode=True,
+        )
+        if raw is None:
+            return None
+
+        result = json.loads(raw)
+        duplicates = result.get("duplicates", [])
+
+        if not duplicates:
+            logger.info("🔍 Dédup IA: aucun doublon détecté")
+            return []
+
+        # Valider que les IDs existent dans la liste
+        valid_ids = {str(a.get("_id", "")) for a in affairs_to_check}
+        validated = []
+        for dup in duplicates:
+            keep_id = str(dup.get("keep_id", ""))
+            merge_ids = [str(mid) for mid in dup.get("merge_ids", [])]
+
+            if keep_id not in valid_ids:
+                logger.warning(f"⚠️ Dédup IA: keep_id '{keep_id}' non trouvé, ignoré")
+                continue
+
+            valid_merges = [mid for mid in merge_ids if mid in valid_ids and mid != keep_id]
+            if not valid_merges:
+                continue
+
+            validated.append({
+                "keep_id": keep_id,
+                "merge_ids": valid_merges,
+                "reason": dup.get("reason", "doublon IA"),
+            })
+
+        if validated:
+            logger.info(
+                f"🤖 Dédup IA: {len(validated)} groupes de doublons détectés "
+                f"({sum(len(d['merge_ids']) for d in validated)} affaires à fusionner)"
+            )
+        return validated
+
+    except json.JSONDecodeError as e:
+        logger.warning(f"⚠️ Dédup IA: JSON invalide: {e}")
+        return None
+    except Exception as e:
+        logger.warning(f"⚠️ Dédup IA échoué: {e}")
+        return None
