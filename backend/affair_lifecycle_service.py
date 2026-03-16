@@ -1451,13 +1451,13 @@ class AffairLifecycleService:
                 merged_gravity = max(gravity, best_match.get("gravity_score", 0))
                 merged_bmg = best_match.get("bmg", 0)
                 merged_items = best_match.get("item_count", 1) + 1
-                new_priority = self.compute_priority(merged_gravity, merged_bmg, merged_items,
-                                                     sentiment=dominant_sentiment)
                 merge_sentiment = art.get("sentiment", "neutre")
-                # Recalculer le sentiment dominant
+                # Recalculer le sentiment dominant AVANT de l'utiliser
                 existing_sentiments = best_match.get("sentiment_history", []) or []
                 updated_sentiments = existing_sentiments + [merge_sentiment]
                 dominant_sentiment = self._dominant_sentiment(updated_sentiments)
+                new_priority = self.compute_priority(merged_gravity, merged_bmg, merged_items,
+                                                     sentiment=dominant_sentiment)
 
                 self.affairs.update_one(
                     {"_id": best_match["_id"]},
