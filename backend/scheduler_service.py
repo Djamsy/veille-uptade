@@ -696,6 +696,57 @@ async def job_full_pipeline():
 
 
 # ============================================================
+# Job: Analyse prédictive IA (toutes les heures)
+# ============================================================
+
+async def job_predictive_analysis():
+    """Lance l'analyse prédictive IA sur les affaires actives et stocke le résultat."""
+    if _db is None:
+        logger.warning("⚠️ Predictive: DB indisponible")
+        return {"status": "skip", "reason": "no_db"}
+
+    try:
+        # Import du service IA
+        try:
+            from backend.ai_groq_service import analyze_trends_predictive
+        except ImportError:
+            from ai_groq_service import analyze_trends_predictive
+
+        affairs_col = _db.get_collection("affairs")
+        active = list(affairs_col.find({"status": "active"}).sort("bmg", -1).limit(30))
+
+        if not active:
+            logger.info("🔮 Predictive: aucune affaire active")
+            return {"status": "skip", "reason": "no_affairs"}
+
+        # Exécuter l'analyse (appel synchrone dans executor)
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, analyze_trends_predictive, active)
+
+        if result:
+            # Stocker le résultat en cache dans MongoDB
+            cache_col = _db.get_collection("predictive_cache")
+            cache_col.update_one(
+                {"_id": "latest"},
+                {"$set": {
+                    "analysis": result,
+                    "affairs_analyzed": len(active),
+                    "generated_at": datetime.now().isoformat(),
+                }},
+                upsert=True,
+            )
+            logger.info(f"🔮 Analyse prédictive IA terminée — {len(active)} affaires analysées")
+            return {"status": "ok", "affairs_analyzed": len(active)}
+        else:
+            logger.warning("⚠️ Predictive: résultat vide")
+            return {"status": "error", "reason": "empty_result"}
+
+    except Exception as e:
+        logger.error(f"❌ Predictive IA erreur: {e}")
+        return {"status": "error", "reason": str(e)}
+
+
+# ============================================================
 # Scheduler APScheduler
 # ============================================================
 
@@ -755,6 +806,14 @@ def _ensure_scheduler():
         CronTrigger(minute="10", timezone=TZ),
         id="social_scrape",
         name="Scraping réseaux sociaux (Apify)"
+    )
+
+    # 🔮 Analyse prédictive IA toutes les heures (minute 30)
+    _scheduler.add_job(
+        job_predictive_analysis,
+        CronTrigger(minute="30", timezone=TZ),
+        id="predictive_analysis",
+        name="Analyse prédictive IA (GPT)"
     )
 
     return _scheduler

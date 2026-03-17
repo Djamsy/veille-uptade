@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useAuth } from './AuthGuard'
 
 const navItems = [
   {
@@ -101,6 +102,7 @@ const navItems = [
 export default function Sidebar() {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { user, logout } = useAuth()
 
   useEffect(() => {
     setMobileOpen(false)
@@ -145,7 +147,11 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {navItems.map((item) => (
+        {navItems.filter(item => {
+          // Hide admin link for non-admin users
+          if (item.href === '/admin' && user?.role !== 'admin') return false
+          return true
+        }).map((item) => (
           <Link
             key={item.href}
             href={item.href}
@@ -171,13 +177,38 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Footer */}
-      <div className="px-4 py-4" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-        <div className="flex items-center gap-2 text-[11px]" style={{ color: 'rgba(255,255,255,0.25)' }}>
-          <div className="w-1.5 h-1.5 rounded-full pulse-ring"
-            style={{ background: '#10b981', boxShadow: '0 0 8px rgba(16,185,129,0.4)', color: '#10b981' }}
-          />
-          Connecté
+      {/* Footer — User info + Logout */}
+      <div className="px-4 py-4 space-y-3" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+        {user && (
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold text-white/60"
+              style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.25)' }}>
+              {user.name?.charAt(0).toUpperCase() || 'U'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] text-white/60 truncate leading-tight">{user.name || user.email}</p>
+              <p className="text-[9px] uppercase tracking-wider" style={{ color: 'rgba(168,85,247,0.5)' }}>
+                {user.role}
+              </p>
+            </div>
+          </div>
+        )}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-[11px]" style={{ color: 'rgba(255,255,255,0.25)' }}>
+            <div className="w-1.5 h-1.5 rounded-full pulse-ring"
+              style={{ background: '#10b981', boxShadow: '0 0 8px rgba(16,185,129,0.4)', color: '#10b981' }}
+            />
+            Connecté
+          </div>
+          <button
+            onClick={logout}
+            className="text-[10px] px-2 py-1 rounded-lg transition-colors text-white/25 hover:text-[#f87171] hover:bg-red-500/10"
+            title="Se déconnecter"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+            </svg>
+          </button>
         </div>
       </div>
     </>

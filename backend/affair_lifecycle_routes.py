@@ -274,12 +274,30 @@ async def recalculate_affair_bmg(affair_id: str):
 # ============================================================
 
 @router.get("/analytics/predictive")
-async def get_predictive_analysis():
+async def get_predictive_analysis(force: bool = Query(default=False)):
     """
     Analyse prédictive IA : tendances, anticipations, recommandations.
-    Utilise GPT pour analyser les affaires actives et prédire les évolutions.
+    Sert le cache (mis à jour toutes les heures par le scheduler).
+    Ajouter ?force=true pour forcer un recalcul immédiat.
     """
     svc = _svc()
+
+    # Vérifier le cache d'abord (sauf si force=true)
+    if not force:
+        try:
+            cache_col = svc.db.get_collection("predictive_cache")
+            cached = cache_col.find_one({"_id": "latest"})
+            if cached and cached.get("analysis"):
+                return {
+                    "success": True,
+                    "analysis": cached["analysis"],
+                    "affairs_analyzed": cached.get("affairs_analyzed", 0),
+                    "generated_at": cached.get("generated_at"),
+                    "from_cache": True,
+                }
+        except Exception:
+            pass  # Pas de cache, on recalcule
+
     active = list(svc.affairs.find({"status": {"$in": ["active", "stale"]}}).sort("gravity_score", -1).limit(30))
 
     if not active:
@@ -301,10 +319,27 @@ async def get_predictive_analysis():
     if result is None:
         return {"success": False, "error": "Analyse IA échouée (clé API manquante ou erreur)"}
 
+    # Mettre en cache
+    try:
+        from datetime import datetime as dt
+        cache_col = svc.db.get_collection("predictive_cache")
+        cache_col.update_one(
+            {"_id": "latest"},
+            {"$set": {
+                "analysis": result,
+                "affairs_analyzed": len(active),
+                "generated_at": dt.now().isoformat(),
+            }},
+            upsert=True,
+        )
+    except Exception:
+        pass
+
     return {
         "success": True,
         "analysis": result,
         "affairs_analyzed": len(active),
+        "from_cache": False,
     }
 
 

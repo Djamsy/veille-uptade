@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Sidebar from '../../components/Sidebar'
+import { useAuth } from '../../components/AuthGuard'
 import {
   fetchActiveAffairsSummary,
   fetchOrphanArticles,
-  fetchCurrentUser,
   fetchAffairDetail,
   mergeAffairs,
   splitAffair,
@@ -60,6 +60,7 @@ const timeAgo = (iso: string) => {
 //  PAGE ADMIN
 // ══════════════════════════════════════════════════════
 export default function AdminPage() {
+  const { user: authUser } = useAuth()
   const [user, setUser] = useState<User | null>(null)
   const [authError, setAuthError] = useState('')
   const [tab, setTab] = useState<Tab>('affairs')
@@ -84,20 +85,13 @@ export default function AdminPage() {
   const [editTheme, setEditTheme] = useState('')
   const [editPriority, setEditPriority] = useState('')
 
-  // ── Auth check ──
+  // ── Auth from context (AuthGuard already handles redirect) ──
   useEffect(() => {
-    fetchCurrentUser()
-      .then(res => {
-        if (res.user.role === 'viewer' || res.user.role === 'user') {
-          setUser(res.user)
-          // viewers can see but not act
-        } else {
-          setUser(res.user)
-        }
-      })
-      .catch(() => setAuthError('Connectez-vous pour accéder à l\'administration'))
-      .finally(() => setLoading(false))
-  }, [])
+    if (authUser) {
+      setUser(authUser as User)
+      setLoading(false)
+    }
+  }, [authUser])
 
   // ── Data loading ──
   const loadAffairs = useCallback(async () => {

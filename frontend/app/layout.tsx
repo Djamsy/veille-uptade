@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
+import ClientLayout from '../components/ClientLayout'
 
 const inter = Inter({ subsets: ['latin'], weight: ['300', '400', '500', '600', '700'] })
 
@@ -45,7 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </div>
         {/* Content */}
         <div className="relative z-10">
-          {children}
+          <ClientLayout>{children}</ClientLayout>
         </div>
       </body>
     </html>
