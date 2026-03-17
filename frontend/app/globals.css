@@ -3,38 +3,42 @@
 @tailwind utilities;
 
 :root {
-  --primary: #6366f1;
-  --primary-light: #818cf8;
-  --primary-dark: #4f46e5;
-  --accent: #f59e0b;
-  --accent-light: #fbbf24;
-  --positive: #10b981;
-  --negative: #ef4444;
+  /* ── Guadeloupe Vivid palette ─────────────────────── */
+  --primary: #2563eb;       /* Bleu outremer */
+  --primary-light: #60a5fa;
+  --primary-dark: #1d4ed8;
+  --accent: #eab308;        /* Jaune soleil */
+  --accent-light: #facc15;
+  --positive: #16a34a;      /* Vert tropical */
+  --positive-light: #22c55e;
+  --negative: #dc2626;      /* Rouge vif */
+  --negative-light: #ef4444;
   --neutral: #64748b;
   --warning: #f59e0b;
-  --critical: #ef4444;
+  --critical: #dc2626;
+  --coral: #f97316;
 
-  /* Dark theme palette */
-  --bg: #050507;
-  --bg-elevated: #0a0a12;
-  --bg-card: rgba(255,255,255,0.025);
-  --bg-card-hover: rgba(255,255,255,0.055);
-  --bg-sidebar: rgba(255,255,255,0.015);
+  /* Dark theme base — teinte bleu nuit */
+  --bg: #060a13;
+  --bg-elevated: #0c1220;
+  --bg-card: rgba(12,18,32,0.65);
+  --bg-card-hover: rgba(20,30,55,0.75);
+  --bg-sidebar: rgba(8,14,28,0.92);
 
-  --text: #f0f0f5;
-  --text-secondary: #8b8fa3;
-  --text-muted: #5a5e73;
+  --text: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #475569;
 
   --border: rgba(255,255,255,0.06);
-  --border-accent: rgba(99,102,241,0.3);
+  --border-accent: rgba(37,99,235,0.3);
 
-  --glass-bg: rgba(255,255,255,0.03);
-  --glass-border: rgba(255,255,255,0.07);
-  --glass-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  --glass-bg: rgba(12,18,32,0.55);
+  --glass-border: rgba(255,255,255,0.08);
+  --glass-shadow: 0 8px 32px rgba(0,0,0,0.5);
 
   --shadow: 0 1px 3px rgba(0,0,0,0.5);
   --shadow-md: 0 4px 20px rgba(0,0,0,0.6);
-  --shadow-glow: 0 0 40px rgba(99,102,241,0.12);
+  --shadow-glow: 0 0 40px rgba(37,99,235,0.1);
 }
 
 * { box-sizing: border-box; }
@@ -50,7 +54,7 @@ body {
   overflow-x: hidden;
 }
 
-/* ── Ambient background orbs ─────────────────────────── */
+/* ── Ambient background — Guadeloupe vibes ────────── */
 .ambient-bg {
   position: fixed;
   inset: 0;
@@ -58,29 +62,45 @@ body {
   overflow: hidden;
   pointer-events: none;
 }
+/* Orbe bleu outremer — haut gauche */
 .ambient-bg::before {
   content: '';
   position: absolute;
-  top: -25%;
-  left: -15%;
-  width: 700px;
-  height: 700px;
+  top: -20%;
+  left: -10%;
+  width: 750px;
+  height: 750px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(99,102,241,0.10) 0%, rgba(99,102,241,0.03) 40%, transparent 70%);
+  background: radial-gradient(circle, rgba(37,99,235,0.10) 0%, rgba(37,99,235,0.03) 40%, transparent 70%);
   animation: ambientFloat1 25s ease-in-out infinite;
-  filter: blur(40px);
+  filter: blur(50px);
 }
+/* Orbe vert tropical — bas droite */
 .ambient-bg::after {
   content: '';
   position: absolute;
-  bottom: -25%;
-  right: -15%;
-  width: 600px;
-  height: 600px;
+  bottom: -20%;
+  right: -10%;
+  width: 650px;
+  height: 650px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(16,185,129,0.07) 0%, rgba(16,185,129,0.02) 40%, transparent 70%);
+  background: radial-gradient(circle, rgba(22,163,74,0.08) 0%, rgba(22,163,74,0.02) 40%, transparent 70%);
   animation: ambientFloat2 30s ease-in-out infinite;
-  filter: blur(40px);
+  filter: blur(50px);
+}
+
+/* Orbe jaune soleil — centre */
+.ambient-orb-3 {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(234,179,8,0.04) 0%, transparent 60%);
+  animation: ambientFloat3 35s ease-in-out infinite;
+  pointer-events: none;
+  filter: blur(60px);
 }
 
 @keyframes ambientFloat1 {
@@ -95,19 +115,6 @@ body {
   50% { transform: translate(-30px, -80px) scale(0.95); }
   75% { transform: translate(60px, -30px) scale(1.05); }
 }
-
-.ambient-orb-3 {
-  position: absolute;
-  top: 35%;
-  left: 45%;
-  width: 500px;
-  height: 500px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(168,85,247,0.05) 0%, transparent 60%);
-  animation: ambientFloat3 35s ease-in-out infinite;
-  pointer-events: none;
-  filter: blur(50px);
-}
 @keyframes ambientFloat3 {
   0%, 100% { transform: translate(-50%, -50%) scale(1); }
   33% { transform: translate(-40%, -60%) scale(1.2); }
@@ -118,7 +125,7 @@ body {
 .ambient-bg .noise-overlay {
   position: absolute;
   inset: 0;
-  opacity: 0.015;
+  opacity: 0.02;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
   background-repeat: repeat;
   pointer-events: none;
@@ -129,12 +136,12 @@ body {
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.08);
+  background: rgba(37,99,235,0.15);
   border-radius: 10px;
 }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+::-webkit-scrollbar-thumb:hover { background: rgba(37,99,235,0.3); }
 
-/* ── Glass card ──────────────────────────────────────── */
+/* ── Glass card — style Guadeloupe ───────────────────── */
 .glass-card {
   background: var(--glass-bg);
   backdrop-filter: blur(20px) saturate(180%);
@@ -151,7 +158,7 @@ body {
   inset: 0;
   border-radius: 16px;
   padding: 1px;
-  background: linear-gradient(135deg, rgba(255,255,255,0.08), transparent 50%, rgba(255,255,255,0.03));
+  background: linear-gradient(135deg, rgba(37,99,235,0.12), transparent 50%, rgba(22,163,74,0.06));
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
@@ -161,8 +168,8 @@ body {
 }
 .glass-card:hover {
   background: var(--bg-card-hover);
-  border-color: rgba(255,255,255,0.1);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 0 40px rgba(99,102,241,0.06);
+  border-color: rgba(37,99,235,0.15);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 0 30px rgba(37,99,235,0.06);
   transform: translateY(-2px);
 }
 .glass-card:hover::before {
@@ -184,10 +191,10 @@ body {
 }
 .card-hover:hover {
   transform: translateY(-4px);
-  box-shadow: 0 16px 48px rgba(0,0,0,0.4), 0 0 40px rgba(99,102,241,0.08);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.4), 0 0 40px rgba(37,99,235,0.08);
 }
 
-/* ── Animated gradient border ────────────────────────── */
+/* ── Animated gradient border — tricolore subtil ─────── */
 @property --angle {
   syntax: '<angle>';
   initial-value: 0deg;
@@ -203,11 +210,11 @@ body {
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: conic-gradient(from var(--angle), rgba(99,102,241,0.4), rgba(168,85,247,0.3), rgba(16,185,129,0.3), rgba(99,102,241,0.4));
+  background: conic-gradient(from var(--angle), rgba(37,99,235,0.5), rgba(22,163,74,0.4), rgba(234,179,8,0.4), rgba(220,38,38,0.3), rgba(37,99,235,0.5));
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
-  animation: spin-border 6s linear infinite;
+  animation: spin-border 8s linear infinite;
   pointer-events: none;
 }
 @keyframes spin-border {
@@ -218,17 +225,15 @@ body {
 @keyframes gaugeRotate {
   from { stroke-dashoffset: 251; }
 }
-
 @keyframes pulseGlow {
   0%, 100% { filter: drop-shadow(0 0 4px currentColor); }
   50% { filter: drop-shadow(0 0 14px currentColor); }
 }
-
 .gauge-critical {
   animation: pulseGlow 2s ease-in-out infinite;
 }
 
-/* ── Sidebar ─────────────────────────────────────────── */
+/* ── Sidebar — accent stripe Guadeloupe ──────────────── */
 .sidebar-link {
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
@@ -239,12 +244,12 @@ body {
   left: 0;
   top: 50%;
   height: 0;
-  width: 2.5px;
-  background: linear-gradient(180deg, var(--primary), var(--primary-light));
+  width: 3px;
+  background: linear-gradient(180deg, #16a34a, #eab308, #dc2626);
   border-radius: 0 3px 3px 0;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   transform: translateY(-50%);
-  box-shadow: 0 0 8px rgba(99,102,241,0.3);
+  box-shadow: 0 0 8px rgba(234,179,8,0.3);
 }
 .sidebar-link:hover::before {
   height: 60%;
@@ -253,7 +258,7 @@ body {
   height: 70%;
 }
 .sidebar-link.active {
-  background: rgba(99,102,241,0.1);
+  background: rgba(37,99,235,0.1);
 }
 
 /* ── Skeleton loading ────────────────────────────────── */
@@ -262,29 +267,34 @@ body {
   100% { background-position: 300% 0; }
 }
 .skeleton {
-  background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.07) 50%, rgba(255,255,255,0.03) 75%);
+  background: linear-gradient(90deg, rgba(37,99,235,0.03) 25%, rgba(37,99,235,0.08) 50%, rgba(37,99,235,0.03) 75%);
   background-size: 300% 100%;
   animation: shimmer 2s ease-in-out infinite;
   border-radius: 8px;
 }
 
-/* ── Badge variants ──────────────────────────────────── */
+/* ── Badge variants ── couleurs Guadeloupe ────────────── */
 .badge {
   @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold;
 }
-.badge-critical { background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
+.badge-critical { background: rgba(220,38,38,0.15); color: #f87171; border: 1px solid rgba(220,38,38,0.3); }
 .badge-high { background: rgba(249,115,22,0.12); color: #fb923c; border: 1px solid rgba(249,115,22,0.25); }
-.badge-medium { background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.25); }
-.badge-low { background: rgba(16,185,129,0.12); color: #34d399; border: 1px solid rgba(16,185,129,0.25); }
-.badge-info { background: rgba(99,102,241,0.12); color: #818cf8; border: 1px solid rgba(99,102,241,0.25); }
+.badge-medium { background: rgba(234,179,8,0.12); color: #facc15; border: 1px solid rgba(234,179,8,0.25); }
+.badge-low { background: rgba(22,163,74,0.12); color: #4ade80; border: 1px solid rgba(22,163,74,0.25); }
+.badge-info { background: rgba(37,99,235,0.12); color: #60a5fa; border: 1px solid rgba(37,99,235,0.25); }
 
-/* ── Glow effects ────────────────────────────────────── */
-.glow-indigo { box-shadow: 0 0 24px rgba(99,102,241,0.15), inset 0 0 24px rgba(99,102,241,0.04); }
-.glow-emerald { box-shadow: 0 0 24px rgba(16,185,129,0.15), inset 0 0 24px rgba(16,185,129,0.04); }
-.glow-rose { box-shadow: 0 0 24px rgba(244,63,94,0.15), inset 0 0 24px rgba(244,63,94,0.04); }
-.glow-amber { box-shadow: 0 0 24px rgba(245,158,11,0.15), inset 0 0 24px rgba(245,158,11,0.04); }
+/* ── Glow effects — Guadeloupe ───────────────────────── */
+.glow-blue { box-shadow: 0 0 24px rgba(37,99,235,0.15), inset 0 0 24px rgba(37,99,235,0.04); }
+.glow-green { box-shadow: 0 0 24px rgba(22,163,74,0.15), inset 0 0 24px rgba(22,163,74,0.04); }
+.glow-red { box-shadow: 0 0 24px rgba(220,38,38,0.15), inset 0 0 24px rgba(220,38,38,0.04); }
+.glow-gold { box-shadow: 0 0 24px rgba(234,179,8,0.15), inset 0 0 24px rgba(234,179,8,0.04); }
+/* Legacy aliases */
+.glow-indigo { box-shadow: 0 0 24px rgba(37,99,235,0.15), inset 0 0 24px rgba(37,99,235,0.04); }
+.glow-emerald { box-shadow: 0 0 24px rgba(22,163,74,0.15), inset 0 0 24px rgba(22,163,74,0.04); }
+.glow-rose { box-shadow: 0 0 24px rgba(220,38,38,0.15), inset 0 0 24px rgba(220,38,38,0.04); }
+.glow-amber { box-shadow: 0 0 24px rgba(234,179,8,0.15), inset 0 0 24px rgba(234,179,8,0.04); }
 
-/* ── Stat number gradient ────────────────────────────── */
+/* ── Stat number gradient — soleil ───────────────────── */
 .stat-value {
   background: linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.65) 100%);
   -webkit-background-clip: text;
@@ -292,15 +302,27 @@ body {
   background-clip: text;
 }
 
-/* ── Gradient text ───────────────────────────────────── */
+/* ── Gradient text — Guadeloupe ──────────────────────── */
 .text-gradient-primary {
-  background: linear-gradient(135deg, #818cf8, #c084fc);
+  background: linear-gradient(135deg, #60a5fa, #2563eb);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 .text-gradient-warm {
-  background: linear-gradient(135deg, #fbbf24, #f97316);
+  background: linear-gradient(135deg, #eab308, #f97316);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.text-gradient-guadeloupe {
+  background: linear-gradient(135deg, #16a34a, #eab308, #dc2626);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.text-gradient-tropical {
+  background: linear-gradient(135deg, #22c55e, #2563eb);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -308,32 +330,32 @@ body {
 
 /* ── Input dark style ────────────────────────────────── */
 .input-dark {
-  background: rgba(255,255,255,0.035);
-  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(12,18,32,0.7);
+  border: 1px solid rgba(37,99,235,0.12);
   border-radius: 10px;
   color: var(--text);
   transition: all 0.25s ease;
 }
 .input-dark:focus {
   outline: none;
-  border-color: rgba(99,102,241,0.5);
-  box-shadow: 0 0 0 3px rgba(99,102,241,0.08), 0 0 20px rgba(99,102,241,0.06);
-  background: rgba(255,255,255,0.05);
+  border-color: rgba(37,99,235,0.5);
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.08), 0 0 20px rgba(37,99,235,0.06);
+  background: rgba(12,18,32,0.9);
 }
 .input-dark::placeholder {
   color: var(--text-muted);
 }
 
-/* ── Button styles ───────────────────────────────────── */
+/* ── Button styles — Guadeloupe ──────────────────────── */
 .btn-primary {
-  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
   color: white;
   border: none;
   border-radius: 10px;
   font-weight: 600;
   letter-spacing: 0.01em;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 2px 12px rgba(99,102,241,0.25), inset 0 1px 0 rgba(255,255,255,0.1);
+  box-shadow: 0 2px 12px rgba(37,99,235,0.3), inset 0 1px 0 rgba(255,255,255,0.1);
   position: relative;
   overflow: hidden;
 }
@@ -346,7 +368,7 @@ body {
   transition: opacity 0.3s ease;
 }
 .btn-primary:hover {
-  box-shadow: 0 4px 24px rgba(99,102,241,0.4), inset 0 1px 0 rgba(255,255,255,0.15);
+  box-shadow: 0 4px 24px rgba(37,99,235,0.45), inset 0 1px 0 rgba(255,255,255,0.15);
   transform: translateY(-1px);
 }
 .btn-primary:hover::before {
@@ -354,7 +376,7 @@ body {
 }
 .btn-primary:active {
   transform: translateY(0);
-  box-shadow: 0 2px 8px rgba(99,102,241,0.3);
+  box-shadow: 0 2px 8px rgba(37,99,235,0.3);
 }
 .btn-primary:disabled {
   opacity: 0.5;
@@ -363,18 +385,48 @@ body {
 }
 
 .btn-glass {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(37,99,235,0.06);
+  border: 1px solid rgba(37,99,235,0.12);
   color: var(--text-secondary);
   border-radius: 10px;
   font-weight: 500;
   transition: all 0.25s ease;
 }
 .btn-glass:hover {
-  background: rgba(255,255,255,0.08);
-  border-color: rgba(255,255,255,0.14);
+  background: rgba(37,99,235,0.12);
+  border-color: rgba(37,99,235,0.25);
   color: var(--text);
-  box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 12px rgba(37,99,235,0.1);
+}
+
+/* ── Button accent variants ──────────────────────────── */
+.btn-gold {
+  background: linear-gradient(135deg, #eab308 0%, #d97706 100%);
+  color: #1a1a1a;
+  border: none;
+  border-radius: 10px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 12px rgba(234,179,8,0.3);
+}
+.btn-gold:hover {
+  box-shadow: 0 4px 24px rgba(234,179,8,0.5);
+  transform: translateY(-1px);
+}
+
+.btn-green {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 12px rgba(22,163,74,0.3);
+}
+.btn-green:hover {
+  box-shadow: 0 4px 24px rgba(22,163,74,0.5);
+  transform: translateY(-1px);
 }
 
 /* ── Progress bar ────────────────────────────────────── */
@@ -417,8 +469,8 @@ body {
   bottom: 0;
   left: 10%;
   right: 10%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--kpi-color, rgba(99,102,241,0.3)), transparent);
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--kpi-color, rgba(37,99,235,0.3)), transparent);
   opacity: 0;
   transition: opacity 0.35s ease;
 }
@@ -426,13 +478,29 @@ body {
   opacity: 1;
 }
 
+/* ── Top accent stripe on cards ──────────────────────── */
+.card-accent-top {
+  position: relative;
+  overflow: hidden;
+}
+.card-accent-top::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #16a34a, #eab308, #dc2626);
+  opacity: 0.6;
+}
+
 /* ── Section divider with gradient ───────────────────── */
 .section-divider {
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06) 30%, rgba(255,255,255,0.06) 70%, transparent);
+  background: linear-gradient(90deg, transparent, rgba(37,99,235,0.1) 20%, rgba(234,179,8,0.08) 50%, rgba(22,163,74,0.1) 80%, transparent);
 }
 
-/* ── Animated number counter (JS drives value) ───────── */
+/* ── Animated counter ───────────────────────────────── */
 @keyframes countUp {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
@@ -458,7 +526,7 @@ body {
   animation: pulseRing 2s cubic-bezier(0,0,0.2,1) infinite;
 }
 
-/* ── Tooltip (via data-tooltip attr) ─────────────────── */
+/* ── Tooltip ─────────────────────────────────────────── */
 [data-tooltip] {
   position: relative;
 }
@@ -469,8 +537,8 @@ body {
   left: 50%;
   transform: translateX(-50%) translateY(-4px);
   padding: 4px 8px;
-  background: rgba(15,15,25,0.95);
-  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(6,10,19,0.95);
+  border: 1px solid rgba(37,99,235,0.2);
   border-radius: 6px;
   font-size: 10px;
   color: rgba(255,255,255,0.8);
@@ -484,19 +552,24 @@ body {
   transform: translateX(-50%) translateY(-8px);
 }
 
+/* ── Flag stripe — decorative Guadeloupe accent ───────── */
+.flag-stripe {
+  height: 3px;
+  background: linear-gradient(90deg, #16a34a 0%, #16a34a 33%, #eab308 33%, #eab308 66%, #dc2626 66%, #dc2626 100%);
+  border-radius: 2px;
+}
+
 /* ── Mobile responsive ───────────────────────────────── */
 @media (max-width: 1023px) {
   .lg\:ml-60 { margin-left: 0 !important; }
   main { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
 
-  /* Reduce glass blur on mobile for perf */
   .glass-card,
   .glass-card-static {
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
   }
 
-  /* Disable heavy animations on mobile */
   .ambient-bg::before,
   .ambient-bg::after,
   .ambient-orb-3 {
@@ -505,7 +578,6 @@ body {
     opacity: 0.8;
   }
 
-  /* Tighter spacing */
   .glass-card,
   .glass-card-static {
     border-radius: 12px;
@@ -520,7 +592,6 @@ body {
     padding: 0.75rem !important;
   }
 
-  /* Stack KPI row as 2 cols on small screens */
   .grid-cols-2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -529,58 +600,38 @@ body {
 /* ── PWA standalone mode adjustments ─────────────────── */
 @media (display-mode: standalone) {
   body {
-    /* Safe area insets for notch phones */
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
   }
-
-  /* Pull-to-refresh prevention */
-  html {
-    overscroll-behavior-y: contain;
-  }
+  html { overscroll-behavior-y: contain; }
 }
 
 /* ── Touch optimizations ─────────────────────────────── */
 @media (pointer: coarse) {
-  /* Larger touch targets */
-  .sidebar-link {
-    min-height: 44px;
-  }
-
-  .btn-glass,
-  .btn-primary {
-    min-height: 40px;
-  }
-
-  /* Disable hover effects on touch (less janky) */
-  .card-hover:hover {
-    transform: none;
-  }
-  .glass-card:hover {
-    transform: none;
-  }
+  .sidebar-link { min-height: 44px; }
+  .btn-glass, .btn-primary { min-height: 40px; }
+  .card-hover:hover { transform: none; }
+  .glass-card:hover { transform: none; }
 }
 
 /* ── Focus ring ──────────────────────────────────────── */
 :focus-visible {
-  outline: 2px solid rgba(99,102,241,0.5);
+  outline: 2px solid rgba(37,99,235,0.5);
   outline-offset: 2px;
 }
 
 /* ── Selection color ─────────────────────────────────── */
 ::selection {
-  background: rgba(99,102,241,0.3);
+  background: rgba(37,99,235,0.3);
   color: white;
 }
 
-/* ── Smooth page transitions ─────────────────────────── */
-html {
-  scroll-behavior: smooth;
-}
+/* ── Smooth scroll ───────────────────────────────────── */
+html { scroll-behavior: smooth; }
 
-/* ── Safe-area support for bottom nav ────────────────── */
+/* ── Safe-area support ───────────────────────────────── */
 .safe-bottom {
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }

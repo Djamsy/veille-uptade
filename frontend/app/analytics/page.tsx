@@ -167,7 +167,7 @@ export default function AnalyticsPage() {
               <div className="h-1 rounded-full mt-2" style={{ background: 'rgba(255,255,255,0.04)' }}>
                 <div className="h-full rounded-full" style={{
                   width: `${Math.min(100, coverage?.enrichment_rate ?? 0)}%`,
-                  background: '#818cf8',
+                  background: '#60a5fa',
                 }} />
               </div>
               <p className="text-[10px] mt-1" style={{ color: 'rgba(255,255,255,0.2)' }}>
@@ -195,11 +195,11 @@ export default function AnalyticsPage() {
             {/* Radio */}
             <div className="glass-card-static p-4">
               <p className="text-[10px] uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.3)' }}>Radio</p>
-              <p className="text-2xl font-bold" style={{ color: '#c084fc' }}>{coverage?.radio_rate ?? 0}%</p>
+              <p className="text-2xl font-bold" style={{ color: '#facc15' }}>{coverage?.radio_rate ?? 0}%</p>
               <div className="h-1 rounded-full mt-2" style={{ background: 'rgba(255,255,255,0.04)' }}>
                 <div className="h-full rounded-full" style={{
                   width: `${Math.min(100, coverage?.radio_rate ?? 0)}%`,
-                  background: '#c084fc',
+                  background: '#facc15',
                 }} />
               </div>
               <p className="text-[10px] mt-1" style={{ color: 'rgba(255,255,255,0.2)' }}>
@@ -217,10 +217,10 @@ export default function AnalyticsPage() {
                 Taux de couverture
               </h2>
               <div className="flex items-center justify-around">
-                <ProgressRing pct={coverage?.enrichment_rate ?? 0} color="#818cf8" label="Enrichi" />
+                <ProgressRing pct={coverage?.enrichment_rate ?? 0} color="#60a5fa" label="Enrichi" />
                 <ProgressRing pct={coverage?.affiliation_rate ?? 0}
                   color={(coverage?.affiliation_rate ?? 0) >= 60 ? '#34d399' : '#fbbf24'} label="Affilié" />
-                <ProgressRing pct={coverage?.radio_rate ?? 0} color="#c084fc" label="Radio" />
+                <ProgressRing pct={coverage?.radio_rate ?? 0} color="#facc15" label="Radio" />
               </div>
             </div>
 
@@ -299,7 +299,7 @@ export default function AnalyticsPage() {
                 <div className="flex items-center justify-between p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)' }}>
                   <div>
                     <p className="text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>Affaires créées</p>
-                    <p className="text-xl font-bold" style={{ color: '#818cf8' }}>{trends?.affairs_created_this_week ?? 0}</p>
+                    <p className="text-xl font-bold" style={{ color: '#60a5fa' }}>{trends?.affairs_created_this_week ?? 0}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.25)' }}>sem. précédente</p>
@@ -352,7 +352,7 @@ export default function AnalyticsPage() {
               <div>
                 <MetricRow label="Candidats total" value={health?.candidates_total ?? '—'} />
                 <MetricRow label="Non classés" value={health?.candidates_unclustered ?? '—'} color="#fbbf24" />
-                <MetricRow label="Clusters actifs" value={health?.clusters_active ?? '—'} color="#c084fc" />
+                <MetricRow label="Clusters actifs" value={health?.clusters_active ?? '—'} color="#facc15" />
                 <MetricRow label="Affaires actives" value={health?.affairs_active ?? '—'} color="#34d399" />
                 <MetricRow label="En veille" value={health?.affairs_stale ?? '—'} color="rgba(255,255,255,0.35)" />
               </div>
@@ -383,7 +383,7 @@ export default function AnalyticsPage() {
               <div className="flex gap-2 mt-4">
                 <button onClick={() => handleAction('recon', () => runReconciliation(3, false))} disabled={!!actionLoading}
                   className="flex-1 py-2 rounded-lg text-xs font-medium disabled:opacity-50"
-                  style={{ background: 'rgba(168,85,247,0.15)', color: '#c084fc', border: '1px solid rgba(168,85,247,0.2)' }}>
+                  style={{ background: 'rgba(22,163,74,0.15)', color: '#facc15', border: '1px solid rgba(22,163,74,0.2)' }}>
                   {actionLoading === 'recon' ? '⟳...' : 'Réconcilier'}
                 </button>
                 <button onClick={() => handleAction('recon_dry', () => runReconciliation(3, true))} disabled={!!actionLoading}
@@ -401,7 +401,7 @@ export default function AnalyticsPage() {
                 <>
                   <MetricRow label="Articles indexés" value={indexStatus.index_size ?? '—'} />
                   <MetricRow label="Âge index" value={indexStatus.index_age_minutes ? `${indexStatus.index_age_minutes} min` : '—'} />
-                  <MetricRow label="Entités uniques" value={indexStatus.unique_entities ?? '—'} color="#c084fc" />
+                  <MetricRow label="Entités uniques" value={indexStatus.unique_entities ?? '—'} color="#facc15" />
                   <MetricRow label="Affaires dans index" value={indexStatus.affairs_in_index ?? '—'} color="#34d399" />
 
                   {indexStatus.themes_distribution && (
@@ -443,7 +443,7 @@ export default function AnalyticsPage() {
                     const colorMap: Record<string, string> = {
                       positif: '#34d399', positive: '#34d399',
                       négatif: '#f87171', negatif: '#f87171', negative: '#f87171',
-                      neutre: '#818cf8', neutral: '#818cf8',
+                      neutre: '#60a5fa', neutral: '#60a5fa',
                       mixte: '#fbbf24', mixed: '#fbbf24',
                     }
                     const color = colorMap[key.toLowerCase()] || '#94a3b8'
@@ -486,7 +486,7 @@ export default function AnalyticsPage() {
                         <div className="h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.04)' }}>
                           <div className="h-full rounded-full" style={{
                             width: `${pct}%`,
-                            background: `linear-gradient(90deg, #6366f1, #818cf8)`,
+                            background: `linear-gradient(90deg, #2563eb, #60a5fa)`,
                           }} />
                         </div>
                       </div>
@@ -521,7 +521,7 @@ export default function AnalyticsPage() {
                           <div className="h-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.04)' }}>
                             <div className="h-full rounded-full" style={{
                               width: `${(e.count / maxC) * 100}%`,
-                              background: i < 3 ? '#c084fc' : 'rgba(168,85,247,0.3)',
+                              background: i < 3 ? '#facc15' : 'rgba(22,163,74,0.3)',
                             }} />
                           </div>
                         </div>
@@ -540,8 +540,8 @@ export default function AnalyticsPage() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{
-                  background: 'linear-gradient(135deg, rgba(168,85,247,0.2), rgba(99,102,241,0.2))',
-                  border: '1px solid rgba(168,85,247,0.3)',
+                  background: 'linear-gradient(135deg, rgba(22,163,74,0.2), rgba(37,99,235,0.2))',
+                  border: '1px solid rgba(22,163,74,0.3)',
                 }}>
                   <span className="text-sm">🔮</span>
                 </div>
@@ -564,9 +564,9 @@ export default function AnalyticsPage() {
                 disabled={predictiveLoading}
                 className="px-4 py-2 rounded-xl text-xs font-medium transition-all"
                 style={{
-                  background: predictiveLoading ? 'rgba(168,85,247,0.1)' : 'rgba(168,85,247,0.15)',
-                  color: '#c084fc',
-                  border: '1px solid rgba(168,85,247,0.3)',
+                  background: predictiveLoading ? 'rgba(22,163,74,0.1)' : 'rgba(22,163,74,0.15)',
+                  color: '#facc15',
+                  border: '1px solid rgba(22,163,74,0.3)',
                 }}
               >
                 {predictiveLoading ? (
@@ -582,7 +582,7 @@ export default function AnalyticsPage() {
               <div className="space-y-4">
                 {/* Synthèse */}
                 {predictive.synthese && (
-                  <div className="p-4 rounded-xl" style={{ background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.15)' }}>
+                  <div className="p-4 rounded-xl" style={{ background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.15)' }}>
                     <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.7)' }}>{predictive.synthese}</p>
                   </div>
                 )}
@@ -591,10 +591,10 @@ export default function AnalyticsPage() {
                   {/* Tendances */}
                   {predictive.tendances?.length > 0 && (
                     <div>
-                      <h4 className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#818cf8' }}>Tendances détectées</h4>
+                      <h4 className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#60a5fa' }}>Tendances détectées</h4>
                       <div className="space-y-2">
                         {predictive.tendances.map((t: PredictiveItem, i: number) => (
-                          <div key={i} className="p-3 rounded-lg" style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.12)' }}>
+                          <div key={i} className="p-3 rounded-lg" style={{ background: 'rgba(37,99,235,0.06)', border: '1px solid rgba(37,99,235,0.12)' }}>
                             <div className="flex items-center justify-between mb-1">
                               <span className="text-xs font-medium text-white">{t.titre}</span>
                               <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{
@@ -612,10 +612,10 @@ export default function AnalyticsPage() {
                   {/* Anticipations */}
                   {predictive.anticipations?.length > 0 && (
                     <div>
-                      <h4 className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#c084fc' }}>Événements anticipés</h4>
+                      <h4 className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#facc15' }}>Événements anticipés</h4>
                       <div className="space-y-2">
                         {predictive.anticipations.map((a: PredictiveItem, i: number) => (
-                          <div key={i} className="p-3 rounded-lg" style={{ background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.12)' }}>
+                          <div key={i} className="p-3 rounded-lg" style={{ background: 'rgba(22,163,74,0.06)', border: '1px solid rgba(22,163,74,0.12)' }}>
                             <div className="flex items-center justify-between mb-1">
                               <span className="text-xs font-medium text-white">{a.titre}</span>
                               <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{

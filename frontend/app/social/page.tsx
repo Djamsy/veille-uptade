@@ -88,7 +88,7 @@ export default function SocialPage() {
             disabled={scraping || !apifyConfigured}
             style={{
               padding: '8px 16px', borderRadius: 8, border: 'none',
-              background: apifyConfigured ? '#6366f1' : '#334155',
+              background: apifyConfigured ? '#2563eb' : '#334155',
               color: '#fff', cursor: apifyConfigured ? 'pointer' : 'not-allowed',
               fontSize: 13, fontWeight: 600,
             }}
@@ -166,7 +166,7 @@ export default function SocialPage() {
           onClick={() => setActivePlatform(undefined)}
           style={{
             padding: '6px 14px', borderRadius: 8, fontSize: 13, cursor: 'pointer',
-            background: !activePlatform ? '#6366f1' : '#1e293b',
+            background: !activePlatform ? '#2563eb' : '#1e293b',
             color: !activePlatform ? '#fff' : '#94a3b8',
             border: 'none',
           }}
@@ -246,7 +246,7 @@ export default function SocialPage() {
                       href={post.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      style={{ color: '#6366f1', textDecoration: 'none' }}
+                      style={{ color: '#2563eb', textDecoration: 'none' }}
                     >
                       ↗ Voir le post
                     </a>

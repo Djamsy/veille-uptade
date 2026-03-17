@@ -39,7 +39,7 @@ function themeLabel(theme: string): string {
 
 function themeColor(theme: string): string {
   const map: Record<string, string> = {
-    politique: 'bg-[rgba(168,85,247,0.15)] text-[#c084fc] border-[rgba(168,85,247,0.3)]',
+    politique: 'bg-[rgba(22,163,74,0.15)] text-[#facc15] border-[rgba(22,163,74,0.3)]',
     economie: 'bg-[rgba(16,185,129,0.15)] text-[#6ee7b7] border-[rgba(16,185,129,0.3)]',
     social: 'bg-[rgba(59,130,246,0.15)] text-[#93c5fd] border-[rgba(59,130,246,0.3)]',
     sante: 'bg-[rgba(244,63,94,0.15)] text-[#fb7185] border-[rgba(244,63,94,0.3)]',
@@ -343,7 +343,7 @@ export default function AffairDetailPage() {
                       <p className="text-[10px] text-[rgba(255,255,255,0.3)] uppercase tracking-wider mb-1.5">Élus</p>
                       <div className="flex flex-wrap gap-1.5">
                         {affair.elected.map((e, i) => (
-                          <span key={i} className="text-xs px-2 py-1 rounded-lg bg-[rgba(168,85,247,0.1)] text-[#c084fc] border border-[rgba(168,85,247,0.3)]">
+                          <span key={i} className="text-xs px-2 py-1 rounded-lg bg-[rgba(22,163,74,0.1)] text-[#facc15] border border-[rgba(22,163,74,0.3)]">
                             {e}
                           </span>
                         ))}

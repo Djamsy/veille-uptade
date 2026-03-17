@@ -4,8 +4,8 @@
   "description": "Plateforme de veille médiatique intelligente — Guadeloupe",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#050507",
-  "theme_color": "#6366f1",
+  "background_color": "#060a13",
+  "theme_color": "#2563eb",
   "orientation": "any",
   "categories": ["news", "productivity"],
   "icons": [

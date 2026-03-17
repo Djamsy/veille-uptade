@@ -10,8 +10,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   themeColor: [
-    { media: '(prefers-color-scheme: dark)', color: '#050507' },
-    { media: '(prefers-color-scheme: light)', color: '#6366f1' },
+    { media: '(prefers-color-scheme: dark)', color: '#060a13' },
+    { media: '(prefers-color-scheme: light)', color: '#2563eb' },
   ],
 }
 
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
-      <body className={`${inter.className} antialiased`} style={{ background: '#050507' }}>
+      <body className={`${inter.className} antialiased`} style={{ background: '#060a13' }}>
         {/* Ambient gradient background */}
         <div className="ambient-bg">
           <div className="ambient-orb-3" />

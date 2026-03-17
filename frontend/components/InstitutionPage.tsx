@@ -84,7 +84,7 @@ export default function InstitutionPage({ institution, title, subtitle }: Props)
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl text-xs text-white placeholder:text-white/25
-                  focus:outline-none focus:ring-1 focus:ring-indigo-500/50 transition-all"
+                  focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all"
                 style={{
                   background: 'rgba(255,255,255,0.04)',
                   border: '1px solid rgba(255,255,255,0.08)',
@@ -116,7 +116,7 @@ export default function InstitutionPage({ institution, title, subtitle }: Props)
 
           {loading ? (
             <div className="flex items-center justify-center py-20">
-              <div className="w-8 h-8 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
+              <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
             </div>
           ) : (
             <div className="space-y-3">
@@ -208,9 +208,9 @@ export default function InstitutionPage({ institution, title, subtitle }: Props)
                                   {affair.communes && affair.communes.length > 0 && (
                                     <span className="text-[9px] px-1.5 py-0.5 rounded-full flex-shrink-0 hidden md:inline-block"
                                       style={{
-                                        background: 'rgba(99,102,241,0.1)',
+                                        background: 'rgba(37,99,235,0.1)',
                                         color: '#a5b4fc',
-                                        border: '1px solid rgba(99,102,241,0.2)',
+                                        border: '1px solid rgba(37,99,235,0.2)',
                                       }}>
                                       {affair.communes[0]}
                                       {affair.communes.length > 1 && ` +${affair.communes.length - 1}`}

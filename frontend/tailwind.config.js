@@ -9,24 +9,28 @@ module.exports = {
     extend: {
       colors: {
         dark: {
-          50: '#f0f0f5',
-          100: '#e0e0eb',
-          200: '#c0c0d6',
-          300: '#8b8fa3',
-          400: '#5a5e73',
-          500: '#3a3e53',
-          600: '#1e2035',
-          700: '#14162a',
-          800: '#0a0a12',
-          900: '#050507',
-          950: '#020203',
+          50: '#f1f5f9',
+          100: '#e2e8f0',
+          200: '#cbd5e1',
+          300: '#94a3b8',
+          400: '#64748b',
+          500: '#475569',
+          600: '#1e293b',
+          700: '#0f172a',
+          800: '#0c1220',
+          900: '#060a13',
+          950: '#030509',
         },
-        indigo: {
-          950: '#1e1b4b',
+        gpe: {
+          green: '#16a34a',
+          yellow: '#eab308',
+          red: '#dc2626',
+          blue: '#2563eb',
+          coral: '#f97316',
         },
         bmg: {
-          low: '#10b981',
-          medium: '#f59e0b',
+          low: '#16a34a',
+          medium: '#eab308',
           high: '#ef4444',
           critical: '#dc2626',
         },
@@ -39,6 +43,7 @@ module.exports = {
         'glow': 'glow 3s ease-in-out infinite alternate',
         'float': 'float 6s ease-in-out infinite',
         'shimmer-once': 'shimmerOnce 1.5s ease-out',
+        'flag-slide': 'flagSlide 3s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -54,8 +59,8 @@ module.exports = {
           '100%': { opacity: '1', transform: 'translateX(0)' },
         },
         glow: {
-          '0%': { boxShadow: '0 0 20px rgba(99,102,241,0.08)' },
-          '100%': { boxShadow: '0 0 50px rgba(99,102,241,0.15)' },
+          '0%': { boxShadow: '0 0 20px rgba(37,99,235,0.08)' },
+          '100%': { boxShadow: '0 0 50px rgba(37,99,235,0.15)' },
         },
         float: {
           '0%, 100%': { transform: 'translateY(0)' },
@@ -64,6 +69,10 @@ module.exports = {
         shimmerOnce: {
           '0%': { backgroundPosition: '-200% 0' },
           '100%': { backgroundPosition: '200% 0' },
+        },
+        flagSlide: {
+          '0%, 100%': { backgroundPosition: '0% 50%' },
+          '50%': { backgroundPosition: '100% 50%' },
         },
       },
       backdropBlur: {

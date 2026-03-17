@@ -46,7 +46,7 @@ function themeLabel(theme?: string): string {
 function themeColor(theme?: string): string {
   if (!theme) return 'bg-[rgba(255,255,255,0.04)] text-[rgba(255,255,255,0.35)] border-[rgba(255,255,255,0.06)]'
   const map: Record<string, string> = {
-    politique: 'bg-[rgba(168,85,247,0.15)] text-[#c084fc] border-[rgba(168,85,247,0.3)]',
+    politique: 'bg-[rgba(22,163,74,0.15)] text-[#facc15] border-[rgba(22,163,74,0.3)]',
     economie: 'bg-[rgba(16,185,129,0.1)] text-[#34d399] border-[rgba(16,185,129,0.3)]',
     social: 'bg-[rgba(96,165,250,0.1)] text-[#60a5fa] border-[rgba(96,165,250,0.3)]',
     sante: 'bg-[rgba(244,63,94,0.1)] text-[#f43f5e] border-[rgba(244,63,94,0.3)]',
@@ -249,7 +249,7 @@ export default function ArticlesPage() {
                       {(article.elected || article.institutions) && (
                         <div className="flex flex-wrap gap-1 mt-2">
                           {(article.elected || []).map((e, i) => (
-                            <span key={`e-${i}`} className="text-[10px] px-1.5 py-0.5 rounded text-[#c084fc]" style={{ backgroundColor: 'rgba(168,85,247,0.1)' }}>
+                            <span key={`e-${i}`} className="text-[10px] px-1.5 py-0.5 rounded text-[#facc15]" style={{ backgroundColor: 'rgba(22,163,74,0.1)' }}>
                               {e}
                             </span>
                           ))}
@@ -267,7 +267,7 @@ export default function ArticlesPage() {
                           href={article.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[10px] text-[#818cf8] hover:text-[#818cf8] mt-2"
+                          className="inline-flex items-center gap-1 text-[10px] text-[#60a5fa] hover:text-[#60a5fa] mt-2"
                         >
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />

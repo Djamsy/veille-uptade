@@ -66,25 +66,25 @@ export default function RegisterPage() {
       {/* Ambient background */}
       <div className="absolute inset-0 z-0">
         <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full opacity-30"
-          style={{ background: 'radial-gradient(circle, rgba(168,85,247,0.12) 0%, transparent 70%)', filter: 'blur(60px)' }} />
+          style={{ background: 'radial-gradient(circle, rgba(22,163,74,0.12) 0%, transparent 70%)', filter: 'blur(60px)' }} />
         <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full opacity-20"
-          style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.1) 0%, transparent 70%)', filter: 'blur(60px)' }} />
+          style={{ background: 'radial-gradient(circle, rgba(37,99,235,0.1) 0%, transparent 70%)', filter: 'blur(60px)' }} />
       </div>
 
       {/* Left side — Brand panel (desktop only) */}
       <div className="hidden lg:flex lg:w-[45%] flex-col justify-center items-center relative z-10 p-12"
-        style={{ background: 'linear-gradient(135deg, rgba(168,85,247,0.06), rgba(99,102,241,0.04))' }}>
+        style={{ background: 'linear-gradient(135deg, rgba(22,163,74,0.06), rgba(37,99,235,0.04))' }}>
         <div className="max-w-md text-center">
           <div className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-8"
             style={{
-              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%)',
-              boxShadow: '0 8px 32px rgba(99,102,241,0.35)',
+              background: 'linear-gradient(135deg, #2563eb 0%, #eab308 50%, #16a34a 100%)',
+              boxShadow: '0 8px 32px rgba(37,99,235,0.35)',
             }}>
             <span className="text-2xl font-bold text-white tracking-tight">VM</span>
           </div>
 
           <h1 className="text-3xl font-bold text-white mb-3 tracking-tight">Rejoignez-nous</h1>
-          <p className="text-sm uppercase tracking-[0.25em] font-semibold mb-8" style={{ color: 'rgba(168,85,247,0.6)' }}>
+          <p className="text-sm uppercase tracking-[0.25em] font-semibold mb-8" style={{ color: 'rgba(22,163,74,0.6)' }}>
             Guadeloupe
           </p>
 
@@ -94,8 +94,8 @@ export default function RegisterPage() {
 
           <div className="space-y-3 text-left">
             {[
-              { label: 'Alertes personnalisées', color: '#818cf8' },
-              { label: 'Tableaux de bord avancés', color: '#c084fc' },
+              { label: 'Alertes personnalisées', color: '#60a5fa' },
+              { label: 'Tableaux de bord avancés', color: '#facc15' },
               { label: 'Analyses prédictives IA', color: '#34d399' },
             ].map((f, i) => (
               <div key={i} className="flex items-center gap-3 px-4 py-2.5 rounded-xl"
@@ -116,13 +116,13 @@ export default function RegisterPage() {
           <div className="lg:hidden text-center mb-6">
             <div className="w-14 h-14 rounded-xl flex items-center justify-center mx-auto mb-4"
               style={{
-                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%)',
-                boxShadow: '0 4px 20px rgba(99,102,241,0.3)',
+                background: 'linear-gradient(135deg, #2563eb 0%, #eab308 50%, #16a34a 100%)',
+                boxShadow: '0 4px 20px rgba(37,99,235,0.3)',
               }}>
               <span className="text-lg font-bold text-white">VM</span>
             </div>
             <h1 className="text-xl font-bold text-white">Veille Média</h1>
-            <p className="text-[9px] uppercase tracking-[0.2em] font-semibold" style={{ color: 'rgba(168,85,247,0.5)' }}>Guadeloupe</p>
+            <p className="text-[9px] uppercase tracking-[0.2em] font-semibold" style={{ color: 'rgba(22,163,74,0.5)' }}>Guadeloupe</p>
           </div>
 
           {/* Register card */}
@@ -247,7 +247,7 @@ export default function RegisterPage() {
           {/* Login link */}
           <p className="text-center text-xs mt-5" style={{ color: 'rgba(255,255,255,0.3)' }}>
             Déjà un compte ?{' '}
-            <Link href="/auth/login" className="font-medium transition-colors" style={{ color: '#818cf8' }}>
+            <Link href="/auth/login" className="font-medium transition-colors" style={{ color: '#60a5fa' }}>
               Se connecter
             </Link>
           </p>

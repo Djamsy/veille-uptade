@@ -29,7 +29,7 @@ function themeLabel(theme: string): string {
 
 function themeStyle(theme: string): { bg: string; color: string; border: string } {
   const map: Record<string, { bg: string; color: string; border: string }> = {
-    politique: { bg: 'rgba(168,85,247,0.12)', color: '#c084fc', border: 'rgba(168,85,247,0.25)' },
+    politique: { bg: 'rgba(22,163,74,0.12)', color: '#facc15', border: 'rgba(22,163,74,0.25)' },
     economie: { bg: 'rgba(16,185,129,0.12)', color: '#34d399', border: 'rgba(16,185,129,0.25)' },
     social: { bg: 'rgba(96,165,250,0.12)', color: '#93c5fd', border: 'rgba(96,165,250,0.25)' },
     environnement: { bg: 'rgba(74,222,128,0.12)', color: '#86efac', border: 'rgba(74,222,128,0.25)' },
@@ -358,7 +358,7 @@ export default function AffairsPage() {
               {(['all', 'active', 'stale', 'archived'] as StatusFilter[]).map((s) => (
                 <button key={s} onClick={() => setStatusFilter(s)}
                   className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-                  style={statusFilter === s ? { background: 'rgba(99,102,241,0.15)', color: '#818cf8' } : { color: 'rgba(255,255,255,0.3)' }}
+                  style={statusFilter === s ? { background: 'rgba(37,99,235,0.15)', color: '#60a5fa' } : { color: 'rgba(255,255,255,0.3)' }}
                 >
                   {s === 'all' ? 'Toutes' : s === 'active' ? 'Actives' : s === 'stale' ? 'En veille' : 'Archivées'}
                 </button>
@@ -402,7 +402,7 @@ export default function AffairsPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
               </svg>
               <p className="text-sm" style={{ color: 'rgba(255,255,255,0.3)' }}>Aucune affaire avec ce filtre</p>
-              <button onClick={() => setStatusFilter('all')} className="text-sm mt-2 font-medium hover:underline" style={{ color: '#818cf8' }}>Voir toutes les affaires</button>
+              <button onClick={() => setStatusFilter('all')} className="text-sm mt-2 font-medium hover:underline" style={{ color: '#60a5fa' }}>Voir toutes les affaires</button>
             </div>
           ) : (
             <div>

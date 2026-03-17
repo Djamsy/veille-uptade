@@ -69,7 +69,7 @@ export default function ElectionsPage() {
 
           {loading ? (
             <div className="flex items-center justify-center py-20">
-              <div className="w-8 h-8 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
+              <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
             </div>
           ) : elections.length === 0 ? (
             <div className="glass-card border border-[rgba(255,255,255,0.08)] p-10 text-center">
@@ -108,9 +108,9 @@ export default function ElectionsPage() {
                       {affair.communes && affair.communes.slice(0, 3).map((c) => (
                         <span key={c} className="text-[9px] px-1.5 py-0.5 rounded-full"
                           style={{
-                            background: 'rgba(99,102,241,0.15)',
+                            background: 'rgba(37,99,235,0.15)',
                             color: '#a5b4fc',
-                            border: '1px solid rgba(99,102,241,0.3)',
+                            border: '1px solid rgba(37,99,235,0.3)',
                           }}>
                           {c}
                         </span>

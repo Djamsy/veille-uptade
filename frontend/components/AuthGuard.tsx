@@ -132,8 +132,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         <div className="text-center">
           <div className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4"
             style={{
-              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%)',
-              boxShadow: '0 4px 20px rgba(99,102,241,0.3)',
+              background: 'linear-gradient(135deg, #2563eb 0%, #eab308 50%, #16a34a 100%)',
+              boxShadow: '0 4px 20px rgba(37,99,235,0.3)',
             }}>
             <span className="text-lg font-bold text-white">VM</span>
           </div>

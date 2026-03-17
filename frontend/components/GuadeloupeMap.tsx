@@ -143,7 +143,7 @@ export default function GuadeloupeMap({
       >
         <defs>
           <radialGradient id="ocean" cx="50%" cy="40%" r="60%">
-            <stop offset="0%" stopColor="rgba(99,102,241,0.05)" />
+            <stop offset="0%" stopColor="rgba(37,99,235,0.05)" />
             <stop offset="100%" stopColor="rgba(15,23,42,0)" />
           </radialGradient>
           <filter id="glow-commune">
@@ -162,7 +162,7 @@ export default function GuadeloupeMap({
 
         {/* Rivière Salée (trait entre les deux ailes) */}
         <path d="M134,50 C136,58 138,70 140,84 C142,96 140,104 138,108"
-          fill="none" stroke="rgba(99,102,241,0.12)" strokeWidth="1.5" strokeDasharray="3,3" />
+          fill="none" stroke="rgba(37,99,235,0.12)" strokeWidth="1.5" strokeDasharray="3,3" />
 
         {/* Communes */}
         {COMMUNES.map((c) => {
@@ -172,11 +172,11 @@ export default function GuadeloupeMap({
 
           const fill = hasData
             ? getGravityFill(data.maxGravity)
-            : 'rgba(99,102,241,0.07)';
+            : 'rgba(37,99,235,0.07)';
 
           const stroke = hasData
             ? getGravityColor(data.maxGravity)
-            : 'rgba(99,102,241,0.18)';
+            : 'rgba(37,99,235,0.18)';
 
           return (
             <path
@@ -203,7 +203,7 @@ export default function GuadeloupeMap({
         {!compact && (
           <g transform="translate(10, 258)">
             <rect x="0" y="0" width="320" height="18" rx="4"
-              fill="rgba(15,23,42,0.7)" stroke="rgba(99,102,241,0.12)" strokeWidth="0.5" />
+              fill="rgba(15,23,42,0.7)" stroke="rgba(37,99,235,0.12)" strokeWidth="0.5" />
             <circle cx="16" cy="9" r="3.5" fill="rgba(16,185,129,0.5)" stroke="#10b981" strokeWidth="0.5" />
             <text x="24" y="12" fill="rgba(255,255,255,0.45)" fontSize="6.5" fontFamily="system-ui">Faible</text>
             <circle cx="80" cy="9" r="3.5" fill="rgba(234,179,8,0.5)" stroke="#eab308" strokeWidth="0.5" />
@@ -229,7 +229,7 @@ export default function GuadeloupeMap({
             className="px-3 py-2 rounded-lg text-white text-xs whitespace-nowrap"
             style={{
               background: 'rgba(15,23,42,0.94)',
-              border: '1px solid rgba(99,102,241,0.25)',
+              border: '1px solid rgba(37,99,235,0.25)',
               backdropFilter: 'blur(8px)',
               boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
             }}

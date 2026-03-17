@@ -36,7 +36,7 @@ export function themeLabel(theme: string): string {
  * Couleurs pour un thème — [bg, color, border]
  */
 const THEME_COLORS: Record<string, string> = {
-  politique: 'rgba(168,85,247,0.15)_#c084fc_rgba(168,85,247,0.3)',
+  politique: 'rgba(22,163,74,0.15)_#facc15_rgba(22,163,74,0.3)',
   economie: 'rgba(16,185,129,0.15)_#34d399_rgba(16,185,129,0.3)',
   economie_emploi: 'rgba(16,185,129,0.15)_#34d399_rgba(16,185,129,0.3)',
   social: 'rgba(96,165,250,0.15)_#93c5fd_rgba(96,165,250,0.3)',
@@ -89,7 +89,7 @@ export function sentimentColor(sentiment: string): string {
   if (s.includes('négatif') || s.includes('negatif')) return '#f87171'
   if (s.includes('positif')) return '#6ee7b7'
   if (s.includes('mixte')) return '#fbbf24'
-  return '#818cf8'
+  return '#60a5fa'
 }
 
 /**

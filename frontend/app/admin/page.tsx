@@ -258,7 +258,7 @@ export default function AdminPage() {
       <div className="flex">
         <Sidebar />
         <main className="lg:ml-60 flex-1 min-h-screen flex items-center justify-center">
-          <div className="animate-spin w-8 h-8 border-2 border-indigo-400 border-t-transparent rounded-full" />
+          <div className="animate-spin w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full" />
         </main>
       </div>
     )
@@ -303,11 +303,11 @@ export default function AdminPage() {
         <div>
           <h1 className="text-xl font-bold text-white tracking-tight">Administration</h1>
           <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>
-            {user.name || user.email} · <span className="capitalize font-medium" style={{ color: '#818cf8' }}>{user.role}</span>
+            {user.name || user.email} · <span className="capitalize font-medium" style={{ color: '#60a5fa' }}>{user.role}</span>
           </p>
         </div>
         {actionMsg && (
-          <div className="px-4 py-2 rounded-xl text-sm animate-fade-in" style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.2)', color: '#a5b4fc' }}>
+          <div className="px-4 py-2 rounded-xl text-sm animate-fade-in" style={{ background: 'rgba(37,99,235,0.12)', border: '1px solid rgba(37,99,235,0.2)', color: '#a5b4fc' }}>
             {actionMsg}
           </div>
         )}
@@ -324,7 +324,7 @@ export default function AdminPage() {
                 ? 'text-white'
                 : 'text-white/40 hover:text-white/70'
             }`}
-            style={tab === t.key ? { background: 'rgba(99,102,241,0.15)', color: '#a5b4fc' } : {}}
+            style={tab === t.key ? { background: 'rgba(37,99,235,0.15)', color: '#a5b4fc' } : {}}
           >
             {t.label}
           </button>
@@ -336,8 +336,8 @@ export default function AdminPage() {
         <div>
           {/* Actions bar */}
           {isEditor && selectedAffairs.size > 0 && (
-            <div className="mb-4 flex items-center gap-3 p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
-              <span className="text-sm text-indigo-300">{selectedAffairs.size} sélectionnée(s)</span>
+            <div className="mb-4 flex items-center gap-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+              <span className="text-sm text-blue-300">{selectedAffairs.size} sélectionnée(s)</span>
               <button
                 onClick={handleMerge}
                 disabled={selectedAffairs.size < 2}
@@ -369,7 +369,7 @@ export default function AdminPage() {
                 <div
                   className={`p-4 rounded-xl border transition-all cursor-pointer ${
                     selectedAffairs.has(affair._id)
-                      ? 'bg-indigo-500/10 border-indigo-500/40'
+                      ? 'bg-blue-500/10 border-blue-500/40'
                       : 'bg-white/[0.025] border-white/[0.05] hover:bg-white/[0.04]'
                   }`}
                 >
@@ -380,7 +380,7 @@ export default function AdminPage() {
                         type="checkbox"
                         checked={selectedAffairs.has(affair._id)}
                         onChange={() => toggleAffairSelect(affair._id)}
-                        className="mt-1 w-4 h-4 rounded accent-indigo-500"
+                        className="mt-1 w-4 h-4 rounded accent-blue-500"
                       />
                     )}
 
@@ -530,7 +530,7 @@ export default function AdminPage() {
                   value={u.role}
                   onChange={(e) => handleRoleChange(u._id, e.target.value)}
                   disabled={u._id === user.id}
-                  className="bg-white/5 border border-white/10 text-white text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-30"
+                  className="bg-white/5 border border-white/10 text-white text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-30"
                 >
                   <option value="admin">admin</option>
                   <option value="editor">editor</option>
@@ -559,7 +559,7 @@ export default function AdminPage() {
                   {evt.event.replace('manual_', '')}
                 </span>
                 <div className="flex-1 text-white/50">
-                  {evt.details?.by && <span className="text-indigo-400">{String(evt.details.by)}</span>}
+                  {evt.details?.by && <span className="text-blue-400">{String(evt.details.by)}</span>}
                   {evt.details?.merged_title && <span> a fusionné "{String(evt.details.merged_title)}"</span>}
                   {evt.details?.article_title && <span> a lié "{String(evt.details.article_title)}"</span>}
                   {evt.details?.changes && <span> a modifié {Object.keys(evt.details.changes as object).join(', ')}</span>}
@@ -584,14 +584,14 @@ export default function AdminPage() {
             <input
               value={editTitle}
               onChange={e => setEditTitle(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white mb-3 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white mb-3 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
 
             <label className="block text-xs text-white/50 mb-1">Thème</label>
             <select
               value={editTheme}
               onChange={e => setEditTheme(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white mb-3 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white mb-3 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               {['politique', 'economie', 'social', 'securite', 'justice', 'environnement', 'sante', 'education', 'transport', 'culture', 'sport', 'general'].map(t => (
                 <option key={t} value={t}>{t}</option>
@@ -617,7 +617,7 @@ export default function AdminPage() {
               <button onClick={() => setEditingAffair(null)} className="px-4 py-2 text-sm text-white/50 hover:text-white transition">
                 Annuler
               </button>
-              <button onClick={handleSaveEdit} className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-500 transition">
+              <button onClick={handleSaveEdit} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-500 transition">
                 Sauvegarder
               </button>
             </div>

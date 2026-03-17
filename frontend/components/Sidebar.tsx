@@ -113,24 +113,34 @@ export default function Sidebar() {
     return pathname.startsWith(href)
   }
 
+  const roleColor = (role: string) => {
+    switch (role) {
+      case 'admin': return '#dc2626'
+      case 'editor': return '#eab308'
+      case 'viewer': return '#2563eb'
+      default: return '#16a34a'
+    }
+  }
+
   const sidebarContent = (
     <>
-      {/* Logo */}
-      <div className="px-5 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      {/* ── Logo + Brand ────────────────── */}
+      <div className="px-5 pt-5 pb-4">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center relative"
+          {/* Logo — butterfly/sun shape */}
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center relative"
             style={{
-              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%)',
-              boxShadow: '0 4px 20px rgba(99,102,241,0.35)',
+              background: 'linear-gradient(135deg, #16a34a 0%, #2563eb 50%, #eab308 100%)',
+              boxShadow: '0 4px 20px rgba(37,99,235,0.3), 0 0 30px rgba(22,163,74,0.15)',
             }}
           >
-            <span className="text-xs font-bold text-white tracking-tight">VM</span>
+            <span className="text-sm font-black text-white tracking-tighter" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>VM</span>
           </div>
-          <div>
-            <h1 className="text-sm font-semibold text-white leading-tight tracking-tight">Veille Média</h1>
-            <p className="text-[9px] font-semibold tracking-[0.2em] uppercase"
-              style={{ color: 'rgba(168,85,247,0.6)' }}>
-              Guadeloupe
+          <div className="flex-1 min-w-0">
+            <h1 className="text-sm font-bold text-white leading-tight tracking-tight">Veille Média</h1>
+            <p className="text-[10px] font-bold tracking-[0.15em] uppercase"
+              style={{ background: 'linear-gradient(90deg, #16a34a, #eab308)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              Guadeloupe 971
             </p>
           </div>
           <button
@@ -143,67 +153,74 @@ export default function Sidebar() {
             </svg>
           </button>
         </div>
+        {/* Flag stripe */}
+        <div className="flag-stripe mt-4 w-full" />
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+      {/* ── Navigation ──────────────────── */}
+      <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
         {navItems.filter(item => {
-          // Hide admin link for non-admin users
           if (item.href === '/admin' && user?.role !== 'admin') return false
           return true
         }).map((item) => (
           <Link
             key={item.href}
             href={item.href}
-            className={`sidebar-link flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-medium transition-all ${
+            className={`sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all ${
               isActive(item.href)
                 ? 'active text-white'
-                : 'text-white/35 hover:text-white/70 hover:bg-white/[0.03]'
+                : 'text-white/30 hover:text-white/70 hover:bg-white/[0.03]'
             }`}
             style={isActive(item.href) ? {
-              background: 'rgba(99,102,241,0.08)',
+              background: 'rgba(37,99,235,0.1)',
             } : undefined}
             aria-current={isActive(item.href) ? 'page' : undefined}
           >
-            <span className={`transition-colors ${isActive(item.href) ? 'text-indigo-400' : ''}`}>
+            <span className={`transition-colors ${isActive(item.href) ? 'text-blue-400' : ''}`}>
               {item.icon}
             </span>
-            {item.label}
+            <span className="flex-1">{item.label}</span>
             {isActive(item.href) && (
-              <span className="ml-auto w-1 h-1 rounded-full bg-indigo-400"
-                style={{ boxShadow: '0 0 6px rgba(99,102,241,0.5)' }} />
+              <span className="w-1.5 h-1.5 rounded-full"
+                style={{
+                  background: 'linear-gradient(135deg, #16a34a, #eab308)',
+                  boxShadow: '0 0 8px rgba(234,179,8,0.4)',
+                }} />
             )}
           </Link>
         ))}
       </nav>
 
-      {/* Footer — User info + Logout */}
+      {/* ── Footer — User info + Logout ───── */}
       <div className="px-4 py-4 space-y-3" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
         {user && (
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold text-white/60"
-              style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.25)' }}>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-bold text-white relative"
+              style={{
+                background: `linear-gradient(135deg, ${roleColor(user.role || 'user')}40, ${roleColor(user.role || 'user')}20)`,
+                border: `1px solid ${roleColor(user.role || 'user')}50`,
+              }}>
               {user.name?.charAt(0).toUpperCase() || 'U'}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[11px] text-white/60 truncate leading-tight">{user.name || user.email}</p>
-              <p className="text-[9px] uppercase tracking-wider" style={{ color: 'rgba(168,85,247,0.5)' }}>
-                {user.role}
+              <p className="text-[11px] text-white/70 truncate leading-tight font-medium">{user.name || user.email}</p>
+              <p className="text-[9px] uppercase tracking-wider font-bold" style={{ color: roleColor(user.role || 'user') }}>
+                {user.role === 'admin' ? 'Administrateur' : user.role === 'editor' ? 'Editeur' : user.role === 'viewer' ? 'Visualiseur' : 'Utilisateur'}
               </p>
             </div>
           </div>
         )}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-[11px]" style={{ color: 'rgba(255,255,255,0.25)' }}>
+          <div className="flex items-center gap-2 text-[11px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
             <div className="w-1.5 h-1.5 rounded-full pulse-ring"
-              style={{ background: '#10b981', boxShadow: '0 0 8px rgba(16,185,129,0.4)', color: '#10b981' }}
+              style={{ background: '#16a34a', boxShadow: '0 0 8px rgba(22,163,74,0.5)', color: '#16a34a' }}
             />
-            Connecté
+            En ligne
           </div>
           <button
             onClick={logout}
-            className="text-[10px] px-2 py-1 rounded-lg transition-colors text-white/25 hover:text-[#f87171] hover:bg-red-500/10"
-            title="Se déconnecter"
+            className="text-[10px] px-2.5 py-1.5 rounded-lg transition-all text-white/25 hover:text-red-400 hover:bg-red-500/10"
+            title="Se deconnecter"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
@@ -221,10 +238,10 @@ export default function Sidebar() {
         onClick={() => setMobileOpen(true)}
         className="lg:hidden fixed top-4 left-4 z-50 p-2.5 rounded-xl transition-all active:scale-95"
         style={{
-          background: 'rgba(10,10,18,0.8)',
+          background: 'rgba(6,10,19,0.85)',
           backdropFilter: 'blur(16px)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+          border: '1px solid rgba(37,99,235,0.15)',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.3), 0 0 20px rgba(37,99,235,0.05)',
         }}
         aria-label="Ouvrir le menu"
       >
@@ -244,10 +261,10 @@ export default function Sidebar() {
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex fixed left-0 top-0 h-screen w-60 flex-col z-40"
         style={{
-          background: 'rgba(8,8,14,0.85)',
+          background: 'rgba(6,10,19,0.92)',
           backdropFilter: 'blur(24px) saturate(180%)',
           WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-          borderRight: '1px solid rgba(255,255,255,0.04)',
+          borderRight: '1px solid rgba(37,99,235,0.08)',
         }}
       >
         {sidebarContent}
@@ -259,10 +276,10 @@ export default function Sidebar() {
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         style={{
-          background: 'rgba(8,8,14,0.98)',
+          background: 'rgba(6,10,19,0.98)',
           backdropFilter: 'blur(24px) saturate(180%)',
           WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-          borderRight: '1px solid rgba(255,255,255,0.08)',
+          borderRight: '1px solid rgba(37,99,235,0.12)',
         }}
       >
         {sidebarContent}

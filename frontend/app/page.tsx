@@ -49,14 +49,14 @@ function themeLabel(theme: string): string {
 
 function themeColorParts(theme: string): [string, string, string] {
   const map: Record<string, string> = {
-    politique: 'rgba(168,85,247,0.12)_#c084fc_rgba(168,85,247,0.25)',
+    politique: 'rgba(22,163,74,0.12)_#facc15_rgba(22,163,74,0.25)',
     economie: 'rgba(16,185,129,0.12)_#34d399_rgba(16,185,129,0.25)',
     social: 'rgba(96,165,250,0.12)_#93c5fd_rgba(96,165,250,0.25)',
     environnement: 'rgba(74,222,128,0.12)_#86efac_rgba(74,222,128,0.25)',
     sante: 'rgba(251,113,133,0.12)_#fda4af_rgba(251,113,133,0.25)',
     justice: 'rgba(251,191,36,0.12)_#fde68a_rgba(251,191,36,0.25)',
     securite: 'rgba(248,113,113,0.12)_#fca5a5_rgba(248,113,113,0.25)',
-    education: 'rgba(129,140,248,0.12)_#a5b4fc_rgba(129,140,248,0.25)',
+    education: 'rgba(129,140,248,0.12)_#93c5fd_rgba(129,140,248,0.25)',
     culture: 'rgba(244,114,182,0.12)_#f9a8d4_rgba(244,114,182,0.25)',
     sport: 'rgba(34,211,238,0.12)_#67e8f9_rgba(34,211,238,0.25)',
     infrastructure: 'rgba(251,146,60,0.12)_#fdba74_rgba(251,146,60,0.25)',
@@ -99,16 +99,16 @@ function ActivityChart({ data }: { data: DailyActivity[] }) {
           <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
             <div className="absolute -top-7 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200
               px-2 py-1 rounded-lg text-[9px] font-medium whitespace-nowrap z-10"
-              style={{ background: 'rgba(99,102,241,0.95)', color: 'white', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}>
+              style={{ background: 'rgba(37,99,235,0.95)', color: 'white', boxShadow: '0 4px 12px rgba(37,99,235,0.3)' }}>
               {d.articles} art. · {d.events} evt.
             </div>
             <div className="w-full rounded-md transition-all duration-700 group-hover:brightness-125"
               style={{
                 height: `${Math.max(h, 6)}%`,
                 background: d.articles > 0
-                  ? `linear-gradient(180deg, #818cf8 0%, #4f46e5 100%)`
+                  ? `linear-gradient(180deg, #60a5fa 0%, #1d4ed8 100%)`
                   : 'rgba(255,255,255,0.03)',
-                boxShadow: d.articles > 0 ? '0 -2px 12px rgba(99,102,241,0.2)' : 'none',
+                boxShadow: d.articles > 0 ? '0 -2px 12px rgba(37,99,235,0.2)' : 'none',
                 borderRadius: '4px 4px 2px 2px',
               }} />
             <span className="text-[9px] leading-none" style={{ color: 'rgba(255,255,255,0.25)' }}>
@@ -186,7 +186,7 @@ function SentimentBars({ data }: { data: Record<string, number> }) {
   const colorMap: Record<string, string> = {
     positif: '#34d399', positive: '#34d399',
     négatif: '#f87171', negatif: '#f87171', negative: '#f87171',
-    neutre: '#818cf8', neutral: '#818cf8',
+    neutre: '#60a5fa', neutral: '#60a5fa',
     mixte: '#fbbf24', mixed: '#fbbf24',
   }
 
@@ -357,7 +357,7 @@ export default function DashboardPage() {
                 </span>
               </button>
               <button onClick={handleScrape} disabled={scraping} className="btn-glass px-3 py-1.5 text-xs disabled:opacity-40"
-                style={scraping ? { background: 'rgba(99,102,241,0.12)', borderColor: 'rgba(99,102,241,0.25)' } : {}}>
+                style={scraping ? { background: 'rgba(37,99,235,0.12)', borderColor: 'rgba(37,99,235,0.25)' } : {}}>
                 {scraping ? '⟳ Scraping...' : 'Scraper'}
               </button>
               <button onClick={handleBulkEnrich} disabled={bulkEnriching} className="btn-glass px-3 py-1.5 text-xs disabled:opacity-40"
@@ -406,7 +406,7 @@ export default function DashboardPage() {
             {/* Affaires actives */}
             <div className="glass-card-static p-4 kpi-card" style={{ '--kpi-color': 'rgba(129,140,248,0.3)' } as React.CSSProperties}>
               <p className="text-[10px] uppercase tracking-wider mb-1.5 font-semibold" style={{ color: 'rgba(255,255,255,0.25)' }}>Affaires actives</p>
-              <p className="text-2xl lg:text-3xl font-bold count-up" style={{ color: '#818cf8' }}>{stats?.affairs_active ?? 0}</p>
+              <p className="text-2xl lg:text-3xl font-bold count-up" style={{ color: '#60a5fa' }}>{stats?.affairs_active ?? 0}</p>
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.18)' }}>{stats?.affairs_stale ?? 0} en veille</span>
               </div>
@@ -453,7 +453,7 @@ export default function DashboardPage() {
             </div>
 
             {/* BMG Moyen */}
-            <div className="glass-card-static p-4 kpi-card" style={{ '--kpi-color': 'rgba(99,102,241,0.3)' } as React.CSSProperties}>
+            <div className="glass-card-static p-4 kpi-card" style={{ '--kpi-color': 'rgba(37,99,235,0.3)' } as React.CSSProperties}>
               <p className="text-[10px] uppercase tracking-wider mb-1.5 font-semibold" style={{ color: 'rgba(255,255,255,0.25)' }}>BMG moyen</p>
               <div className="flex items-center gap-2">
                 <BmgGauge value={avgBmg * 100} size={48} />
@@ -467,12 +467,12 @@ export default function DashboardPage() {
             {/* Radio */}
             <div className="glass-card-static p-4 kpi-card" style={{ '--kpi-color': 'rgba(192,132,252,0.3)' } as React.CSSProperties}>
               <p className="text-[10px] uppercase tracking-wider mb-1.5 font-semibold" style={{ color: 'rgba(255,255,255,0.25)' }}>Radio 7j</p>
-              <p className="text-2xl lg:text-3xl font-bold count-up" style={{ color: '#c084fc' }}>{coverage?.total_transcriptions_7d ?? 0}</p>
+              <p className="text-2xl lg:text-3xl font-bold count-up" style={{ color: '#facc15' }}>{coverage?.total_transcriptions_7d ?? 0}</p>
               <div className="h-1 rounded-full mt-2" style={{ background: 'rgba(255,255,255,0.03)' }}>
                 <div className="h-full rounded-full transition-all duration-1000" style={{
                   width: `${Math.min(100, coverage?.radio_rate ?? 0)}%`,
-                  background: 'linear-gradient(90deg, #a855f7, #c084fc)',
-                  boxShadow: '0 0 6px rgba(168,85,247,0.3)',
+                  background: 'linear-gradient(90deg, #16a34a, #facc15)',
+                  boxShadow: '0 0 6px rgba(22,163,74,0.3)',
                 }} />
               </div>
               <p className="text-[10px] mt-1" style={{ color: 'rgba(255,255,255,0.18)' }}>{coverage?.radio_rate ?? 0}% traitées</p>
@@ -489,7 +489,7 @@ export default function DashboardPage() {
                 {selectedCommune && (
                   <button onClick={() => setSelectedCommune(null)}
                     className="text-[10px] px-2 py-0.5 rounded-full transition-all hover:scale-105"
-                    style={{ background: 'rgba(99,102,241,0.12)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.25)' }}>
+                    style={{ background: 'rgba(37,99,235,0.12)', color: '#93c5fd', border: '1px solid rgba(37,99,235,0.25)' }}>
                     ✕ {selectedCommune}
                   </button>
                 )}
@@ -506,7 +506,7 @@ export default function DashboardPage() {
               {selectedCommune ? (
                 <>
                   <h2 className="text-xs font-semibold text-white mb-3 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-indigo-400" style={{ boxShadow: '0 0 6px rgba(99,102,241,0.4)' }} />
+                    <span className="w-2 h-2 rounded-full bg-blue-500" style={{ boxShadow: '0 0 6px rgba(37,99,235,0.4)' }} />
                     {selectedCommune}
                   </h2>
                   {(communeMapData[selectedCommune]?.affairs || []).length === 0 ? (
@@ -584,7 +584,7 @@ export default function DashboardPage() {
                   <ActivityChart data={activity} />
                   <div className="flex items-center gap-4 mt-3 justify-center">
                     <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-sm" style={{ background: 'linear-gradient(135deg, #818cf8, #4f46e5)' }} />
+                      <div className="w-2 h-2 rounded-sm" style={{ background: 'linear-gradient(135deg, #60a5fa, #1d4ed8)' }} />
                       <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.25)' }}>Articles</span>
                     </div>
                   </div>
@@ -660,8 +660,8 @@ export default function DashboardPage() {
                         <div className="h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.03)' }}>
                           <div className="h-full rounded-full" style={{
                             width: `${(s.count / maxC) * 100}%`,
-                            background: 'linear-gradient(90deg, #4f46e5, #818cf8)',
-                            boxShadow: '0 0 4px rgba(99,102,241,0.2)',
+                            background: 'linear-gradient(90deg, #1d4ed8, #60a5fa)',
+                            boxShadow: '0 0 4px rgba(37,99,235,0.2)',
                           }} />
                         </div>
                       </div>
@@ -690,7 +690,7 @@ export default function DashboardPage() {
                           <div className="h-0.5 rounded-full mt-0.5" style={{ background: 'rgba(255,255,255,0.03)' }}>
                             <div className="h-full rounded-full transition-all duration-500" style={{
                               width: `${(e.count / maxC) * 100}%`,
-                              background: 'linear-gradient(90deg, rgba(168,85,247,0.4), rgba(168,85,247,0.6))',
+                              background: 'linear-gradient(90deg, rgba(22,163,74,0.4), rgba(22,163,74,0.6))',
                             }} />
                           </div>
                         </div>
@@ -708,7 +708,7 @@ export default function DashboardPage() {
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-white">Affaires majeures</h2>
-              <Link href="/affairs" className="text-xs font-medium transition-colors hover:text-indigo-300" style={{ color: '#818cf8' }}>Voir tout →</Link>
+              <Link href="/affairs" className="text-xs font-medium transition-colors hover:text-blue-300" style={{ color: '#60a5fa' }}>Voir tout →</Link>
             </div>
             {topAffairs.length === 0 ? (
               <div className="glass-card-static p-10 text-center">
@@ -804,7 +804,7 @@ export default function DashboardPage() {
                       gravity_update: '▲', archived: '◼', expired: '○', bmg_change: '▲',
                     }
                     const colorMap: Record<string, string> = {
-                      created: '#818cf8', article_added: '#34d399', radio_topic_added: '#c084fc',
+                      created: '#60a5fa', article_added: '#34d399', radio_topic_added: '#facc15',
                       gravity_update: '#fbbf24', archived: '#64748b', expired: '#64748b', bmg_change: '#fb923c',
                     }
                     return (
@@ -836,8 +836,8 @@ export default function DashboardPage() {
                 {[
                   { label: 'Candidats', value: stats.candidates_total, sub: 'Ingestion', color: '#fbbf24', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.15)' },
                   { label: 'Non classés', value: stats.candidates_unclustered, sub: 'En attente', color: '#f87171', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.15)' },
-                  { label: 'Clusters', value: stats.clusters_active, sub: 'Groupement', color: '#c084fc', bg: 'rgba(168,85,247,0.08)', border: 'rgba(168,85,247,0.15)' },
-                  { label: 'Affaires', value: stats.affairs_active, sub: 'Promues', color: '#818cf8', bg: 'rgba(99,102,241,0.08)', border: 'rgba(99,102,241,0.15)' },
+                  { label: 'Clusters', value: stats.clusters_active, sub: 'Groupement', color: '#facc15', bg: 'rgba(22,163,74,0.08)', border: 'rgba(22,163,74,0.15)' },
+                  { label: 'Affaires', value: stats.affairs_active, sub: 'Promues', color: '#60a5fa', bg: 'rgba(37,99,235,0.08)', border: 'rgba(37,99,235,0.15)' },
                   { label: 'En veille', value: stats.affairs_stale, sub: 'Archivage', color: 'rgba(255,255,255,0.35)', bg: 'rgba(255,255,255,0.03)', border: 'rgba(255,255,255,0.06)' },
                 ].map((step, i, arr) => (
                   <div key={i} className="flex items-center gap-3 flex-shrink-0">
