@@ -1276,3 +1276,77 @@ def detect_duplicate_affairs(affairs: List[Dict[str, Any]]) -> Optional[List[Dic
     except Exception as e:
         logger.warning(f"⚠️ Dédup IA échoué: {e}")
         return None
+
+
+# ============================================================
+# ANALYSE PRÉDICTIVE IA
+# ============================================================
+
+PREDICTIVE_PROMPT = """Tu es un analyste politique et médiatique expert de la Guadeloupe.
+On te donne la liste des affaires médiatiques actuelles avec leur gravité, sentiment, thème et entités.
+Tu dois produire une analyse stratégique en JSON avec :
+
+1. "tendances" : liste de 3-5 tendances détectées (patterns entre les affaires)
+2. "anticipations" : liste de 2-4 événements probables à venir (basés sur les dynamiques observées)
+3. "recommandations" : liste de 3-5 recommandations de veille (sujets à surveiller de près)
+4. "risques" : liste de 1-3 risques potentiels d'escalade
+5. "synthese" : paragraphe de synthèse globale (2-3 phrases)
+
+Pour chaque élément, donne : "titre" (court), "description" (1-2 phrases), "confiance" (0-1).
+Réponds en français. Sois concret et spécifique au contexte guadeloupéen.
+Retourne UNIQUEMENT du JSON valide."""
+
+
+def analyze_trends_predictive(affairs: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """
+    Analyse prédictive IA des tendances et anticipations.
+    Envoie les affaires actives à GPT pour obtenir tendances, risques et recommandations.
+    Coût estimé : ~$0.003 par appel.
+    """
+    if not affairs:
+        return None
+
+    # Limiter à 30 affaires max (les plus graves)
+    sorted_affairs = sorted(affairs, key=lambda a: a.get("gravity_score", 0), reverse=True)[:30]
+
+    lines = []
+    for a in sorted_affairs:
+        title = (a.get("title") or "?")[:80]
+        gravity = a.get("gravity_score", 0)
+        sentiment = a.get("sentiment", "neutre")
+        theme = a.get("theme", "general")
+        entities = ", ".join((a.get("elected") or a.get("entities") or [])[:3])
+        items = a.get("item_count", 1)
+        priority = a.get("priority", "minor")
+        status = a.get("status", "active")
+        lines.append(
+            f"- [{priority.upper()}] \"{title}\" | gravité={gravity:.2f} | sentiment={sentiment} "
+            f"| thème={theme} | entités=[{entities}] | {items} sources | statut={status}"
+        )
+
+    user_content = f"Voici les {len(sorted_affairs)} affaires médiatiques actives en Guadeloupe :\n\n" + "\n".join(lines)
+
+    try:
+        raw = _call_ai(
+            messages=[
+                {"role": "system", "content": PREDICTIVE_PROMPT},
+                {"role": "user", "content": user_content},
+            ],
+            temperature=0.3,
+            max_tokens=1500,
+            json_mode=True,
+        )
+        if raw is None:
+            return None
+
+        result = json.loads(raw)
+        logger.info(f"🔮 Analyse prédictive: {len(result.get('tendances', []))} tendances, "
+                    f"{len(result.get('anticipations', []))} anticipations")
+        return result
+
+    except json.JSONDecodeError as e:
+        logger.warning(f"⚠️ Analyse prédictive: JSON invalide: {e}")
+        return None
+    except Exception as e:
+        logger.warning(f"⚠️ Analyse prédictive échoué: {e}")
+        return None

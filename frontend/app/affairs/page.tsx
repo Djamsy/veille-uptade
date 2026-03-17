@@ -181,8 +181,27 @@ export default function AffairsPage() {
               {affair.entities.length > 3 && <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.25)' }}>+{affair.entities.length - 3}</span>}
             </div>
           )}
+          {/* Sentiment */}
+          {affair.sentiment && affair.sentiment !== 'neutre' && (
+            <div className="mb-2">
+              <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{
+                background: affair.sentiment.includes('négatif') || affair.sentiment.includes('negatif') || affair.sentiment === 'critique'
+                  ? 'rgba(248,113,113,0.12)' : affair.sentiment.includes('positif') ? 'rgba(110,231,183,0.12)' : 'rgba(251,191,36,0.12)',
+                color: affair.sentiment.includes('négatif') || affair.sentiment.includes('negatif') || affair.sentiment === 'critique'
+                  ? '#fca5a5' : affair.sentiment.includes('positif') ? '#6ee7b7' : '#fde68a',
+                border: `1px solid ${affair.sentiment.includes('négatif') || affair.sentiment.includes('negatif') || affair.sentiment === 'critique'
+                  ? 'rgba(248,113,113,0.2)' : affair.sentiment.includes('positif') ? 'rgba(110,231,183,0.2)' : 'rgba(251,191,36,0.2)'}`,
+              }}>
+                {affair.sentiment.includes('négatif') || affair.sentiment.includes('negatif') ? '😠' : affair.sentiment.includes('positif') ? '😊' : '😐'} {affair.sentiment}
+              </span>
+            </div>
+          )}
           <div className="flex items-center justify-between text-xs pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.3)' }}>
-            <div className="flex items-center gap-3"><span>{affair.item_count || 0} items</span><span>{affair.source_types?.length || 0} canaux</span></div>
+            <div className="flex items-center gap-3">
+              <span>{affair.item_count || 0} items</span>
+              <span>{affair.bmg_details?.active_canals || (new Set(affair.source_types || []).size) || 1} canaux</span>
+              <span>{new Set(affair.sources || []).size || 1} sources</span>
+            </div>
             <span>{timeAgo(affair.last_activity || affair.created_at)}</span>
           </div>
         </div>
@@ -207,7 +226,8 @@ export default function AffairsPage() {
             </div>
             <div className="flex items-center gap-3 text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
               <span>{affair.item_count || 0} items</span>
-              <span>{affair.source_types?.length || 0} canaux</span>
+              <span>{affair.bmg_details?.active_canals || (new Set(affair.source_types || []).size) || 1} canaux</span>
+              <span>{new Set(affair.sources || []).size || 1} sources</span>
               <span>Gravité {Math.round((affair.gravity_score || 0) * 100)}%</span>
               {affair.sentiment && affair.sentiment !== 'neutre' && (
                 <span style={{

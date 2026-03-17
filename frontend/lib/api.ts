@@ -448,8 +448,127 @@ export interface InstitutionResponse {
 export const fetchAffairsByInstitution = (institution: 'departement' | 'region') =>
   apiFetch<InstitutionResponse>(`/api/affairs/by-institution?institution=${institution}`);
 
+// --- Analyse prédictive IA ---
+export interface PredictiveItem {
+  titre: string;
+  description: string;
+  confiance: number;
+}
+
+export interface PredictiveAnalysis {
+  tendances: PredictiveItem[];
+  anticipations: PredictiveItem[];
+  recommandations: PredictiveItem[];
+  risques: PredictiveItem[];
+  synthese: string;
+}
+
+export const fetchPredictiveAnalysis = () =>
+  apiFetch<{ success: boolean; analysis: PredictiveAnalysis; affairs_analyzed: number }>(
+    '/api/affairs/analytics/predictive'
+  );
+
 // --- Santé système ---
 export const fetchHealth = () => apiFetch<Record<string, unknown>>('/health');
 
 export const fetchAffairSystemHealth = () =>
   apiFetch<SystemStats>('/api/affairs/health');
+
+// ============================================================
+// ADMIN — Pilotage manuel des affaires
+// ============================================================
+
+function authHeaders(): Record<string, string> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
+function adminFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  return apiFetch<T>(path, {
+    ...options,
+    headers: { ...authHeaders(), ...options?.headers },
+  });
+}
+
+// --- Auth ---
+export const fetchCurrentUser = () =>
+  adminFetch<{ success: boolean; user: { id: string; email: string; name: string; role: string } }>(
+    '/api/auth/me'
+  );
+
+// --- Users ---
+export const fetchUsers = () =>
+  adminFetch<{ users: Array<{ _id: string; email: string; name: string; role: string; created_at: string }>; total: number }>(
+    '/api/admin/users'
+  );
+
+export const updateUserRole = (userId: string, role: string) =>
+  adminFetch<{ success: boolean }>('/api/admin/users/' + userId + '/role', {
+    method: 'PUT',
+    body: JSON.stringify({ role }),
+  });
+
+// --- Affaires admin ---
+export interface OrphanArticleAdmin {
+  _id: string;
+  title: string;
+  source: string;
+  theme: string;
+  gravity_score: number;
+  sentiment?: string;
+  elected?: string[];
+  institutions?: string[];
+  scraped_at: string;
+  url?: string;
+}
+
+export const fetchOrphanArticles = (limit = 50) =>
+  adminFetch<{ orphans: OrphanArticleAdmin[]; total: number }>(
+    `/api/admin/articles/orphans?limit=${limit}`
+  );
+
+export const fetchActiveAffairsSummary = () =>
+  adminFetch<{ affairs: Affair[]; total: number }>(
+    '/api/admin/affairs/active-summary'
+  );
+
+export const mergeAffairs = (keepId: string, mergeIds: string[], reason?: string) =>
+  adminFetch<{ success: boolean; merged: number; keep_id: string }>(
+    '/api/admin/affairs/merge',
+    { method: 'POST', body: JSON.stringify({ keep_id: keepId, merge_ids: mergeIds, reason }) }
+  );
+
+export const splitAffair = (sourceId: string, articleIds: string[], newTitle?: string) =>
+  adminFetch<{ success: boolean; new_affair_id: string; articles_moved: number }>(
+    '/api/admin/affairs/split',
+    { method: 'POST', body: JSON.stringify({ source_id: sourceId, article_ids: articleIds, new_title: newTitle }) }
+  );
+
+export const linkArticleToAffair = (affairId: string, articleId: string) =>
+  adminFetch<{ success: boolean }>(
+    '/api/admin/affairs/link-article',
+    { method: 'POST', body: JSON.stringify({ affair_id: affairId, article_id: articleId }) }
+  );
+
+export const unlinkArticleFromAffair = (affairId: string, articleId: string) =>
+  adminFetch<{ success: boolean }>(
+    '/api/admin/affairs/unlink-article',
+    { method: 'POST', body: JSON.stringify({ affair_id: affairId, article_id: articleId }) }
+  );
+
+export const reclassifyAffair = (affairId: string, changes: Partial<{ title: string; theme: string; priority: string; status: string; entities: string[]; elected: string[] }>) =>
+  adminFetch<{ success: boolean; updated_fields: string[] }>(
+    `/api/admin/affairs/${affairId}/reclassify`,
+    { method: 'PUT', body: JSON.stringify(changes) }
+  );
+
+export const archiveAffair = (affairId: string) =>
+  adminFetch<{ success: boolean }>(
+    `/api/admin/affairs/${affairId}/archive`,
+    { method: 'POST' }
+  );
+
+export const fetchAdminActivityLog = (limit = 50) =>
+  adminFetch<{ events: Array<{ _id: string; affair_id: string; event: string; details: Record<string, unknown>; timestamp: string }>; total: number }>(
+    `/api/admin/activity-log?limit=${limit}`
+  );

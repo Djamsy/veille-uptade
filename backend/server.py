@@ -1121,6 +1121,18 @@ try:
     logger.info("✅ Système d'affaires V2 chargé (cycle de vie complet)")
     logger.info("   🔄 Pipeline: ingestion → clustering → promotion → BMG")
 
+    # ── Routes admin (pilotage manuel des affaires) ──
+    try:
+        try:
+            from backend.admin_routes import router as admin_router, set_service as set_admin_service
+        except ImportError:
+            from admin_routes import router as admin_router, set_service as set_admin_service
+        set_admin_service(affair_lifecycle_service)
+        app.include_router(admin_router)
+        logger.info("✅ Routes admin chargées (/api/admin/*)")
+    except Exception as admin_err:
+        logger.warning(f"⚠️ Routes admin non disponibles: {admin_err}")
+
     # ── AUTO-PURGE DÉSACTIVÉE ──
     # L'auto-purge des affaires V1 a été désactivée car elle supprimait
     # TOUTES les affaires à chaque redémarrage de Render, avant que le

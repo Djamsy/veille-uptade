@@ -8,10 +8,13 @@ import {
   fetchReconciliationHealth,
   fetchArticleIndex,
   fetchEnrichedDashboard,
+  fetchPredictiveAnalysis,
   runReconciliation,
   runFullCycle,
   type SystemStats,
   type EnrichedDashboardData,
+  type PredictiveAnalysis,
+  type PredictiveItem,
 } from '../../lib/api'
 
 // ── Helpers ──────────────────────────────────────────
@@ -62,6 +65,8 @@ export default function AnalyticsPage() {
   const [reconHealth, setReconHealth] = useState<Record<string, any> | null>(null)
   const [indexStatus, setIndexStatus] = useState<Record<string, any> | null>(null)
   const [dashboard, setDashboard] = useState<EnrichedDashboardData | null>(null)
+  const [predictive, setPredictive] = useState<PredictiveAnalysis | null>(null)
+  const [predictiveLoading, setPredictiveLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState('')
 
@@ -528,6 +533,146 @@ export default function AnalyticsPage() {
                 <p className="text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.25)' }}>Aucune entité</p>
               )}
             </div>
+          </div>
+
+          {/* ═══ ANALYSE PRÉDICTIVE IA ═══ */}
+          <div className="glass-card p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{
+                  background: 'linear-gradient(135deg, rgba(168,85,247,0.2), rgba(99,102,241,0.2))',
+                  border: '1px solid rgba(168,85,247,0.3)',
+                }}>
+                  <span className="text-sm">🔮</span>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-white">Analyse prédictive IA</h3>
+                  <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                    Tendances, anticipations et recommandations GPT
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={async () => {
+                  setPredictiveLoading(true)
+                  try {
+                    const res = await fetchPredictiveAnalysis()
+                    if (res.success) setPredictive(res.analysis)
+                  } catch (e) { console.error(e) }
+                  finally { setPredictiveLoading(false) }
+                }}
+                disabled={predictiveLoading}
+                className="px-4 py-2 rounded-xl text-xs font-medium transition-all"
+                style={{
+                  background: predictiveLoading ? 'rgba(168,85,247,0.1)' : 'rgba(168,85,247,0.15)',
+                  color: '#c084fc',
+                  border: '1px solid rgba(168,85,247,0.3)',
+                }}
+              >
+                {predictiveLoading ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>
+                    Analyse en cours...
+                  </span>
+                ) : 'Lancer l\'analyse IA'}
+              </button>
+            </div>
+
+            {predictive && (
+              <div className="space-y-4">
+                {/* Synthèse */}
+                {predictive.synthese && (
+                  <div className="p-4 rounded-xl" style={{ background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.15)' }}>
+                    <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.7)' }}>{predictive.synthese}</p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Tendances */}
+                  {predictive.tendances?.length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#818cf8' }}>Tendances détectées</h4>
+                      <div className="space-y-2">
+                        {predictive.tendances.map((t: PredictiveItem, i: number) => (
+                          <div key={i} className="p-3 rounded-lg" style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.12)' }}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-medium text-white">{t.titre}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{
+                                background: t.confiance >= 0.7 ? 'rgba(16,185,129,0.15)' : 'rgba(251,191,36,0.15)',
+                                color: t.confiance >= 0.7 ? '#34d399' : '#fbbf24',
+                              }}>{Math.round(t.confiance * 100)}%</span>
+                            </div>
+                            <p className="text-[10px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.4)' }}>{t.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Anticipations */}
+                  {predictive.anticipations?.length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#c084fc' }}>Événements anticipés</h4>
+                      <div className="space-y-2">
+                        {predictive.anticipations.map((a: PredictiveItem, i: number) => (
+                          <div key={i} className="p-3 rounded-lg" style={{ background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.12)' }}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-medium text-white">{a.titre}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{
+                                background: a.confiance >= 0.7 ? 'rgba(16,185,129,0.15)' : 'rgba(251,191,36,0.15)',
+                                color: a.confiance >= 0.7 ? '#34d399' : '#fbbf24',
+                              }}>{Math.round(a.confiance * 100)}%</span>
+                            </div>
+                            <p className="text-[10px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.4)' }}>{a.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recommandations */}
+                  {predictive.recommandations?.length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#34d399' }}>Recommandations de veille</h4>
+                      <div className="space-y-2">
+                        {predictive.recommandations.map((r: PredictiveItem, i: number) => (
+                          <div key={i} className="p-3 rounded-lg" style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.12)' }}>
+                            <span className="text-xs font-medium text-white">{r.titre}</span>
+                            <p className="text-[10px] leading-relaxed mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>{r.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Risques */}
+                  {predictive.risques?.length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#f87171' }}>Risques d'escalade</h4>
+                      <div className="space-y-2">
+                        {predictive.risques.map((r: PredictiveItem, i: number) => (
+                          <div key={i} className="p-3 rounded-lg" style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.12)' }}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-medium text-white">{r.titre}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{
+                                background: 'rgba(239,68,68,0.15)', color: '#fca5a5',
+                              }}>{Math.round(r.confiance * 100)}%</span>
+                            </div>
+                            <p className="text-[10px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.4)' }}>{r.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {!predictive && !predictiveLoading && (
+              <p className="text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                Cliquez sur "Lancer l'analyse IA" pour obtenir tendances et anticipations
+              </p>
+            )}
           </div>
 
           {/* ── Spinner ── */}

@@ -270,6 +270,45 @@ async def recalculate_affair_bmg(affair_id: str):
 
 
 # ============================================================
+# ANALYSE PRÉDICTIVE IA
+# ============================================================
+
+@router.get("/analytics/predictive")
+async def get_predictive_analysis():
+    """
+    Analyse prédictive IA : tendances, anticipations, recommandations.
+    Utilise GPT pour analyser les affaires actives et prédire les évolutions.
+    """
+    svc = _svc()
+    active = list(svc.affairs.find({"status": {"$in": ["active", "stale"]}}).sort("gravity_score", -1).limit(30))
+
+    if not active:
+        return {"success": False, "error": "Aucune affaire active pour l'analyse"}
+
+    # Sérialiser pour le service IA
+    for a in active:
+        a["_id"] = str(a["_id"])
+
+    try:
+        from backend.ai_groq_service import analyze_trends_predictive
+    except ImportError:
+        try:
+            from ai_groq_service import analyze_trends_predictive
+        except ImportError:
+            raise HTTPException(503, "Service IA non disponible")
+
+    result = analyze_trends_predictive(active)
+    if result is None:
+        return {"success": False, "error": "Analyse IA échouée (clé API manquante ou erreur)"}
+
+    return {
+        "success": True,
+        "analysis": result,
+        "affairs_analyzed": len(active),
+    }
+
+
+# ============================================================
 # CLUSTERS
 # ============================================================
 

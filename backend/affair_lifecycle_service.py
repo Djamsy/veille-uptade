@@ -1139,10 +1139,18 @@ class AffairLifecycleService:
                 logger.debug(f"BMG social: {e}")
 
         # Calculer BNP par canal
+        # NOUVEAU : le BNP intègre un facteur de volume (log)
+        # 1 article = base, 3 articles = +50%, 7 articles = +100%
+        import math
         bnp_by_canal = {}
         for canal, data in canal_data.items():
             if data["weight_sum"] > 0:
-                bnp_by_canal[canal] = data["score_sum"] / data["weight_sum"]
+                base_bnp = data["score_sum"] / data["weight_sum"]
+                # Facteur volume : log2(count+1) pour que chaque doublement de sources
+                # ajoute un boost significatif (1→1.0, 2→1.58, 4→2.32, 8→3.17)
+                volume_factor = math.log2(data["count"] + 1)
+                # Normaliser : 1 source = facteur 1.0, 5 sources = ~2.6
+                bnp_by_canal[canal] = min(1.0, base_bnp * volume_factor)
             else:
                 bnp_by_canal[canal] = 0
 
@@ -1152,9 +1160,17 @@ class AffairLifecycleService:
         # Bonus multi-canal : si l'affaire est présente sur 2+ canaux, boost
         active_canals = sum(1 for d in canal_data.values() if d["count"] > 0)
         if active_canals >= 3:
-            bmg *= 1.15
+            bmg *= 1.25  # 3+ canaux = forte amplification
         elif active_canals >= 2:
-            bmg *= 1.08
+            bmg *= 1.12  # 2 canaux = boost notable
+
+        # Bonus nombre total de sources uniques
+        unique_sources = len(set(affair.get("sources", [])))
+        if unique_sources >= 4:
+            bmg *= 1.15  # 4+ médias différents qui en parlent
+        elif unique_sources >= 2:
+            bmg *= 1.05
+
         bmg = min(1.0, bmg)
 
         # Niveau d'alerte
