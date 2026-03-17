@@ -630,7 +630,8 @@ class TelegramAlertsService:
         logger.info("⏹️ Surveillance automatique arrêtée")
 
     def _monitoring_loop(self):
-        """Boucle principale de surveillance"""
+        """Boucle principale de surveillance (thread daemon)"""
+        logger.info("🔔 Boucle de monitoring Telegram démarrée")
         while self.monitoring_active:
             try:
                 # Vérifier les mentions Guy Losbar
@@ -638,24 +639,25 @@ class TelegramAlertsService:
                 if guy_losbar_mentions:
                     alert_message = self.format_guy_losbar_alert(guy_losbar_mentions)
                     if alert_message:
-                        self.send_alert_sync(alert_message)
-                
+                        # Utiliser HTTP directement depuis le thread (pas de conflit asyncio)
+                        self._send_via_http(alert_message)
+
                 # Vérifier les changements de statut des tâches
                 task_changes = self.check_task_status_changes()
                 if task_changes:
                     task_alert = self.format_task_status_alert(task_changes)
                     if task_alert:
-                        self.send_alert_sync(task_alert)
-                
+                        self._send_via_http(task_alert)
+
                 # Mettre à jour la dernière vérification
                 self.last_check_time = datetime.now()
-                
-                # Attendre 2 minutes avant la prochaine vérification (plus fréquent pour le radio)
-                time.sleep(120)  # 2 minutes au lieu de 5
-                
+
+                # Attendre 2 minutes avant la prochaine vérification
+                time.sleep(120)
+
             except Exception as e:
                 logger.error(f"❌ Erreur dans la boucle de surveillance: {e}")
-                time.sleep(60)  # Attendre 1 minute en cas d'erreur
+                time.sleep(60)
 
     def get_monitoring_status(self) -> Dict[str, Any]:
         """Obtenir le statut de la surveillance"""

@@ -1149,6 +1149,31 @@ try:
 except Exception as e:
     logger.warning(f"⚠️ Système affaires V2 non disponible: {e}")
 
+# ========== TELEGRAM ALERTS ==========
+try:
+    try:
+        from backend.telegram_routes import router as telegram_router
+        from backend.telegram_alerts_service import telegram_alerts as _tg_alerts
+    except ImportError:
+        from telegram_routes import router as telegram_router
+        from telegram_alerts_service import telegram_alerts as _tg_alerts
+
+    app.include_router(telegram_router, prefix="/api")
+    logger.info("✅ Routes Telegram chargées (/api/telegram/*)")
+
+    # Démarrer le monitoring automatique si Telegram est configuré
+    @app.on_event("startup")
+    async def _start_telegram_monitoring():
+        if _tg_alerts.load_config():
+            _tg_alerts.start_monitoring()
+            logger.info("🔔 Monitoring Telegram démarré automatiquement")
+        else:
+            logger.info("⚠️ Telegram non configuré — monitoring inactif (configurer via /api/telegram/configure)")
+
+except Exception as e:
+    logger.warning(f"⚠️ Routes Telegram non disponibles: {e}")
+
+
 # ========== LANCEMENT ==========
 
 if __name__ == "__main__":
