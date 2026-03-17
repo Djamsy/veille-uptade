@@ -94,6 +94,60 @@ async def social_scrape_single(platform: str):
 
 
 # =========================
+# Diagnostic — test connexion Apify
+# =========================
+@router.get("/diagnostic")
+async def social_diagnostic():
+    """Teste la connexion Apify et retourne les infos de compte."""
+    import os, requests as req
+    token = os.environ.get("APIFY_TOKEN", "").strip()
+    if not token:
+        return {"success": False, "error": "APIFY_TOKEN non configuré"}
+
+    diag = {"token_set": True, "token_preview": f"{token[:8]}..."}
+
+    # Test: vérifier le compte Apify
+    try:
+        r = req.get(f"https://api.apify.com/v2/users/me?token={token}", timeout=10)
+        if r.status_code == 200:
+            user_data = r.json().get("data", {})
+            diag["account"] = {
+                "username": user_data.get("username"),
+                "plan": user_data.get("plan", {}).get("id") if isinstance(user_data.get("plan"), dict) else user_data.get("plan"),
+                "usageUsd": user_data.get("proxy", {}).get("usageUsd") if isinstance(user_data.get("proxy"), dict) else None,
+            }
+        else:
+            diag["account_error"] = f"HTTP {r.status_code}: {r.text[:200]}"
+    except Exception as e:
+        diag["account_error"] = str(e)
+
+    # Test: vérifier chaque actor
+    actors = {
+        "facebook": "apify/facebook-posts-scraper",
+        "instagram": "apify/instagram-scraper",
+        "twitter": "apidojo/tweet-scraper",
+    }
+    diag["actors"] = {}
+    for name, actor_id in actors.items():
+        try:
+            r = req.get(f"https://api.apify.com/v2/acts/{actor_id}?token={token}", timeout=10)
+            if r.status_code == 200:
+                act = r.json().get("data", {})
+                diag["actors"][name] = {
+                    "id": actor_id,
+                    "found": True,
+                    "title": act.get("title", ""),
+                    "isDeprecated": act.get("isDeprecated", False),
+                }
+            else:
+                diag["actors"][name] = {"id": actor_id, "found": False, "http": r.status_code}
+        except Exception as e:
+            diag["actors"][name] = {"id": actor_id, "error": str(e)}
+
+    return {"success": True, "diagnostic": diag}
+
+
+# =========================
 # Config actuelle
 # =========================
 @router.get("/config")

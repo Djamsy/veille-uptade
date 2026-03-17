@@ -162,18 +162,52 @@ class ApifySocialScraper:
         headers = {"Content-Type": "application/json"}
 
         try:
-            logger.info(f"🚀 Lancement Actor {actor_id}...")
+            logger.info(f"🚀 Lancement Actor {actor_id} avec input: {list(run_input.keys())}")
+            logger.debug(f"   Input complet: {run_input}")
             resp = requests.post(url, json=run_input, params=params, headers=headers, timeout=timeout_secs + 30)
 
+            logger.info(f"   {actor_id}: HTTP {resp.status_code} — Content-Length: {len(resp.content)}")
+
             if resp.status_code == 200:
-                items = resp.json() if isinstance(resp.json(), list) else []
-                logger.info(f"✅ {actor_id}: {len(items)} résultats")
-                return items
+                try:
+                    data = resp.json()
+                except Exception:
+                    logger.error(f"❌ {actor_id}: réponse non-JSON — {resp.text[:300]}")
+                    return []
+
+                if isinstance(data, list):
+                    logger.info(f"✅ {actor_id}: {len(data)} résultats")
+                    return data
+                elif isinstance(data, dict):
+                    # Certains actors retournent un objet avec une clé 'items' ou 'data'
+                    items = data.get("items") or data.get("data") or []
+                    if items:
+                        logger.info(f"✅ {actor_id}: {len(items)} résultats (via clé items/data)")
+                        return items
+                    # Si c'est un objet d'erreur
+                    if data.get("error") or data.get("status") == "FAILED":
+                        logger.error(f"❌ {actor_id}: Actor échoué — {data.get('error', data.get('statusMessage', str(data)[:300]))}")
+                        return []
+                    logger.warning(f"⚠️ {actor_id}: réponse dict inattendue — clés: {list(data.keys())[:10]}")
+                    return []
+                else:
+                    logger.warning(f"⚠️ {actor_id}: type réponse inattendu: {type(data)}")
+                    return []
+
             elif resp.status_code == 402:
                 logger.error(f"❌ {actor_id}: crédits Apify insuffisants (402)")
                 return []
+            elif resp.status_code == 400:
+                logger.error(f"❌ {actor_id}: Bad Request (400) — input invalide? Réponse: {resp.text[:500]}")
+                return []
+            elif resp.status_code == 404:
+                logger.error(f"❌ {actor_id}: Actor introuvable (404) — vérifier l'ID")
+                return []
+            elif resp.status_code == 408:
+                logger.error(f"❌ {actor_id}: Timeout côté Apify (408)")
+                return []
             else:
-                logger.error(f"❌ {actor_id}: HTTP {resp.status_code} — {resp.text[:200]}")
+                logger.error(f"❌ {actor_id}: HTTP {resp.status_code} — {resp.text[:500]}")
                 return []
 
         except requests.Timeout:
@@ -191,6 +225,7 @@ class ApifySocialScraper:
         run_input = {
             "startUrls": [{"url": u} for u in FACEBOOK_PAGES],
             "resultsLimit": 10,  # 10 posts max par page
+            "onlyPostsNewerThan": "2 days",  # Limiter aux posts récents
         }
 
         items = self._run_actor(ACTORS["facebook"], run_input)
@@ -238,6 +273,7 @@ class ApifySocialScraper:
             "directUrls": direct_urls + hashtag_urls,
             "resultsLimit": 10,
             "resultsType": "posts",
+            "searchType": "hashtag",
         }
 
         items = self._run_actor(ACTORS["instagram"], run_input)
@@ -277,12 +313,10 @@ class ApifySocialScraper:
     # =========================
     def scrape_twitter(self) -> Dict[str, Any]:
         """Scrape mots-clés + comptes Twitter/X en un seul run batché."""
-        # Combine keywords et comptes dans les search terms
-        search_terms = TWITTER_KEYWORDS + [f"from:{a}" for a in TWITTER_ACCOUNTS]
-
         run_input = {
-            "searchTerms": search_terms,
-            "maxTweets": 100,
+            "searchTerms": TWITTER_KEYWORDS,
+            "twitterHandles": TWITTER_ACCOUNTS,
+            "maxItems": 100,
             "sort": "Latest",
         }
 
@@ -291,11 +325,18 @@ class ApifySocialScraper:
 
         for item in items:
             try:
-                text = item.get("full_text") or item.get("text") or ""
-                author = item.get("user", {}).get("screen_name", "") or item.get("author", "unknown")
-                posted_at = item.get("created_at") or ""
-                tweet_id = item.get("id_str") or item.get("id") or ""
-                post_url = f"https://x.com/{author}/status/{tweet_id}" if tweet_id else ""
+                # Tweet Scraper V2 peut retourner des formats variés
+                text = (item.get("full_text") or item.get("text")
+                        or item.get("tweet_text") or item.get("content") or "")
+                # Champ auteur selon version de l'actor
+                author = (item.get("author", {}).get("userName", "") if isinstance(item.get("author"), dict)
+                          else item.get("user", {}).get("screen_name", "") if isinstance(item.get("user"), dict)
+                          else item.get("author") or item.get("screen_name") or "unknown")
+                posted_at = item.get("created_at") or item.get("createdAt") or item.get("date") or ""
+                tweet_id = str(item.get("id_str") or item.get("id") or item.get("tweetId") or "")
+                post_url = item.get("url") or item.get("tweetUrl") or ""
+                if not post_url and tweet_id and author:
+                    post_url = f"https://x.com/{author}/status/{tweet_id}"
 
                 doc = {
                     "platform": "twitter",
@@ -304,9 +345,9 @@ class ApifySocialScraper:
                     "text": text,
                     "url": post_url,
                     "posted_at": posted_at,
-                    "likes": item.get("favorite_count") or item.get("likeCount") or 0,
-                    "retweets": item.get("retweet_count") or item.get("retweetCount") or 0,
-                    "replies": item.get("reply_count") or item.get("replyCount") or 0,
+                    "likes": item.get("favorite_count") or item.get("likeCount") or item.get("likes") or 0,
+                    "retweets": item.get("retweet_count") or item.get("retweetCount") or item.get("retweets") or 0,
+                    "replies": item.get("reply_count") or item.get("replyCount") or item.get("replies") or 0,
                     "scraped_at": datetime.now(TZ),
                     "raw": item,
                 }
