@@ -1,0 +1,266 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2865
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 // Emplacement: frontend/app/auth/register/page.tsx\
+\
+'use client'\
+\
+import \{ useState \} from 'react'\
+import \{ useRouter \} from 'next/navigation'\
+import Link from 'next/link'\
+import \{ useAuthStore \} from '../../../store/auth'\
+import \{ LoadingSpinner \} from '../../../components/ui/LoadingSpinner'\
+import \{ EyeIcon, EyeSlashIcon \} from '@heroicons/react/24/outline'\
+\
+export default function RegisterPage() \{\
+  const router = useRouter()\
+  const \{ register, isLoading \} = useAuthStore()\
+  const [formData, setFormData] = useState(\{\
+    name: '',\
+    email: '',\
+    password: '',\
+    confirmPassword: '',\
+  \})\
+  const [showPassword, setShowPassword] = useState(false)\
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)\
+  const [error, setError] = useState('')\
+  const [success, setSuccess] = useState('')\
+\
+  const handleSubmit = async (e: React.FormEvent) => \{\
+    e.preventDefault()\
+    setError('')\
+    setSuccess('')\
+\
+    // Validation\
+    if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) \{\
+      setError('Veuillez remplir tous les champs')\
+      return\
+    \}\
+\
+    if (formData.password !== formData.confirmPassword) \{\
+      setError('Les mots de passe ne correspondent pas')\
+      return\
+    \}\
+\
+    if (formData.password.length < 6) \{\
+      setError('Le mot de passe doit contenir au moins 6 caract\'e8res')\
+      return\
+    \}\
+\
+    const result = await register(formData.email, formData.password, formData.name)\
+\
+    if (result.success) \{\
+      setSuccess('Inscription r\'e9ussie ! Vous pouvez maintenant vous connecter.')\
+      setTimeout(() => \{\
+        router.push('/auth/login')\
+      \}, 2000)\
+    \} else \{\
+      setError(result.error || 'Erreur lors de l\\'inscription')\
+    \}\
+  \}\
+\
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => \{\
+    setFormData(prev => (\{\
+      ...prev,\
+      [e.target.name]: e.target.value\
+    \}))\
+  \}\
+\
+  return (\
+    <div className="min-h-screen flex">\
+      \{/* Left side - Image/Brand */\}\
+      <div className="hidden lg:flex lg:flex-1 lg:flex-col lg:justify-center lg:px-20 gradient-tropical">\
+        <div className="text-center">\
+          <div className="mb-8">\
+            <div className="w-20 h-20 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-6 backdrop-blur-sm">\
+              <span className="text-3xl font-bold text-white">VM</span>\
+            </div>\
+            <h1 className="text-4xl font-display font-bold text-white mb-4">\
+              Rejoignez-nous\
+            </h1>\
+            <p className="text-xl text-tropical-100 max-w-md mx-auto">\
+              Acc\'e9dez \'e0 la plateforme de veille m\'e9diatique la plus avanc\'e9e de Guadeloupe\
+            </p>\
+          </div>\
+          \
+          <div className="grid grid-cols-1 gap-4 max-w-sm mx-auto text-tropical-100">\
+            <div className="flex items-center space-x-3">\
+              <div className="w-2 h-2 bg-tropical-200 rounded-full"></div>\
+              <span>Alertes personnalis\'e9es</span>\
+            </div>\
+            <div className="flex items-center space-x-3">\
+              <div className="w-2 h-2 bg-tropical-200 rounded-full"></div>\
+              <span>Tableaux de bord avanc\'e9s</span>\
+            </div>\
+            <div className="flex items-center space-x-3">\
+              <div className="w-2 h-2 bg-tropical-200 rounded-full"></div>\
+              <span>Analyses pr\'e9dictives</span>\
+            </div>\
+          </div>\
+        </div>\
+      </div>\
+\
+      \{/* Right side - Register Form */\}\
+      <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-20">\
+        <div className="max-w-md mx-auto w-full">\
+          \{/* Mobile brand */\}\
+          <div className="lg:hidden text-center mb-8">\
+            <div className="w-16 h-16 gradient-tropical rounded-xl flex items-center justify-center mx-auto mb-4">\
+              <span className="text-2xl font-bold text-white">VM</span>\
+            </div>\
+            <h1 className="text-2xl font-display font-bold text-gray-900">\
+              Veille M\'e9dia Guadeloupe\
+            </h1>\
+          </div>\
+\
+          <div className="text-center lg:text-left">\
+            <h2 className="text-3xl font-display font-bold text-gray-900 mb-2">\
+              Cr\'e9er un compte\
+            </h2>\
+            <p className="text-gray-600 mb-8">\
+              Rejoignez la plateforme de veille m\'e9diatique de Guadeloupe\
+            </p>\
+          </div>\
+\
+          \{error && (\
+            <div className="notification notification-error mb-6">\
+              <p className="text-sm">\{error\}</p>\
+            </div>\
+          )\}\
+\
+          \{success && (\
+            <div className="notification notification-success mb-6">\
+              <p className="text-sm">\{success\}</p>\
+            </div>\
+          )\}\
+\
+          <form onSubmit=\{handleSubmit\} className="space-y-6">\
+            <div>\
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">\
+                Nom complet\
+              </label>\
+              <input\
+                id="name"\
+                name="name"\
+                type="text"\
+                autoComplete="name"\
+                required\
+                value=\{formData.name\}\
+                onChange=\{handleChange\}\
+                className="form-input"\
+                placeholder="Jean Dupont"\
+              />\
+            </div>\
+\
+            <div>\
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">\
+                Adresse email\
+              </label>\
+              <input\
+                id="email"\
+                name="email"\
+                type="email"\
+                autoComplete="email"\
+                required\
+                value=\{formData.email\}\
+                onChange=\{handleChange\}\
+                className="form-input"\
+                placeholder="jean@example.com"\
+              />\
+            </div>\
+\
+            <div>\
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">\
+                Mot de passe\
+              </label>\
+              <div className="relative">\
+                <input\
+                  id="password"\
+                  name="password"\
+                  type=\{showPassword ? 'text' : 'password'\}\
+                  autoComplete="new-password"\
+                  required\
+                  value=\{formData.password\}\
+                  onChange=\{handleChange\}\
+                  className="form-input pr-10"\
+                  placeholder="\'95\'95\'95\'95\'95\'95\'95\'95"\
+                />\
+                <button\
+                  type="button"\
+                  onClick=\{() => setShowPassword(!showPassword)\}\
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"\
+                >\
+                  \{showPassword ? (\
+                    <EyeSlashIcon className="w-5 h-5" />\
+                  ) : (\
+                    <EyeIcon className="w-5 h-5" />\
+                  )\}\
+                </button>\
+              </div>\
+              <p className="mt-1 text-xs text-gray-500">\
+                Au moins 6 caract\'e8res\
+              </p>\
+            </div>\
+\
+            <div>\
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">\
+                Confirmer le mot de passe\
+              </label>\
+              <div className="relative">\
+                <input\
+                  id="confirmPassword"\
+                  name="confirmPassword"\
+                  type=\{showConfirmPassword ? 'text' : 'password'\}\
+                  autoComplete="new-password"\
+                  required\
+                  value=\{formData.confirmPassword\}\
+                  onChange=\{handleChange\}\
+                  className="form-input pr-10"\
+                  placeholder="\'95\'95\'95\'95\'95\'95\'95\'95"\
+                />\
+                <button\
+                  type="button"\
+                  onClick=\{() => setShowConfirmPassword(!showConfirmPassword)\}\
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"\
+                >\
+                  \{showConfirmPassword ? (\
+                    <EyeSlashIcon className="w-5 h-5" />\
+                  ) : (\
+                    <EyeIcon className="w-5 h-5" />\
+                  )\}\
+                </button>\
+              </div>\
+            </div>\
+\
+            <button\
+              type="submit"\
+              disabled=\{isLoading\}\
+              className="w-full btn-success flex items-center justify-center space-x-2"\
+            >\
+              \{isLoading && <LoadingSpinner size="sm" />\}\
+              <span>\{isLoading ? 'Cr\'e9ation...' : 'Cr\'e9er le compte'\}</span>\
+            </button>\
+          </form>\
+\
+          <div className="mt-8 text-center">\
+            <p className="text-sm text-gray-600">\
+              D\'e9j\'e0 un compte ?\{' '\}\
+              <Link href="/auth/login" className="font-medium text-tropical-600 hover:text-tropical-500">\
+                Se connecter\
+              </Link>\
+            </p>\
+          </div>\
+\
+          \{/* Footer */\}\
+          <div className="mt-12 text-center text-xs text-gray-500">\
+            <p>&copy; 2024 Veille M\'e9dia Guadeloupe. Tous droits r\'e9serv\'e9s.</p>\
+          </div>\
+        </div>\
+      </div>\
+    </div>\
+  )\
+\}}

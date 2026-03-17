@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Sidebar from '../../components/Sidebar'
 import {
   fetchActiveAffairsSummary,
   fetchOrphanArticles,
@@ -260,27 +261,33 @@ export default function AdminPage() {
   // ── Auth guard ──
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-2 border-indigo-400 border-t-transparent rounded-full" />
+      <div className="flex">
+        <Sidebar />
+        <main className="lg:ml-60 flex-1 min-h-screen flex items-center justify-center">
+          <div className="animate-spin w-8 h-8 border-2 border-indigo-400 border-t-transparent rounded-full" />
+        </main>
       </div>
     )
   }
 
   if (authError || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-8 max-w-md w-full text-center">
-          <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-red-500/20 flex items-center justify-center">
-            <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
+      <div className="flex">
+        <Sidebar />
+        <main className="lg:ml-60 flex-1 min-h-screen flex items-center justify-center p-4">
+          <div className="glass-card-static p-8 max-w-md w-full text-center">
+            <div className="w-12 h-12 mx-auto mb-4 rounded-xl flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.15)' }}>
+              <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-semibold text-white mb-2">Accès restreint</h2>
+            <p className="text-sm mb-4" style={{ color: 'rgba(255,255,255,0.4)' }}>{authError || 'Connectez-vous pour accéder à cette page'}</p>
+            <a href="/auth/login" className="btn-primary inline-block px-5 py-2.5 text-sm">
+              Se connecter
+            </a>
           </div>
-          <h2 className="text-lg font-semibold text-white mb-2">Accès restreint</h2>
-          <p className="text-white/50 text-sm">{authError || 'Connectez-vous pour accéder à cette page'}</p>
-          <a href="/auth/login" className="mt-4 inline-block px-4 py-2 bg-indigo-600 rounded-lg text-sm text-white hover:bg-indigo-500 transition">
-            Se connecter
-          </a>
-        </div>
+        </main>
       </div>
     )
   }
@@ -293,39 +300,37 @@ export default function AdminPage() {
   ]
 
   return (
-    <div className="min-h-screen p-4 lg:p-6 max-w-[1400px] mx-auto">
+    <div className="flex">
+      <Sidebar />
+      <main className="lg:ml-60 flex-1 p-4 lg:p-6 min-h-screen">
+        <div className="max-w-[1400px] mx-auto animate-fade-in">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <svg className="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            Administration
-          </h1>
-          <p className="text-white/40 text-sm mt-1">
-            {user.name || user.email} · <span className="capitalize font-medium text-indigo-400">{user.role}</span>
+          <h1 className="text-xl font-bold text-white tracking-tight">Administration</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>
+            {user.name || user.email} · <span className="capitalize font-medium" style={{ color: '#818cf8' }}>{user.role}</span>
           </p>
         </div>
         {actionMsg && (
-          <div className="px-4 py-2 bg-indigo-500/20 border border-indigo-500/30 rounded-xl text-sm text-indigo-300 animate-pulse">
+          <div className="px-4 py-2 rounded-xl text-sm animate-fade-in" style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.2)', color: '#a5b4fc' }}>
             {actionMsg}
           </div>
         )}
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-white/5 p-1 rounded-xl w-fit">
+      <div className="flex gap-1 mb-6 p-1 rounded-xl w-fit" style={{ background: 'rgba(255,255,255,0.03)' }}>
         {tabs.filter(t => !t.adminOnly || user.role === 'admin').map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
               tab === t.key
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
-                : 'text-white/50 hover:text-white/80 hover:bg-white/5'
+                ? 'text-white'
+                : 'text-white/40 hover:text-white/70'
             }`}
+            style={tab === t.key ? { background: 'rgba(99,102,241,0.15)', color: '#a5b4fc' } : {}}
           >
             {t.label}
           </button>
@@ -371,7 +376,7 @@ export default function AdminPage() {
                   className={`p-4 rounded-xl border transition-all cursor-pointer ${
                     selectedAffairs.has(affair._id)
                       ? 'bg-indigo-500/10 border-indigo-500/40'
-                      : 'bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.05]'
+                      : 'bg-white/[0.025] border-white/[0.05] hover:bg-white/[0.04]'
                   }`}
                 >
                   <div className="flex items-start gap-3">
@@ -485,7 +490,7 @@ export default function AdminPage() {
                 className={`p-3 rounded-xl border cursor-pointer transition-all ${
                   selectedOrphan === art._id
                     ? 'bg-emerald-500/10 border-emerald-500/30'
-                    : 'bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.05]'
+                    : 'bg-white/[0.025] border-white/[0.05] hover:bg-white/[0.04]'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -625,6 +630,8 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+        </div>
+      </main>
     </div>
   )
 }

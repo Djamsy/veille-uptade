@@ -1,0 +1,263 @@
+# Architecture Frontend - Refonte Complète
+
+## 🎯 **Vision produit**
+
+Interface moderne centrée sur l'**intelligence artificielle** et la **surveillance proactive** des affaires guadeloupéennes.
+
+**Principe clé :** L'IA guide l'utilisateur vers les informations importantes plutôt que de noyer dans la masse.
+
+---
+
+## 🛠️ **Stack Technique Recommandée**
+
+### **Framework : Next.js 14 + TypeScript**
+- **Pourquoi :** Server-side rendering, performance, écosystème React mature
+- **App Router** pour la nouvelle structure de fichiers
+- **Streaming** pour les données en temps réel
+
+### **Styling : Tailwind CSS + shadcn/ui**
+- **Pourquoi :** Système de design cohérent, composants pré-construits
+- **shadcn/ui** pour les composants complexes (charts, tables, modals)
+- **Lucide Icons** pour l'iconographie
+
+### **State Management : Zustand + TanStack Query**
+- **Zustand** : État global simple et performant
+- **TanStack Query** : Cache intelligent des données API, synchronisation
+
+### **Visualisations : Recharts + D3.js**
+- **Recharts** : Graphiques standards (barres, lignes, aires)
+- **D3.js** : Visualisations custom (heatmaps, network graphs)
+- **Plotly.js** : Graphiques 3D si nécessaire
+
+### **Real-time : Socket.io ou SSE**
+- Pour les notifications d'alertes critiques
+- Mise à jour des dashboards en temps réel
+
+---
+
+## 📱 **Structure de l'Application**
+
+```
+frontend/
+├── app/                    # Next.js 14 App Router
+│   ├── (dashboard)/       # Layout groupe dashboard
+│   │   ├── page.tsx      # Dashboard principal
+│   │   ├── articles/     # Gestion articles
+│   │   ├── affairs/      # Gestion affaires
+│   │   └── social/       # Monitoring social
+│   ├── analytics/         # Analytics avancées
+│   ├── settings/         # Configuration
+│   └── api/              # API routes (proxy)
+├── components/
+│   ├── ui/               # Composants shadcn/ui
+│   ├── charts/           # Composants graphiques
+│   ├── dashboard/        # Composants dashboard
+│   └── forms/            # Formulaires
+├── lib/
+│   ├── api.ts           # Client API
+│   ├── store.ts         # Zustand store
+│   └── utils.ts         # Utilitaires
+└── types/               # Types TypeScript
+```
+
+---
+
+## 🎨 **Design System & UX**
+
+### **Palette de couleurs**
+```css
+:root {
+  /* Couleurs principales */
+  --primary: #0ea5e9;        /* Bleu océan Caraïbes */
+  --primary-dark: #0284c7;   /* Bleu foncé */
+  
+  /* Sentiment colors */
+  --positive: #10b981;       /* Vert positif */
+  --negative: #ef4444;       /* Rouge négatif */
+  --neutral: #6b7280;        /* Gris neutre */
+  --warning: #f59e0b;        /* Orange alerte */
+  --critical: #dc2626;       /* Rouge critique */
+  
+  /* Background */
+  --background: #f8fafc;     /* Gris très clair */
+  --surface: #ffffff;        /* Blanc */
+  --surface-alt: #f1f5f9;    /* Gris clair alternatif */
+}
+```
+
+### **Typographie**
+- **Inter** : Police principale (moderne, lisible)
+- **JetBrains Mono** : Code et données techniques
+
+### **Composants clés**
+- **AlertCard** : Affichage des alertes critiques
+- **AffairCard** : Résumé d'une affaire avec IA insights
+- **SentimentGauge** : Indicateur visuel de sentiment
+- **ImportanceScore** : Score d'importance visuel
+- **AIInsightBadge** : Badge "Analysé par IA"
+- **TrendIndicator** : Flèche tendance (↗️ ↘️ →)
+
+---
+
+## 📊 **Pages & Fonctionnalités**
+
+### **1. Dashboard Principal** (`/dashboard`)
+
+**Layout en grille responsive :**
+
+```
+┌─────────────────────┬─────────────────────┐
+│   Alertes Critiques │   Affaires du Jour  │
+│   (Temps réel)      │   (IA insights)     │
+├─────────────────────┼─────────────────────┤
+│   Stats Scraping    │   Monitoring Social │
+│   (Mistral/Fallback)│   (Seuils atteints) │
+├─────────────────────┴─────────────────────┤
+│   Graphique Sentiment Général (7 jours)   │
+└─────────────────────────────────────────────┘
+```
+
+**Fonctionnalités :**
+- Notifications push pour alertes critiques
+- Rafraîchissement automatique toutes les 5min
+- Actions rapides : "Lancer scraping", "Monitoring social"
+
+### **2. Gestion des Affaires** (`/affairs`)
+
+**Vue liste avec filtres intelligents :**
+- Filtre par importance (IA score)
+- Filtre par sentiment
+- Filtre par entité (Guy Losbar, CD971, etc.)
+- Vue "Affaires fusionnées" (système intelligent)
+
+**Détail affaire :**
+```
+┌─────────────────────────────────────────────┐
+│ [Badge IA] Affaire Guy Losbar - Détournement│
+│ Importance: ████████▒▒ 8.2/10               │
+│ Sentiment: 😠 Négatif (-0.65)              │
+├─────────────────────────────────────────────┤
+│ 📰 Articles associés (5)                   │
+│ 📱 Posts réseaux sociaux (12)              │
+│ 📊 Graphique sentiment temporel            │
+│ 💬 Analyse commentaires                    │
+│ 🚨 Indicateurs de crise                    │
+└─────────────────────────────────────────────┘
+```
+
+### **3. Monitoring Social** (`/social`)
+
+**Dashboard avec seuils visuels :**
+
+```
+Seuil 1 (0.7) ────────────● Basic Scan
+Seuil 2 (0.8) ──────────────● AI Triggered  
+Seuil 3 (0.85) ─────────────────● Deep Crisis
+                 │         │         │
+              [12 affaires][8 affaires][2 affaires]
+```
+
+**Fonctionnalités :**
+- Visualisation des conditions IA (pourquoi seuil 2 déclenché)
+- Analyse en temps réel des commentaires
+- Graphiques de sentiment par plateforme
+- Coût estimé des scans
+
+### **4. Analytics Avancées** (`/analytics`)
+
+**Dashboards spécialisés :**
+- **Performance IA :** Précision Mistral vs Fallback
+- **Tendances entités :** Qui fait le plus parler
+- **Corrélations :** Sentiment vs engagement social
+- **Prédictions :** Alertes précoces basées sur patterns
+
+---
+
+## 🔄 **Flux de données temps réel**
+
+### **WebSocket Events**
+```typescript
+interface WebSocketEvents {
+  'scraping:started': { timestamp: string };
+  'scraping:completed': ScrapingResponse;
+  'affair:created': { affair: Affair };
+  'affair:updated': { affair: Affair };
+  'social:alert': { alert: CriticalAlert };
+  'sentiment:updated': { affair_id: string; metrics: SentimentMetrics };
+}
+```
+
+### **TanStack Query Keys**
+```typescript
+const queryKeys = {
+  articles: ['articles'] as const,
+  articlesByDate: (date: string) => ['articles', date] as const,
+  affairs: ['affairs'] as const,
+  affairDetails: (id: string) => ['affairs', id] as const,
+  socialMetrics: (id: string) => ['social', 'metrics', id] as const,
+  sentimentChart: (id: string, days: number) => ['sentiment', 'chart', id, days] as const,
+};
+```
+
+---
+
+## 🎯 **Priorisation Développement**
+
+### **Phase 1 : Foundation (Semaine 1-2)**
+1. Setup Next.js 14 + TypeScript
+2. Configuration Tailwind + shadcn/ui
+3. Types de données + API client
+4. Layout de base + routing
+
+### **Phase 2 : Core Dashboard (Semaine 3-4)**
+1. Dashboard principal avec widgets
+2. Gestion articles basique
+3. API integration avec le backend
+4. Système de notifications
+
+### **Phase 3 : Affaires & IA (Semaine 5-6)**
+1. Interface gestion affaires
+2. Visualisation des analyses IA
+3. Système de fusion d'affaires
+4. Détail affaire avec métriques
+
+### **Phase 4 : Monitoring Social (Semaine 7-8)**
+1. Dashboard monitoring social
+2. Visualisation des seuils
+3. Analyse commentaires
+4. Graphiques sentiment temps réel
+
+### **Phase 5 : Analytics & Polish (Semaine 9-10)**
+1. Analytics avancées
+2. Optimisations performance
+3. Tests utilisateur
+4. Documentation
+
+---
+
+## ⚡ **Optimisations Performance**
+
+- **Code splitting** par route
+- **Lazy loading** des composants lourds
+- **Virtual scrolling** pour les listes longues
+- **Memoization** des calculs complexes
+- **Service Worker** pour cache offline
+- **CDN** pour assets statiques
+
+---
+
+## 🔒 **Sécurité & Auth**
+
+- **JWT** avec refresh token
+- **Role-based access** (admin, viewer)
+- **Rate limiting** côté client
+- **Validation** Zod sur tous les formulaires
+- **Sanitization** des données affichées
+
+## 📱 **Responsive Design**
+
+- **Mobile-first** approach
+- **Drawer navigation** sur mobile
+- **Graphiques adaptables** 
+- **Touch-friendly** interactions
+- **PWA** capabilities pour notifications

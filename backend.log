@@ -1,0 +1,1562 @@
+2025-09-25 22:49:40,860 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-25 22:49:40,861 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-25 22:49:40,861 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-25 22:49:40,861 - veille_media_backend - INFO - 🔧 [INIT] Initialisation MongoDB...
+2025-09-25 22:49:40,861 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-25 22:49:41,121 - veille_media_backend - INFO - ⏳ [INIT] Test de ping MongoDB...
+2025-09-25 22:49:42,371 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-25 22:49:42,371 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-25 22:49:42,371 - veille_media_backend - INFO - 📚 [INIT] Collections utilisées: articles_guadeloupe, affaires_guadeloupe, social_media_posts
+2025-09-25 22:49:42,371 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-25 22:49:42,371 - veille_media_backend - INFO - 🏛️ [SCRAPER] Initialisation du scraper départemental...
+2025-09-25 22:49:43,385 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-25 22:49:43,386 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-25 22:49:47,402 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-25 22:49:47,403 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-25 22:49:47,403 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-25 22:49:47,403 - veille_media_backend - INFO - 🎯 [SCRAPER] Fonctionnalités: Fusion d'affaires + filtrage départemental + IA Mistral
+2025-09-25 22:49:47,403 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-25 22:49:47,457 - backend.social_analysis - INFO - ✅ Service d'analyse sociale initialisé
+2025-09-25 22:49:47,457 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-25 22:49:48,444 - backend.social_media_service - INFO - ✅ Connexion MongoDB réussie pour réseaux sociaux
+2025-09-25 22:49:50,025 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@CD971
+2025-09-25 22:49:50,611 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@ericdamaseau320
+2025-09-25 22:49:50,611 - backend.social_routes - INFO - 🔌 social_routes loaded (social_media_service)
+2025-09-25 22:49:50,615 - veille_media_backend - INFO - 📱 [ROUTES] Routes sociales existantes intégrées
+2025-09-25 22:50:14,743 - veille_media_backend - INFO - 🔍 [SOCIAL] Lancement analyse posts (limit: 100, days: 30)
+2025-09-25 22:52:36,525 - backend.social_analysis - INFO - 📱 100 posts à analyser depuis 2025-08-26
+2025-09-25 22:52:36,527 - backend.social_analysis - INFO - 📍 Post départemental: Test Guy Losbar CD971... (score: 2.20, raison: mention guy losbar; mention cd971; élu guy losbar)
+2025-09-25 22:52:36,527 - backend.social_analysis - WARNING - Erreur analyse AI post unknown: 'AIService' object has no attribute 'analyze_content'
+2025-09-25 22:52:42,943 - backend.social_analysis - INFO - 📍 Post départemental: Louis Galantine qui nie les faits qui lui sont rep... (score: 0.50, raison: mot-clé conseil départemental)
+2025-09-25 22:52:42,944 - backend.social_analysis - WARNING - Erreur analyse AI post instagram_ead522c588: 'AIService' object has no attribute 'analyze_content'
+2025-09-25 22:52:43,617 - backend.social_analysis - INFO - ✅ Analyse terminée: 0 posts liés, 0 affaires enrichies
+2025-09-25 22:52:43,618 - veille_media_backend - INFO - ✅ [SOCIAL] Analyse terminée: 0 posts liés
+2025-09-25 22:52:58,982 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-25 22:52:58,984 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-25 22:52:58,984 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-25 22:52:58,984 - veille_media_backend - INFO - 🔧 [INIT] Initialisation MongoDB...
+2025-09-25 22:52:58,984 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-25 22:52:59,272 - veille_media_backend - INFO - ⏳ [INIT] Test de ping MongoDB...
+2025-09-25 22:53:00,389 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-25 22:53:00,389 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-25 22:53:00,389 - veille_media_backend - INFO - 📚 [INIT] Collections utilisées: articles_guadeloupe, affaires_guadeloupe, social_media_posts
+2025-09-25 22:53:00,389 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-25 22:53:00,389 - veille_media_backend - INFO - 🏛️ [SCRAPER] Initialisation du scraper départemental...
+2025-09-25 22:53:01,332 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-25 22:53:01,332 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-25 22:53:02,653 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-25 22:53:02,654 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-25 22:53:02,654 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-25 22:53:02,654 - veille_media_backend - INFO - 🎯 [SCRAPER] Fonctionnalités: Fusion d'affaires + filtrage départemental + IA Mistral
+2025-09-25 22:53:02,654 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-25 22:53:02,657 - veille_media_backend - ERROR - ❌ [SOCIAL] Erreur chargement service analyse: unexpected indent (social_analysis_service.py, line 280)
+2025-09-25 22:53:02,657 - veille_media_backend - WARNING - ⚠️ [SOCIAL] Service d'analyse de secours activé
+2025-09-25 22:53:03,605 - backend.social_media_service - INFO - ✅ Connexion MongoDB réussie pour réseaux sociaux
+2025-09-25 22:53:05,745 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@CD971
+2025-09-25 22:53:06,362 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@ericdamaseau320
+2025-09-25 22:53:06,362 - backend.social_routes - INFO - 🔌 social_routes loaded (social_media_service)
+2025-09-25 22:53:06,366 - veille_media_backend - INFO - 📱 [ROUTES] Routes sociales existantes intégrées
+2025-09-25 22:53:19,283 - veille_media_backend - INFO - 🔍 [SOCIAL] Lancement analyse posts (limit: 2, days: 1)
+2025-09-25 22:53:28,807 - veille_media_backend - INFO - 🔍 [SOCIAL] Lancement analyse posts (limit: 2, days: 1)
+2025-09-25 22:58:15,791 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-25 22:58:15,792 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-25 22:58:15,792 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-25 22:58:15,792 - veille_media_backend - INFO - 🔧 [INIT] Initialisation MongoDB...
+2025-09-25 22:58:15,792 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-25 22:58:16,094 - veille_media_backend - INFO - ⏳ [INIT] Test de ping MongoDB...
+2025-09-25 22:58:17,222 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-25 22:58:17,222 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-25 22:58:17,222 - veille_media_backend - INFO - 📚 [INIT] Collections utilisées: articles_guadeloupe, affaires_guadeloupe, social_media_posts
+2025-09-25 22:58:17,222 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-25 22:58:17,222 - veille_media_backend - INFO - 🏛️ [SCRAPER] Initialisation du scraper départemental...
+2025-09-25 22:58:18,184 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-25 22:58:18,184 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-25 22:58:21,744 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-25 22:58:21,745 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-25 22:58:21,745 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-25 22:58:21,745 - veille_media_backend - INFO - 🎯 [SCRAPER] Fonctionnalités: Fusion d'affaires + filtrage départemental + IA Mistral
+2025-09-25 22:58:21,745 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-25 22:58:21,748 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-25 22:58:21,855 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-25 22:58:21,855 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-25 22:58:22,861 - backend.social_media_service - INFO - ✅ Connexion MongoDB réussie pour réseaux sociaux
+2025-09-25 22:58:24,621 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@CD971
+2025-09-25 22:58:25,209 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@ericdamaseau320
+2025-09-25 22:58:25,209 - backend.social_routes - INFO - 🔌 social_routes loaded (social_media_service)
+2025-09-25 22:58:25,212 - veille_media_backend - INFO - 📱 [ROUTES] Routes sociales existantes intégrées
+2025-09-25 22:58:33,809 - veille_media_backend - INFO - 🔍 [SOCIAL] Lancement analyse posts (limit: 2, days: 1)
+2025-09-25 22:58:33,809 - backend.social_analysis - INFO - Recherche posts depuis 2025-09-24
+2025-09-25 22:58:34,453 - backend.social_analysis - INFO - Total posts en base: 133
+2025-09-25 22:58:34,517 - backend.social_analysis - INFO - Posts correspondants: 133
+2025-09-25 22:58:34,644 - backend.social_analysis - INFO - Posts récupérés: 2
+2025-09-25 22:58:34,644 - backend.social_analysis - INFO - Post 1/2
+2025-09-25 22:58:34,644 - backend.social_analysis - INFO - Post départemental trouvé (score: 1.20)
+2025-09-25 22:58:34,644 - backend.social_analysis - INFO - Tentative analyse AI...
+2025-09-25 22:58:34,644 - backend.social_analysis - INFO - Appel enrich_article...
+2025-09-25 22:58:34,644 - backend.ai_service - INFO - Enrichissement article: 'Post test...' (21 chars)
+2025-09-25 22:58:40,280 - backend.ai_service - INFO - 🔍 Validation entités: ['Guy Losbar']
+2025-09-25 22:58:40,281 - backend.ai_service - INFO - ✅ Entité composée validée: Guy Losbar
+2025-09-25 22:58:40,281 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-25 22:58:40,281 - backend.ai_service - INFO - ✅ Entité principale validée: Guy Losbar
+2025-09-25 22:58:40,281 - backend.ai_service - INFO - Mistral brut: 0.60 + boost: 0.15 = 0.75
+2025-09-25 22:58:40,281 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-25 22:58:40,281 - backend.ai_service - INFO - 🔍 Validation entités: ['Guy Losbar']
+2025-09-25 22:58:40,281 - backend.ai_service - INFO - ✅ Entité composée validée: Guy Losbar
+2025-09-25 22:58:40,281 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-25 22:58:40,281 - backend.ai_service - INFO - 🔍 Validation entités: ['Guy Losbar']
+2025-09-25 22:58:40,281 - backend.ai_service - INFO - ✅ Entité composée validée: Guy Losbar
+2025-09-25 22:58:40,281 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-25 22:58:40,281 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['Guy Losbar']
+2025-09-25 22:58:40,281 - backend.social_analysis - INFO - AI réussi: score=0.75
+2025-09-25 22:58:40,281 - backend.social_analysis - INFO - Analyse AI réussie
+2025-09-25 22:58:40,281 - backend.social_analysis - INFO - Post 2/2
+2025-09-25 22:58:40,281 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 22:58:40,281 - backend.social_analysis - INFO - Analyse terminée: {'posts_processed': 2, 'posts_analyzed': 1, 'posts_departmental': 1, 'errors': 0}
+2025-09-25 22:58:40,281 - veille_media_backend - ERROR - Erreur analyse posts: 'posts_linked'
+2025-09-25 22:59:00,914 - veille_media_backend - INFO - 🔍 [SOCIAL] Lancement analyse posts (limit: 3, days: 1)
+2025-09-25 22:59:00,914 - backend.social_analysis - INFO - Recherche posts depuis 2025-09-24
+2025-09-25 22:59:00,979 - backend.social_analysis - INFO - Total posts en base: 133
+2025-09-25 22:59:01,044 - backend.social_analysis - INFO - Posts correspondants: 133
+2025-09-25 22:59:01,107 - backend.social_analysis - INFO - Posts récupérés: 3
+2025-09-25 22:59:01,107 - backend.social_analysis - INFO - Post 1/3
+2025-09-25 22:59:01,107 - backend.social_analysis - INFO - Post départemental trouvé (score: 1.20)
+2025-09-25 22:59:01,107 - backend.social_analysis - INFO - Tentative analyse AI...
+2025-09-25 22:59:01,107 - backend.social_analysis - INFO - Appel enrich_article...
+2025-09-25 22:59:01,108 - backend.ai_service - INFO - Enrichissement article: 'Post test...' (21 chars)
+2025-09-25 22:59:06,041 - backend.ai_service - INFO - 🔍 Validation entités: ['Guy Losbar']
+2025-09-25 22:59:06,041 - backend.ai_service - INFO - ✅ Entité composée validée: Guy Losbar
+2025-09-25 22:59:06,042 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-25 22:59:06,042 - backend.ai_service - INFO - ✅ Entité principale validée: Guy Losbar
+2025-09-25 22:59:06,042 - backend.ai_service - INFO - Mistral brut: 0.60 + boost: 0.15 = 0.75
+2025-09-25 22:59:06,042 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-25 22:59:06,042 - backend.ai_service - INFO - 🔍 Validation entités: ['Guy Losbar']
+2025-09-25 22:59:06,042 - backend.ai_service - INFO - ✅ Entité composée validée: Guy Losbar
+2025-09-25 22:59:06,042 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-25 22:59:06,042 - backend.ai_service - INFO - 🔍 Validation entités: ['Guy Losbar']
+2025-09-25 22:59:06,042 - backend.ai_service - INFO - ✅ Entité composée validée: Guy Losbar
+2025-09-25 22:59:06,042 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-25 22:59:06,042 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['Guy Losbar']
+2025-09-25 22:59:06,042 - backend.social_analysis - INFO - AI réussi: score=0.75
+2025-09-25 22:59:06,042 - backend.social_analysis - INFO - Analyse AI réussie
+2025-09-25 22:59:06,042 - backend.social_analysis - INFO - Post 2/3
+2025-09-25 22:59:06,042 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 22:59:06,042 - backend.social_analysis - INFO - Post 3/3
+2025-09-25 22:59:06,042 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 22:59:06,042 - backend.social_analysis - INFO - Analyse terminée: {'posts_processed': 3, 'posts_analyzed': 1, 'posts_departmental': 1, 'errors': 0}
+2025-09-25 22:59:06,042 - veille_media_backend - ERROR - Erreur analyse posts: 'posts_linked'
+2025-09-25 23:00:29,784 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-25 23:00:29,786 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-25 23:00:29,786 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-25 23:00:29,786 - veille_media_backend - INFO - 🔧 [INIT] Initialisation MongoDB...
+2025-09-25 23:00:29,786 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-25 23:00:30,080 - veille_media_backend - INFO - ⏳ [INIT] Test de ping MongoDB...
+2025-09-25 23:00:31,184 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-25 23:00:31,184 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-25 23:00:31,184 - veille_media_backend - INFO - 📚 [INIT] Collections utilisées: articles_guadeloupe, affaires_guadeloupe, social_media_posts
+2025-09-25 23:00:31,184 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-25 23:00:31,184 - veille_media_backend - INFO - 🏛️ [SCRAPER] Initialisation du scraper départemental...
+2025-09-25 23:00:32,158 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-25 23:00:32,158 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-25 23:00:33,100 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-25 23:00:33,101 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-25 23:00:33,101 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-25 23:00:33,101 - veille_media_backend - INFO - 🎯 [SCRAPER] Fonctionnalités: Fusion d'affaires + filtrage départemental + IA Mistral
+2025-09-25 23:00:33,101 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-25 23:00:33,101 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-25 23:00:33,160 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-25 23:00:33,160 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-25 23:00:34,126 - backend.social_media_service - INFO - ✅ Connexion MongoDB réussie pour réseaux sociaux
+2025-09-25 23:00:35,649 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@CD971
+2025-09-25 23:00:36,275 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@ericdamaseau320
+2025-09-25 23:00:36,275 - backend.social_routes - INFO - 🔌 social_routes loaded (social_media_service)
+2025-09-25 23:00:36,279 - veille_media_backend - INFO - 📱 [ROUTES] Routes sociales existantes intégrées
+2025-09-25 23:01:00,742 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-25 23:01:00,744 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-25 23:01:00,744 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-25 23:01:00,744 - veille_media_backend - INFO - 🔧 [INIT] Initialisation MongoDB...
+2025-09-25 23:01:00,744 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-25 23:01:00,826 - veille_media_backend - INFO - ⏳ [INIT] Test de ping MongoDB...
+2025-09-25 23:01:01,624 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-25 23:01:01,625 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-25 23:01:01,625 - veille_media_backend - INFO - 📚 [INIT] Collections utilisées: articles_guadeloupe, affaires_guadeloupe, social_media_posts
+2025-09-25 23:01:01,625 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-25 23:01:01,625 - veille_media_backend - INFO - 🏛️ [SCRAPER] Initialisation du scraper départemental...
+2025-09-25 23:01:02,623 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-25 23:01:02,623 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-25 23:01:03,162 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-25 23:01:03,163 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-25 23:01:03,163 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-25 23:01:03,163 - veille_media_backend - INFO - 🎯 [SCRAPER] Fonctionnalités: Fusion d'affaires + filtrage départemental + IA Mistral
+2025-09-25 23:01:03,163 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-25 23:01:03,166 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-25 23:01:03,221 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-25 23:01:03,221 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-25 23:01:04,212 - backend.social_media_service - INFO - ✅ Connexion MongoDB réussie pour réseaux sociaux
+2025-09-25 23:01:05,851 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@CD971
+2025-09-25 23:01:06,437 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@ericdamaseau320
+2025-09-25 23:01:06,438 - backend.social_routes - INFO - 🔌 social_routes loaded (social_media_service)
+2025-09-25 23:01:06,442 - veille_media_backend - INFO - 📱 [ROUTES] Routes sociales existantes intégrées
+2025-09-25 23:01:12,733 - veille_media_backend - INFO - 🔍 [SOCIAL] Lancement analyse posts (limit: 3, days: 1)
+2025-09-25 23:01:12,734 - backend.social_analysis - INFO - Recherche posts depuis 2025-09-24
+2025-09-25 23:01:13,222 - backend.social_analysis - INFO - Total posts en base: 133
+2025-09-25 23:01:13,290 - backend.social_analysis - INFO - Posts correspondants: 133
+2025-09-25 23:01:13,369 - backend.social_analysis - INFO - Posts récupérés: 3
+2025-09-25 23:01:13,369 - backend.social_analysis - INFO - Post 1/3
+2025-09-25 23:01:13,369 - backend.social_analysis - INFO - Post départemental trouvé (score: 1.20)
+2025-09-25 23:01:13,369 - backend.social_analysis - INFO - Tentative analyse AI...
+2025-09-25 23:01:13,369 - backend.social_analysis - INFO - Appel enrich_article...
+2025-09-25 23:01:13,369 - backend.ai_service - INFO - Enrichissement article: 'Post test...' (21 chars)
+2025-09-25 23:01:18,844 - backend.ai_service - INFO - 🔍 Validation entités: ['Guy Losbar']
+2025-09-25 23:01:18,844 - backend.ai_service - INFO - ✅ Entité composée validée: Guy Losbar
+2025-09-25 23:01:18,844 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-25 23:01:18,844 - backend.ai_service - INFO - ✅ Entité principale validée: Guy Losbar
+2025-09-25 23:01:18,844 - backend.ai_service - INFO - Mistral brut: 0.60 + boost: 0.15 = 0.75
+2025-09-25 23:01:18,844 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-25 23:01:18,844 - backend.ai_service - INFO - 🔍 Validation entités: ['Guy Losbar']
+2025-09-25 23:01:18,844 - backend.ai_service - INFO - ✅ Entité composée validée: Guy Losbar
+2025-09-25 23:01:18,844 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-25 23:01:18,844 - backend.ai_service - INFO - 🔍 Validation entités: ['Guy Losbar']
+2025-09-25 23:01:18,844 - backend.ai_service - INFO - ✅ Entité composée validée: Guy Losbar
+2025-09-25 23:01:18,844 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-25 23:01:18,844 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['Guy Losbar']
+2025-09-25 23:01:18,844 - backend.social_analysis - INFO - AI réussi: score=0.75
+2025-09-25 23:01:18,844 - backend.social_analysis - INFO - Analyse AI réussie
+2025-09-25 23:01:18,844 - backend.social_analysis - INFO - Post 2/3
+2025-09-25 23:01:18,844 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:18,844 - backend.social_analysis - INFO - Post 3/3
+2025-09-25 23:01:18,844 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:18,844 - backend.social_analysis - INFO - Analyse terminée: {'posts_processed': 3, 'posts_analyzed': 1, 'posts_departmental': 1, 'posts_linked': 0, 'affairs_enriched': 0, 'errors': 0}
+2025-09-25 23:01:18,844 - veille_media_backend - INFO - ✅ [SOCIAL] Analyse terminée: 0 posts liés
+2025-09-25 23:01:48,888 - veille_media_backend - INFO - 🔍 [SOCIAL] Lancement analyse posts (limit: 100, days: 30)
+2025-09-25 23:01:48,888 - backend.social_analysis - INFO - Recherche posts depuis 2025-08-26
+2025-09-25 23:01:48,952 - backend.social_analysis - INFO - Total posts en base: 133
+2025-09-25 23:01:49,030 - backend.social_analysis - INFO - Posts correspondants: 133
+2025-09-25 23:01:49,289 - backend.social_analysis - INFO - Posts récupérés: 100
+2025-09-25 23:01:49,289 - backend.social_analysis - INFO - Post 1/100
+2025-09-25 23:01:49,289 - backend.social_analysis - INFO - Post départemental trouvé (score: 1.20)
+2025-09-25 23:01:49,289 - backend.social_analysis - INFO - Tentative analyse AI...
+2025-09-25 23:01:49,289 - backend.social_analysis - INFO - Appel enrich_article...
+2025-09-25 23:01:49,289 - backend.ai_service - INFO - Enrichissement article: 'Post test...' (21 chars)
+2025-09-25 23:01:52,380 - backend.ai_service - INFO - 🔍 Validation entités: ['Guy Losbar']
+2025-09-25 23:01:52,380 - backend.ai_service - INFO - ✅ Entité composée validée: Guy Losbar
+2025-09-25 23:01:52,380 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-25 23:01:52,380 - backend.ai_service - INFO - ✅ Entité principale validée: Guy Losbar
+2025-09-25 23:01:52,380 - backend.ai_service - INFO - Mistral brut: 0.60 + boost: 0.15 = 0.75
+2025-09-25 23:01:52,380 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-25 23:01:52,380 - backend.ai_service - INFO - 🔍 Validation entités: ['Guy Losbar']
+2025-09-25 23:01:52,380 - backend.ai_service - INFO - ✅ Entité composée validée: Guy Losbar
+2025-09-25 23:01:52,380 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-25 23:01:52,380 - backend.ai_service - INFO - 🔍 Validation entités: ['Guy Losbar']
+2025-09-25 23:01:52,380 - backend.ai_service - INFO - ✅ Entité composée validée: Guy Losbar
+2025-09-25 23:01:52,380 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-25 23:01:52,380 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['Guy Losbar']
+2025-09-25 23:01:52,380 - backend.social_analysis - INFO - AI réussi: score=0.75
+2025-09-25 23:01:52,381 - backend.social_analysis - INFO - Analyse AI réussie
+2025-09-25 23:01:52,381 - backend.social_analysis - INFO - Post 2/100
+2025-09-25 23:01:52,381 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,381 - backend.social_analysis - INFO - Post 3/100
+2025-09-25 23:01:52,381 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,381 - backend.social_analysis - INFO - Post 4/100
+2025-09-25 23:01:52,381 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,381 - backend.social_analysis - INFO - Post 5/100
+2025-09-25 23:01:52,381 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,381 - backend.social_analysis - INFO - Post 6/100
+2025-09-25 23:01:52,381 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,381 - backend.social_analysis - INFO - Post 7/100
+2025-09-25 23:01:52,382 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,382 - backend.social_analysis - INFO - Post 8/100
+2025-09-25 23:01:52,382 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,382 - backend.social_analysis - INFO - Post 9/100
+2025-09-25 23:01:52,382 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,382 - backend.social_analysis - INFO - Post 10/100
+2025-09-25 23:01:52,382 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,382 - backend.social_analysis - INFO - Post 11/100
+2025-09-25 23:01:52,382 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,382 - backend.social_analysis - INFO - Post 12/100
+2025-09-25 23:01:52,382 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post 13/100
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post 14/100
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post 15/100
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post 16/100
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post 17/100
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post 18/100
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post 19/100
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post 20/100
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post 21/100
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post 22/100
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post 23/100
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post 24/100
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post 25/100
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post 26/100
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post 27/100
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post 28/100
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post 29/100
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post 30/100
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post 31/100
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post 32/100
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,383 - backend.social_analysis - INFO - Post 33/100
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post 34/100
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post 35/100
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post 36/100
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post 37/100
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post 38/100
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post 39/100
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post 40/100
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post 41/100
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post 42/100
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post 43/100
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post 44/100
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post 45/100
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post 46/100
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post 47/100
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post 48/100
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post 49/100
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post 50/100
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post 51/100
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post 52/100
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post 53/100
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,384 - backend.social_analysis - INFO - Post 54/100
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post 55/100
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post 56/100
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post 57/100
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post 58/100
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post 59/100
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post 60/100
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post 61/100
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post 62/100
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post 63/100
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post 64/100
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post 65/100
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post 66/100
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post 67/100
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post 68/100
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post 69/100
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post 70/100
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post 71/100
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post 72/100
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post 73/100
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post 74/100
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,385 - backend.social_analysis - INFO - Post 75/100
+2025-09-25 23:01:52,386 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,386 - backend.social_analysis - INFO - Post 76/100
+2025-09-25 23:01:52,386 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,386 - backend.social_analysis - INFO - Post 77/100
+2025-09-25 23:01:52,386 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,386 - backend.social_analysis - INFO - Post 78/100
+2025-09-25 23:01:52,386 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,386 - backend.social_analysis - INFO - Post 79/100
+2025-09-25 23:01:52,386 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,386 - backend.social_analysis - INFO - Post 80/100
+2025-09-25 23:01:52,386 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,386 - backend.social_analysis - INFO - Post 81/100
+2025-09-25 23:01:52,387 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,387 - backend.social_analysis - INFO - Post 82/100
+2025-09-25 23:01:52,387 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,387 - backend.social_analysis - INFO - Post 83/100
+2025-09-25 23:01:52,387 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,387 - backend.social_analysis - INFO - Post 84/100
+2025-09-25 23:01:52,387 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,387 - backend.social_analysis - INFO - Post 85/100
+2025-09-25 23:01:52,387 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,387 - backend.social_analysis - INFO - Post 86/100
+2025-09-25 23:01:52,387 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,387 - backend.social_analysis - INFO - Post 87/100
+2025-09-25 23:01:52,387 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,387 - backend.social_analysis - INFO - Post 88/100
+2025-09-25 23:01:52,387 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,387 - backend.social_analysis - INFO - Post 89/100
+2025-09-25 23:01:52,387 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:52,387 - backend.social_analysis - INFO - Post 90/100
+2025-09-25 23:01:52,387 - backend.social_analysis - INFO - Post départemental trouvé (score: 0.60)
+2025-09-25 23:01:52,387 - backend.social_analysis - INFO - Tentative analyse AI...
+2025-09-25 23:01:52,387 - backend.social_analysis - INFO - Appel enrich_article...
+2025-09-25 23:01:52,387 - backend.ai_service - INFO - Enrichissement article: 'Post instagram...' (229 chars)
+2025-09-25 23:01:59,349 - backend.ai_service - INFO - 🔍 Validation entités: ['Louis Galantine']
+2025-09-25 23:01:59,349 - backend.ai_service - INFO - ✅ Entité composée validée: Louis Galantine
+2025-09-25 23:01:59,350 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-25 23:01:59,350 - backend.ai_service - INFO - ✅ Entité principale validée: Louis Galantine
+2025-09-25 23:01:59,350 - backend.ai_service - INFO - Mistral brut: 0.60 + boost: 0.00 = 0.60
+2025-09-25 23:01:59,350 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-25 23:01:59,350 - backend.ai_service - INFO - 🔍 Validation entités: ['Louis Galantine']
+2025-09-25 23:01:59,350 - backend.ai_service - INFO - ✅ Entité composée validée: Louis Galantine
+2025-09-25 23:01:59,350 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-25 23:01:59,350 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['Louis Galantine']
+2025-09-25 23:01:59,350 - backend.social_analysis - INFO - AI réussi: score=0.6
+2025-09-25 23:01:59,350 - backend.social_analysis - INFO - Analyse AI réussie
+2025-09-25 23:01:59,350 - backend.social_analysis - INFO - Post 91/100
+2025-09-25 23:01:59,350 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:59,350 - backend.social_analysis - INFO - Post 92/100
+2025-09-25 23:01:59,350 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:59,350 - backend.social_analysis - INFO - Post 93/100
+2025-09-25 23:01:59,350 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:59,350 - backend.social_analysis - INFO - Post 94/100
+2025-09-25 23:01:59,351 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:59,351 - backend.social_analysis - INFO - Post 95/100
+2025-09-25 23:01:59,351 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:59,351 - backend.social_analysis - INFO - Post 96/100
+2025-09-25 23:01:59,351 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:59,351 - backend.social_analysis - INFO - Post 97/100
+2025-09-25 23:01:59,351 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:59,351 - backend.social_analysis - INFO - Post 98/100
+2025-09-25 23:01:59,351 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:59,351 - backend.social_analysis - INFO - Post 99/100
+2025-09-25 23:01:59,351 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:59,351 - backend.social_analysis - INFO - Post 100/100
+2025-09-25 23:01:59,351 - backend.social_analysis - INFO - Post non-départemental ignoré
+2025-09-25 23:01:59,351 - backend.social_analysis - INFO - Analyse terminée: {'posts_processed': 100, 'posts_analyzed': 2, 'posts_departmental': 2, 'posts_linked': 0, 'affairs_enriched': 0, 'errors': 0}
+2025-09-25 23:01:59,351 - veille_media_backend - INFO - ✅ [SOCIAL] Analyse terminée: 0 posts liés
+2025-09-25 23:05:34,355 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-25 23:05:34,357 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-25 23:05:34,357 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-25 23:05:34,357 - veille_media_backend - INFO - 🔧 [INIT] Initialisation MongoDB...
+2025-09-25 23:05:34,357 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-25 23:05:34,758 - veille_media_backend - INFO - ⏳ [INIT] Test de ping MongoDB...
+2025-09-25 23:05:35,988 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-25 23:05:35,988 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-25 23:05:35,989 - veille_media_backend - INFO - 📚 [INIT] Collections utilisées: articles_guadeloupe, affaires_guadeloupe, social_media_posts
+2025-09-25 23:05:35,989 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-25 23:05:35,989 - veille_media_backend - INFO - 🏛️ [SCRAPER] Initialisation du scraper départemental...
+2025-09-25 23:05:37,114 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-25 23:05:37,114 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-25 23:05:38,574 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-25 23:05:38,574 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-25 23:05:38,574 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-25 23:05:38,574 - veille_media_backend - INFO - 🎯 [SCRAPER] Fonctionnalités: Fusion d'affaires + filtrage départemental + IA Mistral
+2025-09-25 23:05:38,574 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-25 23:05:38,576 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-25 23:05:38,635 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-25 23:05:38,636 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-25 23:05:39,682 - backend.social_media_service - INFO - ✅ Connexion MongoDB réussie pour réseaux sociaux
+2025-09-25 23:05:41,249 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@CD971
+2025-09-25 23:05:41,860 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@ericdamaseau320
+2025-09-25 23:05:41,860 - backend.social_routes - INFO - 🔌 social_routes loaded (social_media_service)
+2025-09-25 23:05:41,864 - veille_media_backend - INFO - 📱 [ROUTES] Routes sociales existantes intégrées
+2025-09-25 23:05:47,385 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-25 23:05:47,386 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-25 23:05:47,386 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-25 23:05:47,387 - veille_media_backend - INFO - 🔧 [INIT] Initialisation MongoDB...
+2025-09-25 23:05:47,387 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-25 23:05:47,469 - veille_media_backend - INFO - ⏳ [INIT] Test de ping MongoDB...
+2025-09-25 23:05:48,298 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-25 23:05:48,298 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-25 23:05:48,298 - veille_media_backend - INFO - 📚 [INIT] Collections utilisées: articles_guadeloupe, affaires_guadeloupe, social_media_posts
+2025-09-25 23:05:48,298 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-25 23:05:48,298 - veille_media_backend - INFO - 🏛️ [SCRAPER] Initialisation du scraper départemental...
+2025-09-25 23:05:49,336 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-25 23:05:49,336 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-25 23:05:49,577 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-25 23:05:49,577 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-25 23:05:49,577 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-25 23:05:49,577 - veille_media_backend - INFO - 🎯 [SCRAPER] Fonctionnalités: Fusion d'affaires + filtrage départemental + IA Mistral
+2025-09-25 23:05:49,577 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-25 23:05:49,579 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-25 23:05:49,646 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-25 23:05:49,646 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-25 23:05:50,734 - backend.social_media_service - INFO - ✅ Connexion MongoDB réussie pour réseaux sociaux
+2025-09-25 23:05:56,395 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@CD971
+2025-09-25 23:05:57,768 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@ericdamaseau320
+2025-09-25 23:05:57,769 - backend.social_routes - INFO - 🔌 social_routes loaded (social_media_service)
+2025-09-25 23:05:57,772 - veille_media_backend - INFO - 📱 [ROUTES] Routes sociales existantes intégrées
+2025-09-25 23:06:39,662 - veille_media_backend - INFO - 🔍 [SOCIAL] Lancement analyse posts (limit: 100, days: 30)
+2025-09-25 23:06:39,662 - backend.social_analysis - INFO - Recherche posts depuis 2025-08-26
+2025-09-25 23:06:39,662 - backend.social_analysis - INFO - Traitement plateforme: twitter
+2025-09-25 23:06:40,495 - backend.social_analysis - INFO - twitter: 0 posts
+2025-09-25 23:06:40,495 - backend.social_analysis - INFO - Traitement plateforme: facebook
+2025-09-25 23:06:40,561 - backend.social_analysis - INFO - facebook: 0 posts
+2025-09-25 23:06:40,561 - backend.social_analysis - INFO - Traitement plateforme: instagram
+2025-09-25 23:06:41,140 - backend.social_analysis - INFO - instagram: 20 posts
+2025-09-25 23:06:41,140 - backend.social_analysis - ERROR - Erreur post instagram: 'function' object has no attribute 'get'
+2025-09-25 23:06:41,140 - backend.social_analysis - ERROR - Erreur post instagram: 'function' object has no attribute 'get'
+2025-09-25 23:06:41,140 - backend.social_analysis - ERROR - Erreur post instagram: 'function' object has no attribute 'get'
+2025-09-25 23:06:41,140 - backend.social_analysis - ERROR - Erreur post instagram: 'function' object has no attribute 'get'
+2025-09-25 23:06:41,140 - backend.social_analysis - ERROR - Erreur post instagram: 'function' object has no attribute 'get'
+2025-09-25 23:06:41,140 - backend.social_analysis - ERROR - Erreur post instagram: 'function' object has no attribute 'get'
+2025-09-25 23:06:41,140 - backend.social_analysis - ERROR - Erreur post instagram: 'function' object has no attribute 'get'
+2025-09-25 23:06:41,140 - backend.social_analysis - ERROR - Erreur post instagram: 'function' object has no attribute 'get'
+2025-09-25 23:06:41,140 - backend.social_analysis - ERROR - Erreur post instagram: 'function' object has no attribute 'get'
+2025-09-25 23:06:41,142 - backend.social_analysis - ERROR - Erreur post instagram: 'function' object has no attribute 'get'
+2025-09-25 23:06:41,142 - backend.social_analysis - ERROR - Erreur post instagram: 'function' object has no attribute 'get'
+2025-09-25 23:06:41,142 - backend.social_analysis - ERROR - Erreur post instagram: 'function' object has no attribute 'get'
+2025-09-25 23:06:41,142 - backend.social_analysis - ERROR - Erreur post instagram: 'function' object has no attribute 'get'
+2025-09-25 23:06:41,142 - backend.social_analysis - ERROR - Erreur post instagram: 'function' object has no attribute 'get'
+2025-09-25 23:06:41,142 - backend.social_analysis - ERROR - Erreur post instagram: 'function' object has no attribute 'get'
+2025-09-25 23:06:41,142 - backend.social_analysis - ERROR - Erreur post instagram: 'function' object has no attribute 'get'
+2025-09-25 23:06:41,142 - backend.social_analysis - ERROR - Erreur post instagram: 'function' object has no attribute 'get'
+2025-09-25 23:06:41,142 - backend.social_analysis - ERROR - Erreur post instagram: 'function' object has no attribute 'get'
+2025-09-25 23:06:41,142 - backend.social_analysis - ERROR - Erreur post instagram: 'function' object has no attribute 'get'
+2025-09-25 23:06:41,142 - backend.social_analysis - ERROR - Erreur post instagram: 'function' object has no attribute 'get'
+2025-09-25 23:06:41,142 - backend.social_analysis - INFO - Traitement plateforme: youtube
+2025-09-25 23:06:41,223 - backend.social_analysis - INFO - youtube: 0 posts
+2025-09-25 23:06:41,224 - backend.social_analysis - INFO - Traitement plateforme: news
+2025-09-25 23:06:41,305 - backend.social_analysis - INFO - news: 0 posts
+2025-09-25 23:06:41,305 - backend.social_analysis - INFO - Analyse terminée: {'posts_processed': 20, 'posts_analyzed': 0, 'posts_important': 0, 'posts_linked': 0, 'affairs_enriched': 0, 'errors': 20, 'platforms_processed': {'twitter': 0, 'facebook': 0, 'instagram': 20, 'youtube': 0, 'news': 0}}
+2025-09-25 23:06:41,305 - veille_media_backend - INFO - ✅ [SOCIAL] Analyse terminée: 0 posts importants, 0 candidats affaires
+2025-09-25 23:08:47,930 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-25 23:08:47,931 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-25 23:08:47,932 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-25 23:08:47,932 - veille_media_backend - INFO - 🔧 [INIT] Initialisation MongoDB...
+2025-09-25 23:08:47,932 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-25 23:08:48,173 - veille_media_backend - INFO - ⏳ [INIT] Test de ping MongoDB...
+2025-09-25 23:08:49,382 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-25 23:08:49,382 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-25 23:08:49,382 - veille_media_backend - INFO - 📚 [INIT] Collections utilisées: articles_guadeloupe, affaires_guadeloupe, social_media_posts
+2025-09-25 23:08:49,382 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-25 23:08:49,382 - veille_media_backend - INFO - 🏛️ [SCRAPER] Initialisation du scraper départemental...
+2025-09-25 23:08:50,362 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-25 23:08:50,362 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-25 23:08:52,092 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-25 23:08:52,093 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-25 23:08:52,093 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-25 23:08:52,093 - veille_media_backend - INFO - 🎯 [SCRAPER] Fonctionnalités: Fusion d'affaires + filtrage départemental + IA Mistral
+2025-09-25 23:08:52,093 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-25 23:08:52,097 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-25 23:08:52,163 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-25 23:08:52,163 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-25 23:08:53,132 - backend.social_media_service - INFO - ✅ Connexion MongoDB réussie pour réseaux sociaux
+2025-09-25 23:08:54,674 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@CD971
+2025-09-25 23:08:55,267 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@ericdamaseau320
+2025-09-25 23:08:55,267 - backend.social_routes - INFO - 🔌 social_routes loaded (social_media_service)
+2025-09-25 23:08:55,272 - veille_media_backend - INFO - 📱 [ROUTES] Routes sociales existantes intégrées
+2025-09-25 23:09:08,029 - veille_media_backend - INFO - 🔍 [SOCIAL] Lancement analyse posts (limit: 100, days: 7)
+2025-09-25 23:09:08,030 - backend.social_analysis - INFO - Recherche posts depuis 2025-09-18
+2025-09-25 23:09:08,030 - backend.social_analysis - INFO - Traitement plateforme: twitter
+2025-09-25 23:09:08,558 - backend.social_analysis - INFO - twitter: 0 posts
+2025-09-25 23:09:08,558 - backend.social_analysis - INFO - Traitement plateforme: facebook
+2025-09-25 23:09:08,623 - backend.social_analysis - INFO - facebook: 0 posts
+2025-09-25 23:09:08,623 - backend.social_analysis - INFO - Traitement plateforme: instagram
+2025-09-25 23:09:08,753 - backend.social_analysis - INFO - instagram: 20 posts
+2025-09-25 23:09:08,753 - backend.social_analysis - INFO - Post ID: instagram_d3ea2ab85c, Content: Les forces de l'ordre et les p...
+2025-09-25 23:09:08,753 - backend.social_analysis - INFO - Post non-important ignoré: Les forces de l'ordre et les proches de Bernard Al...
+2025-09-25 23:09:08,753 - backend.social_analysis - INFO - Post ID: instagram_c50cf8e8c2, Content: ⛈De fortes pluies se sont abat...
+2025-09-25 23:09:08,753 - backend.social_analysis - INFO - Post non-important ignoré: ⛈De fortes pluies se sont abattues en peu de temps...
+2025-09-25 23:09:08,753 - backend.social_analysis - INFO - Post ID: instagram_81d5d81443, Content: ...
+2025-09-25 23:09:08,754 - backend.social_analysis - INFO - Post non-important ignoré: ...
+2025-09-25 23:09:08,754 - backend.social_analysis - INFO - Post ID: instagram_8e88308cd2, Content: ...
+2025-09-25 23:09:08,754 - backend.social_analysis - INFO - Post non-important ignoré: ...
+2025-09-25 23:09:08,754 - backend.social_analysis - INFO - Post ID: instagram_0bed850bb8, Content: ...
+2025-09-25 23:09:08,754 - backend.social_analysis - INFO - Post non-important ignoré: ...
+2025-09-25 23:09:08,754 - backend.social_analysis - INFO - Post ID: instagram_b543200320, Content: ...
+2025-09-25 23:09:08,754 - backend.social_analysis - INFO - Post non-important ignoré: ...
+2025-09-25 23:09:08,754 - backend.social_analysis - INFO - Post ID: instagram_3d17b45116, Content: ...
+2025-09-25 23:09:08,754 - backend.social_analysis - INFO - Post non-important ignoré: ...
+2025-09-25 23:09:08,754 - backend.social_analysis - INFO - Post ID: instagram_cbfad578c2, Content: Affaire Geronimi : un homme so...
+2025-09-25 23:09:08,754 - backend.social_analysis - INFO - Post non-important ignoré: Affaire Geronimi : un homme sous OQTF jugé à Paris...
+2025-09-25 23:09:08,754 - backend.social_analysis - INFO - Post ID: instagram_5a2fc056a1, Content: La Guadeloupe est placée en vi...
+2025-09-25 23:09:08,754 - backend.social_analysis - INFO - Post non-important ignoré: La Guadeloupe est placée en vigilance orange pour ...
+2025-09-25 23:09:08,754 - backend.social_analysis - INFO - Post ID: instagram_409e246aad, Content: [📅 Agenda des sorties - 24 sep...
+2025-09-25 23:09:08,754 - backend.social_analysis - INFO - Post non-important ignoré: [📅 Agenda des sorties - 24 septembre 2025] Vous av...
+2025-09-25 23:09:08,754 - backend.social_analysis - INFO - Post ID: instagram_de3e8a5532, Content: Nicolas Sarkozy a été reconnu ...
+2025-09-25 23:09:08,754 - backend.social_analysis - INFO - Post important trouvé (score: 0.80): personnalité: président; fort engagement
+2025-09-25 23:09:08,754 - backend.social_analysis - INFO - Appel enrich_article...
+2025-09-25 23:09:08,754 - backend.ai_service - INFO - Enrichissement article: 'Post instagram...' (149 chars)
+2025-09-25 23:09:13,841 - backend.ai_service - INFO - 🔍 Validation entités: ['Nicolas Sarkozy']
+2025-09-25 23:09:13,842 - backend.ai_service - INFO - ✅ Entité composée validée: Nicolas Sarkozy
+2025-09-25 23:09:13,842 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-25 23:09:13,842 - backend.ai_service - INFO - ✅ Entité principale validée: Nicolas Sarkozy
+2025-09-25 23:09:13,842 - backend.ai_service - INFO - Mistral brut: 0.90 + boost: 0.00 = 0.90
+2025-09-25 23:09:13,842 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-25 23:09:13,842 - backend.ai_service - INFO - 🔍 Validation entités: ['Nicolas Sarkozy']
+2025-09-25 23:09:13,842 - backend.ai_service - INFO - ✅ Entité composée validée: Nicolas Sarkozy
+2025-09-25 23:09:13,843 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-25 23:09:13,843 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['Nicolas Sarkozy']
+2025-09-25 23:09:13,843 - backend.social_analysis - INFO - AI réussi: score=0.9
+2025-09-25 23:09:13,843 - backend.social_analysis - INFO - Score AI élevé (0.90) - candidat affaire
+2025-09-25 23:09:13,843 - backend.social_analysis - INFO - Post ID: instagram_bfbb8bd63d, Content: EN IMAGES « Anticiper l'année ...
+2025-09-25 23:09:13,843 - backend.social_analysis - INFO - Post non-important ignoré: EN IMAGES « Anticiper l'année économique 2026 » au...
+2025-09-25 23:09:13,843 - backend.social_analysis - INFO - Post ID: instagram_83e877574a, Content: Sarkozy écope de 5 ans de pris...
+2025-09-25 23:09:13,843 - backend.social_analysis - INFO - Post non-important ignoré: Sarkozy écope de 5 ans de prison ferme dans l’affa...
+2025-09-25 23:09:13,843 - backend.social_analysis - INFO - Post ID: instagram_874ee66c40, Content: [Questions à un avocat : l'amo...
+2025-09-25 23:09:13,843 - backend.social_analysis - INFO - Post important trouvé (score: 0.80): critique: justice
+2025-09-25 23:09:13,843 - backend.social_analysis - INFO - Appel enrich_article...
+2025-09-25 23:09:13,843 - backend.ai_service - INFO - Enrichissement article: 'Post instagram...' (132 chars)
+2025-09-25 23:09:16,917 - backend.ai_service - INFO - 🔍 Validation entités: ['Employer-employee relationship']
+2025-09-25 23:09:16,917 - backend.ai_service - WARNING - ❌ Entité rejetée (mots manquants: ['employer-employee', 'relationship']): Employer-employee relationship
+2025-09-25 23:09:16,917 - backend.ai_service - INFO - 🎯 Entités finales: 0/1 validées
+2025-09-25 23:09:16,917 - backend.ai_service - WARNING - 🚫 Entité principale rejetée par validation: Employer-employee relationship
+2025-09-25 23:09:16,917 - backend.ai_service - INFO - Mistral brut: 0.50 + boost: 0.00 = 0.50
+2025-09-25 23:09:16,917 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-25 23:09:16,917 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['Aucune']
+2025-09-25 23:09:16,917 - backend.social_analysis - INFO - AI réussi: score=0.5
+2025-09-25 23:09:16,917 - backend.social_analysis - INFO - Post ID: instagram_2cdc2d70cd, Content: La distillerie Damoiseau mise ...
+2025-09-25 23:09:16,917 - backend.social_analysis - INFO - Post non-important ignoré: La distillerie Damoiseau mise en demeure pour des ...
+2025-09-25 23:09:16,917 - backend.social_analysis - INFO - Post ID: instagram_dcae55f875, Content: La pratique de la langue des s...
+2025-09-25 23:09:16,917 - backend.social_analysis - INFO - Post important trouvé (score: 0.60): secteur: port; fort engagement
+2025-09-25 23:09:16,917 - backend.social_analysis - INFO - Appel enrich_article...
+2025-09-25 23:09:16,917 - backend.ai_service - INFO - Enrichissement article: 'Post instagram...' (166 chars)
+2025-09-25 23:09:20,201 - backend.ai_service - INFO - 🔍 Validation entités: ['La pratique de la langue des signes']
+2025-09-25 23:09:20,201 - backend.ai_service - INFO - ✅ Entité composée validée: La pratique de la langue des signes
+2025-09-25 23:09:20,201 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-25 23:09:20,201 - backend.ai_service - INFO - ✅ Entité principale validée: La pratique de la langue des signes
+2025-09-25 23:09:20,201 - backend.ai_service - INFO - Mistral brut: 0.40 + boost: 0.00 = 0.40
+2025-09-25 23:09:20,201 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-25 23:09:20,201 - backend.ai_service - INFO - 🔍 Validation entités: ['La pratique de la langue des signes']
+2025-09-25 23:09:20,201 - backend.ai_service - INFO - ✅ Entité composée validée: La pratique de la langue des signes
+2025-09-25 23:09:20,202 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-25 23:09:20,202 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['La pratique de la langue des signes']
+2025-09-25 23:09:20,202 - backend.social_analysis - INFO - AI réussi: score=0.4
+2025-09-25 23:09:20,202 - backend.social_analysis - INFO - Post ID: instagram_8bedcb99a8, Content: 🖤 L'église du Moule a accueill...
+2025-09-25 23:09:20,202 - backend.social_analysis - INFO - Post non-important ignoré: 🖤 L'église du Moule a accueilli, dès 16 heures, de...
+2025-09-25 23:09:20,202 - backend.social_analysis - INFO - Post ID: instagram_5f7e57f26f, Content: Le texte adopté en amont du Co...
+2025-09-25 23:09:20,202 - backend.social_analysis - INFO - Post non-important ignoré: Le texte adopté en amont du Congrès mondial de la ...
+2025-09-25 23:09:20,202 - backend.social_analysis - INFO - Post ID: instagram_2aca2394f5, Content: 🎶✨ France-Antilles s’invite da...
+2025-09-25 23:09:20,202 - backend.social_analysis - INFO - Post non-important ignoré: 🎶✨ France-Antilles s’invite dans les coulisses exc...
+2025-09-25 23:09:20,202 - backend.social_analysis - INFO - Post ID: instagram_af21578823, Content: Le Triomphe des Caraïbes aux M...
+2025-09-25 23:09:20,202 - backend.social_analysis - INFO - Post non-important ignoré: Le Triomphe des Caraïbes aux Mondiaux d'athlétisme...
+2025-09-25 23:09:20,202 - backend.social_analysis - INFO - Traitement plateforme: youtube
+2025-09-25 23:09:20,267 - backend.social_analysis - INFO - youtube: 0 posts
+2025-09-25 23:09:20,267 - backend.social_analysis - INFO - Traitement plateforme: news
+2025-09-25 23:09:20,403 - backend.social_analysis - INFO - news: 0 posts
+2025-09-25 23:09:20,404 - backend.social_analysis - INFO - Analyse terminée: {'posts_processed': 20, 'posts_analyzed': 3, 'posts_important': 3, 'posts_linked': 1, 'affairs_enriched': 0, 'errors': 0, 'platforms_processed': {'twitter': 0, 'facebook': 0, 'instagram': 20, 'youtube': 0, 'news': 0}}
+2025-09-25 23:09:20,404 - veille_media_backend - INFO - ✅ [SOCIAL] Analyse terminée: 3 posts importants, 1 candidats affaires
+2025-09-25 23:14:37,432 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-25 23:14:37,434 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-25 23:14:37,434 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-25 23:14:37,434 - veille_media_backend - INFO - 🔧 [INIT] Initialisation MongoDB...
+2025-09-25 23:14:37,434 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-25 23:14:37,756 - veille_media_backend - INFO - ⏳ [INIT] Test de ping MongoDB...
+2025-09-25 23:14:38,836 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-25 23:14:38,836 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-25 23:14:38,836 - veille_media_backend - INFO - 📚 [INIT] Collections utilisées: articles_guadeloupe, affaires_guadeloupe, social_media_posts
+2025-09-25 23:14:38,836 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-25 23:14:38,836 - veille_media_backend - INFO - 🏛️ [SCRAPER] Initialisation du scraper départemental...
+2025-09-25 23:14:39,940 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-25 23:14:39,940 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-25 23:14:43,428 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-25 23:14:43,428 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-25 23:14:43,428 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-25 23:14:43,428 - veille_media_backend - INFO - 🎯 [SCRAPER] Fonctionnalités: Fusion d'affaires + filtrage départemental + IA Mistral
+2025-09-25 23:14:43,429 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-25 23:14:43,433 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-25 23:14:43,512 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-25 23:14:43,512 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-25 23:14:44,546 - backend.social_media_service - INFO - ✅ Connexion MongoDB réussie pour réseaux sociaux
+2025-09-25 23:14:46,057 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@CD971
+2025-09-25 23:14:46,639 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@ericdamaseau320
+2025-09-25 23:14:46,639 - backend.social_routes - INFO - 🔌 social_routes loaded (social_media_service)
+2025-09-25 23:14:46,642 - veille_media_backend - INFO - 📱 [ROUTES] Routes sociales existantes intégrées
+2025-09-25 23:14:59,312 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-25 23:14:59,314 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-25 23:14:59,314 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-25 23:14:59,314 - veille_media_backend - INFO - 🔧 [INIT] Initialisation MongoDB...
+2025-09-25 23:14:59,314 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-25 23:14:59,457 - veille_media_backend - INFO - ⏳ [INIT] Test de ping MongoDB...
+2025-09-25 23:15:00,272 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-25 23:15:00,272 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-25 23:15:00,272 - veille_media_backend - INFO - 📚 [INIT] Collections utilisées: articles_guadeloupe, affaires_guadeloupe, social_media_posts
+2025-09-25 23:15:00,272 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-25 23:15:00,272 - veille_media_backend - INFO - 🏛️ [SCRAPER] Initialisation du scraper départemental...
+2025-09-25 23:15:01,317 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-25 23:15:01,317 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-25 23:15:01,878 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-25 23:15:01,878 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-25 23:15:01,878 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-25 23:15:01,878 - veille_media_backend - INFO - 🎯 [SCRAPER] Fonctionnalités: Fusion d'affaires + filtrage départemental + IA Mistral
+2025-09-25 23:15:01,878 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-25 23:15:01,879 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-25 23:15:01,933 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-25 23:15:01,933 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-25 23:15:02,986 - backend.social_media_service - INFO - ✅ Connexion MongoDB réussie pour réseaux sociaux
+2025-09-25 23:15:04,665 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@CD971
+2025-09-25 23:15:05,276 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@ericdamaseau320
+2025-09-25 23:15:05,277 - backend.social_routes - INFO - 🔌 social_routes loaded (social_media_service)
+2025-09-25 23:15:05,280 - veille_media_backend - INFO - 📱 [ROUTES] Routes sociales existantes intégrées
+2025-09-25 23:20:30,561 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-25 23:20:30,563 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-25 23:20:30,563 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-25 23:20:30,563 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-25 23:20:31,685 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-25 23:20:31,685 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-25 23:20:31,685 - veille_media_backend - INFO - 📚 [INIT] Collections: articles_guadeloupe, affaires_guadeloupe, social_media_posts
+2025-09-25 23:20:31,685 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-25 23:20:32,642 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-25 23:20:32,642 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-25 23:20:35,832 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-25 23:20:35,833 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-25 23:20:35,833 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-25 23:20:35,833 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-25 23:20:35,834 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-25 23:20:35,892 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-25 23:20:35,892 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-25 23:20:36,875 - backend.social_media_service - INFO - ✅ Connexion MongoDB réussie pour réseaux sociaux
+2025-09-25 23:20:38,343 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@CD971
+2025-09-25 23:20:38,934 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@ericdamaseau320
+2025-09-25 23:20:38,934 - backend.social_routes - INFO - 🔌 social_routes loaded (social_media_service)
+2025-09-25 23:20:38,939 - veille_media_backend - INFO - 📱 [ROUTES] Routes sociales existantes intégrées
+2025-09-25 23:27:43,161 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-25 23:27:43,163 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-25 23:27:43,163 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-25 23:27:43,163 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-25 23:27:44,641 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-25 23:27:44,641 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-25 23:27:44,641 - veille_media_backend - INFO - 📚 [INIT] Collections: articles_guadeloupe, affaires_guadeloupe, social_media_posts
+2025-09-25 23:27:44,641 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-25 23:27:45,575 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-25 23:27:45,575 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-25 23:27:49,109 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-25 23:27:49,109 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-25 23:27:49,109 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-25 23:27:49,109 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-25 23:27:49,111 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-25 23:27:49,224 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-25 23:27:49,224 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-25 23:27:50,251 - backend.social_media_service - INFO - ✅ Connexion MongoDB réussie pour réseaux sociaux
+2025-09-25 23:27:51,781 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@CD971
+2025-09-25 23:27:52,355 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@ericdamaseau320
+2025-09-25 23:27:52,355 - backend.social_routes - INFO - 🔌 social_routes loaded (social_media_service)
+2025-09-25 23:27:52,358 - veille_media_backend - INFO - 📱 [ROUTES] Routes sociales existantes intégrées
+2025-09-25 23:35:16,346 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-25 23:35:16,348 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-25 23:35:16,349 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-25 23:35:16,349 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-25 23:35:17,633 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-25 23:35:17,633 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-25 23:35:17,633 - veille_media_backend - INFO - 📚 [INIT] Collections: articles_guadeloupe, affaires_guadeloupe, social_media_posts, radio_transcriptions
+2025-09-25 23:35:17,633 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-25 23:35:18,600 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-25 23:35:18,600 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-25 23:35:25,133 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-25 23:35:25,134 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-25 23:35:25,135 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-25 23:35:25,135 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-25 23:35:25,136 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-25 23:35:25,198 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-25 23:35:25,198 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-25 23:35:25,198 - veille_media_backend - INFO - 📻 [STARTUP] Initialisation du service radio...
+2025-09-25 23:35:26,358 - radio_service - INFO - 🔗 Mongo connecté (veille_media)
+2025-09-25 23:35:26,587 - veille_media_backend - INFO - ✅ [RADIO] Service radio chargé avec succès
+2025-09-25 23:35:28,075 - backend.social_media_service - INFO - ✅ Connexion MongoDB réussie pour réseaux sociaux
+2025-09-25 23:35:29,716 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@CD971
+2025-09-25 23:35:30,380 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@ericdamaseau320
+2025-09-25 23:35:30,380 - backend.social_routes - INFO - 🔌 social_routes loaded (social_media_service)
+2025-09-25 23:35:30,384 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.social_routes (prefix=/api/social)
+2025-09-25 23:35:30,390 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.transcription_routes (prefix=/api)
+2025-09-25 23:35:30,397 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.radio_cards_routes (prefix=/api)
+2025-09-25 23:35:30,402 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.digest_routes (prefix=/api)
+2025-09-25 23:35:30,448 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-25 23:35:30,450 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-25 23:35:30,521 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.scheduler_service (prefix=/api/scheduler)
+2025-09-25 23:47:15,154 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-25 23:47:15,156 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-25 23:47:15,156 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-25 23:47:15,156 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-25 23:47:16,484 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-25 23:47:16,484 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-25 23:47:16,484 - veille_media_backend - INFO - 📚 [INIT] Collections: articles_guadeloupe, affaires_guadeloupe, social_media_posts, radio_transcriptions
+2025-09-25 23:47:16,484 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-25 23:47:17,483 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-25 23:47:17,486 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-25 23:47:22,001 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-25 23:47:22,002 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-25 23:47:22,002 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-25 23:47:22,002 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-25 23:47:22,003 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-25 23:47:22,071 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-25 23:47:22,071 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-25 23:47:22,071 - veille_media_backend - INFO - 📻 [STARTUP] Initialisation du service radio...
+2025-09-25 23:47:22,925 - radio_service - INFO - 🔗 Mongo connecté (veille_media)
+2025-09-25 23:47:23,106 - veille_media_backend - INFO - ✅ [RADIO] Service radio chargé avec succès
+2025-09-25 23:47:24,103 - backend.social_media_service - INFO - ✅ Connexion MongoDB réussie pour réseaux sociaux
+2025-09-25 23:47:25,605 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@CD971
+2025-09-25 23:47:26,189 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@ericdamaseau320
+2025-09-25 23:47:26,190 - backend.social_routes - INFO - 🔌 social_routes loaded (social_media_service)
+2025-09-25 23:47:26,194 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.social_routes (prefix=/api/social)
+2025-09-25 23:47:26,200 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.transcription_routes (prefix=/api)
+2025-09-25 23:47:26,208 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.radio_cards_routes (prefix=/api)
+2025-09-25 23:47:26,213 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.digest_routes (prefix=/api)
+2025-09-25 23:47:26,251 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-25 23:47:26,253 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-25 23:47:26,323 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.scheduler_service (prefix=/api/scheduler)
+2025-09-25 23:49:23,598 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-25 23:49:23,600 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-25 23:49:23,600 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-25 23:49:23,600 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-25 23:49:25,071 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-25 23:49:25,072 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-25 23:49:25,072 - veille_media_backend - INFO - 📚 [INIT] Collections: articles_guadeloupe, affaires_guadeloupe, social_media_posts, radio_transcriptions
+2025-09-25 23:49:25,072 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-25 23:49:26,317 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-25 23:49:26,317 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-25 23:49:28,212 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-25 23:49:28,212 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-25 23:49:28,213 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-25 23:49:28,213 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-25 23:49:28,214 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-25 23:49:28,277 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-25 23:49:28,278 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-25 23:49:28,278 - veille_media_backend - INFO - 📻 [STARTUP] Initialisation du service radio...
+2025-09-25 23:49:29,333 - radio_service - INFO - 🔗 Mongo connecté (veille_media)
+2025-09-25 23:49:29,534 - veille_media_backend - INFO - ✅ [RADIO] Service radio chargé avec succès
+2025-09-25 23:49:30,775 - backend.social_media_service - INFO - ✅ Connexion MongoDB réussie pour réseaux sociaux
+2025-09-25 23:49:32,447 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@CD971
+2025-09-25 23:49:33,096 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@ericdamaseau320
+2025-09-25 23:49:33,097 - backend.social_routes - INFO - 🔌 social_routes loaded (social_media_service)
+2025-09-25 23:49:33,101 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.social_routes (prefix=/api/social)
+2025-09-25 23:49:33,107 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.transcription_routes (prefix=/api)
+2025-09-25 23:49:33,113 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.radio_cards_routes (prefix=/api)
+2025-09-25 23:49:33,118 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.digest_routes (prefix=/api)
+2025-09-25 23:49:33,154 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-25 23:49:33,157 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-25 23:49:33,224 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.scheduler_service (prefix=/api/scheduler)
+2025-09-25 23:49:46,797 - veille_media_backend - INFO - 🔗 [LINKING] Début liaison transcriptions-affaires pour 2025-09-26
+2025-09-25 23:51:04,609 - veille_media_backend - INFO - 🔗 [LINKING] Début liaison transcriptions-affaires pour 2025-09-25
+2025-09-25 23:51:04,981 - veille_media_backend - INFO - 🔗 Transcription gp_radio_0600_1758795175 liée à justice_lauteur_présumé_de_l_2025_09 (score: 39)
+2025-09-25 23:51:05,082 - veille_media_backend - INFO - 🔗 Transcription gp_radio_0615_1758796136 liée à politique_nicolas_sarkozy_2025_09 (score: 23)
+2025-09-25 23:51:05,202 - veille_media_backend - INFO - 🔗 Transcription rci_0700_1758799332 liée à politique_nicolas_sarkozy_2025_09 (score: 62)
+2025-09-25 23:51:05,202 - veille_media_backend - INFO - ✅ [LINKING] Terminé: 3 transcriptions liées sur 3
+2025-09-25 23:54:40,166 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-25 23:54:40,168 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-25 23:54:40,168 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-25 23:54:40,168 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-25 23:54:41,566 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-25 23:54:41,567 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-25 23:54:41,567 - veille_media_backend - INFO - 📚 [INIT] Collections: articles_guadeloupe, affaires_guadeloupe, social_media_posts, radio_transcriptions
+2025-09-25 23:54:41,567 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-25 23:54:42,545 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-25 23:54:42,545 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-25 23:54:46,142 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-25 23:54:46,143 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-25 23:54:46,143 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-25 23:54:46,143 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-25 23:54:46,145 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-25 23:54:46,217 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-25 23:54:46,217 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-25 23:54:46,217 - veille_media_backend - INFO - 📻 [STARTUP] Initialisation du service radio...
+2025-09-25 23:54:47,116 - radio_service - INFO - 🔗 Mongo connecté (veille_media)
+2025-09-25 23:54:47,299 - veille_media_backend - INFO - ✅ [RADIO] Service radio chargé avec succès
+2025-09-25 23:54:48,287 - backend.social_media_service - INFO - ✅ Connexion MongoDB réussie pour réseaux sociaux
+2025-09-25 23:54:49,775 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@CD971
+2025-09-25 23:54:50,365 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@ericdamaseau320
+2025-09-25 23:54:50,365 - backend.social_routes - INFO - 🔌 social_routes loaded (social_media_service)
+2025-09-25 23:54:50,369 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.social_routes (prefix=/api/social)
+2025-09-25 23:54:50,374 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.transcription_routes (prefix=/api)
+2025-09-25 23:54:50,381 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.radio_cards_routes (prefix=/api)
+2025-09-25 23:54:50,386 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.digest_routes (prefix=/api)
+2025-09-25 23:54:50,423 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-25 23:54:50,425 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-25 23:54:50,505 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.scheduler_service (prefix=/api/scheduler)
+2025-09-25 23:54:56,084 - veille_media_backend - INFO - 🔗 [AI_LINKING] Début liaison IA transcriptions-affaires pour 2025-09-25
+2025-09-25 23:54:56,479 - veille_media_backend - INFO - ✅ [AI_LINKING] Terminé: 0/3 via Mistral
+2025-09-25 23:55:31,514 - veille_media_backend - INFO - 🔗 [AI_LINKING] Début liaison IA transcriptions-affaires pour 2025-09-25
+2025-09-25 23:55:31,947 - veille_media_backend - INFO - ✅ [AI_LINKING] Terminé: 0/3 via Mistral
+2025-09-26 00:05:03,913 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-26 00:05:03,915 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-26 00:05:03,915 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-26 00:05:03,915 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-26 00:05:05,578 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-26 00:05:05,579 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-26 00:05:05,579 - veille_media_backend - INFO - 📚 [INIT] Collections: articles_guadeloupe, affaires_guadeloupe, social_media_posts, radio_transcriptions
+2025-09-26 00:05:05,579 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-26 00:05:06,692 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-26 00:05:06,692 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-26 00:05:10,414 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-26 00:05:10,415 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-26 00:05:10,415 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-26 00:05:10,415 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-26 00:05:10,416 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-26 00:05:10,479 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-26 00:05:10,479 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-26 00:05:10,479 - veille_media_backend - INFO - 📻 [STARTUP] Initialisation du service radio...
+2025-09-26 00:05:11,446 - radio_service - INFO - 🔗 Mongo connecté (veille_media)
+2025-09-26 00:05:11,685 - veille_media_backend - INFO - ✅ [RADIO] Service radio chargé avec succès
+2025-09-26 00:05:12,818 - backend.social_media_service - INFO - ✅ Connexion MongoDB réussie pour réseaux sociaux
+2025-09-26 00:05:14,426 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@CD971
+2025-09-26 00:05:15,023 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@ericdamaseau320
+2025-09-26 00:05:15,023 - backend.social_routes - INFO - 🔌 social_routes loaded (social_media_service)
+2025-09-26 00:05:15,028 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.social_routes (prefix=/api/social)
+2025-09-26 00:05:15,037 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.transcription_routes (prefix=/api)
+2025-09-26 00:05:15,044 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.radio_cards_routes (prefix=/api)
+2025-09-26 00:05:15,050 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.digest_routes (prefix=/api)
+2025-09-26 00:05:15,090 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-26 00:05:15,092 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-26 00:05:15,163 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.scheduler_service (prefix=/api/scheduler)
+2025-09-26 00:06:52,891 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-26 00:06:52,893 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-26 00:06:52,893 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-26 00:06:52,893 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-26 00:06:54,370 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-26 00:06:54,371 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-26 00:06:54,371 - veille_media_backend - INFO - 📚 [INIT] Collections: articles_guadeloupe, affaires_guadeloupe, social_media_posts, radio_transcriptions
+2025-09-26 00:06:54,371 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-26 00:06:55,370 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-26 00:06:55,370 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-26 00:06:56,735 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-26 00:06:56,736 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-26 00:06:56,736 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-26 00:06:56,736 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-26 00:06:56,737 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-26 00:06:56,826 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-26 00:06:56,826 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-26 00:06:56,826 - veille_media_backend - INFO - 📻 [STARTUP] Initialisation du service radio...
+2025-09-26 00:06:57,739 - radio_service - INFO - 🔗 Mongo connecté (veille_media)
+2025-09-26 00:06:57,922 - veille_media_backend - INFO - ✅ [RADIO] Service radio chargé avec succès
+2025-09-26 00:06:58,889 - backend.social_media_service - INFO - ✅ Connexion MongoDB réussie pour réseaux sociaux
+2025-09-26 00:07:00,374 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@CD971
+2025-09-26 00:07:00,955 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@ericdamaseau320
+2025-09-26 00:07:00,955 - backend.social_routes - INFO - 🔌 social_routes loaded (social_media_service)
+2025-09-26 00:07:00,960 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.social_routes (prefix=/api/social)
+2025-09-26 00:07:00,966 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.transcription_routes (prefix=/api)
+2025-09-26 00:07:00,974 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.radio_cards_routes (prefix=/api)
+2025-09-26 00:07:00,981 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.digest_routes (prefix=/api)
+2025-09-26 00:07:01,021 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-26 00:07:01,023 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-26 00:07:01,096 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.scheduler_service (prefix=/api/scheduler)
+2025-09-26 00:14:56,584 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-26 00:14:56,586 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-26 00:14:56,586 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-26 00:14:56,586 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-26 00:14:58,069 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-26 00:14:58,069 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-26 00:14:58,069 - veille_media_backend - INFO - 📚 [INIT] Collections: articles_guadeloupe, affaires_guadeloupe, social_media_posts, radio_transcriptions
+2025-09-26 00:14:58,069 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-26 00:14:59,078 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-26 00:14:59,078 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-26 00:15:03,274 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-26 00:15:03,275 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-26 00:15:03,275 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-26 00:15:03,275 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-26 00:15:03,276 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-26 00:15:03,343 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-26 00:15:03,343 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-26 00:15:03,343 - veille_media_backend - INFO - 📻 [STARTUP] Initialisation du service radio...
+2025-09-26 00:15:04,248 - radio_service - INFO - 🔗 Mongo connecté (veille_media)
+2025-09-26 00:15:04,431 - veille_media_backend - INFO - ✅ [RADIO] Service radio chargé avec succès
+2025-09-26 00:15:04,431 - veille_media_backend - INFO - 🧠 [STARTUP] Initialisation du service d'analyse des transcriptions...
+2025-09-26 00:15:04,438 - veille_media_backend - INFO - ✅ [ANALYZER] Service d'analyse intelligente initialisé
+2025-09-26 00:15:05,451 - backend.social_media_service - INFO - ✅ Connexion MongoDB réussie pour réseaux sociaux
+2025-09-26 00:15:06,935 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@CD971
+2025-09-26 00:15:07,587 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@ericdamaseau320
+2025-09-26 00:15:07,588 - backend.social_routes - INFO - 🔌 social_routes loaded (social_media_service)
+2025-09-26 00:15:07,592 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.social_routes (prefix=/api/social)
+2025-09-26 00:15:07,597 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.transcription_routes (prefix=/api)
+2025-09-26 00:15:07,603 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.radio_cards_routes (prefix=/api)
+2025-09-26 00:15:07,609 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.digest_routes (prefix=/api)
+2025-09-26 00:15:07,644 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-26 00:15:07,646 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-26 00:15:07,712 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.scheduler_service (prefix=/api/scheduler)
+2025-09-26 00:16:29,403 - veille_media_backend - INFO - ✅ [RADIO] Retourné 0 transcriptions récentes
+2025-09-26 00:18:17,572 - veille_media_backend - INFO - ✅ [RADIO] Retourné 0 transcriptions récentes
+2025-09-26 00:30:41,586 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-26 00:30:41,588 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-26 00:30:41,588 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-26 00:30:41,588 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-26 00:30:42,965 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-26 00:30:42,965 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-26 00:30:42,965 - veille_media_backend - INFO - 📚 [INIT] Collections: articles_guadeloupe, affaires_guadeloupe, social_media_posts, radio_transcriptions
+2025-09-26 00:30:42,965 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-26 00:30:43,942 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-26 00:30:43,943 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-26 00:30:48,058 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-26 00:30:48,058 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-26 00:30:48,059 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-26 00:30:48,059 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-26 00:30:48,059 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-26 00:30:48,208 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-26 00:30:48,208 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-26 00:30:48,208 - veille_media_backend - INFO - 📻 [STARTUP] Initialisation du service radio...
+2025-09-26 00:30:49,284 - radio_service - INFO - 🔗 Mongo connecté (veille_media)
+2025-09-26 00:30:49,503 - veille_media_backend - INFO - ✅ [RADIO] Service radio chargé avec succès
+2025-09-26 00:30:49,504 - veille_media_backend - INFO - 🧠 [STARTUP] Initialisation du service d'analyse des transcriptions...
+2025-09-26 00:30:49,505 - veille_media_backend - INFO - ✅ [ANALYZER] Service d'analyse intelligente initialisé
+2025-09-26 00:30:50,793 - backend.social_media_service - INFO - ✅ Connexion MongoDB réussie pour réseaux sociaux
+2025-09-26 00:30:52,894 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@CD971
+2025-09-26 00:30:53,526 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@ericdamaseau320
+2025-09-26 00:30:53,526 - backend.social_routes - INFO - 🔌 social_routes loaded (social_media_service)
+2025-09-26 00:30:53,530 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.social_routes (prefix=/api/social)
+2025-09-26 00:30:53,537 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.transcription_routes (prefix=/api)
+2025-09-26 00:30:53,544 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.radio_cards_routes (prefix=/api)
+2025-09-26 00:30:53,549 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.digest_routes (prefix=/api)
+2025-09-26 00:30:53,589 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-26 00:30:53,591 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-26 00:30:53,660 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.scheduler_service (prefix=/api/scheduler)
+2025-09-26 00:33:36,908 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-26 00:33:36,910 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-26 00:33:36,910 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-26 00:33:36,910 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-26 00:33:38,774 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-26 00:33:38,774 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-26 00:33:38,774 - veille_media_backend - INFO - 📚 [INIT] Collections: articles_guadeloupe, affaires_guadeloupe, social_media_posts, radio_transcriptions
+2025-09-26 00:33:38,774 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-26 00:33:39,822 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-26 00:33:39,823 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-26 00:33:41,767 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-26 00:33:41,768 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-26 00:33:41,768 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-26 00:33:41,768 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-26 00:33:41,768 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-26 00:33:41,830 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-26 00:33:41,830 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-26 00:33:41,830 - veille_media_backend - INFO - 📻 [STARTUP] Initialisation du service radio...
+2025-09-26 00:33:42,774 - radio_service - INFO - 🔗 Mongo connecté (veille_media)
+2025-09-26 00:33:42,968 - veille_media_backend - INFO - ✅ [RADIO] Service radio chargé avec succès
+2025-09-26 00:33:42,968 - veille_media_backend - INFO - 🧠 [STARTUP] Initialisation du service d'analyse des transcriptions...
+2025-09-26 00:33:42,969 - veille_media_backend - INFO - ✅ [ANALYZER] Service d'analyse intelligente initialisé
+2025-09-26 00:33:44,017 - backend.social_media_service - INFO - ✅ Connexion MongoDB réussie pour réseaux sociaux
+2025-09-26 00:33:45,795 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@CD971
+2025-09-26 00:33:46,640 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@ericdamaseau320
+2025-09-26 00:33:46,641 - backend.social_routes - INFO - 🔌 social_routes loaded (social_media_service)
+2025-09-26 00:33:46,645 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.social_routes (prefix=/api/social)
+2025-09-26 00:33:46,651 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.transcription_routes (prefix=/api)
+2025-09-26 00:33:46,658 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.radio_cards_routes (prefix=/api)
+2025-09-26 00:33:46,663 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.digest_routes (prefix=/api)
+2025-09-26 00:33:46,698 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-26 00:33:46,699 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-26 00:33:46,801 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.scheduler_service (prefix=/api/scheduler)
+2025-09-26 00:36:59,472 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-26 00:36:59,474 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-26 00:36:59,475 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-26 00:36:59,475 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-26 00:37:00,862 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-26 00:37:00,862 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-26 00:37:00,862 - veille_media_backend - INFO - 📚 [INIT] Collections: articles_guadeloupe, affaires_guadeloupe, social_media_posts, radio_transcriptions
+2025-09-26 00:37:00,862 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-26 00:37:01,829 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-26 00:37:01,829 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-26 00:37:03,790 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-26 00:37:03,791 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-26 00:37:03,791 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-26 00:37:03,791 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-26 00:37:03,793 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-26 00:37:03,856 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-26 00:37:03,856 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-26 00:37:03,856 - veille_media_backend - INFO - 📻 [STARTUP] Initialisation du service radio...
+2025-09-26 00:37:04,709 - radio_service - INFO - 🔗 Mongo connecté (veille_media)
+2025-09-26 00:37:04,883 - veille_media_backend - INFO - ✅ [RADIO] Service radio chargé avec succès
+2025-09-26 00:37:04,883 - veille_media_backend - INFO - 🧠 [STARTUP] Initialisation du service d'analyse des transcriptions...
+2025-09-26 00:37:04,885 - veille_media_backend - INFO - ✅ [ANALYZER] Service d'analyse intelligente initialisé
+2025-09-26 00:37:05,876 - backend.social_media_service - INFO - ✅ Connexion MongoDB réussie pour réseaux sociaux
+2025-09-26 00:37:07,436 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@CD971
+2025-09-26 00:37:08,017 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@ericdamaseau320
+2025-09-26 00:37:08,017 - backend.social_routes - INFO - 🔌 social_routes loaded (social_media_service)
+2025-09-26 00:37:08,021 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.social_routes (prefix=/api/social)
+2025-09-26 00:37:08,027 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.transcription_routes (prefix=/api)
+2025-09-26 00:37:08,033 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.radio_cards_routes (prefix=/api)
+2025-09-26 00:37:08,039 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.digest_routes (prefix=/api)
+2025-09-26 00:37:08,073 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-26 00:37:08,075 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-26 00:37:08,144 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.scheduler_service (prefix=/api/scheduler)
+2025-09-26 00:49:49,823 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-26 00:49:49,825 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-26 00:49:49,826 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-26 00:49:49,826 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-26 00:49:51,498 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-26 00:49:51,498 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media_guadeloupe
+2025-09-26 00:49:51,498 - veille_media_backend - INFO - 📚 [INIT] Collections: articles_guadeloupe, affaires_guadeloupe, social_media_posts, radio_transcriptions
+2025-09-26 00:49:51,498 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-26 00:49:52,676 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-26 00:49:52,676 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-26 00:49:56,934 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-26 00:49:56,937 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-26 00:49:56,937 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-26 00:49:56,937 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-26 00:49:56,940 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-26 00:49:57,103 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-26 00:49:57,103 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-26 00:49:57,103 - veille_media_backend - INFO - 📻 [STARTUP] Initialisation du service radio...
+2025-09-26 00:49:58,116 - radio_service - INFO - 🔗 Mongo connecté (veille_media)
+2025-09-26 00:49:58,290 - veille_media_backend - INFO - ✅ [RADIO] Service radio chargé avec succès
+2025-09-26 00:49:58,290 - veille_media_backend - INFO - 🧠 [STARTUP] Initialisation du service d'analyse des transcriptions...
+2025-09-26 00:49:58,292 - veille_media_backend - INFO - ✅ [ANALYZER] Service d'analyse intelligente initialisé
+2025-09-26 00:55:09,629 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-26 00:55:09,631 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-26 00:55:09,632 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-26 00:55:09,632 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-26 00:55:10,950 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-26 00:55:10,950 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-26 00:55:10,950 - veille_media_backend - INFO - 📚 [INIT] Collections: articles_guadeloupe, affaires_guadeloupe, social_media_posts, radio_transcriptions
+2025-09-26 00:55:10,950 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-26 00:55:11,930 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-26 00:55:11,930 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-26 00:55:16,010 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-26 00:55:16,010 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-26 00:55:16,010 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-26 00:55:16,010 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-26 00:55:16,011 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-26 00:55:16,076 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-26 00:55:16,076 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-26 00:55:16,076 - veille_media_backend - INFO - 📻 [STARTUP] Initialisation du service radio...
+2025-09-26 00:55:16,949 - radio_service - INFO - 🔗 Mongo connecté (veille_media)
+2025-09-26 00:55:17,123 - veille_media_backend - INFO - ✅ [RADIO] Service radio chargé avec succès
+2025-09-26 00:55:17,123 - veille_media_backend - INFO - 🧠 [STARTUP] Initialisation du service d'analyse des transcriptions...
+2025-09-26 00:55:17,125 - veille_media_backend - INFO - ✅ [ANALYZER] Service d'analyse intelligente initialisé
+2025-09-26 00:55:18,130 - backend.social_media_service - INFO - ✅ Connexion MongoDB réussie pour réseaux sociaux
+2025-09-26 00:55:19,738 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@CD971
+2025-09-26 00:55:20,332 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@ericdamaseau320
+2025-09-26 00:55:20,332 - backend.social_routes - INFO - 🔌 social_routes loaded (social_media_service)
+2025-09-26 00:55:20,343 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.social_routes (prefix=/api/social)
+2025-09-26 00:55:20,354 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.transcription_routes (prefix=/api)
+2025-09-26 00:55:20,365 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.radio_cards_routes (prefix=/api)
+2025-09-26 00:55:20,372 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.digest_routes (prefix=/api)
+2025-09-26 00:55:20,410 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-26 00:55:20,412 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-26 00:55:20,481 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.scheduler_service (prefix=/api/scheduler)
+2025-09-26 07:45:35,679 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-26 07:45:35,681 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-26 07:45:35,681 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-26 07:45:35,681 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-26 07:45:37,280 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-26 07:45:37,280 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-26 07:45:37,280 - veille_media_backend - INFO - 📚 [INIT] Collections: articles_guadeloupe, affaires_guadeloupe, social_media_posts, radio_transcriptions
+2025-09-26 07:45:37,280 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-26 07:45:38,332 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-26 07:45:38,333 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-26 07:45:42,143 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-26 07:45:42,144 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-26 07:45:42,144 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-26 07:45:42,144 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-26 07:45:42,145 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-26 07:45:42,208 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-26 07:45:42,208 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-26 07:45:42,211 - veille_media_backend - INFO - 📻 [STARTUP] Initialisation du service radio...
+2025-09-26 07:45:43,184 - radio_service - INFO - 🔗 Mongo connecté (veille_media)
+2025-09-26 07:45:43,442 - veille_media_backend - INFO - ✅ [RADIO] Service radio chargé avec succès
+2025-09-26 07:45:43,442 - veille_media_backend - INFO - 🧠 [STARTUP] Initialisation du service d'analyse des transcriptions...
+2025-09-26 07:45:43,444 - veille_media_backend - INFO - ✅ [ANALYZER] Service d'analyse intelligente initialisé
+2025-09-26 07:45:44,481 - backend.social_media_service - INFO - ✅ Connexion MongoDB réussie pour réseaux sociaux
+2025-09-26 07:45:45,963 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@CD971
+2025-09-26 07:45:46,551 - backend.social_media_service - WARNING - ⚠️ Impossible de résoudre: https://www.youtube.com/@ericdamaseau320
+2025-09-26 07:45:46,551 - backend.social_routes - INFO - 🔌 social_routes loaded (social_media_service)
+2025-09-26 07:45:46,555 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.social_routes (prefix=/api/social)
+2025-09-26 07:45:46,560 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.transcription_routes (prefix=/api)
+2025-09-26 07:45:46,566 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.radio_cards_routes (prefix=/api)
+2025-09-26 07:45:46,570 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.digest_routes (prefix=/api)
+2025-09-26 07:45:46,599 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-26 07:45:46,600 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-26 07:45:46,662 - veille_media_backend - INFO - ✅ Router 'router' importé depuis backend.scheduler_service (prefix=/api/scheduler)
+2025-09-26 07:59:27,999 - veille_media_backend - INFO - 🔗 [AI_LINKING] Début liaison IA transcriptions-affaires pour 2024-12-27
+2025-09-26 07:59:43,633 - veille_media_backend - INFO - 🔗 [AI_LINKING] Début liaison IA transcriptions-affaires pour 2024-12-26
+2025-09-26 08:03:29,754 - veille_media_backend - INFO - 🔗 [AI_LINKING] Début liaison IA transcriptions-affaires pour 2024-12-25
+2025-09-26 08:03:42,046 - veille_media_backend - INFO - 🔗 [AI_LINKING] Début liaison IA transcriptions-affaires pour 2024-12-24
+2025-09-26 08:06:41,041 - veille_media_backend - INFO - 🔗 [AI_LINKING] Début liaison IA transcriptions-affaires pour 2025-12-24
+2025-09-26 08:07:03,564 - veille_media_backend - INFO - 🔗 [AI_LINKING] Début liaison IA transcriptions-affaires pour 2025-09-24
+2025-09-26 08:07:03,925 - backend.ai_service - INFO - Enrichissement article: 'Transcription Guadeloupe 1ère Radio 6h00...' (1593 chars)
+2025-09-26 08:07:16,416 - backend.ai_service - INFO - 🔍 Validation entités: ['Conseil Départemental, Guy Lozbard']
+2025-09-26 08:07:16,417 - backend.ai_service - INFO - ✅ Entité composée validée: Conseil Départemental, Guy Lozbard
+2025-09-26 08:07:16,417 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-26 08:07:16,417 - backend.ai_service - INFO - ✅ Entité principale validée: Conseil Départemental, Guy Lozbard
+2025-09-26 08:07:16,417 - backend.ai_service - INFO - Mistral brut: 0.60 + boost: 0.08 = 0.68
+2025-09-26 08:07:16,417 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-26 08:07:16,417 - backend.ai_service - INFO - 🔍 Validation entités: ['Conseil Départemental, Guy Lozbard']
+2025-09-26 08:07:16,417 - backend.ai_service - INFO - ✅ Entité composée validée: Conseil Départemental, Guy Lozbard
+2025-09-26 08:07:16,417 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-26 08:07:16,417 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['Conseil Départemental, Guy Lozbard']
+2025-09-26 08:07:16,418 - veille_media_backend - INFO - 🤖 [AI] Analyse Mistral: 0 entités, thème: 
+2025-09-26 08:07:16,446 - backend.ai_service - INFO - Enrichissement article: 'Transcription Guadeloupe 1ère Radio 6h15...' (4156 chars)
+2025-09-26 08:07:24,728 - backend.ai_service - INFO - 🔍 Validation entités: ['Violence entre personnes détenues et personnel']
+2025-09-26 08:07:24,729 - backend.ai_service - WARNING - ❌ Entité composée rejetée (mots trop éloignés): Violence entre personnes détenues et personnel
+2025-09-26 08:07:24,729 - backend.ai_service - INFO - 🎯 Entités finales: 0/1 validées
+2025-09-26 08:07:24,729 - backend.ai_service - WARNING - 🚫 Entité principale rejetée par validation: Violence entre personnes détenues et personnel
+2025-09-26 08:07:24,729 - backend.ai_service - INFO - Mistral brut: 0.60 + boost: 0.00 = 0.60
+2025-09-26 08:07:24,729 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-26 08:07:24,729 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['Aucune']
+2025-09-26 08:07:24,729 - veille_media_backend - INFO - 🤖 [AI] Analyse Mistral: 0 entités, thème: 
+2025-09-26 08:07:24,771 - backend.ai_service - INFO - Enrichissement article: 'Transcription RCI 7h00...' (1717 chars)
+2025-09-26 08:07:32,566 - backend.ai_service - INFO - 🔍 Validation entités: ['CHU Guadeloupe']
+2025-09-26 08:07:32,567 - backend.ai_service - INFO - ✅ Entité composée validée: CHU Guadeloupe
+2025-09-26 08:07:32,567 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-26 08:07:32,567 - backend.ai_service - INFO - ✅ Entité principale validée: CHU Guadeloupe
+2025-09-26 08:07:32,567 - backend.ai_service - INFO - Mistral brut: 0.60 + boost: 0.12 = 0.72
+2025-09-26 08:07:32,567 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-26 08:07:32,567 - backend.ai_service - INFO - 🔍 Validation entités: ['CHU Guadeloupe']
+2025-09-26 08:07:32,567 - backend.ai_service - INFO - ✅ Entité composée validée: CHU Guadeloupe
+2025-09-26 08:07:32,567 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-26 08:07:32,567 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['CHU Guadeloupe']
+2025-09-26 08:07:32,567 - veille_media_backend - INFO - 🤖 [AI] Analyse Mistral: 0 entités, thème: 
+2025-09-26 08:07:32,612 - backend.ai_service - INFO - Enrichissement article: 'Transcription Guadeloupe 1ère Radio 7h00...' (1906 chars)
+2025-09-26 08:07:41,044 - backend.ai_service - INFO - 🔍 Validation entités: ['SNSM (Syndicat national des syndicats magistrats)']
+2025-09-26 08:07:41,045 - backend.ai_service - WARNING - ❌ Entité rejetée (mots manquants: ['(syndicat', 'syndicats', 'magistrats)']): SNSM (Syndicat national des syndicats magistrats)
+2025-09-26 08:07:41,045 - backend.ai_service - INFO - 🎯 Entités finales: 0/1 validées
+2025-09-26 08:07:41,045 - backend.ai_service - WARNING - 🚫 Entité principale rejetée par validation: SNSM (Syndicat national des syndicats magistrats)
+2025-09-26 08:07:41,045 - backend.ai_service - INFO - Mistral brut: 0.40 + boost: 0.00 = 0.40
+2025-09-26 08:07:41,045 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-26 08:07:41,045 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['Aucune']
+2025-09-26 08:07:41,045 - veille_media_backend - INFO - 🤖 [AI] Analyse Mistral: 0 entités, thème: 
+2025-09-26 08:07:41,056 - backend.ai_service - INFO - Enrichissement article: 'Transcription RCI 8h15...' (1469 chars)
+2025-09-26 08:07:48,614 - backend.ai_service - INFO - 🔍 Validation entités: ['SFR']
+2025-09-26 08:07:48,614 - backend.ai_service - INFO - ✅ Entité simple validée: SFR
+2025-09-26 08:07:48,614 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-26 08:07:48,614 - backend.ai_service - INFO - ✅ Entité principale validée: SFR
+2025-09-26 08:07:48,614 - backend.ai_service - INFO - Mistral brut: 0.40 + boost: 0.12 = 0.52
+2025-09-26 08:07:48,614 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-26 08:07:48,614 - backend.ai_service - INFO - 🔍 Validation entités: ['SFR']
+2025-09-26 08:07:48,614 - backend.ai_service - INFO - ✅ Entité simple validée: SFR
+2025-09-26 08:07:48,614 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-26 08:07:48,614 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['SFR']
+2025-09-26 08:07:48,614 - veille_media_backend - INFO - 🤖 [AI] Analyse Mistral: 0 entités, thème: 
+2025-09-26 08:07:48,617 - backend.ai_service - INFO - Enrichissement article: 'Transcription RCI 18h00...' (3037 chars)
+2025-09-26 08:07:56,349 - backend.ai_service - INFO - 🔍 Validation entités: ['Amaro.org']
+2025-09-26 08:07:56,349 - backend.ai_service - WARNING - ❌ Entité simple rejetée: Amaro.org
+2025-09-26 08:07:56,349 - backend.ai_service - INFO - 🎯 Entités finales: 0/1 validées
+2025-09-26 08:07:56,349 - backend.ai_service - WARNING - 🚫 Entité principale rejetée par validation: Amaro.org
+2025-09-26 08:07:56,349 - backend.ai_service - INFO - Mistral brut: 0.10 + boost: 0.00 = 0.10
+2025-09-26 08:07:56,349 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-26 08:07:56,349 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['Aucune']
+2025-09-26 08:07:56,349 - veille_media_backend - INFO - 🤖 [AI] Analyse Mistral: 0 entités, thème: 
+2025-09-26 08:07:56,370 - backend.ai_service - INFO - Enrichissement article: 'Transcription Guadeloupe 1ère Radio 18h00...' (1578 chars)
+2025-09-26 08:08:06,817 - backend.ai_service - INFO - 🔍 Validation entités: ["Grève des agents de la poste et l'ancien maire de Saint-François"]
+2025-09-26 08:08:06,817 - backend.ai_service - WARNING - ❌ Entité composée rejetée (mots trop éloignés): Grève des agents de la poste et l'ancien maire de Saint-François
+2025-09-26 08:08:06,817 - backend.ai_service - INFO - 🎯 Entités finales: 0/1 validées
+2025-09-26 08:08:06,818 - backend.ai_service - WARNING - 🚫 Entité principale rejetée par validation: Grève des agents de la poste et l'ancien maire de Saint-François
+2025-09-26 08:08:06,818 - backend.ai_service - INFO - Mistral brut: 0.70 + boost: 0.08 = 0.78
+2025-09-26 08:08:06,818 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-26 08:08:06,818 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['Aucune']
+2025-09-26 08:08:06,818 - veille_media_backend - INFO - 🤖 [AI] Analyse Mistral: 0 entités, thème: 
+2025-09-26 08:08:06,818 - veille_media_backend - INFO - ✅ [AI_LINKING] Terminé: 0/7 via Mistral
+2025-09-26 08:09:01,831 - veille_media_backend - INFO - 🔗 [AI_LINKING] Début liaison IA transcriptions-affaires pour 2025-09-25
+2025-09-26 08:09:02,106 - veille_media_backend - INFO - ✅ [AI_LINKING] Terminé: 0/3 via Mistral
+2025-09-26 08:09:26,110 - veille_media_backend - INFO - 🔗 [AI_LINKING] Début liaison IA transcriptions-affaires pour 2025-09-24
+2025-09-26 08:09:26,469 - backend.ai_service - INFO - Enrichissement article: 'Transcription Guadeloupe 1ère Radio 6h00...' (1593 chars)
+2025-09-26 08:09:40,464 - backend.ai_service - INFO - 🔍 Validation entités: ['Son unité industrielle au moule à bellevue']
+2025-09-26 08:09:40,465 - backend.ai_service - INFO - ✅ Entité composée validée: Son unité industrielle au moule à bellevue
+2025-09-26 08:09:40,465 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-26 08:09:40,465 - backend.ai_service - INFO - ✅ Entité principale validée: Son unité industrielle au moule à bellevue
+2025-09-26 08:09:40,465 - backend.ai_service - INFO - Mistral brut: 0.60 + boost: 0.08 = 0.68
+2025-09-26 08:09:40,465 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-26 08:09:40,465 - backend.ai_service - INFO - 🔍 Validation entités: ['Son unité industrielle au moule à bellevue']
+2025-09-26 08:09:40,466 - backend.ai_service - INFO - ✅ Entité composée validée: Son unité industrielle au moule à bellevue
+2025-09-26 08:09:40,466 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-26 08:09:40,466 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['Son unité industrielle au moule à bellevue']
+2025-09-26 08:09:40,466 - veille_media_backend - INFO - 🤖 [AI] Analyse Mistral: 0 entités, thème: 
+2025-09-26 08:09:40,488 - backend.ai_service - INFO - Enrichissement article: 'Transcription Guadeloupe 1ère Radio 6h15...' (4156 chars)
+2025-09-26 08:09:53,706 - backend.ai_service - INFO - 🔍 Validation entités: ['Violence entre personnes détenues et personnel']
+2025-09-26 08:09:53,707 - backend.ai_service - WARNING - ❌ Entité composée rejetée (mots trop éloignés): Violence entre personnes détenues et personnel
+2025-09-26 08:09:53,707 - backend.ai_service - INFO - 🎯 Entités finales: 0/1 validées
+2025-09-26 08:09:53,707 - backend.ai_service - WARNING - 🚫 Entité principale rejetée par validation: Violence entre personnes détenues et personnel
+2025-09-26 08:09:53,707 - backend.ai_service - INFO - Mistral brut: 0.60 + boost: 0.00 = 0.60
+2025-09-26 08:09:53,707 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-26 08:09:53,707 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['Aucune']
+2025-09-26 08:09:53,707 - veille_media_backend - INFO - 🤖 [AI] Analyse Mistral: 0 entités, thème: 
+2025-09-26 08:09:53,743 - backend.ai_service - INFO - Enrichissement article: 'Transcription RCI 7h00...' (1717 chars)
+2025-09-26 08:10:07,035 - backend.ai_service - INFO - 🔍 Validation entités: ['CHU Guadeloupe']
+2025-09-26 08:10:07,036 - backend.ai_service - INFO - ✅ Entité composée validée: CHU Guadeloupe
+2025-09-26 08:10:07,036 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-26 08:10:07,036 - backend.ai_service - INFO - ✅ Entité principale validée: CHU Guadeloupe
+2025-09-26 08:10:07,036 - backend.ai_service - INFO - Mistral brut: 0.60 + boost: 0.12 = 0.72
+2025-09-26 08:10:07,036 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-26 08:10:07,037 - backend.ai_service - INFO - 🔍 Validation entités: ['CHU Guadeloupe']
+2025-09-26 08:10:07,037 - backend.ai_service - INFO - ✅ Entité composée validée: CHU Guadeloupe
+2025-09-26 08:10:07,037 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-26 08:10:07,037 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['CHU Guadeloupe']
+2025-09-26 08:10:07,037 - veille_media_backend - INFO - 🤖 [AI] Analyse Mistral: 0 entités, thème: 
+2025-09-26 08:10:07,107 - backend.ai_service - INFO - Enrichissement article: 'Transcription Guadeloupe 1ère Radio 7h00...' (1906 chars)
+2025-09-26 08:10:21,205 - backend.ai_service - INFO - 🔍 Validation entités: ['SNSM (Syndicat national des syndicats magistrats)']
+2025-09-26 08:10:21,205 - backend.ai_service - WARNING - ❌ Entité rejetée (mots manquants: ['(syndicat', 'syndicats', 'magistrats)']): SNSM (Syndicat national des syndicats magistrats)
+2025-09-26 08:10:21,206 - backend.ai_service - INFO - 🎯 Entités finales: 0/1 validées
+2025-09-26 08:10:21,206 - backend.ai_service - WARNING - 🚫 Entité principale rejetée par validation: SNSM (Syndicat national des syndicats magistrats)
+2025-09-26 08:10:21,206 - backend.ai_service - INFO - Mistral brut: 0.40 + boost: 0.00 = 0.40
+2025-09-26 08:10:21,206 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-26 08:10:21,206 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['Aucune']
+2025-09-26 08:10:21,206 - veille_media_backend - INFO - 🤖 [AI] Analyse Mistral: 0 entités, thème: 
+2025-09-26 08:10:21,216 - backend.ai_service - INFO - Enrichissement article: 'Transcription RCI 8h15...' (1469 chars)
+2025-09-26 08:10:31,807 - backend.ai_service - INFO - 🔍 Validation entités: ['SFR']
+2025-09-26 08:10:31,807 - backend.ai_service - INFO - ✅ Entité simple validée: SFR
+2025-09-26 08:10:31,807 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-26 08:10:31,807 - backend.ai_service - INFO - ✅ Entité principale validée: SFR
+2025-09-26 08:10:31,807 - backend.ai_service - INFO - Mistral brut: 0.40 + boost: 0.12 = 0.52
+2025-09-26 08:10:31,807 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-26 08:10:31,807 - backend.ai_service - INFO - 🔍 Validation entités: ['SFR']
+2025-09-26 08:10:31,807 - backend.ai_service - INFO - ✅ Entité simple validée: SFR
+2025-09-26 08:10:31,807 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-26 08:10:31,807 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['SFR']
+2025-09-26 08:10:31,807 - veille_media_backend - INFO - 🤖 [AI] Analyse Mistral: 0 entités, thème: 
+2025-09-26 08:10:31,810 - backend.ai_service - INFO - Enrichissement article: 'Transcription RCI 18h00...' (3037 chars)
+2025-09-26 08:10:43,908 - backend.ai_service - INFO - 🔍 Validation entités: ['Amaro.org']
+2025-09-26 08:10:43,909 - backend.ai_service - WARNING - ❌ Entité simple rejetée: Amaro.org
+2025-09-26 08:10:43,909 - backend.ai_service - INFO - 🎯 Entités finales: 0/1 validées
+2025-09-26 08:10:43,909 - backend.ai_service - WARNING - 🚫 Entité principale rejetée par validation: Amaro.org
+2025-09-26 08:10:43,909 - backend.ai_service - INFO - Mistral brut: 0.10 + boost: 0.00 = 0.10
+2025-09-26 08:10:43,909 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-26 08:10:43,909 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['Aucune']
+2025-09-26 08:10:43,909 - veille_media_backend - INFO - 🤖 [AI] Analyse Mistral: 0 entités, thème: 
+2025-09-26 08:10:43,929 - backend.ai_service - INFO - Enrichissement article: 'Transcription Guadeloupe 1ère Radio 18h00...' (1578 chars)
+2025-09-26 08:11:00,695 - backend.ai_service - INFO - 🔍 Validation entités: ["Grève des agents de la poste et l'ancien maire de Saint-François"]
+2025-09-26 08:11:00,695 - backend.ai_service - WARNING - ❌ Entité composée rejetée (mots trop éloignés): Grève des agents de la poste et l'ancien maire de Saint-François
+2025-09-26 08:11:00,695 - backend.ai_service - INFO - 🎯 Entités finales: 0/1 validées
+2025-09-26 08:11:00,695 - backend.ai_service - WARNING - 🚫 Entité principale rejetée par validation: Grève des agents de la poste et l'ancien maire de Saint-François
+2025-09-26 08:11:00,695 - backend.ai_service - INFO - Mistral brut: 0.70 + boost: 0.08 = 0.78
+2025-09-26 08:11:00,696 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-26 08:11:00,696 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['Aucune']
+2025-09-26 08:11:00,696 - veille_media_backend - INFO - 🤖 [AI] Analyse Mistral: 0 entités, thème: 
+2025-09-26 08:11:00,696 - veille_media_backend - INFO - ✅ [AI_LINKING] Terminé: 0/7 via Mistral
+2025-09-26 08:16:15,634 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-26 08:16:15,635 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-26 08:16:15,635 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-26 08:16:15,635 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-26 08:16:17,143 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-26 08:16:17,143 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-26 08:16:17,143 - veille_media_backend - INFO - 📚 [INIT] Collections: articles_guadeloupe, affaires_guadeloupe, social_media_posts, radio_transcriptions
+2025-09-26 08:16:17,143 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-26 08:16:18,390 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-26 08:16:18,390 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-26 08:16:22,199 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-26 08:16:22,199 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-26 08:16:22,199 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-26 08:16:22,199 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-26 08:16:22,200 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-26 08:16:22,338 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-26 08:16:22,338 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-26 08:16:22,338 - veille_media_backend - INFO - 📻 [STARTUP] Initialisation du service radio...
+2025-09-26 08:16:23,371 - radio_service - INFO - 🔗 Mongo connecté (veille_media)
+2025-09-26 08:16:23,544 - veille_media_backend - INFO - ✅ [RADIO] Service radio chargé avec succès
+2025-09-26 08:16:23,544 - veille_media_backend - INFO - 🧠 [STARTUP] Initialisation du service d'analyse des transcriptions...
+2025-09-26 08:16:23,546 - veille_media_backend - INFO - ✅ [ANALYZER] Service d'analyse intelligente initialisé
+2025-09-26 08:16:26,357 - veille_media_backend - INFO - 🔗 [AI_LINKING] Début liaison IA transcriptions-affaires pour 2025-09-24
+2025-09-26 08:16:26,654 - veille_media_backend - INFO - 📻 Trouvé 7 transcriptions pour 2025-09-24
+2025-09-26 08:16:26,727 - veille_media_backend - INFO - 🗂️ 27 affaires actives trouvées
+2025-09-26 08:16:26,727 - backend.ai_service - INFO - Enrichissement article: 'Transcription Guadeloupe 1ère Radio 6h00...' (2000 chars)
+2025-09-26 08:16:35,760 - backend.ai_service - INFO - 🔍 Validation entités: ['Affaire Louis Galantine']
+2025-09-26 08:16:35,760 - backend.ai_service - INFO - ✅ Entité composée validée: Affaire Louis Galantine
+2025-09-26 08:16:35,760 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-26 08:16:35,760 - backend.ai_service - INFO - ✅ Entité principale validée: Affaire Louis Galantine
+2025-09-26 08:16:35,760 - backend.ai_service - INFO - Mistral brut: 0.70 + boost: 0.00 = 0.70
+2025-09-26 08:16:35,761 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-26 08:16:35,761 - backend.ai_service - INFO - 🔍 Validation entités: ['Affaire Louis Galantine']
+2025-09-26 08:16:35,761 - backend.ai_service - INFO - ✅ Entité composée validée: Affaire Louis Galantine
+2025-09-26 08:16:35,761 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-26 08:16:35,761 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['Affaire Louis Galantine']
+2025-09-26 08:16:35,761 - veille_media_backend - INFO - 🤖 [AI] Résultat analyse - Entités: ['Affaire Louis Galantine'], Thème: Politique, Justice, Économie, Culture, Environnement, Gravité: 0.7
+2025-09-26 08:16:35,761 - veille_media_backend - INFO - 📝 Entités normalisées: ['Affaire Louis Galantine']
+2025-09-26 08:16:35,761 - veille_media_backend - WARNING - ❌ Aucune correspondance trouvée (meilleur score: 0)
+2025-09-26 08:16:35,761 - veille_media_backend - INFO - 🔄 Utilisation méthode fallback
+2025-09-26 08:16:35,833 - veille_media_backend - INFO - 🔗 Transcription liée à crime et justic_affaire_geronimi_2025_09 (score: 15)
+2025-09-26 08:16:35,833 - backend.ai_service - INFO - Enrichissement article: 'Transcription Guadeloupe 1ère Radio 6h15...' (2000 chars)
+2025-09-26 08:16:43,219 - backend.ai_service - INFO - 🔍 Validation entités: ["Malaise au sein de la prison de l'EMAO"]
+2025-09-26 08:16:43,219 - backend.ai_service - INFO - ✅ Entité composée validée: Malaise au sein de la prison de l'EMAO
+2025-09-26 08:16:43,219 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-26 08:16:43,219 - backend.ai_service - INFO - ✅ Entité principale validée: Malaise au sein de la prison de l'EMAO
+2025-09-26 08:16:43,219 - backend.ai_service - INFO - Mistral brut: 0.60 + boost: 0.00 = 0.60
+2025-09-26 08:16:43,220 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-26 08:16:43,220 - backend.ai_service - INFO - 🔍 Validation entités: ["Malaise au sein de la prison de l'EMAO"]
+2025-09-26 08:16:43,220 - backend.ai_service - INFO - ✅ Entité composée validée: Malaise au sein de la prison de l'EMAO
+2025-09-26 08:16:43,220 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-26 08:16:43,220 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ["Malaise au sein de la prison de l'EMAO"]
+2025-09-26 08:16:43,220 - veille_media_backend - INFO - 🤖 [AI] Résultat analyse - Entités: ["Malaise au sein de la prison de l'EMAO"], Thème: Politique, Économie, Social, Gravité: 0.6
+2025-09-26 08:16:43,220 - veille_media_backend - INFO - 📝 Entités normalisées: ["Malaise au sein de la prison de l'EMAO"]
+2025-09-26 08:16:43,220 - veille_media_backend - WARNING - ❌ Aucune correspondance trouvée (meilleur score: 0)
+2025-09-26 08:16:43,220 - veille_media_backend - INFO - 🔄 Utilisation méthode fallback
+2025-09-26 08:16:43,359 - veille_media_backend - INFO - 🔗 Transcription liée à healthcare serv_chu_guadeloupe_2025_09 (score: 10)
+2025-09-26 08:16:43,360 - backend.ai_service - INFO - Enrichissement article: 'Transcription RCI 7h00...' (2000 chars)
+2025-09-26 08:16:55,081 - backend.ai_service - WARNING - Erreur parsing Mistral: Extra data: line 2 column 1 (char 318)
+2025-09-26 08:16:55,081 - backend.ai_service - WARNING - Mistral échoué - utilisation fallback enrichi
+2025-09-26 08:16:55,081 - backend.ai_service - INFO - Fallback validé: thème=politique_institutions, importance=0.81, entités=['Aucune']
+2025-09-26 08:16:55,081 - veille_media_backend - INFO - 🤖 [AI] Résultat analyse - Entités: ['Aucune'], Thème: politique_institutions, Gravité: 0.8120147603639798
+2025-09-26 08:16:55,081 - veille_media_backend - INFO - 📝 Entités normalisées: []
+2025-09-26 08:16:55,082 - veille_media_backend - WARNING - ❌ Aucune correspondance trouvée (meilleur score: 0)
+2025-09-26 08:16:55,082 - veille_media_backend - INFO - 🔄 Utilisation méthode fallback
+2025-09-26 08:16:55,085 - backend.ai_service - INFO - Enrichissement article: 'Transcription Guadeloupe 1ère Radio 7h00...' (2000 chars)
+2025-09-26 08:17:02,351 - backend.ai_service - INFO - 🔍 Validation entités: ['Affaire Louis Galantine']
+2025-09-26 08:17:02,351 - backend.ai_service - INFO - ✅ Entité composée validée: Affaire Louis Galantine
+2025-09-26 08:17:02,351 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-26 08:17:02,351 - backend.ai_service - INFO - ✅ Entité principale validée: Affaire Louis Galantine
+2025-09-26 08:17:02,351 - backend.ai_service - INFO - Mistral brut: 0.70 + boost: 0.08 = 0.78
+2025-09-26 08:17:02,351 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-26 08:17:02,351 - backend.ai_service - INFO - 🔍 Validation entités: ['Affaire Louis Galantine']
+2025-09-26 08:17:02,351 - backend.ai_service - INFO - ✅ Entité composée validée: Affaire Louis Galantine
+2025-09-26 08:17:02,351 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-26 08:17:02,351 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['Affaire Louis Galantine']
+2025-09-26 08:17:02,351 - veille_media_backend - INFO - 🤖 [AI] Résultat analyse - Entités: ['Affaire Louis Galantine'], Thème: Politique, Social, Environnement, Économie, Gravité: 0.7799999999999999
+2025-09-26 08:17:02,351 - veille_media_backend - INFO - 📝 Entités normalisées: ['Affaire Louis Galantine']
+2025-09-26 08:17:02,352 - veille_media_backend - WARNING - ❌ Aucune correspondance trouvée (meilleur score: 0)
+2025-09-26 08:17:02,352 - veille_media_backend - INFO - 🔄 Utilisation méthode fallback
+2025-09-26 08:17:02,431 - veille_media_backend - INFO - 🔗 Transcription liée à environmental i_distillerie_damoisea_2025_09 (score: 10)
+2025-09-26 08:17:02,431 - backend.ai_service - INFO - Enrichissement article: 'Transcription RCI 8h15...' (2000 chars)
+2025-09-26 08:17:10,855 - backend.ai_service - INFO - 🔍 Validation entités: ["Union des professionnels de l'animation touristique (UPA)"]
+2025-09-26 08:17:10,855 - backend.ai_service - WARNING - ❌ Entité rejetée (mots manquants: ['(upa)']): Union des professionnels de l'animation touristique (UPA)
+2025-09-26 08:17:10,855 - backend.ai_service - INFO - 🎯 Entités finales: 0/1 validées
+2025-09-26 08:17:10,855 - backend.ai_service - WARNING - 🚫 Entité principale rejetée par validation: Union des professionnels de l'animation touristique (UPA)
+2025-09-26 08:17:10,855 - backend.ai_service - INFO - Mistral brut: 0.60 + boost: 0.00 = 0.60
+2025-09-26 08:17:10,856 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-26 08:17:10,856 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['Aucune']
+2025-09-26 08:17:10,856 - veille_media_backend - INFO - 🤖 [AI] Résultat analyse - Entités: ['Aucune'], Thème: Politique, Social, Culture, Environnement, Économie, Infrastructure, Gravité: 0.6
+2025-09-26 08:17:10,856 - veille_media_backend - INFO - 📝 Entités normalisées: []
+2025-09-26 08:17:10,856 - veille_media_backend - WARNING - ❌ Aucune correspondance trouvée (meilleur score: 0)
+2025-09-26 08:17:10,856 - veille_media_backend - INFO - 🔄 Utilisation méthode fallback
+2025-09-26 08:17:10,928 - veille_media_backend - INFO - 🔗 Transcription liée à health services_chu_guadeloupe_2025_09 (score: 10)
+2025-09-26 08:17:10,928 - backend.ai_service - INFO - Enrichissement article: 'Transcription RCI 18h00...' (2000 chars)
+2025-09-26 08:17:16,839 - backend.ai_service - INFO - 🔍 Validation entités: ['Bilan de veille quotidienne - Guadeloupe']
+2025-09-26 08:17:16,839 - backend.ai_service - INFO - ✅ Entité composée validée: Bilan de veille quotidienne - Guadeloupe
+2025-09-26 08:17:16,839 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-26 08:17:16,839 - backend.ai_service - INFO - ✅ Entité principale validée: Bilan de veille quotidienne - Guadeloupe
+2025-09-26 08:17:16,839 - backend.ai_service - INFO - Mistral brut: 0.10 + boost: 0.00 = 0.10
+2025-09-26 08:17:16,839 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-26 08:17:16,839 - backend.ai_service - INFO - 🔍 Validation entités: ['Bilan de veille quotidienne - Guadeloupe']
+2025-09-26 08:17:16,840 - backend.ai_service - INFO - ✅ Entité composée validée: Bilan de veille quotidienne - Guadeloupe
+2025-09-26 08:17:16,840 - backend.ai_service - INFO - 🎯 Entités finales: 1/1 validées
+2025-09-26 08:17:16,840 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['Bilan de veille quotidienne - Guadeloupe']
+2025-09-26 08:17:16,840 - veille_media_backend - INFO - 🤖 [AI] Résultat analyse - Entités: ['Bilan de veille quotidienne - Guadeloupe'], Thème: Routine, Gravité: 0.1
+2025-09-26 08:17:16,840 - veille_media_backend - INFO - 📝 Entités normalisées: ['Bilan de veille quotidienne - Guadeloupe']
+2025-09-26 08:17:16,840 - veille_media_backend - WARNING - ❌ Aucune correspondance trouvée (meilleur score: 0)
+2025-09-26 08:17:16,840 - veille_media_backend - INFO - 🔄 Utilisation méthode fallback
+2025-09-26 08:17:16,842 - backend.ai_service - INFO - Enrichissement article: 'Transcription Guadeloupe 1ère Radio 18h00...' (2000 chars)
+2025-09-26 08:17:24,792 - backend.ai_service - INFO - 🔍 Validation entités: [['Catherine Fortune', 'grève des agents de la Poste']]
+2025-09-26 08:17:24,793 - backend.ai_service - WARNING - Erreur parsing Mistral: 'list' object has no attribute 'lower'
+2025-09-26 08:17:24,793 - backend.ai_service - WARNING - Mistral échoué - utilisation fallback enrichi
+2025-09-26 08:17:24,793 - backend.ai_service - INFO - Fallback validé: thème=environnement_agriculture, importance=0.76, entités=['Aucune']
+2025-09-26 08:17:24,793 - veille_media_backend - INFO - 🤖 [AI] Résultat analyse - Entités: ['Aucune'], Thème: environnement_agriculture, Gravité: 0.762120638433483
+2025-09-26 08:17:24,793 - veille_media_backend - INFO - 📝 Entités normalisées: []
+2025-09-26 08:17:24,794 - veille_media_backend - WARNING - ❌ Aucune correspondance trouvée (meilleur score: 0)
+2025-09-26 08:17:24,794 - veille_media_backend - INFO - 🔄 Utilisation méthode fallback
+2025-09-26 08:17:24,863 - veille_media_backend - INFO - 🔗 Transcription liée à travail et synd_grève_illimitée_à_la_2025_09 (score: 10)
+2025-09-26 08:17:24,863 - veille_media_backend - INFO - ✅ [AI_LINKING] Terminé: 5/7 liées
+2025-09-26 08:17:50,577 - veille_media_backend - INFO - 🔗 [AI_LINKING] Début liaison IA transcriptions-affaires pour 2025-09-25
+2025-09-26 08:17:50,812 - veille_media_backend - INFO - 📻 Trouvé 3 transcriptions pour 2025-09-25
+2025-09-26 08:17:50,885 - veille_media_backend - INFO - 🗂️ 27 affaires actives trouvées
+2025-09-26 08:17:50,886 - veille_media_backend - INFO - ✅ [AI_LINKING] Terminé: 0/3 liées
+2025-09-26 08:19:32,974 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-26 08:19:32,976 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-26 08:19:32,976 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-26 08:19:32,976 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-26 08:19:34,531 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-26 08:19:34,531 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-26 08:19:34,531 - veille_media_backend - INFO - 📚 [INIT] Collections: articles_guadeloupe, affaires_guadeloupe, social_media_posts, radio_transcriptions
+2025-09-26 08:19:34,531 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-26 08:19:35,578 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-26 08:19:35,578 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-26 08:19:37,022 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-26 08:19:37,022 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-26 08:19:37,022 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-26 08:19:37,022 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-26 08:19:37,023 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-26 08:19:37,133 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-26 08:19:37,133 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-26 08:19:37,133 - veille_media_backend - INFO - 📻 [STARTUP] Initialisation du service radio...
+2025-09-26 08:19:38,042 - radio_service - INFO - 🔗 Mongo connecté (veille_media)
+2025-09-26 08:19:38,221 - veille_media_backend - INFO - ✅ [RADIO] Service radio chargé avec succès
+2025-09-26 08:19:38,221 - veille_media_backend - INFO - 🧠 [STARTUP] Initialisation du service d'analyse des transcriptions...
+2025-09-26 08:19:38,223 - veille_media_backend - INFO - ✅ [ANALYZER] Service d'analyse intelligente initialisé
+2025-09-26 08:19:42,639 - veille_media_backend - INFO - 🔗 [AI_LINKING] Début liaison IA transcriptions-affaires pour 2025-09-24
+2025-09-26 08:19:43,169 - veille_media_backend - INFO - 📻 Trouvé 7 transcriptions pour 2025-09-24
+2025-09-26 08:19:43,241 - veille_media_backend - INFO - 🗂️ 27 affaires actives trouvées
+2025-09-26 08:19:43,241 - backend.ai_service - INFO - Enrichissement article: 'Transcription RCI 7h00...' (2000 chars)
+2025-09-26 08:19:55,262 - backend.ai_service - WARNING - Erreur parsing Mistral: Extra data: line 2 column 1 (char 350)
+2025-09-26 08:19:55,263 - backend.ai_service - WARNING - Mistral échoué - utilisation fallback enrichi
+2025-09-26 08:19:55,263 - backend.ai_service - INFO - Fallback validé: thème=politique_institutions, importance=0.84, entités=['Aucune']
+2025-09-26 08:19:55,263 - veille_media_backend - INFO - 🤖 [AI] Résultat analyse - Entités: ['Aucune'], Thème: politique_institutions, Gravité: 0.8370632276558423
+2025-09-26 08:19:55,263 - veille_media_backend - INFO - 📝 Entités normalisées: []
+2025-09-26 08:19:55,264 - veille_media_backend - WARNING - ❌ Aucune correspondance trouvée (meilleur score: 0)
+2025-09-26 08:19:55,264 - veille_media_backend - INFO - 🔄 Utilisation méthode fallback
+2025-09-26 08:19:55,266 - backend.ai_service - INFO - Enrichissement article: 'Transcription RCI 18h00...' (2000 chars)
+2025-09-26 08:20:01,567 - backend.ai_service - INFO - 🔍 Validation entités: ['Aucune entité clairement mentionnée']
+2025-09-26 08:20:01,567 - backend.ai_service - WARNING - ❌ Entité rejetée (mots manquants: ['entité', 'clairement', 'mentionnée']): Aucune entité clairement mentionnée
+2025-09-26 08:20:01,567 - backend.ai_service - INFO - 🎯 Entités finales: 0/1 validées
+2025-09-26 08:20:01,567 - backend.ai_service - WARNING - 🚫 Entité principale rejetée par validation: Aucune entité clairement mentionnée
+2025-09-26 08:20:01,567 - backend.ai_service - INFO - Mistral brut: 0.10 + boost: 0.00 = 0.10
+2025-09-26 08:20:01,567 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-26 08:20:01,567 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['Aucune']
+2025-09-26 08:20:01,567 - veille_media_backend - INFO - 🤖 [AI] Résultat analyse - Entités: ['Aucune'], Thème: Non spécifié, Gravité: 0.1
+2025-09-26 08:20:01,567 - veille_media_backend - INFO - 📝 Entités normalisées: []
+2025-09-26 08:20:01,568 - veille_media_backend - WARNING - ❌ Aucune correspondance trouvée (meilleur score: 0)
+2025-09-26 08:20:01,568 - veille_media_backend - INFO - 🔄 Utilisation méthode fallback
+2025-09-26 08:20:01,569 - veille_media_backend - INFO - ✅ [AI_LINKING] Terminé: 0/7 liées
+2025-09-26 08:21:04,402 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 3
+2025-09-26 08:21:04,403 - dotenv.main - WARNING - python-dotenv could not parse statement starting at line 45
+2025-09-26 08:21:04,403 - veille_media_backend - INFO - 🔧 [STARTUP] Initialisation MongoDB...
+2025-09-26 08:21:04,403 - veille_media_backend - INFO - 🔗 [INIT] Connexion à MongoDB: mongodb+srv://***:***@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority...
+2025-09-26 08:21:06,003 - veille_media_backend - INFO - ✅ [INIT] Connexion MongoDB établie avec succès
+2025-09-26 08:21:06,003 - veille_media_backend - INFO - 📂 [INIT] Base de données: veille_media
+2025-09-26 08:21:06,003 - veille_media_backend - INFO - 📚 [INIT] Collections: articles_guadeloupe, affaires_guadeloupe, social_media_posts, radio_transcriptions
+2025-09-26 08:21:06,003 - veille_media_backend - INFO - 🏛️ [STARTUP] Initialisation du scraper départemental...
+2025-09-26 08:21:07,123 - backend.scraper_service - INFO - Scraper connecté à MongoDB
+2025-09-26 08:21:07,124 - backend.scraper_service - INFO - Collections: veille_media.articles_guadeloupe, veille_media.affaires_guadeloupe
+2025-09-26 08:21:07,924 - backend.ai_service - INFO - Ollama/Mistral opérationnel (tentative 1)
+2025-09-26 08:21:07,924 - backend.scraper_service - INFO - Backend AI service importé
+2025-09-26 08:21:07,924 - veille_media_backend - INFO - ✅ [SCRAPER] Scraper fusionné chargé avec succès
+2025-09-26 08:21:07,924 - veille_media_backend - INFO - 📱 [STARTUP] Initialisation du service d'analyse sociale...
+2025-09-26 08:21:07,925 - backend.social_analysis - INFO - Service AI importé avec succès
+2025-09-26 08:21:08,074 - backend.social_analysis - INFO - Service d'analyse sociale initialisé
+2025-09-26 08:21:08,074 - veille_media_backend - INFO - ✅ [SOCIAL] Service d'analyse des posts chargé
+2025-09-26 08:21:08,074 - veille_media_backend - INFO - 📻 [STARTUP] Initialisation du service radio...
+2025-09-26 08:21:09,216 - radio_service - INFO - 🔗 Mongo connecté (veille_media)
+2025-09-26 08:21:09,431 - veille_media_backend - INFO - ✅ [RADIO] Service radio chargé avec succès
+2025-09-26 08:21:09,431 - veille_media_backend - INFO - 🧠 [STARTUP] Initialisation du service d'analyse des transcriptions...
+2025-09-26 08:21:09,433 - veille_media_backend - INFO - ✅ [ANALYZER] Service d'analyse intelligente initialisé
+2025-09-26 08:21:25,233 - veille_media_backend - INFO - 🔗 [AI_LINKING] Début liaison IA transcriptions-affaires pour 2025-09-24
+2025-09-26 08:21:25,497 - veille_media_backend - INFO - 📻 Trouvé 7 transcriptions pour 2025-09-24
+2025-09-26 08:21:25,570 - veille_media_backend - INFO - 🗂️ 27 affaires actives trouvées
+2025-09-26 08:21:25,570 - backend.ai_service - INFO - Enrichissement article: 'Transcription RCI 7h00...' (2000 chars)
+2025-09-26 08:21:37,898 - backend.ai_service - WARNING - Erreur parsing Mistral: Extra data: line 2 column 1 (char 298)
+2025-09-26 08:21:37,899 - backend.ai_service - WARNING - Mistral échoué - utilisation fallback enrichi
+2025-09-26 08:21:37,899 - backend.ai_service - INFO - Fallback validé: thème=politique_institutions, importance=0.82, entités=['Aucune']
+2025-09-26 08:21:37,899 - veille_media_backend - INFO - 🤖 [AI] Résultat analyse - Entités: ['Aucune'], Thème: politique_institutions, Gravité: 0.8184499062532116
+2025-09-26 08:21:37,899 - veille_media_backend - INFO - 📝 Entités normalisées: []
+2025-09-26 08:21:37,900 - veille_media_backend - WARNING - ❌ Aucune correspondance trouvée (meilleur score: 0)
+2025-09-26 08:21:37,900 - veille_media_backend - INFO - 🔄 Utilisation méthode fallback
+2025-09-26 08:21:37,903 - backend.ai_service - INFO - Enrichissement article: 'Transcription RCI 18h00...' (2000 chars)
+2025-09-26 08:21:43,826 - backend.ai_service - INFO - 🔍 Validation entités: ['None']
+2025-09-26 08:21:43,826 - backend.ai_service - WARNING - ❌ Entité simple rejetée: None
+2025-09-26 08:21:43,826 - backend.ai_service - INFO - 🎯 Entités finales: 0/1 validées
+2025-09-26 08:21:43,826 - backend.ai_service - WARNING - 🚫 Entité principale rejetée par validation: None
+2025-09-26 08:21:43,826 - backend.ai_service - INFO - Mistral brut: 0.10 + boost: 0.00 = 0.10
+2025-09-26 08:21:43,826 - backend.ai_service - INFO - Analyse Mistral réussie
+2025-09-26 08:21:43,826 - backend.ai_service - INFO - 🎯 Entités finales pour scraper: ['Aucune']
+2025-09-26 08:21:43,826 - veille_media_backend - INFO - 🤖 [AI] Résultat analyse - Entités: ['Aucune'], Thème: News, Gravité: 0.1
+2025-09-26 08:21:43,827 - veille_media_backend - INFO - 📝 Entités normalisées: []
+2025-09-26 08:21:43,827 - veille_media_backend - WARNING - ❌ Aucune correspondance trouvée (meilleur score: 0)
+2025-09-26 08:21:43,827 - veille_media_backend - INFO - 🔄 Utilisation méthode fallback
+2025-09-26 08:21:43,828 - veille_media_backend - INFO - ✅ [AI_LINKING] Terminé: 0/7 liées
+2025-09-26 08:33:29,511 - veille_media_backend - INFO - ✅ Affaire créée: Centre Pénitentiaire Baie-Mahault
+2025-09-26 08:33:30,262 - veille_media_backend - INFO - ✅ Affaire créée: Louis Galantine
+2025-09-26 08:33:31,031 - veille_media_backend - INFO - ✅ Affaire générale créée
+2025-09-26 08:44:49,317 - veille_media_backend - INFO - 🔍 Trouvé 196 transcriptions orphelines
+2025-09-26 08:44:49,715 - veille_media_backend - INFO - ✅ 196 transcriptions liées à l'affaire générale
