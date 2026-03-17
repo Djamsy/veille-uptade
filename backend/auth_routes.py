@@ -48,7 +48,7 @@ def register(user: Dict[str, Any] = Body(...)):
 
     db = get_db()
     users_col = db["users"]
-    
+
     if users_col.find_one({"email": email}):
         raise HTTPException(409, "Email déjà utilisé")
 
@@ -63,15 +63,64 @@ def register(user: Dict[str, Any] = Body(...)):
         "role": "user",
         "active": True,
     }
-    
+
     result = users_col.insert_one(doc)
-    
+
     return {
         "success": True,
         "user": {
             "id": str(result.inserted_id),
             "email": email,
             "name": doc["name"]
+        }
+    }
+
+
+@router.post("/init-admin")
+def init_admin(payload: Dict[str, Any] = Body(...)):
+    """Créer le premier compte admin. Ne fonctionne que s'il n'y a aucun admin en base."""
+    email = payload.get("email", "").strip().lower()
+    password = payload.get("password", "")
+    name = payload.get("name", "").strip()
+
+    if not email or not password:
+        raise HTTPException(400, "email et password requis")
+
+    db = get_db()
+    users_col = db["users"]
+
+    # Bloquer si un admin existe déjà
+    existing_admin = users_col.find_one({"role": "admin"})
+    if existing_admin:
+        raise HTTPException(403, "Un admin existe déjà. Utilisez /register puis promouvez via l'interface admin.")
+
+    # Supprimer un éventuel compte existant avec cet email (pour upgrader un compte user)
+    users_col.delete_one({"email": email})
+
+    password_truncated = password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
+
+    doc = {
+        "email": email,
+        "name": name or email.split("@")[0],
+        "password_hash": pwd_context.hash(password_truncated),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "role": "admin",
+        "active": True,
+    }
+
+    result = users_col.insert_one(doc)
+    token = create_access_token({"sub": email, "role": "admin"})
+
+    return {
+        "success": True,
+        "message": "Compte admin créé avec succès",
+        "access_token": token,
+        "token": token,
+        "user": {
+            "id": str(result.inserted_id),
+            "email": email,
+            "name": doc["name"],
+            "role": "admin",
         }
     }
 

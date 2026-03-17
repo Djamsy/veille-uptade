@@ -1149,6 +1149,19 @@ try:
 except Exception as e:
     logger.warning(f"⚠️ Système affaires V2 non disponible: {e}")
 
+# ========== AUTHENTIFICATION ==========
+try:
+    try:
+        from backend.auth_routes import router as auth_router
+    except ImportError:
+        from auth_routes import router as auth_router
+
+    app.include_router(auth_router)
+    logger.info("✅ Routes auth chargées (/api/auth/*)")
+except Exception as e:
+    logger.warning(f"⚠️ Routes auth non disponibles: {e}")
+
+
 # ========== TELEGRAM ALERTS ==========
 try:
     try:

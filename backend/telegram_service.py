@@ -197,6 +197,91 @@ def notify_pipeline_result(
     return send_message("\n".join(lines))
 
 
+# ── Notification nouvel article département ──────────────
+
+def notify_new_article(article: Dict[str, Any]) -> bool:
+    """Notifie un nouvel article pertinent (département, affaires, institutions)."""
+    if not is_configured():
+        return False
+
+    title = article.get("title", "Sans titre")[:150]
+    source = article.get("source", "?")
+    theme = article.get("theme", "")
+    gravity = article.get("gravity_score", 0)
+    sentiment = article.get("sentiment", "")
+    elected = article.get("elected", []) or []
+    institutions = article.get("institutions", []) or []
+    url = article.get("url", "")
+    summary = article.get("ai_summary", "")
+
+    emoji = _gravity_emoji(gravity)
+    entities = ", ".join((elected + institutions)[:4]) or "—"
+    sentiment_emoji = {"positif": "🟢", "négatif": "🔴", "neutre": "⚪", "mitigé": "🟡"}.get(sentiment, "⚪")
+
+    text = (
+        f"📰 <b>NOUVEL ARTICLE</b>\n\n"
+        f"<b>{title}</b>\n\n"
+        f"📡 {source}\n"
+        f"{emoji} Gravité : {gravity:.0%}\n"
+        f"{sentiment_emoji} Sentiment : {sentiment or '—'}\n"
+        f"🏷 {theme}\n"
+        f"👤 {entities}\n"
+    )
+
+    if summary:
+        text += f"\n📝 <i>{summary[:200]}</i>\n"
+
+    if url:
+        text += f"\n🔗 <a href=\"{url}\">Lire l'article</a>"
+
+    return send_message(text)
+
+
+# ── Notification résumé radio ────────────────────────────
+
+def notify_radio_summary(transcription: Dict[str, Any]) -> bool:
+    """Notifie un résumé de transcription radio."""
+    if not is_configured():
+        return False
+
+    stream_name = transcription.get("stream_name", "") or transcription.get("section", "Radio")
+    summary = (transcription.get("ai_summary", "") or transcription.get("gpt_analysis", "")
+               or transcription.get("topic_summary", ""))
+    # Fallback : texte brut tronqué si pas de résumé IA
+    if not summary:
+        raw = transcription.get("text", "") or transcription.get("transcription", "")
+        if raw and len(raw) > 30:
+            summary = raw[:400] + ("..." if len(raw) > 400 else "")
+    topic = transcription.get("topic_title", "")
+    gravity = transcription.get("gravity", 0) or 0
+    captured_at = transcription.get("captured_at", "")
+
+    if not summary:
+        return False  # Rien à envoyer
+
+    emoji = _gravity_emoji(gravity) if gravity else "📻"
+
+    text = f"🎙️ <b>RADIO — {stream_name}</b>\n\n"
+
+    if topic:
+        text += f"📌 <b>{topic[:100]}</b>\n\n"
+
+    text += f"{summary[:500]}\n"
+
+    if gravity:
+        text += f"\n{emoji} Gravité : {gravity:.0%}"
+
+    if captured_at:
+        try:
+            from datetime import datetime as dt
+            t = dt.fromisoformat(captured_at.replace("Z", "+00:00"))
+            text += f"\n⏰ {t.strftime('%H:%M')}"
+        except Exception:
+            pass
+
+    return send_message(text)
+
+
 # ── Endpoint de test ──────────────────────────────────────
 
 def test_connection() -> Dict[str, Any]:

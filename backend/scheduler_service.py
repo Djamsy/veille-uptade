@@ -244,6 +244,31 @@ async def job_enrich():
                             )
                             enriched_count += 1
 
+                            # 📢 Notification Telegram pour articles pertinents
+                            # (département, institutions, affaires, gravité >= 0.4)
+                            try:
+                                gravity = update_fields.get("gravity_score", 0) or 0
+                                institutions = update_fields.get("institutions", []) or []
+                                is_affair = update_fields.get("is_affair", False)
+                                theme = update_fields.get("theme", "")
+
+                                dept_keywords = ["département", "conseil départemental", "cd971",
+                                                 "région", "conseil régional", "collectivité"]
+                                title_lower = article.get("title", "").lower()
+                                is_dept = any(k in title_lower for k in dept_keywords)
+                                has_institutions = len(institutions) > 0
+
+                                if gravity >= 0.4 and (is_dept or has_institutions or is_affair):
+                                    try:
+                                        from backend.telegram_service import notify_new_article
+                                    except ImportError:
+                                        from telegram_service import notify_new_article
+                                    merged_article = {**article, **update_fields}
+                                    merged_article["_id"] = str(merged_article.get("_id", ""))
+                                    notify_new_article(merged_article)
+                            except Exception as tg_err:
+                                logger.debug(f"Telegram notif article: {tg_err}")
+
                 except Exception as e:
                     logger.warning(f"⚠️ Erreur enrichissement article {article.get('_id')}: {e}")
                     continue
