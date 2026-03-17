@@ -125,7 +125,6 @@ def init_admin(payload: Dict[str, Any] = Body(...)):
     }
 
 @router.post("/login")
-@router.post("/login")
 def login(payload: Dict[str, Any] = Body(...)):
     """Connexion utilisateur"""
     email = payload.get("email", "").strip().lower()
