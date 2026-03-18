@@ -157,7 +157,9 @@ class ApifySocialScraper:
             logger.warning("⚠️ APIFY_TOKEN non configuré")
             return []
 
-        url = f"{self.api_base}/acts/{actor_id}/run-sync-get-dataset-items"
+        # Apify API exige ~ au lieu de / dans les actor IDs pour les chemins URL
+        safe_actor_id = actor_id.replace("/", "~")
+        url = f"{self.api_base}/acts/{safe_actor_id}/run-sync-get-dataset-items"
         params = {"token": APIFY_TOKEN, "timeout": timeout_secs}
         headers = {"Content-Type": "application/json"}
 

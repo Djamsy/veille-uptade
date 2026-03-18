@@ -130,7 +130,8 @@ async def social_diagnostic():
     diag["actors"] = {}
     for name, actor_id in actors.items():
         try:
-            r = req.get(f"https://api.apify.com/v2/acts/{actor_id}?token={token}", timeout=10)
+            safe_id = actor_id.replace("/", "~")
+            r = req.get(f"https://api.apify.com/v2/acts/{safe_id}?token={token}", timeout=10)
             if r.status_code == 200:
                 act = r.json().get("data", {})
                 diag["actors"][name] = {
