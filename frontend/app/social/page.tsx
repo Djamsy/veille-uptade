@@ -374,7 +374,7 @@ export default function SocialPage() {
             ) : (
               posts.map((post) => {
                 const cfg = PLATFORM_CONFIG[post.platform] || PLATFORM_CONFIG.twitter
-                const extPost = post as Record<string, unknown>
+                const extPost = post as unknown as Record<string, unknown>
 
                 return (
                   <div key={post._id} className="glass-card p-4 group">
