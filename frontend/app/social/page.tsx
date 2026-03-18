@@ -65,14 +65,21 @@ export default function SocialPage() {
 
   useEffect(() => { loadData() }, [loadData])
 
+  const [scrapeResult, setScrapeResult] = useState<string | null>(null)
+
   const handleScrape = async () => {
     setScraping(true)
     setError(null)
+    setScrapeResult(null)
     try {
       const result = await fetchSocialScrapeAll()
-      const total = (result as Record<string, unknown>)?.total_saved as number || 0
+      const r = result as Record<string, unknown>
+      const total = (r?.total_saved as number) || 0
+      const enriched = (r?.enriched as number) || 0
       if (total > 0) {
-        setError(null)
+        setScrapeResult(`${total} posts recuperes, ${enriched} enrichis par IA`)
+      } else {
+        setScrapeResult('0 posts recuperes — le plan Apify FREE peut limiter le scraping (proxy residentiel requis pour Facebook/Instagram)')
       }
       await loadData()
     } catch (e: unknown) {
@@ -144,6 +151,18 @@ export default function SocialPage() {
                   Ajoutez la variable d&apos;environnement APIFY_TOKEN dans Render.
                 </span>
               </div>
+            </div>
+          )}
+
+          {/* Scrape result */}
+          {scrapeResult && (
+            <div className="mb-5 px-4 py-3 rounded-xl text-sm flex items-center gap-3" style={{
+              background: scrapeResult.startsWith('0') ? 'rgba(234,179,8,0.08)' : 'rgba(22,163,74,0.08)',
+              border: `1px solid ${scrapeResult.startsWith('0') ? 'rgba(234,179,8,0.2)' : 'rgba(22,163,74,0.2)'}`,
+              color: scrapeResult.startsWith('0') ? '#facc15' : '#4ade80',
+            }}>
+              <span>{scrapeResult.startsWith('0') ? '⚠️' : '✅'}</span>
+              {scrapeResult}
             </div>
           )}
 

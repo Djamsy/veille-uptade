@@ -97,43 +97,107 @@ async def social_scrape_single(platform: str):
 # Test brut — 1 seule page Facebook, réponse raw
 # =========================
 @router.get("/test-raw")
-async def social_test_raw():
-    """Teste un scrape minimal et retourne la réponse brute d'Apify."""
-    import os, requests as req, json
+async def social_test_raw(platform: str = Query("facebook", description="facebook, instagram, twitter")):
+    """Teste un scrape minimal avec proxy résidentiel et retourne la réponse brute d'Apify."""
+    import os, requests as req
+
     token = os.environ.get("APIFY_TOKEN", "").strip()
     if not token:
         return {"error": "APIFY_TOKEN non configuré"}
 
-    actor_id = "apify~facebook-posts-scraper"
-    url = f"https://api.apify.com/v2/acts/{actor_id}/run-sync-get-dataset-items"
-    run_input = {
-        "startUrls": [{"url": "https://www.facebook.com/guadeloupe.la1ere"}],
-        "resultsLimit": 3,
+    # Config par plateforme
+    configs = {
+        "facebook": {
+            "actor": "apify~facebook-posts-scraper",
+            "input": {
+                "startUrls": [{"url": "https://www.facebook.com/guadeloupe.la1ere"}],
+                "resultsLimit": 3,
+                "proxyConfiguration": {"useApifyProxy": True, "apifyProxyGroups": ["RESIDENTIAL"]},
+            },
+        },
+        "instagram": {
+            "actor": "apify~instagram-scraper",
+            "input": {
+                "directUrls": ["https://www.instagram.com/guadeloupe.la1ere/"],
+                "resultsLimit": 3,
+                "resultsType": "posts",
+                "searchType": "hashtag",
+                "proxyConfiguration": {"useApifyProxy": True, "apifyProxyGroups": ["RESIDENTIAL"]},
+            },
+        },
+        "twitter": {
+            "actor": "apidojo~tweet-scraper",
+            "input": {
+                "searchTerms": ["Guadeloupe"],
+                "maxItems": 5,
+                "sort": "Latest",
+                "proxyConfiguration": {"useApifyProxy": True, "apifyProxyGroups": ["RESIDENTIAL"]},
+            },
+        },
     }
+
+    if platform not in configs:
+        return {"error": f"Plateforme invalide: {platform}. Choix: facebook, instagram, twitter"}
+
+    cfg = configs[platform]
+    url = f"https://api.apify.com/v2/acts/{cfg['actor']}/run-sync-get-dataset-items"
 
     try:
         resp = req.post(
             url,
-            json=run_input,
+            json=cfg["input"],
             params={"token": token, "timeout": 120},
             headers={"Content-Type": "application/json"},
-            timeout=150,
+            timeout=180,
         )
         try:
             body = resp.json()
         except Exception:
-            body = resp.text[:1000]
+            body = resp.text[:2000]
 
-        return {
+        result = {
+            "platform": platform,
+            "actor": cfg["actor"],
             "http_status": resp.status_code,
             "content_length": len(resp.content),
             "response_type": type(body).__name__,
-            "item_count": len(body) if isinstance(body, list) else None,
-            "response_preview": str(body)[:800] if not isinstance(body, list) else f"{len(body)} items - first keys: {list(body[0].keys()) if body else 'empty'}",
-            "headers": dict(resp.headers),
+            "proxy_config": "RESIDENTIAL",
         }
+
+        if isinstance(body, list):
+            result["item_count"] = len(body)
+            if body:
+                result["first_item_keys"] = list(body[0].keys())[:15]
+                # Aperçu du premier item (texte tronqué)
+                first = body[0]
+                preview = {}
+                for k in ["text", "message", "caption", "full_text", "content"]:
+                    if first.get(k):
+                        preview["text_field"] = k
+                        preview["text_preview"] = str(first[k])[:200]
+                        break
+                for k in ["pageName", "ownerUsername", "author", "user"]:
+                    if first.get(k):
+                        preview["author_field"] = k
+                        preview["author"] = str(first[k])[:100] if not isinstance(first[k], dict) else str(first[k])[:200]
+                        break
+                result["first_item_preview"] = preview
+            else:
+                result["note"] = "Liste vide — l'actor a tourné mais n'a trouvé aucun post"
+        elif isinstance(body, dict):
+            result["response_keys"] = list(body.keys())[:15]
+            if body.get("error"):
+                result["apify_error"] = str(body.get("error"))[:500]
+            if body.get("status"):
+                result["run_status"] = body.get("status")
+            result["response_preview"] = str(body)[:800]
+        else:
+            result["response_preview"] = str(body)[:800]
+
+        return result
+
     except req.Timeout:
-        return {"error": "Timeout après 150s"}
+        return {"error": f"Timeout après 180s pour {platform}"}
     except Exception as e:
         return {"error": str(e)}
 

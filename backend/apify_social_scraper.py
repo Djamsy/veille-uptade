@@ -228,6 +228,8 @@ class ApifySocialScraper:
             "startUrls": [{"url": u} for u in FACEBOOK_PAGES],
             "resultsLimit": 10,  # 10 posts max par page
             "onlyPostsNewerThan": "2 days",  # Limiter aux posts récents
+            # Facebook bloque les IPs datacenter → proxy résidentiel obligatoire
+            "proxyConfiguration": {"useApifyProxy": True, "apifyProxyGroups": ["RESIDENTIAL"]},
         }
 
         items = self._run_actor(ACTORS["facebook"], run_input)
@@ -276,6 +278,8 @@ class ApifySocialScraper:
             "resultsLimit": 10,
             "resultsType": "posts",
             "searchType": "hashtag",
+            # Instagram bloque les IPs datacenter → proxy résidentiel obligatoire
+            "proxyConfiguration": {"useApifyProxy": True, "apifyProxyGroups": ["RESIDENTIAL"]},
         }
 
         items = self._run_actor(ACTORS["instagram"], run_input)
@@ -320,6 +324,8 @@ class ApifySocialScraper:
             "twitterHandles": TWITTER_ACCOUNTS,
             "maxItems": 100,
             "sort": "Latest",
+            # Proxy résidentiel pour fiabilité
+            "proxyConfiguration": {"useApifyProxy": True, "apifyProxyGroups": ["RESIDENTIAL"]},
         }
 
         items = self._run_actor(ACTORS["twitter"], run_input, timeout_secs=300)
