@@ -94,6 +94,51 @@ async def social_scrape_single(platform: str):
 
 
 # =========================
+# Test brut — 1 seule page Facebook, réponse raw
+# =========================
+@router.get("/test-raw")
+async def social_test_raw():
+    """Teste un scrape minimal et retourne la réponse brute d'Apify."""
+    import os, requests as req, json
+    token = os.environ.get("APIFY_TOKEN", "").strip()
+    if not token:
+        return {"error": "APIFY_TOKEN non configuré"}
+
+    actor_id = "apify~facebook-posts-scraper"
+    url = f"https://api.apify.com/v2/acts/{actor_id}/run-sync-get-dataset-items"
+    run_input = {
+        "startUrls": [{"url": "https://www.facebook.com/guadeloupe.la1ere"}],
+        "resultsLimit": 3,
+    }
+
+    try:
+        resp = req.post(
+            url,
+            json=run_input,
+            params={"token": token, "timeout": 120},
+            headers={"Content-Type": "application/json"},
+            timeout=150,
+        )
+        try:
+            body = resp.json()
+        except Exception:
+            body = resp.text[:1000]
+
+        return {
+            "http_status": resp.status_code,
+            "content_length": len(resp.content),
+            "response_type": type(body).__name__,
+            "item_count": len(body) if isinstance(body, list) else None,
+            "response_preview": str(body)[:800] if not isinstance(body, list) else f"{len(body)} items - first keys: {list(body[0].keys()) if body else 'empty'}",
+            "headers": dict(resp.headers),
+        }
+    except req.Timeout:
+        return {"error": "Timeout après 150s"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# =========================
 # Diagnostic — test connexion Apify
 # =========================
 @router.get("/diagnostic")
