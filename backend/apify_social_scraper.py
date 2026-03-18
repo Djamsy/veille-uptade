@@ -148,6 +148,25 @@ class ApifySocialScraper:
         raw = f"{platform}:{author}:{text[:200]}:{posted_at}"
         return hashlib.md5(raw.encode()).hexdigest()
 
+    @staticmethod
+    def _safe_int(val) -> int:
+        """Extrait un entier depuis un champ Apify qui peut être int, str, list, dict ou None."""
+        if val is None:
+            return 0
+        if isinstance(val, (int, float)):
+            return int(val)
+        if isinstance(val, str):
+            try:
+                return int(val)
+            except ValueError:
+                return 0
+        if isinstance(val, list):
+            return len(val)  # liste de commentaires → compter
+        if isinstance(val, dict):
+            # dict avec un champ 'count' ou 'summary'
+            return int(val.get("count") or val.get("total_count") or val.get("summary", {}).get("total_count", 0) or 0)
+        return 0
+
     # =========================
     # Run un Actor Apify et récupère les résultats
     # =========================
@@ -234,6 +253,7 @@ class ApifySocialScraper:
 
         items = self._run_actor(ACTORS["facebook"], run_input)
         saved = 0
+        updated = 0
 
         for item in items:
             try:
@@ -242,28 +262,39 @@ class ApifySocialScraper:
                 posted_at = item.get("time") or item.get("timestamp") or ""
                 post_url = item.get("url") or item.get("postUrl") or ""
 
+                ph = self._post_hash("facebook", text, author, posted_at)
+                likes = self._safe_int(item.get("likesCount") or item.get("likes"))
+                comments = self._safe_int(item.get("commentsCount") or item.get("comments"))
+                shares = self._safe_int(item.get("sharesCount") or item.get("shares"))
+
                 doc = {
                     "platform": "facebook",
-                    "post_hash": self._post_hash("facebook", text, author, posted_at),
+                    "post_hash": ph,
                     "author": author,
                     "text": text,
                     "url": post_url,
                     "posted_at": posted_at,
-                    "likes": item.get("likes") or item.get("likesCount") or 0,
-                    "comments": item.get("comments") or item.get("commentsCount") or 0,
-                    "shares": item.get("shares") or item.get("sharesCount") or 0,
+                    "likes": likes,
+                    "comments": comments,
+                    "shares": shares,
                     "scraped_at": datetime.now(TZ),
                     "raw": item,
                 }
-                self.collection.insert_one(doc)
-                saved += 1
-            except DuplicateKeyError:
-                pass  # Déjà vu
+                # Upsert: met à jour si déjà existant, insère sinon
+                result = self.collection.update_one(
+                    {"post_hash": ph},
+                    {"$set": doc, "$setOnInsert": {"first_seen": datetime.now(TZ)}},
+                    upsert=True,
+                )
+                if result.upserted_id:
+                    saved += 1
+                elif result.modified_count > 0:
+                    updated += 1
             except Exception as e:
                 logger.warning(f"⚠️ FB save error: {e}")
 
-        logger.info(f"📘 Facebook: {saved} nouveaux posts / {len(items)} récupérés")
-        return {"platform": "facebook", "fetched": len(items), "saved": saved}
+        logger.info(f"📘 Facebook: {saved} nouveaux + {updated} mis à jour / {len(items)} récupérés")
+        return {"platform": "facebook", "fetched": len(items), "saved": saved, "updated": updated}
 
     # =========================
     # Instagram
@@ -284,6 +315,7 @@ class ApifySocialScraper:
 
         items = self._run_actor(ACTORS["instagram"], run_input)
         saved = 0
+        updated = 0
 
         for item in items:
             try:
@@ -292,27 +324,36 @@ class ApifySocialScraper:
                 posted_at = item.get("timestamp") or item.get("takenAtTimestamp") or ""
                 post_url = item.get("url") or item.get("displayUrl") or ""
 
+                ph = self._post_hash("instagram", text, author, str(posted_at))
+                likes = self._safe_int(item.get("likesCount") or item.get("likes"))
+                comments = self._safe_int(item.get("commentsCount") or item.get("comments"))
+
                 doc = {
                     "platform": "instagram",
-                    "post_hash": self._post_hash("instagram", text, author, str(posted_at)),
+                    "post_hash": ph,
                     "author": author,
                     "text": text,
                     "url": post_url,
                     "posted_at": posted_at,
-                    "likes": item.get("likesCount") or 0,
-                    "comments": item.get("commentsCount") or 0,
+                    "likes": likes,
+                    "comments": comments,
                     "scraped_at": datetime.now(TZ),
                     "raw": item,
                 }
-                self.collection.insert_one(doc)
-                saved += 1
-            except DuplicateKeyError:
-                pass
+                result = self.collection.update_one(
+                    {"post_hash": ph},
+                    {"$set": doc, "$setOnInsert": {"first_seen": datetime.now(TZ)}},
+                    upsert=True,
+                )
+                if result.upserted_id:
+                    saved += 1
+                elif result.modified_count > 0:
+                    updated += 1
             except Exception as e:
                 logger.warning(f"⚠️ IG save error: {e}")
 
-        logger.info(f"📸 Instagram: {saved} nouveaux posts / {len(items)} récupérés")
-        return {"platform": "instagram", "fetched": len(items), "saved": saved}
+        logger.info(f"📸 Instagram: {saved} nouveaux + {updated} mis à jour / {len(items)} récupérés")
+        return {"platform": "instagram", "fetched": len(items), "saved": saved, "updated": updated}
 
     # =========================
     # Twitter / X
@@ -330,6 +371,7 @@ class ApifySocialScraper:
 
         items = self._run_actor(ACTORS["twitter"], run_input, timeout_secs=300)
         saved = 0
+        updated = 0
 
         for item in items:
             try:
@@ -346,28 +388,39 @@ class ApifySocialScraper:
                 if not post_url and tweet_id and author:
                     post_url = f"https://x.com/{author}/status/{tweet_id}"
 
+                ph = self._post_hash("twitter", text, author, str(posted_at))
+                likes = self._safe_int(item.get("likeCount") or item.get("favorite_count") or item.get("likes"))
+                retweets = self._safe_int(item.get("retweetCount") or item.get("retweet_count") or item.get("retweets"))
+                replies = self._safe_int(item.get("replyCount") or item.get("reply_count") or item.get("replies"))
+
                 doc = {
                     "platform": "twitter",
-                    "post_hash": self._post_hash("twitter", text, author, str(posted_at)),
+                    "post_hash": ph,
                     "author": author,
                     "text": text,
                     "url": post_url,
                     "posted_at": posted_at,
-                    "likes": item.get("favorite_count") or item.get("likeCount") or item.get("likes") or 0,
-                    "retweets": item.get("retweet_count") or item.get("retweetCount") or item.get("retweets") or 0,
-                    "replies": item.get("reply_count") or item.get("replyCount") or item.get("replies") or 0,
+                    "likes": likes,
+                    "retweets": retweets,
+                    "replies": replies,
+                    "comments": replies,  # Twitter: replies = comments
                     "scraped_at": datetime.now(TZ),
                     "raw": item,
                 }
-                self.collection.insert_one(doc)
-                saved += 1
-            except DuplicateKeyError:
-                pass
+                result = self.collection.update_one(
+                    {"post_hash": ph},
+                    {"$set": doc, "$setOnInsert": {"first_seen": datetime.now(TZ)}},
+                    upsert=True,
+                )
+                if result.upserted_id:
+                    saved += 1
+                elif result.modified_count > 0:
+                    updated += 1
             except Exception as e:
                 logger.warning(f"⚠️ TW save error: {e}")
 
-        logger.info(f"🐦 Twitter: {saved} nouveaux posts / {len(items)} récupérés")
-        return {"platform": "twitter", "fetched": len(items), "saved": saved}
+        logger.info(f"🐦 Twitter: {saved} nouveaux + {updated} mis à jour / {len(items)} récupérés")
+        return {"platform": "twitter", "fetched": len(items), "saved": saved, "updated": updated}
 
     # =========================
     # Run all platforms (appelé par le scheduler)
