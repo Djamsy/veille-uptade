@@ -258,6 +258,141 @@ async def social_diagnostic():
 
 
 # =========================
+# Détail d'un post (pour le popup)
+# =========================
+@router.get("/posts/{post_id}")
+async def social_post_detail(post_id: str):
+    """Retourne le détail complet d'un post social, incluant le raw Apify."""
+    from bson import ObjectId
+    scraper = _get_scraper()
+    if scraper.collection is None:
+        raise HTTPException(status_code=503, detail="Mongo indisponible")
+    try:
+        doc = scraper.collection.find_one({"_id": ObjectId(post_id)})
+    except Exception:
+        raise HTTPException(status_code=400, detail="ID invalide")
+    if not doc:
+        raise HTTPException(status_code=404, detail="Post introuvable")
+
+    doc["_id"] = str(doc["_id"])
+    if hasattr(doc.get("scraped_at"), "isoformat"):
+        doc["scraped_at"] = doc["scraped_at"].isoformat()
+    if hasattr(doc.get("first_seen"), "isoformat"):
+        doc["first_seen"] = doc["first_seen"].isoformat()
+
+    return {"post": doc}
+
+
+# =========================
+# Analyse sentiment global
+# =========================
+@router.get("/sentiment")
+async def social_sentiment():
+    """Analyse sentiment global des posts sociaux (7 derniers jours)."""
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+    import os
+
+    scraper = _get_scraper()
+    if scraper.collection is None:
+        raise HTTPException(status_code=503, detail="Mongo indisponible")
+
+    tz_name = (os.environ.get("TIMEZONE") or "America/Guadeloupe").strip()
+    try:
+        tz = ZoneInfo(tz_name)
+    except Exception:
+        tz = ZoneInfo("UTC")
+
+    now = datetime.now(tz)
+    since_7d = now - timedelta(days=7)
+
+    pipeline = [
+        {"$match": {"scraped_at": {"$gte": since_7d}}},
+        {"$group": {
+            "_id": None,
+            "total": {"$sum": 1},
+            "total_likes": {"$sum": {"$ifNull": ["$likes", 0]}},
+            "total_comments": {"$sum": {"$ifNull": ["$comments", 0]}},
+            "total_shares": {"$sum": {"$ifNull": ["$shares", 0]}},
+            "total_retweets": {"$sum": {"$ifNull": ["$retweets", 0]}},
+            "avg_gravity": {"$avg": {"$ifNull": ["$gravity_score", 0]}},
+            "enriched_count": {"$sum": {"$cond": [{"$eq": ["$ai_enriched", True]}, 1, 0]}},
+            "relevant_count": {"$sum": {"$cond": [{"$eq": ["$ai_relevant", True]}, 1, 0]}},
+        }},
+    ]
+    agg = list(scraper.collection.aggregate(pipeline))
+    global_stats = agg[0] if agg else {}
+
+    # Sentiment par plateforme
+    plat_pipeline = [
+        {"$match": {"scraped_at": {"$gte": since_7d}}},
+        {"$group": {
+            "_id": "$platform",
+            "count": {"$sum": 1},
+            "likes": {"$sum": {"$ifNull": ["$likes", 0]}},
+            "comments": {"$sum": {"$ifNull": ["$comments", 0]}},
+            "avg_gravity": {"$avg": {"$ifNull": ["$gravity_score", 0]}},
+        }},
+    ]
+    plat_agg = {d["_id"]: d for d in scraper.collection.aggregate(plat_pipeline)}
+
+    # Top thèmes
+    theme_pipeline = [
+        {"$match": {"scraped_at": {"$gte": since_7d}, "theme": {"$exists": True, "$ne": "general", "$ne": ""}}},
+        {"$group": {"_id": "$theme", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 8},
+    ]
+    themes = [{"theme": d["_id"], "count": d["count"]} for d in scraper.collection.aggregate(theme_pipeline)]
+
+    # Top élus mentionnés
+    elected_pipeline = [
+        {"$match": {"scraped_at": {"$gte": since_7d}, "elected": {"$exists": True, "$ne": []}}},
+        {"$unwind": "$elected"},
+        {"$group": {"_id": "$elected", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 10},
+    ]
+    top_elected = [{"name": d["_id"], "count": d["count"]} for d in scraper.collection.aggregate(elected_pipeline)]
+
+    # Posts les plus engageants
+    top_posts_cursor = scraper.collection.find(
+        {"scraped_at": {"$gte": since_7d}},
+        {"raw": 0}
+    ).sort("likes", -1).limit(5)
+    top_posts = []
+    for doc in top_posts_cursor:
+        doc["_id"] = str(doc["_id"])
+        if hasattr(doc.get("scraped_at"), "isoformat"):
+            doc["scraped_at"] = doc["scraped_at"].isoformat()
+        top_posts.append(doc)
+
+    return {
+        "period": "7d",
+        "global": {
+            "total_posts": global_stats.get("total", 0),
+            "total_engagement": (
+                global_stats.get("total_likes", 0) +
+                global_stats.get("total_comments", 0) +
+                global_stats.get("total_shares", 0) +
+                global_stats.get("total_retweets", 0)
+            ),
+            "total_likes": global_stats.get("total_likes", 0),
+            "total_comments": global_stats.get("total_comments", 0),
+            "total_shares": global_stats.get("total_shares", 0),
+            "avg_gravity": round(global_stats.get("avg_gravity", 0), 2),
+            "enriched": global_stats.get("enriched_count", 0),
+            "relevant": global_stats.get("relevant_count", 0),
+        },
+        "by_platform": plat_agg,
+        "top_themes": themes,
+        "top_elected": top_elected,
+        "top_posts": top_posts,
+        "timestamp": now.isoformat(),
+    }
+
+
+# =========================
 # Config actuelle
 # =========================
 @router.get("/config")

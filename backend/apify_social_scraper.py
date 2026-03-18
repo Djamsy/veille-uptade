@@ -266,6 +266,10 @@ class ApifySocialScraper:
                 likes = self._safe_int(item.get("likesCount") or item.get("likes"))
                 comments = self._safe_int(item.get("commentsCount") or item.get("comments"))
                 shares = self._safe_int(item.get("sharesCount") or item.get("shares"))
+                # Images Facebook
+                image_url = (item.get("fullPicture") or item.get("imageUrl")
+                             or item.get("picture") or item.get("image") or "")
+                media_type = item.get("type") or ("video" if item.get("videoUrl") else "photo" if image_url else "text")
 
                 doc = {
                     "platform": "facebook",
@@ -277,6 +281,8 @@ class ApifySocialScraper:
                     "likes": likes,
                     "comments": comments,
                     "shares": shares,
+                    "image_url": image_url,
+                    "media_type": media_type,
                     "scraped_at": datetime.now(TZ),
                     "raw": item,
                 }
@@ -327,6 +333,10 @@ class ApifySocialScraper:
                 ph = self._post_hash("instagram", text, author, str(posted_at))
                 likes = self._safe_int(item.get("likesCount") or item.get("likes"))
                 comments = self._safe_int(item.get("commentsCount") or item.get("comments"))
+                # Images Instagram
+                image_url = (item.get("displayUrl") or item.get("thumbnailUrl")
+                             or item.get("imageUrl") or "")
+                media_type = item.get("type") or ("video" if item.get("videoUrl") else "photo" if image_url else "text")
 
                 doc = {
                     "platform": "instagram",
@@ -337,6 +347,8 @@ class ApifySocialScraper:
                     "posted_at": posted_at,
                     "likes": likes,
                     "comments": comments,
+                    "image_url": image_url,
+                    "media_type": media_type,
                     "scraped_at": datetime.now(TZ),
                     "raw": item,
                 }
@@ -392,6 +404,15 @@ class ApifySocialScraper:
                 likes = self._safe_int(item.get("likeCount") or item.get("favorite_count") or item.get("likes"))
                 retweets = self._safe_int(item.get("retweetCount") or item.get("retweet_count") or item.get("retweets"))
                 replies = self._safe_int(item.get("replyCount") or item.get("reply_count") or item.get("replies"))
+                # Images Twitter
+                media = item.get("media") or item.get("photos") or item.get("extendedEntities", {}).get("media") or []
+                image_url = ""
+                if isinstance(media, list) and media:
+                    first_media = media[0]
+                    image_url = first_media.get("media_url_https") or first_media.get("url") or first_media.get("media_url") or ""
+                elif isinstance(item.get("media_url"), str):
+                    image_url = item["media_url"]
+                media_type = "photo" if image_url else "text"
 
                 doc = {
                     "platform": "twitter",
@@ -404,6 +425,8 @@ class ApifySocialScraper:
                     "retweets": retweets,
                     "replies": replies,
                     "comments": replies,  # Twitter: replies = comments
+                    "image_url": image_url,
+                    "media_type": media_type,
                     "scraped_at": datetime.now(TZ),
                     "raw": item,
                 }

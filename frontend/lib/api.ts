@@ -390,7 +390,39 @@ export interface SocialPost {
   comments?: number;
   shares?: number;
   retweets?: number;
+  replies?: number;
   scraped_at: string;
+  image_url?: string;
+  media_type?: string;
+  ai_enriched?: boolean;
+  ai_relevant?: boolean;
+  ai_summary?: string;
+  theme?: string;
+  gravity_score?: number;
+  elected?: string[];
+  institutions?: string[];
+  entities?: string[];
+  keywords_found?: string[];
+  first_seen?: string;
+}
+
+export interface SocialSentiment {
+  period: string;
+  global: {
+    total_posts: number;
+    total_engagement: number;
+    total_likes: number;
+    total_comments: number;
+    total_shares: number;
+    avg_gravity: number;
+    enriched: number;
+    relevant: number;
+  };
+  by_platform: Record<string, { count: number; likes: number; comments: number; avg_gravity: number }>;
+  top_themes: Array<{ theme: string; count: number }>;
+  top_elected: Array<{ name: string; count: number }>;
+  top_posts: SocialPost[];
+  timestamp: string;
 }
 
 export interface SocialStats {
@@ -419,6 +451,12 @@ export const fetchSocialScrapeSingle = (platform: string) =>
 
 export const fetchSocialConfig = () =>
   apiFetch<Record<string, unknown>>('/api/social/config');
+
+export const fetchSocialSentiment = () =>
+  apiFetch<SocialSentiment>('/api/social/sentiment');
+
+export const fetchSocialPostDetail = (id: string) =>
+  apiFetch<{ post: SocialPost & { raw?: Record<string, unknown> } }>(`/api/social/posts/${id}`);
 
 // --- Elections & Carte ---
 export const fetchAffairsByCommune = () =>
