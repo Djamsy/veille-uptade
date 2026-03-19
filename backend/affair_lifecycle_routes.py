@@ -250,6 +250,35 @@ async def get_affair_detail(affair_id: str):
     }
 
 
+@router.post("/generate-context/{affair_id}")
+async def generate_context(affair_id: str):
+    """Génère un contexte IA approfondi pour une affaire.
+    Utilise GPT pour rechercher le fond, les enjeux,
+    et évalue le bruit médiatique et le sentiment.
+    Le contexte contribue au calcul BMG/sentiment."""
+    svc = _svc()
+    result = svc.generate_affair_context(affair_id)
+    if "error" in result:
+        raise HTTPException(404 if "introuvable" in result["error"] else 500, result["error"])
+    return result
+
+
+@router.get("/context/{affair_id}")
+async def get_context(affair_id: str):
+    """Récupère le contexte IA d'une affaire (sans regénérer)."""
+    svc = _svc()
+    try:
+        affair = svc.affairs.find_one({"_id": ObjectId(affair_id)})
+    except Exception:
+        raise HTTPException(400, "ID invalide")
+    if not affair:
+        raise HTTPException(404, "Affaire non trouvée")
+    ctx = affair.get("ai_context")
+    if not ctx:
+        raise HTTPException(404, "Aucun contexte IA généré pour cette affaire")
+    return ctx
+
+
 @router.post("/cleanup/{affair_id}")
 async def cleanup_affair(affair_id: str):
     """Nettoie une affaire en retirant les articles sans lien réel.

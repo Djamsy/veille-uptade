@@ -265,6 +265,25 @@ export const recalculateBmg = (id: string) =>
     `/api/affairs/recalculate-bmg/${id}`, { method: 'POST' }
   );
 
+export interface AffairContext {
+  contexte: string;
+  enjeux: string[];
+  historique: string;
+  impact_potentiel: string;
+  bruit_score: number;
+  sentiment_ia: string;
+  mots_cles_contexte: string[];
+  generated_at?: string;
+}
+
+export const generateAffairContext = (id: string) =>
+  apiFetch<{ affair_id: string; ai_context: AffairContext; sentiment_updated: boolean; gravity_adjusted: boolean }>(
+    `/api/affairs/generate-context/${id}`, { method: 'POST' }
+  );
+
+export const fetchAffairContext = (id: string) =>
+  apiFetch<AffairContext>(`/api/affairs/context/${id}`);
+
 export const runFullCycle = () =>
   apiFetch<Record<string, unknown>>('/api/affairs/cycle/run', { method: 'POST' });
 

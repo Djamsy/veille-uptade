@@ -1350,3 +1350,108 @@ def analyze_trends_predictive(affairs: List[Dict[str, Any]]) -> Optional[Dict[st
     except Exception as e:
         logger.warning(f"⚠️ Analyse prédictive échoué: {e}")
         return None
+
+
+# ============================================================
+# CONTEXTE IA POUR UNE AFFAIRE
+# ============================================================
+
+def generate_affair_context(
+    title: str,
+    description: str,
+    elected: list,
+    institutions: list,
+    theme: str,
+    articles_titles: list,
+    radio_summaries: list,
+) -> Optional[Dict]:
+    """
+    Génère un contexte enrichi pour une affaire via GPT.
+    Recherche le fond de l'affaire, les enjeux, le contexte politique/social,
+    et évalue le bruit médiatique potentiel et le sentiment global.
+
+    Retourne:
+    {
+        "contexte": "...",          # Paragraphe de contexte (3-5 phrases)
+        "enjeux": ["...", ...],     # Liste des enjeux clés
+        "historique": "...",        # Historique/précédents connus
+        "impact_potentiel": "...",  # Impact potentiel sur la Guadeloupe
+        "bruit_score": 0-100,      # Estimation du bruit médiatique (0-100)
+        "sentiment_ia": "...",      # Sentiment estimé par l'IA
+        "mots_cles_contexte": []    # Mots-clés contextuels supplémentaires
+    }
+    """
+    try:
+        elected_str = ", ".join(elected[:5]) if elected else "aucun élu identifié"
+        instit_str = ", ".join(institutions[:5]) if institutions else "aucune institution"
+        articles_str = "\n".join(f"- {t}" for t in articles_titles[:10]) if articles_titles else "aucun article"
+        radio_str = "\n".join(f"- {s}" for s in radio_summaries[:5]) if radio_summaries else "aucune transcription"
+
+        messages = [
+            {
+                "role": "system",
+                "content": """Tu es un expert en analyse médiatique en Guadeloupe (département français d'outre-mer, Antilles).
+Tu dois fournir un contexte approfondi sur une affaire médiatique locale.
+
+Tu connais bien:
+- Les personnalités politiques guadeloupéennes (élus, maires, conseillers régionaux/départementaux)
+- Le contexte socio-économique local (chômage, coût de la vie, agriculture, tourisme)
+- Les institutions locales (Région, Département, EPCI, préfecture)
+- L'histoire récente (mouvements sociaux, scandales politiques, catastrophes naturelles)
+
+Réponds UNIQUEMENT en JSON valide avec ces clés:
+- contexte: paragraphe de fond (3-5 phrases) expliquant le contexte de l'affaire
+- enjeux: liste de 2-4 enjeux clés
+- historique: bref historique ou précédents connus (2-3 phrases)
+- impact_potentiel: impact potentiel sur la population/territoire (2-3 phrases)
+- bruit_score: estimation du bruit médiatique potentiel de 0 à 100 (100 = très fort écho médiatique)
+- sentiment_ia: sentiment dominant parmi "très_négatif", "négatif", "mitigé", "neutre", "positif", "très_positif"
+- mots_cles_contexte: liste de 5-10 mots-clés contextuels qui aident à mieux comprendre l'affaire"""
+            },
+            {
+                "role": "user",
+                "content": f"""Analyse cette affaire médiatique en Guadeloupe:
+
+TITRE: {title}
+DESCRIPTION: {description}
+THÈME: {theme}
+ÉLUS CONCERNÉS: {elected_str}
+INSTITUTIONS: {instit_str}
+
+ARTICLES LIÉS:
+{articles_str}
+
+SUJETS RADIO LIÉS:
+{radio_str}
+
+Fournis un contexte approfondi, les enjeux, et ton évaluation du bruit médiatique et du sentiment."""
+            }
+        ]
+
+        raw = _call_ai(messages, temperature=0.3, max_tokens=1200, json_mode=True)
+        if not raw:
+            return None
+
+        result = json.loads(raw)
+
+        # Valider les champs essentiels
+        required = ["contexte", "enjeux", "bruit_score", "sentiment_ia"]
+        for key in required:
+            if key not in result:
+                logger.warning(f"⚠️ Contexte IA: champ manquant '{key}'")
+                return None
+
+        # Normaliser le bruit_score entre 0 et 100
+        result["bruit_score"] = max(0, min(100, int(result.get("bruit_score", 50))))
+
+        logger.info(f"🧠 Contexte IA généré: bruit={result['bruit_score']}, "
+                     f"sentiment={result['sentiment_ia']}, "
+                     f"{len(result.get('enjeux', []))} enjeux")
+        return result
+
+    except json.JSONDecodeError as e:
+        logger.warning(f"⚠️ Contexte IA: JSON invalide: {e}")
+        return None
+    except Exception as e:
+        logger.warning(f"⚠️ Contexte IA échoué: {e}")
+        return None

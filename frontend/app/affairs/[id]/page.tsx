@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Sidebar from '../../../components/Sidebar'
 import BmgGauge from '../../../components/BmgGauge'
-import { fetchAffairDetail, recalculateBmg, type Affair, type TimelineEvent, type BmgDetails, type LinkedArticle, type LinkedRadio, type LinkedSocial } from '../../../lib/api'
+import { fetchAffairDetail, recalculateBmg, generateAffairContext, fetchAffairContext, type Affair, type AffairContext, type TimelineEvent, type BmgDetails, type LinkedArticle, type LinkedRadio, type LinkedSocial } from '../../../lib/api'
 
 // ── Helpers ──────────────────────────────────────────────
 function timeAgo(dateStr: string): string {
@@ -121,6 +121,9 @@ export default function AffairDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [recalculating, setRecalculating] = useState(false)
+  const [aiContext, setAiContext] = useState<AffairContext | null>(null)
+  const [contextLoading, setContextLoading] = useState(false)
+  const [contextError, setContextError] = useState('')
 
   const loadDetail = useCallback(async () => {
     try {
@@ -132,6 +135,11 @@ export default function AffairDetailPage() {
       setLinkedRadio(data.linked_radio || [])
       setLinkedSocial(data.linked_social || [])
       setError('')
+      // Charger le contexte IA si disponible
+      try {
+        const ctx = await fetchAffairContext(id)
+        setAiContext(ctx)
+      } catch { /* pas de contexte, OK */ }
     } catch (e: any) {
       setError(e.message || 'Erreur de chargement')
     } finally {
@@ -140,6 +148,22 @@ export default function AffairDetailPage() {
   }, [id])
 
   useEffect(() => { loadDetail() }, [loadDetail])
+
+  const handleGenerateContext = async () => {
+    setContextLoading(true)
+    setContextError('')
+    try {
+      const result = await generateAffairContext(id)
+      setAiContext(result.ai_context)
+      if (result.gravity_adjusted || result.sentiment_updated) {
+        await loadDetail() // Recharger si gravité/sentiment modifiés
+      }
+    } catch (e: any) {
+      setContextError(e.message || 'Erreur de génération')
+    } finally {
+      setContextLoading(false)
+    }
+  }
 
   const handleRecalculate = async () => {
     setRecalculating(true)
@@ -280,6 +304,145 @@ export default function AffairDetailPage() {
                 </button>
               </div>
             </div>
+          </div>
+
+          {/* ── Encart Contexte IA ────────────── */}
+          <div className="glass-card border border-[rgba(255,255,255,0.08)] p-5 mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                <span className="text-lg">🧠</span>
+                Contexte IA
+              </h3>
+              <button
+                onClick={handleGenerateContext}
+                disabled={contextLoading}
+                className={`text-xs px-3 py-1.5 rounded-lg transition-all ${
+                  contextLoading
+                    ? 'bg-[rgba(255,255,255,0.04)] text-[rgba(255,255,255,0.25)] cursor-wait'
+                    : aiContext
+                    ? 'bg-[rgba(16,185,129,0.1)] text-teal-400 hover:bg-[rgba(16,185,129,0.2)] border border-[rgba(16,185,129,0.3)]'
+                    : 'bg-[rgba(139,92,246,0.15)] text-purple-400 hover:bg-[rgba(139,92,246,0.25)] border border-[rgba(139,92,246,0.3)]'
+                }`}
+              >
+                {contextLoading ? (
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin" />
+                    Analyse en cours...
+                  </span>
+                ) : aiContext ? 'Regénérer' : 'Générer le contexte'}
+              </button>
+            </div>
+
+            {contextError && (
+              <p className="text-xs text-red-400 mb-3">{contextError}</p>
+            )}
+
+            {!aiContext && !contextLoading && (
+              <p className="text-xs text-[rgba(255,255,255,0.35)] italic">
+                Cliquez sur &quot;Générer le contexte&quot; pour que l&apos;IA analyse le fond de cette affaire,
+                les enjeux, et évalue le bruit médiatique.
+              </p>
+            )}
+
+            {aiContext && (
+              <div className="space-y-4 animate-fade-in">
+                {/* Contexte principal */}
+                <div>
+                  <p className="text-xs text-[rgba(255,255,255,0.7)] leading-relaxed">
+                    {aiContext.contexte}
+                  </p>
+                </div>
+
+                {/* Métriques IA : Bruit + Sentiment */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="glass-card-static rounded-lg p-3 border border-[rgba(255,255,255,0.06)]">
+                    <p className="text-[10px] text-[rgba(255,255,255,0.3)] uppercase tracking-wider mb-1">Bruit médiatique IA</p>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 bg-[rgba(255,255,255,0.06)] rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full transition-all duration-500 ${
+                            aiContext.bruit_score >= 75 ? 'bg-red-500 shadow-lg shadow-red-500/30'
+                            : aiContext.bruit_score >= 50 ? 'bg-orange-500 shadow-lg shadow-orange-500/30'
+                            : aiContext.bruit_score >= 25 ? 'bg-amber-500 shadow-lg shadow-amber-500/30'
+                            : 'bg-emerald-500 shadow-lg shadow-emerald-500/30'
+                          }`}
+                          style={{ width: `${aiContext.bruit_score}%` }}
+                        />
+                      </div>
+                      <span className={`text-sm font-bold ${
+                        aiContext.bruit_score >= 75 ? 'text-red-400'
+                        : aiContext.bruit_score >= 50 ? 'text-orange-400'
+                        : 'text-emerald-400'
+                      }`}>{aiContext.bruit_score}</span>
+                    </div>
+                  </div>
+                  <div className="glass-card-static rounded-lg p-3 border border-[rgba(255,255,255,0.06)]">
+                    <p className="text-[10px] text-[rgba(255,255,255,0.3)] uppercase tracking-wider mb-1">Sentiment IA</p>
+                    <span className={`text-sm font-bold ${
+                      aiContext.sentiment_ia.includes('négatif') ? 'text-red-400'
+                      : aiContext.sentiment_ia.includes('positif') ? 'text-emerald-400'
+                      : aiContext.sentiment_ia === 'mitigé' ? 'text-amber-400'
+                      : 'text-[rgba(255,255,255,0.5)]'
+                    }`}>
+                      {aiContext.sentiment_ia.includes('très_négatif') ? '🔴 Très négatif'
+                       : aiContext.sentiment_ia.includes('négatif') ? '🟠 Négatif'
+                       : aiContext.sentiment_ia === 'mitigé' ? '🟡 Mitigé'
+                       : aiContext.sentiment_ia.includes('positif') ? '🟢 Positif'
+                       : '⚪ Neutre'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Enjeux */}
+                {aiContext.enjeux && aiContext.enjeux.length > 0 && (
+                  <div>
+                    <p className="text-[10px] text-[rgba(255,255,255,0.3)] uppercase tracking-wider mb-2">Enjeux clés</p>
+                    <div className="space-y-1.5">
+                      {aiContext.enjeux.map((enjeu, i) => (
+                        <div key={i} className="flex items-start gap-2">
+                          <span className="text-teal-400 text-xs mt-0.5">▸</span>
+                          <p className="text-xs text-[rgba(255,255,255,0.6)]">{enjeu}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Historique */}
+                {aiContext.historique && (
+                  <div>
+                    <p className="text-[10px] text-[rgba(255,255,255,0.3)] uppercase tracking-wider mb-1">Historique / Précédents</p>
+                    <p className="text-xs text-[rgba(255,255,255,0.5)] leading-relaxed">{aiContext.historique}</p>
+                  </div>
+                )}
+
+                {/* Impact potentiel */}
+                {aiContext.impact_potentiel && (
+                  <div>
+                    <p className="text-[10px] text-[rgba(255,255,255,0.3)] uppercase tracking-wider mb-1">Impact potentiel</p>
+                    <p className="text-xs text-[rgba(255,255,255,0.5)] leading-relaxed">{aiContext.impact_potentiel}</p>
+                  </div>
+                )}
+
+                {/* Mots-clés contextuels */}
+                {aiContext.mots_cles_contexte && aiContext.mots_cles_contexte.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-2 border-t border-[rgba(255,255,255,0.06)]">
+                    {aiContext.mots_cles_contexte.map((kw, i) => (
+                      <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-[rgba(139,92,246,0.1)] text-purple-300 border border-[rgba(139,92,246,0.2)]">
+                        {kw}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Timestamp */}
+                {aiContext.generated_at && (
+                  <p className="text-[9px] text-[rgba(255,255,255,0.2)] text-right">
+                    Généré le {formatDate(aiContext.generated_at)}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* ── Two column layout ─────────────── */}

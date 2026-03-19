@@ -2239,6 +2239,124 @@ class AffairLifecycleService:
         logger.info(f"🔗 Consolidation 24h: {consolidated}/{len(candidates)} articles rattachés")
         return consolidated
 
+    def generate_affair_context(self, affair_id: str) -> Dict:
+        """Génère un contexte IA pour une affaire et le sauvegarde.
+        Le contexte contribue au bruit_score et au sentiment global."""
+        from bson import ObjectId
+        try:
+            from backend.ai_groq_service import generate_affair_context as _gen_ctx
+        except ImportError:
+            try:
+                from ai_groq_service import generate_affair_context as _gen_ctx
+            except ImportError:
+                return {"error": "Service IA non disponible"}
+
+        affair = self.affairs.find_one({"_id": ObjectId(affair_id)})
+        if not affair:
+            return {"error": "Affaire introuvable"}
+
+        # Récupérer les titres d'articles liés
+        article_ids = affair.get("articles", [])
+        articles_titles = []
+        for art_ref in article_ids[:15]:
+            art = self.articles.find_one(
+                {"_id": ObjectId(art_ref) if isinstance(art_ref, str) else art_ref},
+                {"title": 1}
+            )
+            if art and art.get("title"):
+                articles_titles.append(art["title"])
+
+        # Récupérer les résumés radio
+        radio_ids = affair.get("radio_transcriptions", [])
+        radio_summaries = []
+        for r_ref in radio_ids[:10]:
+            radio = self.transcriptions.find_one(
+                {"_id": ObjectId(r_ref) if isinstance(r_ref, str) else r_ref},
+                {"summary": 1, "ai_topics": 1}
+            )
+            if radio:
+                if radio.get("ai_topics"):
+                    for topic in radio["ai_topics"][:2]:
+                        radio_summaries.append(topic.get("summary", topic.get("title", "")))
+                elif radio.get("summary"):
+                    radio_summaries.append(radio["summary"][:200])
+
+        # Générer le contexte via GPT
+        ctx = _gen_ctx(
+            title=affair.get("title", ""),
+            description=affair.get("description", ""),
+            elected=affair.get("elected", []),
+            institutions=affair.get("institutions", []),
+            theme=affair.get("theme", "general"),
+            articles_titles=articles_titles,
+            radio_summaries=radio_summaries,
+        )
+
+        if not ctx:
+            return {"error": "Génération du contexte échouée"}
+
+        # Sauvegarder le contexte dans l'affaire
+        ctx["generated_at"] = datetime.utcnow().isoformat()
+
+        update_fields = {"ai_context": ctx}
+
+        # Contribuer au sentiment global si le contexte fournit un sentiment IA
+        sentiment_ia = ctx.get("sentiment_ia", "")
+        if sentiment_ia:
+            # Mapper vers les sentiments du système
+            sentiment_map = {
+                "très_négatif": "très négatif",
+                "négatif": "négatif",
+                "mitigé": "mitigé",
+                "neutre": "neutre",
+                "positif": "positif",
+                "très_positif": "très positif",
+            }
+            mapped = sentiment_map.get(sentiment_ia, sentiment_ia)
+            update_fields["ai_context_sentiment"] = mapped
+
+            # Ajouter dans l'historique de sentiment pour influencer le dominant
+            self.affairs.update_one(
+                {"_id": affair["_id"]},
+                {"$push": {"sentiment_history": f"ctx:{mapped}"}}
+            )
+
+        # Contribuer au bruit : le bruit_score GPT ajuste la gravité
+        bruit_score = ctx.get("bruit_score", 50)
+        if bruit_score >= 75:
+            # Affaire à fort bruit — augmenter la gravité si elle est basse
+            current_gravity = affair.get("gravity_score", 0.5)
+            if current_gravity < 0.7:
+                boost = min(0.15, (bruit_score - 75) / 100)
+                update_fields["gravity_score"] = round(current_gravity + boost, 3)
+                logger.info(f"🧠 Boost gravité via contexte IA: {current_gravity:.2f} → {current_gravity + boost:.2f}")
+
+        self.affairs.update_one(
+            {"_id": affair["_id"]},
+            {"$set": update_fields}
+        )
+
+        # Ajouter un event timeline
+        self.timeline.insert_one({
+            "affair_id": affair_id,
+            "event": "context_generated",
+            "details": {
+                "bruit_score": bruit_score,
+                "sentiment_ia": sentiment_ia,
+                "enjeux_count": len(ctx.get("enjeux", [])),
+            },
+            "timestamp": datetime.utcnow(),
+        })
+
+        logger.info(f"🧠 Contexte IA sauvegardé pour affaire '{affair.get('title', '?')[:50]}'")
+
+        return {
+            "affair_id": affair_id,
+            "ai_context": ctx,
+            "sentiment_updated": bool(sentiment_ia),
+            "gravity_adjusted": "gravity_score" in update_fields,
+        }
+
     def cleanup_affair(self, affair_id: str) -> Dict:
         """Nettoie une affaire en retirant les articles sans lien réel.
 
