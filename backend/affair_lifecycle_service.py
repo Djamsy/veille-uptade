@@ -74,7 +74,11 @@ logger = logging.getLogger("affair_lifecycle")
 CLUSTER_WINDOW_HOURS = 72              # Fenêtre de clustering (3 jours)
 MIN_CLUSTER_ITEMS = 2                  # Minimum d'items pour former un cluster
 CLUSTER_SIMILARITY_THRESHOLD = 0.30    # Seuil de similarité contextuelle
+CLUSTER_SIMILARITY_BROAD_THEME = 0.45  # Seuil rehaussé pour thèmes larges (securite_justice, sante_social)
 CLUSTER_MERGE_THRESHOLD = 0.50         # Seuil pour fusionner deux clusters
+
+# Thèmes trop larges qui regroupent des événements sans lien
+BROAD_THEMES = {"securite_justice", "sante_social", "general"}
 
 # --- Promotion en affaire ---
 PROMOTION_MIN_SOURCES = 1              # Au moins 1 source (assoupli, était 2)
@@ -496,11 +500,20 @@ class AffairLifecycleService:
         best_score = 0
 
         for cluster in clusters:
+            cl_theme = cluster.get("dominant_theme", "")
+            cl_entities = set(cluster.get("all_entities", []))
+
+            # Protection thèmes larges : exiger entité commune
+            is_broad = cand_theme in BROAD_THEMES or cl_theme in BROAD_THEMES
+            if is_broad and not (cand_entities & cl_entities):
+                continue
+
             score = self._candidate_cluster_similarity(
                 cand_tokens, cand_theme, cand_entities, cluster,
                 cand_date=cand_date,
             )
-            if score > best_score and score >= CLUSTER_SIMILARITY_THRESHOLD:
+            threshold = CLUSTER_SIMILARITY_BROAD_THEME if is_broad else CLUSTER_SIMILARITY_THRESHOLD
+            if score > best_score and score >= threshold:
                 best_score = score
                 best_cluster = cluster
 
@@ -573,7 +586,18 @@ class AffairLifecycleService:
                     b_tokens, b_theme, b_entities,
                     date_a=date_a, date_b=date_b,
                 )
-                if sim >= CLUSTER_SIMILARITY_THRESHOLD:
+
+                # Seuil adaptatif : plus strict pour les thèmes larges
+                is_broad = group_theme in BROAD_THEMES or b_theme in BROAD_THEMES
+                threshold = CLUSTER_SIMILARITY_BROAD_THEME if is_broad else CLUSTER_SIMILARITY_THRESHOLD
+
+                # Pour les thèmes larges, exiger au moins 1 entité commune
+                # sinon un incendie se retrouve avec un procès politique
+                has_entity_overlap = bool(group_entities & b_entities)
+                if is_broad and not has_entity_overlap:
+                    continue  # Pas d'entité commune + thème large → pas de regroupement
+
+                if sim >= threshold:
                     group.append(cand_b)
                     group_tokens.update(b_tokens)
                     group_entities.update(b_entities)
@@ -2215,6 +2239,104 @@ class AffairLifecycleService:
         logger.info(f"🔗 Consolidation 24h: {consolidated}/{len(candidates)} articles rattachés")
         return consolidated
 
+    def cleanup_affair(self, affair_id: str) -> Dict:
+        """Nettoie une affaire en retirant les articles sans lien réel.
+
+        Compare chaque article de l'affaire à son titre/entités de référence.
+        Les articles qui ne matchent pas (score < seuil) sont dissociés.
+        """
+        from bson import ObjectId
+        affair = self.affairs.find_one({"_id": ObjectId(affair_id)})
+        if not affair:
+            return {"error": "Affaire introuvable"}
+
+        aff_elected = set(
+            e.lower().strip() for e in (affair.get("elected", []) or []) if e and len(e) > 3
+        )
+        aff_title = affair.get("title", "")
+        aff_theme = affair.get("theme", "general")
+
+        article_ids = affair.get("articles", [])
+        kept = []
+        removed = []
+
+        for art_ref in article_ids:
+            art = self.articles.find_one({"_id": ObjectId(art_ref) if isinstance(art_ref, str) else art_ref})
+            if not art:
+                continue
+
+            # Extraire les entités de l'article
+            art_elected = set(
+                e.lower().strip() for e in (art.get("elected", []) or []) if e and len(e) > 3
+            )
+            art_institutions = set(
+                e.lower().strip() for e in (art.get("institutions", []) or []) if e and len(e) > 3
+            )
+            art_entities = art_elected | art_institutions
+            art_title_words = set(
+                w.lower() for w in (art.get("title", "").split()) if len(w) > 4
+            )
+
+            # Calculer le score de matching
+            score = self._match_score(
+                art_elected, art_institutions, art_entities,
+                art.get("theme", "general"), art_title_words, affair,
+            )
+
+            if score >= 4:  # Seuil assoupli par rapport au seuil de fusion (6)
+                kept.append(art_ref)
+            else:
+                removed.append({
+                    "id": str(art_ref),
+                    "title": art.get("title", "?")[:80],
+                    "score": score,
+                })
+                # Libérer l'article pour qu'il puisse être réassigné
+                self.articles.update_one(
+                    {"_id": art["_id"]},
+                    {"$unset": {"_affair_id": "", "_affair_processed": ""},
+                     "$set": {"_affair_ignored": False}}
+                )
+
+        if removed:
+            self.affairs.update_one(
+                {"_id": affair["_id"]},
+                {
+                    "$set": {
+                        "articles": kept,
+                        "item_count": len(kept),
+                        "last_activity": datetime.utcnow(),
+                    }
+                }
+            )
+
+        logger.info(f"🧹 Cleanup affaire '{aff_title[:50]}': "
+                     f"gardé {len(kept)}, retiré {len(removed)}")
+
+        return {
+            "affair_id": affair_id,
+            "title": aff_title,
+            "kept": len(kept),
+            "removed": len(removed),
+            "removed_articles": removed,
+        }
+
+    def cleanup_all_affairs(self) -> Dict:
+        """Nettoie TOUTES les affaires actives en retirant les articles mal groupés."""
+        active = list(self.affairs.find({"status": "active"}))
+        total_removed = 0
+        results = []
+        for affair in active:
+            r = self.cleanup_affair(str(affair["_id"]))
+            if r.get("removed", 0) > 0:
+                results.append(r)
+                total_removed += r["removed"]
+        return {
+            "affairs_cleaned": len(results),
+            "total_articles_removed": total_removed,
+            "details": results,
+        }
+
     def _enrich_radio_transcriptions(self) -> int:
         """Enrichit les transcriptions radio récentes avec l'IA (split_radio_transcription).
         Extrait les sujets, entités, thèmes et gravité de chaque transcription."""
@@ -3577,7 +3699,8 @@ class AffairLifecycleService:
                 return 0.0
             min_size = min(len(tokens_a), len(tokens_b))
             token_score = len(common_tokens) / max(min_size, 1)
-            theme_bonus = 0.2 if (theme_a and theme_a == theme_b and theme_a != "general") else 0.0
+            # Pas de bonus pour les thèmes larges qui regroupent des événements sans lien
+            theme_bonus = 0.2 if (theme_a and theme_a == theme_b and theme_a not in BROAD_THEMES) else 0.0
             semantic_score = min(1.0, token_score + theme_bonus)
 
         # ── 2. Entités communes (25%) ──

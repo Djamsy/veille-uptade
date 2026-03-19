@@ -250,6 +250,24 @@ async def get_affair_detail(affair_id: str):
     }
 
 
+@router.post("/cleanup/{affair_id}")
+async def cleanup_affair(affair_id: str):
+    """Nettoie une affaire en retirant les articles sans lien réel.
+    Compare chaque article au titre/entités de référence et retire ceux qui ne matchent pas."""
+    svc = _svc()
+    result = svc.cleanup_affair(affair_id)
+    if "error" in result:
+        raise HTTPException(404, result["error"])
+    return result
+
+
+@router.post("/cleanup-all")
+async def cleanup_all_affairs():
+    """Nettoie TOUTES les affaires actives en retirant les articles mal groupés."""
+    svc = _svc()
+    return svc.cleanup_all_affairs()
+
+
 @router.post("/recalculate-bmg/{affair_id}")
 async def recalculate_affair_bmg(affair_id: str):
     """Recalcule le BMG d'une affaire spécifique."""
