@@ -750,7 +750,11 @@ Règles :
 - Un sujet = un événement/fait concret
 - Un décès, accident grave, grève = gravity >= 0.7
 - Météo banale, résultats sportifs mineurs = gravity < 0.3
-- Minimum 1 sujet, pas de limite haute"""
+- Minimum 1 sujet, pas de limite haute
+- IMPORTANT: Corrige les noms propres mal transcrits (speech-to-text) :
+  "Arichalus" → "Ary Chalus", "Bémao" → "Baie-Mahault",
+  "Harry Chalus" → "Ary Chalus", etc.
+  Utilise toujours la forme officielle des noms de personnes, communes et institutions"""
 
 
 def _segment_transcription(text: str, segment_seconds: int = 45, words_per_second: float = 2.5) -> List[str]:
@@ -792,6 +796,18 @@ def split_radio_transcription(
     if not transcription_text or len(transcription_text.strip()) < 50:
         return None
 
+    # Pré-correction STT : corriger les noms/lieux déformés AVANT envoi à GPT
+    try:
+        from backend.entity_aliases import correct_text_stt
+    except ImportError:
+        try:
+            from entity_aliases import correct_text_stt
+        except ImportError:
+            correct_text_stt = None
+
+    if correct_text_stt:
+        transcription_text = correct_text_stt(transcription_text)
+
     # Segmenter en blocs pour aider l'IA
     segments = _segment_transcription(transcription_text)
 
@@ -822,28 +838,47 @@ def split_radio_transcription(
         if not topics:
             return None
 
-        # Résolution d'alias pour radio
+        # Résolution d'alias + correction STT pour radio
         try:
-            from backend.entity_aliases import resolve_entities
+            from backend.entity_aliases import resolve_entities, correct_entities_list, correct_text_stt as _correct_stt
         except ImportError:
             try:
-                from entity_aliases import resolve_entities
+                from entity_aliases import resolve_entities, correct_entities_list, correct_text_stt as _correct_stt
             except ImportError:
                 resolve_entities = None
+                correct_entities_list = None
+                _correct_stt = None
 
         # Valider chaque topic
         valid_topics = []
         for t in topics:
             if t.get("title") and t.get("summary"):
                 t["gravity"] = float(t.get("gravity", 0.3))
+
+                # Post-correction STT sur titre, résumé et location
+                if _correct_stt:
+                    t["title"] = _correct_stt(t["title"])
+                    t["summary"] = _correct_stt(t["summary"])
+                    if t.get("text_excerpt"):
+                        t["text_excerpt"] = _correct_stt(t["text_excerpt"])
+
+                # Correction + résolution des entités
                 entities = t.get("entities", [])
-                if resolve_entities:
+                if correct_entities_list:
+                    entities = correct_entities_list(entities)
+                elif resolve_entities:
                     entities = resolve_entities(entities)
                 t["entities"] = entities
+
                 t["theme"] = t.get("theme", "general")
                 # Événement structuré
                 event_raw = t.get("event", {})
                 if event_raw:
+                    # Corriger STT dans les champs événement aussi
+                    if _correct_stt:
+                        for field in ("subject", "action", "object", "location"):
+                            if event_raw.get(field):
+                                event_raw[field] = _correct_stt(event_raw[field])
                     t["event_structured"] = {
                         "subject": event_raw.get("subject", ""),
                         "action": event_raw.get("action", ""),
@@ -1382,6 +1417,25 @@ def generate_affair_context(
     }
     """
     try:
+        # Pré-correction STT sur les inputs
+        try:
+            from backend.entity_aliases import correct_text_stt as _fix, correct_entities_list as _fix_ents
+        except ImportError:
+            try:
+                from entity_aliases import correct_text_stt as _fix, correct_entities_list as _fix_ents
+            except ImportError:
+                _fix = None
+                _fix_ents = None
+
+        if _fix:
+            title = _fix(title)
+            description = _fix(description)
+            articles_titles = [_fix(t) for t in articles_titles]
+            radio_summaries = [_fix(s) for s in radio_summaries]
+        if _fix_ents:
+            elected = _fix_ents(elected)
+            institutions = _fix_ents(institutions)
+
         elected_str = ", ".join(elected[:5]) if elected else "aucun élu identifié"
         instit_str = ", ".join(institutions[:5]) if institutions else "aucune institution"
         articles_str = "\n".join(f"- {t}" for t in articles_titles[:10]) if articles_titles else "aucun article"
@@ -1399,6 +1453,12 @@ Tu connais bien:
 - Les institutions locales (Région, Département, EPCI, préfecture)
 - L'histoire récente (mouvements sociaux, scandales politiques, catastrophes naturelles)
 
+IMPORTANT: Si tu détectes des noms mal orthographiés (erreurs de transcription radio/speech-to-text),
+utilise la forme correcte dans ta réponse. Exemples courants:
+- "Arichalus" → Ary Chalus (président du conseil régional)
+- "Bémao" → Baie-Mahault (commune)
+- "Harry Chalus" → Ary Chalus
+
 Réponds UNIQUEMENT en JSON valide avec ces clés:
 - contexte: paragraphe de fond (3-5 phrases) expliquant le contexte de l'affaire
 - enjeux: liste de 2-4 enjeux clés
@@ -1406,7 +1466,8 @@ Réponds UNIQUEMENT en JSON valide avec ces clés:
 - impact_potentiel: impact potentiel sur la population/territoire (2-3 phrases)
 - bruit_score: estimation du bruit médiatique potentiel de 0 à 100 (100 = très fort écho médiatique)
 - sentiment_ia: sentiment dominant parmi "très_négatif", "négatif", "mitigé", "neutre", "positif", "très_positif"
-- mots_cles_contexte: liste de 5-10 mots-clés contextuels qui aident à mieux comprendre l'affaire"""
+- mots_cles_contexte: liste de 5-10 mots-clés contextuels qui aident à mieux comprendre l'affaire
+- corrections_noms: dictionnaire des noms corrigés {"forme_erronée": "forme_correcte"} (si des corrections ont été nécessaires)"""
             },
             {
                 "role": "user",
