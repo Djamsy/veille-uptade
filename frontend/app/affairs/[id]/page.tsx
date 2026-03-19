@@ -159,7 +159,7 @@ export default function AffairDetailPage() {
     return (
       <div className="flex">
         <Sidebar />
-        <main className="lg:ml-60 flex-1 p-8 min-h-screen">
+        <main className="lg:ml-60 flex-1 p-4 lg:p-8 pb-24 lg:pb-8 min-h-screen">
           <div className="max-w-5xl mx-auto">
             <div className="skeleton h-6 w-40 mb-6" />
             <div className="skeleton h-48 w-full mb-6 rounded-xl" />
@@ -177,7 +177,7 @@ export default function AffairDetailPage() {
     return (
       <div className="flex">
         <Sidebar />
-        <main className="lg:ml-60 flex-1 p-8 min-h-screen bg-gradient-to-b from-[#06060a] to-[#0f0f14]">
+        <main className="lg:ml-60 flex-1 p-4 lg:p-8 pb-24 lg:pb-8 min-h-screen bg-gradient-to-b from-[#06060a] to-[#0f0f14]">
           <div className="max-w-5xl mx-auto text-center py-20">
             <p className="text-red-400 mb-4">{error || 'Affaire introuvable'}</p>
             <button onClick={() => router.push('/affairs')} className="text-teal-400 hover:text-teal-300 text-sm transition-colors">
@@ -195,7 +195,7 @@ export default function AffairDetailPage() {
   return (
     <div className="flex">
       <Sidebar />
-      <main className="lg:ml-60 flex-1 p-8 min-h-screen bg-gradient-to-b from-[#06060a] to-[#0f0f14]">
+      <main className="lg:ml-60 flex-1 p-4 lg:p-8 pb-24 lg:pb-8 min-h-screen bg-gradient-to-b from-[#06060a] to-[#0f0f14]">
         <div className="max-w-5xl mx-auto animate-fade-in">
 
           {/* ── Breadcrumb ────────────────────── */}
@@ -207,7 +207,7 @@ export default function AffairDetailPage() {
 
           {/* ── Header Card ───────────────────── */}
           <div className="glass-card border border-[rgba(255,255,255,0.08)] p-6 mb-6">
-            <div className="flex items-start justify-between gap-6">
+            <div className="flex flex-col lg:flex-row items-start justify-between gap-6">
               <div className="flex-1">
                 <h1 className="text-xl font-bold text-white mb-2">
                   {affair.title || affair.primary_entity || 'Affaire'}

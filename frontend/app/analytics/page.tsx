@@ -101,7 +101,7 @@ export default function AnalyticsPage() {
     return (
       <div className="flex">
         <Sidebar />
-        <main className="lg:ml-60 flex-1 p-8 min-h-screen">
+        <main className="lg:ml-60 flex-1 p-4 lg:p-8 pb-24 lg:pb-8 min-h-screen">
           <div className="max-w-[1400px] mx-auto">
             <div className="skeleton h-8 w-40 mb-8" />
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
@@ -128,13 +128,13 @@ export default function AnalyticsPage() {
   return (
     <div className="flex">
       <Sidebar />
-      <main className="lg:ml-60 flex-1 p-8 min-h-screen">
+      <main className="lg:ml-60 flex-1 p-4 lg:p-8 pb-24 lg:pb-8 min-h-screen">
         <div className="max-w-[1400px] mx-auto animate-fade-in">
 
           {/* Header */}
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
             <div>
-              <h1 className="text-2xl font-bold text-white tracking-tight">Analytics</h1>
+              <h1 className="text-xl lg:text-2xl font-bold text-white tracking-tight">Analytics</h1>
               <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
                 Performance du pipeline, qualité des données et métriques système
               </p>

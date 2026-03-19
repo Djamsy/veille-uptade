@@ -459,7 +459,7 @@ export default function RadioPage() {
   return (
     <>
       <Sidebar />
-      <main className="lg:ml-60 flex-1 p-8 min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      <main className="lg:ml-60 flex-1 p-4 lg:p-8 pb-24 lg:pb-8 min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
       <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">

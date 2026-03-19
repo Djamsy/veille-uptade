@@ -854,3 +854,58 @@ html { scroll-behavior: smooth; }
 .safe-bottom {
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
+
+/* ── Reduced motion for accessibility & performance ──── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .ambient-bg::before,
+  .ambient-bg::after,
+  .ambient-orb-3 {
+    animation: none !important;
+    opacity: 0.4;
+  }
+
+  .glass-card,
+  .glass-card-static {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* ── Mobile: disable heavy effects ─────────────────── */
+@media (max-width: 1023px) and (prefers-reduced-motion: no-preference) {
+  .ambient-bg::before,
+  .ambient-bg::after,
+  .ambient-orb-3 {
+    will-change: transform;
+  }
+}
+
+/* ── Mobile table scroll ──────────────────────────────── */
+.table-scroll-mobile {
+  -webkit-overflow-scrolling: touch;
+  overflow-x: auto;
+}
+
+@media (max-width: 1023px) {
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ── Bottom nav spacer ────────────────────────────────── */
+@media (max-width: 1023px) {
+  .main-content {
+    padding-bottom: 5rem;
+  }
+}

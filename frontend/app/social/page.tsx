@@ -15,7 +15,6 @@ import {
   SocialSentiment,
 } from '../../lib/api'
 
-/* ── Platform configs ───────────────────────────── */
 const PLAT: Record<string, { icon: string; label: string; color: string; bg: string; glow: string }> = {
   facebook: { icon: '📘', label: 'Facebook', color: '#1877f2', bg: 'rgba(24,119,242,0.1)', glow: 'rgba(24,119,242,0.15)' },
   instagram: { icon: '📸', label: 'Instagram', color: '#e4405f', bg: 'rgba(228,64,95,0.1)', glow: 'rgba(228,64,95,0.15)' },
@@ -43,9 +42,9 @@ function gravityLabel(g: number): string {
   return 'Faible'
 }
 
-/* ══════════════════════════════════════════════════
-   POST DETAIL MODAL
-   ══════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════
+   POST DETAIL MODAL (popup au clic)
+   ══════════════════════════════════════════════════════ */
 function PostModal({ post, onClose }: { post: SocialPost; onClose: () => void }) {
   const [detail, setDetail] = useState<(SocialPost & { raw?: Record<string, unknown> }) | null>(null)
   const [loading, setLoading] = useState(true)
@@ -59,21 +58,25 @@ function PostModal({ post, onClose }: { post: SocialPost; onClose: () => void })
       .finally(() => setLoading(false))
   }, [post._id])
 
+  // Fermer avec Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   const d = detail || post
   const gravity = d.gravity_score || 0
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-fade-in" />
-
-      {/* Modal */}
       <div
         className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl animate-pop"
         style={{ background: 'rgba(10,16,30,0.97)', border: '1px solid rgba(255,255,255,0.08)' }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Top accent stripe */}
+        {/* Top accent */}
         <div className="h-1 rounded-t-2xl" style={{ background: `linear-gradient(90deg, ${cfg.color}, ${cfg.color}80, transparent)` }} />
 
         {/* Header */}
@@ -88,16 +91,12 @@ function PostModal({ post, onClose }: { post: SocialPost; onClose: () => void })
           <button onClick={onClose} className="text-white/30 hover:text-white/70 transition-colors text-xl leading-none p-1">✕</button>
         </div>
 
-        {/* Image preview */}
+        {/* Image */}
         {d.image_url && (
           <div className="px-5 mb-3">
-            <img
-              src={d.image_url}
-              alt="Publication"
-              className="w-full max-h-80 object-cover rounded-xl"
+            <img src={d.image_url} alt="Publication" className="w-full max-h-96 object-cover rounded-xl"
               style={{ border: '1px solid rgba(255,255,255,0.06)' }}
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-            />
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
           </div>
         )}
 
@@ -108,13 +107,13 @@ function PostModal({ post, onClose }: { post: SocialPost; onClose: () => void })
           </p>
         </div>
 
-        {/* Engagement stats */}
+        {/* Engagement */}
         <div className="mx-5 mb-4 grid grid-cols-4 gap-2">
           {[
             { label: 'Likes', value: d.likes || 0, icon: '❤️', color: '#ef4444' },
             { label: 'Commentaires', value: d.comments || 0, icon: '💬', color: '#3b82f6' },
-            { label: d.platform === 'twitter' ? 'Retweets' : 'Partages', value: (d.retweets || d.shares || 0), icon: d.platform === 'twitter' ? '🔁' : '🔄', color: '#22c55e' },
-            { label: 'Engagement total', value: (d.likes || 0) + (d.comments || 0) + (d.shares || 0) + (d.retweets || 0), icon: '📊', color: '#eab308' },
+            { label: d.platform === 'twitter' ? 'Retweets' : 'Partages', value: d.retweets || d.shares || 0, icon: d.platform === 'twitter' ? '🔁' : '🔄', color: '#22c55e' },
+            { label: 'Total', value: (d.likes || 0) + (d.comments || 0) + (d.shares || 0) + (d.retweets || 0), icon: '📊', color: '#eab308' },
           ].map((s, i) => (
             <div key={i} className="text-center p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
               <div className="text-lg mb-1">{s.icon}</div>
@@ -124,78 +123,56 @@ function PostModal({ post, onClose }: { post: SocialPost; onClose: () => void })
           ))}
         </div>
 
-        {/* AI Analysis section */}
+        {/* AI Analysis */}
         {(d.ai_enriched || d.ai_summary || d.theme) && (
           <div className="mx-5 mb-4 p-4 rounded-xl" style={{ background: 'rgba(37,99,235,0.05)', border: '1px solid rgba(37,99,235,0.1)' }}>
-            <h4 className="text-xs font-semibold text-blue-400 mb-3 flex items-center gap-2">
-              🧠 Analyse IA
-            </h4>
-
-            {/* Gravity gauge */}
+            <h4 className="text-xs font-semibold text-blue-400 mb-3">🧠 Analyse IA</h4>
             {gravity > 0 && (
               <div className="flex items-center gap-3 mb-3">
                 <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.4)' }}>Gravité</span>
                 <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
-                  <div
-                    className="h-full rounded-full transition-all duration-700"
-                    style={{ width: `${gravity * 100}%`, background: gravityColor(gravity) }}
-                  />
+                  <div className="h-full rounded-full transition-all duration-700"
+                    style={{ width: `${gravity * 100}%`, background: gravityColor(gravity) }} />
                 </div>
                 <span className="text-xs font-bold" style={{ color: gravityColor(gravity) }}>
                   {(gravity * 10).toFixed(1)}/10 — {gravityLabel(gravity)}
                 </span>
               </div>
             )}
-
-            {/* AI Summary */}
             {d.ai_summary && (
-              <p className="text-[12px] leading-relaxed mb-3" style={{ color: 'rgba(255,255,255,0.55)' }}>
-                {d.ai_summary}
-              </p>
+              <p className="text-[12px] leading-relaxed mb-3" style={{ color: 'rgba(255,255,255,0.55)' }}>{d.ai_summary}</p>
             )}
-
-            {/* Tags */}
             <div className="flex flex-wrap gap-1.5">
               {d.theme && d.theme !== 'general' && (
                 <span className="text-[9px] px-2 py-0.5 rounded-full"
-                  style={{ background: 'rgba(234,179,8,0.1)', color: '#facc15', border: '1px solid rgba(234,179,8,0.2)' }}>
-                  🏷️ {d.theme}
-                </span>
+                  style={{ background: 'rgba(234,179,8,0.1)', color: '#facc15', border: '1px solid rgba(234,179,8,0.2)' }}>🏷️ {d.theme}</span>
               )}
               {d.elected?.map((el, i) => (
                 <span key={i} className="text-[9px] px-2 py-0.5 rounded-full"
-                  style={{ background: 'rgba(22,163,74,0.1)', color: '#4ade80', border: '1px solid rgba(22,163,74,0.2)' }}>
-                  👤 {el}
-                </span>
+                  style={{ background: 'rgba(22,163,74,0.1)', color: '#4ade80', border: '1px solid rgba(22,163,74,0.2)' }}>👤 {el}</span>
               ))}
               {d.institutions?.map((inst, i) => (
                 <span key={i} className="text-[9px] px-2 py-0.5 rounded-full"
-                  style={{ background: 'rgba(37,99,235,0.1)', color: '#60a5fa', border: '1px solid rgba(37,99,235,0.2)' }}>
-                  🏛️ {inst}
-                </span>
+                  style={{ background: 'rgba(37,99,235,0.1)', color: '#60a5fa', border: '1px solid rgba(37,99,235,0.2)' }}>🏛️ {inst}</span>
               ))}
               {d.keywords_found?.slice(0, 5).map((kw, i) => (
                 <span key={i} className="text-[9px] px-2 py-0.5 rounded-full"
-                  style={{ background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.35)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                  {kw}
-                </span>
+                  style={{ background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.35)', border: '1px solid rgba(255,255,255,0.06)' }}>{kw}</span>
               ))}
             </div>
           </div>
         )}
 
-        {/* Meta */}
+        {/* Meta footer */}
         <div className="px-5 pb-5 flex items-center justify-between text-[10px]" style={{ color: 'rgba(255,255,255,0.2)' }}>
           <div className="flex items-center gap-3">
-            <span>Scrapé : {d.scraped_at ? timeAgo(d.scraped_at) : '?'}</span>
-            {d.posted_at && <span>Publié : {new Date(d.posted_at).toLocaleDateString('fr-FR')}</span>}
+            <span>Scrapé: {d.scraped_at ? timeAgo(d.scraped_at) : '?'}</span>
+            {d.posted_at && <span>Publié: {new Date(d.posted_at).toLocaleDateString('fr-FR')}</span>}
             {d.ai_enriched && <span className="text-blue-400">✓ Enrichi IA</span>}
           </div>
           {d.url && (
             <a href={d.url} target="_blank" rel="noopener noreferrer"
-              className="text-blue-400 hover:text-blue-300 font-medium transition-colors">
-              Voir l&apos;original ↗
-            </a>
+              className="text-blue-400 hover:text-blue-300 font-medium">Voir l&apos;original ↗</a>
           )}
         </div>
 
@@ -209,15 +186,132 @@ function PostModal({ post, onClose }: { post: SocialPost; onClose: () => void })
   )
 }
 
-/* ══════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════
+   MINI CARD (grille)
+   ══════════════════════════════════════════════════════ */
+function MiniCard({ post, onClick }: { post: SocialPost; onClick: () => void }) {
+  const cfg = PLAT[post.platform] || PLAT.twitter
+  const gravity = post.gravity_score || 0
+  const hasImage = !!post.image_url
+  const engagement = (post.likes || 0) + (post.comments || 0) + (post.shares || 0) + (post.retweets || 0)
+
+  return (
+    <div
+      className="relative aspect-square rounded-xl overflow-hidden cursor-pointer group transition-all duration-300 hover:scale-[1.03] hover:z-10"
+      style={{
+        background: hasImage ? 'transparent' : 'rgba(12,18,32,0.8)',
+        border: '1px solid rgba(255,255,255,0.06)',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+      }}
+      onClick={onClick}
+    >
+      {/* Background image ou fallback */}
+      {hasImage ? (
+        <img
+          src={post.image_url}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+        />
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center p-3">
+          <p className="text-[10px] leading-snug text-center line-clamp-5"
+            style={{ color: 'rgba(255,255,255,0.45)' }}>
+            {post.text?.slice(0, 120) || 'Aucun texte'}
+          </p>
+        </div>
+      )}
+
+      {/* Overlay gradient (toujours) */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-80 group-hover:opacity-90 transition-opacity" />
+
+      {/* Platform badge — top left */}
+      <div className="absolute top-2 left-2">
+        <span className="text-[9px] px-1.5 py-0.5 rounded-md font-bold backdrop-blur-sm"
+          style={{ background: `${cfg.color}cc`, color: '#fff' }}>
+          {cfg.icon}
+        </span>
+      </div>
+
+      {/* Gravity indicator — top right */}
+      {gravity > 0.3 && (
+        <div className="absolute top-2 right-2">
+          <span className="text-[8px] px-1.5 py-0.5 rounded-md font-bold backdrop-blur-sm"
+            style={{ background: `${gravityColor(gravity)}cc`, color: '#fff' }}>
+            ⚡{(gravity * 10).toFixed(0)}
+          </span>
+        </div>
+      )}
+
+      {/* AI badge */}
+      {post.ai_enriched && (
+        <div className="absolute top-2 right-2" style={{ right: gravity > 0.3 ? '2.5rem' : '0.5rem' }}>
+          <span className="text-[8px] px-1 py-0.5 rounded-md font-bold backdrop-blur-sm"
+            style={{ background: 'rgba(37,99,235,0.8)', color: '#fff' }}>🧠</span>
+        </div>
+      )}
+
+      {/* Video icon */}
+      {post.media_type === 'video' && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <span className="text-3xl opacity-70 group-hover:opacity-100 transition-opacity">▶️</span>
+        </div>
+      )}
+
+      {/* Bottom info */}
+      <div className="absolute bottom-0 inset-x-0 p-2.5">
+        <div className="text-[10px] font-semibold text-white truncate mb-0.5">
+          @{post.author}
+        </div>
+        {post.text && (
+          <p className="text-[9px] leading-tight text-white/50 line-clamp-2 mb-1.5">
+            {post.text.slice(0, 80)}
+          </p>
+        )}
+        <div className="flex items-center gap-2 text-[9px] text-white/40">
+          {engagement > 0 && (
+            <span className="flex items-center gap-0.5">
+              🔥 {engagement.toLocaleString()}
+            </span>
+          )}
+          {(post.comments || 0) > 0 && (
+            <span className="flex items-center gap-0.5">💬 {post.comments}</span>
+          )}
+          <span className="ml-auto">{post.scraped_at ? timeAgo(post.scraped_at) : ''}</span>
+        </div>
+
+        {/* Theme tag */}
+        {post.theme && post.theme !== 'general' && (
+          <div className="mt-1">
+            <span className="text-[8px] px-1.5 py-0.5 rounded-full backdrop-blur-sm"
+              style={{ background: 'rgba(234,179,8,0.3)', color: '#facc15' }}>
+              {post.theme}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Hover overlay */}
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center"
+        style={{ background: `${cfg.color}15` }}>
+        <span className="text-xs font-semibold text-white bg-black/40 px-3 py-1.5 rounded-lg backdrop-blur-sm">
+          Voir détail
+        </span>
+      </div>
+    </div>
+  )
+}
+
+/* ══════════════════════════════════════════════════════
    MAIN PAGE
-   ══════════════════════════════════════════════════ */
+   ══════════════════════════════════════════════════════ */
 export default function SocialPage() {
   const [stats, setStats] = useState<SocialStats | null>(null)
   const [posts, setPosts] = useState<SocialPost[]>([])
   const [config, setConfig] = useState<Record<string, unknown> | null>(null)
   const [sentiment, setSentiment] = useState<SocialSentiment | null>(null)
   const [activePlatform, setActivePlatform] = useState<string | undefined>(undefined)
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [loading, setLoading] = useState(true)
   const [scraping, setScraping] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -228,22 +322,17 @@ export default function SocialPage() {
     try {
       setLoading(true)
       setError(null)
-
       const results = await Promise.allSettled([
         fetchSocialStats(),
-        fetchSocialPosts(activePlatform, 50),
+        fetchSocialPosts(activePlatform, 80),
         fetchSocialConfig(),
         fetchSocialSentiment(),
       ])
-
       if (results[0].status === 'fulfilled') setStats(results[0].value)
       if (results[1].status === 'fulfilled') setPosts(results[1].value?.posts || [])
       if (results[2].status === 'fulfilled') setConfig(results[2].value)
       if (results[3].status === 'fulfilled') setSentiment(results[3].value)
-
-      if (results.every(r => r.status === 'rejected')) {
-        setError('Impossible de contacter le backend')
-      }
+      if (results.every(r => r.status === 'rejected')) setError('Impossible de contacter le backend')
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Erreur de chargement')
     } finally {
@@ -254,35 +343,23 @@ export default function SocialPage() {
   useEffect(() => { loadData() }, [loadData])
 
   const handleScrape = async (platform?: string) => {
-    setScraping(true)
-    setError(null)
-    setScrapeResult(null)
+    setScraping(true); setError(null); setScrapeResult(null)
     try {
-      const result = platform
-        ? await fetchSocialScrapeSingle(platform)
-        : await fetchSocialScrapeAll()
+      const result = platform ? await fetchSocialScrapeSingle(platform) : await fetchSocialScrapeAll()
       const r = result as Record<string, unknown>
       const total = (r?.total_saved as number) || (r?.saved as number) || 0
       const fetched = (r?.fetched as number) || (r?.total_saved as number) || 0
       const enriched = (r?.enriched as number) || 0
-
-      if (total > 0) {
-        setScrapeResult({ msg: `${total} posts sauvegardés, ${enriched} enrichis IA`, type: 'success' })
-      } else if (fetched > 0) {
-        setScrapeResult({ msg: `${fetched} posts récupérés — tous déjà en base`, type: 'warning' })
-      } else {
-        setScrapeResult({ msg: '0 posts — vérifiez plan Apify (proxy résidentiel requis)', type: 'warning' })
-      }
+      if (total > 0) setScrapeResult({ msg: `${total} posts sauvegardés, ${enriched} enrichis IA`, type: 'success' })
+      else if (fetched > 0) setScrapeResult({ msg: `${fetched} posts récupérés — tous déjà en base`, type: 'warning' })
+      else setScrapeResult({ msg: '0 posts — vérifiez plan Apify (proxy résidentiel requis)', type: 'warning' })
       await loadData()
     } catch (e: unknown) {
       setScrapeResult({ msg: e instanceof Error ? e.message : 'Erreur scraping', type: 'error' })
-    } finally {
-      setScraping(false)
-    }
+    } finally { setScraping(false) }
   }
 
   const apifyConfigured = config ? !!(config as Record<string, unknown>).apify_configured : null
-
   const totalPosts = stats ? Object.values(stats.stats || {}).reduce((sum, p) => sum + (p?.total || 0), 0) : 0
   const total24h = stats ? Object.values(stats.stats || {}).reduce((sum, p) => sum + (p?.last_24h || 0), 0) : 0
 
@@ -292,7 +369,7 @@ export default function SocialPage() {
       <main className="lg:ml-60 flex-1 p-5 lg:p-6 min-h-screen">
         <div className="max-w-[1400px] mx-auto animate-slide-up">
 
-          {/* ── Header ─────────────────────────────── */}
+          {/* ── Header ──────────────────────────────── */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
             <div className="animate-slide-left">
               <h1 className="text-xl lg:text-2xl font-bold text-white tracking-tight flex items-center gap-3">
@@ -310,6 +387,19 @@ export default function SocialPage() {
               </p>
             </div>
             <div className="flex items-center gap-2 animate-slide-right">
+              {/* View toggle */}
+              <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+                <button onClick={() => setViewMode('grid')}
+                  className="px-2.5 py-1.5 text-xs transition-all"
+                  style={{ background: viewMode === 'grid' ? 'rgba(37,99,235,0.2)' : 'transparent', color: viewMode === 'grid' ? '#60a5fa' : 'rgba(255,255,255,0.3)' }}>
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+                </button>
+                <button onClick={() => setViewMode('list')}
+                  className="px-2.5 py-1.5 text-xs transition-all"
+                  style={{ background: viewMode === 'list' ? 'rgba(37,99,235,0.2)' : 'transparent', color: viewMode === 'list' ? '#60a5fa' : 'rgba(255,255,255,0.3)' }}>
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16"><rect x="1" y="1" width="14" height="3" rx="1"/><rect x="1" y="6" width="14" height="3" rx="1"/><rect x="1" y="11" width="14" height="3" rx="1"/></svg>
+                </button>
+              </div>
               <button onClick={loadData} disabled={loading} className="btn-glass px-3 py-1.5 text-xs disabled:opacity-40">
                 <span className="flex items-center gap-1.5">
                   <svg className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -318,11 +408,8 @@ export default function SocialPage() {
                   Rafraîchir
                 </span>
               </button>
-              <button
-                onClick={() => handleScrape()}
-                disabled={scraping || apifyConfigured === false}
-                className={`btn-primary px-4 py-1.5 text-xs disabled:opacity-40 ${scraping ? 'scraping' : ''}`}
-              >
+              <button onClick={() => handleScrape()} disabled={scraping || apifyConfigured === false}
+                className={`btn-primary px-4 py-1.5 text-xs disabled:opacity-40 ${scraping ? 'scraping' : ''}`}>
                 {scraping ? (
                   <span className="flex items-center gap-1.5">
                     <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -331,11 +418,10 @@ export default function SocialPage() {
                     </svg>
                     Scraping...
                   </span>
-                ) : '🚀 Lancer scraping'}
+                ) : '🚀 Scraper'}
               </button>
             </div>
           </div>
-
           <div className="flag-stripe-animated mb-6" />
 
           {/* ── Alerts ──────────────────────────────── */}
@@ -343,11 +429,10 @@ export default function SocialPage() {
             <div className="mb-5 px-4 py-3 rounded-xl text-sm flex items-center gap-3 animate-notif"
               style={{ background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.2)', color: '#facc15' }}>
               ⚠️ <strong>APIFY_TOKEN non configuré.</strong>
-              <span style={{ color: 'rgba(255,255,255,0.4)' }}>Ajoutez la variable dans Render.</span>
             </div>
           )}
           {scrapeResult && (
-            <div className={`mb-5 px-4 py-3 rounded-xl text-sm flex items-center gap-3 animate-notif`} style={{
+            <div className="mb-5 px-4 py-3 rounded-xl text-sm flex items-center gap-3 animate-notif" style={{
               background: scrapeResult.type === 'success' ? 'rgba(22,163,74,0.08)' : scrapeResult.type === 'error' ? 'rgba(220,38,38,0.08)' : 'rgba(234,179,8,0.08)',
               border: `1px solid ${scrapeResult.type === 'success' ? 'rgba(22,163,74,0.2)' : scrapeResult.type === 'error' ? 'rgba(220,38,38,0.2)' : 'rgba(234,179,8,0.2)'}`,
               color: scrapeResult.type === 'success' ? '#4ade80' : scrapeResult.type === 'error' ? '#f87171' : '#facc15',
@@ -361,20 +446,14 @@ export default function SocialPage() {
             }}>❌ {error}</div>
           )}
 
-          {/* ══════════════════════════════════════════
-              SENTIMENT GLOBAL (7j)
-              ══════════════════════════════════════════ */}
+          {/* ── Sentiment global 7j ─────────────────── */}
           {sentiment && sentiment.global.total_posts > 0 && (
             <div className="mb-6 animate-fade-in">
-              <h2 className="text-sm font-semibold text-white/60 mb-3 flex items-center gap-2">
-                📊 Vue d&apos;ensemble (7 jours)
-              </h2>
-
-              {/* KPI row */}
+              <h2 className="text-sm font-semibold text-white/60 mb-3">📊 Vue d&apos;ensemble (7 jours)</h2>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4 stagger-cards">
                 {[
-                  { label: 'Posts collectés', value: sentiment.global.total_posts, icon: '📝', color: '#60a5fa' },
-                  { label: 'Engagement total', value: sentiment.global.total_engagement, icon: '🔥', color: '#f59e0b' },
+                  { label: 'Posts', value: sentiment.global.total_posts, icon: '📝', color: '#60a5fa' },
+                  { label: 'Engagement', value: sentiment.global.total_engagement, icon: '🔥', color: '#f59e0b' },
                   { label: 'Commentaires', value: sentiment.global.total_comments, icon: '💬', color: '#22c55e' },
                   { label: 'Gravité moy.', value: `${(sentiment.global.avg_gravity * 10).toFixed(1)}/10`, icon: '⚡', color: gravityColor(sentiment.global.avg_gravity) },
                 ].map((kpi, i) => (
@@ -387,10 +466,7 @@ export default function SocialPage() {
                   </div>
                 ))}
               </div>
-
-              {/* Themes + Elected row */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Top themes */}
                 {sentiment.top_themes.length > 0 && (
                   <div className="glass-card-static p-4">
                     <h3 className="text-[11px] font-semibold text-white/40 mb-2">🏷️ Thèmes dominants</h3>
@@ -398,22 +474,20 @@ export default function SocialPage() {
                       {sentiment.top_themes.map((t, i) => (
                         <span key={i} className="text-[10px] px-2.5 py-1 rounded-full font-medium"
                           style={{ background: 'rgba(234,179,8,0.08)', color: '#facc15', border: '1px solid rgba(234,179,8,0.15)' }}>
-                          {t.theme} <strong className="ml-0.5">({t.count})</strong>
+                          {t.theme} ({t.count})
                         </span>
                       ))}
                     </div>
                   </div>
                 )}
-
-                {/* Top elected */}
                 {sentiment.top_elected.length > 0 && (
                   <div className="glass-card-static p-4">
-                    <h3 className="text-[11px] font-semibold text-white/40 mb-2">👤 Élus les plus mentionnés</h3>
+                    <h3 className="text-[11px] font-semibold text-white/40 mb-2">👤 Élus mentionnés</h3>
                     <div className="flex flex-wrap gap-1.5">
                       {sentiment.top_elected.map((el, i) => (
                         <span key={i} className="text-[10px] px-2.5 py-1 rounded-full font-medium"
                           style={{ background: 'rgba(22,163,74,0.08)', color: '#4ade80', border: '1px solid rgba(22,163,74,0.15)' }}>
-                          {el.name} <strong className="ml-0.5">({el.count})</strong>
+                          {el.name} ({el.count})
                         </span>
                       ))}
                     </div>
@@ -423,224 +497,143 @@ export default function SocialPage() {
             </div>
           )}
 
-          {/* ── Platform Stats Cards ───────────────── */}
+          {/* ── Platform cards ──────────────────────── */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 stagger-cards">
             {Object.entries(PLAT).map(([key, cfg]) => {
               const ps = stats?.stats?.[key]
               const isSelected = activePlatform === key
               return (
-                <button
-                  key={key}
-                  onClick={() => setActivePlatform(activePlatform === key ? undefined : key)}
-                  className={`glass-card-static p-5 text-left transition-all duration-300 hover:scale-[1.02] group ${isSelected ? 'animate-border-glow' : ''}`}
-                  style={{
-                    borderColor: isSelected ? cfg.color : undefined,
-                    boxShadow: isSelected ? `0 0 30px ${cfg.glow}` : undefined,
-                  }}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-2xl">{cfg.icon}</span>
-                      <h3 className="text-sm font-semibold text-white">{cfg.label}</h3>
-                    </div>
+                <button key={key} onClick={() => setActivePlatform(activePlatform === key ? undefined : key)}
+                  className={`glass-card-static p-4 text-left transition-all duration-300 hover:scale-[1.02] ${isSelected ? 'animate-border-glow' : ''}`}
+                  style={{ borderColor: isSelected ? cfg.color : undefined, boxShadow: isSelected ? `0 0 30px ${cfg.glow}` : undefined }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2"><span className="text-xl">{cfg.icon}</span><h3 className="text-sm font-semibold text-white">{cfg.label}</h3></div>
                     {(ps?.last_24h || 0) > 0 && (
                       <span className="animate-number-pop text-[10px] px-2 py-0.5 rounded-full font-semibold"
-                        style={{ background: 'rgba(22,163,74,0.12)', color: '#4ade80', border: '1px solid rgba(22,163,74,0.25)' }}>
-                        +{ps?.last_24h}
-                      </span>
+                        style={{ background: 'rgba(22,163,74,0.12)', color: '#4ade80', border: '1px solid rgba(22,163,74,0.25)' }}>+{ps?.last_24h}</span>
                     )}
                   </div>
-                  <div className="grid grid-cols-3 gap-2 mb-3">
-                    {[
-                      { v: ps?.last_24h || 0, l: '24h' },
-                      { v: ps?.last_7d || 0, l: '7j' },
-                      { v: ps?.total || 0, l: 'Total' },
-                    ].map((s, i) => (
-                      <div key={i} className="text-center px-2 py-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.02)' }}>
-                        <div className="text-base font-bold text-white">{s.v}</div>
-                        <div className="text-[9px]" style={{ color: 'rgba(255,255,255,0.25)' }}>{s.l}</div>
+                  <div className="grid grid-cols-3 gap-2 mb-2">
+                    {[{ v: ps?.last_24h || 0, l: '24h' }, { v: ps?.last_7d || 0, l: '7j' }, { v: ps?.total || 0, l: 'Total' }].map((s, i) => (
+                      <div key={i} className="text-center px-2 py-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.02)' }}>
+                        <div className="text-sm font-bold text-white">{s.v}</div>
+                        <div className="text-[8px]" style={{ color: 'rgba(255,255,255,0.25)' }}>{s.l}</div>
                       </div>
                     ))}
                   </div>
                   <div className="flex items-center justify-between">
-                    <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.2)' }}>
-                      {ps?.last_scraped ? `Dernier: ${timeAgo(ps.last_scraped)}` : 'Jamais scrapé'}
-                    </p>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleScrape(key) }}
-                      disabled={scraping || apifyConfigured === false}
-                      className="text-[10px] px-2 py-0.5 rounded-md font-medium transition-all hover:brightness-125 disabled:opacity-30"
-                      style={{ background: `${cfg.color}20`, color: cfg.color, border: `1px solid ${cfg.color}30` }}
-                    >Scraper</button>
+                    <p className="text-[9px]" style={{ color: 'rgba(255,255,255,0.2)' }}>{ps?.last_scraped ? timeAgo(ps.last_scraped) : 'Jamais scrapé'}</p>
+                    <button onClick={(e) => { e.stopPropagation(); handleScrape(key) }} disabled={scraping}
+                      className="text-[9px] px-2 py-0.5 rounded-md font-medium transition-all hover:brightness-125 disabled:opacity-30"
+                      style={{ background: `${cfg.color}20`, color: cfg.color, border: `1px solid ${cfg.color}30` }}>Scraper</button>
                   </div>
                 </button>
               )
             })}
           </div>
 
-          {/* ── Filter tabs ────────────────────────── */}
-          <div className="flex gap-2 mb-5 flex-wrap">
-            <button
-              onClick={() => setActivePlatform(undefined)}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200"
-              style={{
-                background: !activePlatform ? '#2563eb' : 'rgba(37,99,235,0.06)',
-                color: !activePlatform ? '#fff' : 'rgba(255,255,255,0.4)',
-                border: `1px solid ${!activePlatform ? '#2563eb' : 'rgba(37,99,235,0.1)'}`,
-                boxShadow: !activePlatform ? '0 2px 12px rgba(37,99,235,0.3)' : 'none',
-              }}
-            >Tous ({posts.length})</button>
-            {Object.entries(PLAT).map(([key, cfg]) => (
-              <button key={key}
-                onClick={() => setActivePlatform(activePlatform === key ? undefined : key)}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200"
-                style={{
-                  background: activePlatform === key ? cfg.color : 'rgba(255,255,255,0.03)',
-                  color: activePlatform === key ? '#fff' : 'rgba(255,255,255,0.4)',
-                  border: `1px solid ${activePlatform === key ? cfg.color : 'rgba(255,255,255,0.06)'}`,
-                  boxShadow: activePlatform === key ? `0 2px 12px ${cfg.glow}` : 'none',
-                }}
-              >{cfg.icon} {cfg.label}</button>
-            ))}
+          {/* ── Filters + view ──────────────────────── */}
+          <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
+            <div className="flex gap-2 flex-wrap">
+              <button onClick={() => setActivePlatform(undefined)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                style={{ background: !activePlatform ? '#2563eb' : 'rgba(37,99,235,0.06)', color: !activePlatform ? '#fff' : 'rgba(255,255,255,0.4)', border: `1px solid ${!activePlatform ? '#2563eb' : 'rgba(37,99,235,0.1)'}` }}>
+                Tous ({posts.length})
+              </button>
+              {Object.entries(PLAT).map(([key, cfg]) => (
+                <button key={key} onClick={() => setActivePlatform(activePlatform === key ? undefined : key)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                  style={{ background: activePlatform === key ? cfg.color : 'rgba(255,255,255,0.03)', color: activePlatform === key ? '#fff' : 'rgba(255,255,255,0.4)', border: `1px solid ${activePlatform === key ? cfg.color : 'rgba(255,255,255,0.06)'}` }}>
+                  {cfg.icon} {cfg.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* ── Posts Feed ──────────────────────────── */}
-          <div className="space-y-3 stagger-posts">
-            {loading ? (
-              [1, 2, 3].map(i => (
-                <div key={i} className="glass-card-static p-5 animate-shimmer" style={{ animationDelay: `${i * 0.15}s` }}>
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-8 h-8 rounded-full skeleton" />
-                    <div className="flex-1"><div className="h-3 w-32 skeleton mb-2 rounded" /><div className="h-2 w-20 skeleton rounded" /></div>
-                  </div>
-                  <div className="h-3 w-full skeleton mb-2 rounded" />
-                  <div className="h-3 w-3/4 skeleton rounded" />
-                </div>
-              ))
-            ) : posts.length === 0 ? (
-              <div className="glass-card-static p-12 text-center animate-pop">
-                <div className="text-5xl mb-4">📱</div>
-                <p className="text-sm font-semibold text-white/60 mb-2">Aucun post récupéré</p>
-                <p className="text-xs mb-5" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                  {apifyConfigured !== false ? 'Lancez un scraping pour commencer.' : 'Configurez APIFY_TOKEN dans Render.'}
-                </p>
-                {apifyConfigured !== false && (
-                  <button onClick={() => handleScrape()} disabled={scraping} className="btn-primary px-5 py-2 text-sm">
-                    {scraping ? 'Scraping...' : '🚀 Premier scraping'}
-                  </button>
-                )}
-              </div>
-            ) : (
-              posts.map((post) => {
+          {/* ══════════════════════════════════════════
+              POSTS — GRID ou LIST
+              ══════════════════════════════════════════ */}
+          {loading ? (
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3">
+              {Array.from({ length: 15 }).map((_, i) => (
+                <div key={i} className="aspect-square rounded-xl skeleton animate-shimmer" style={{ animationDelay: `${i * 0.05}s` }} />
+              ))}
+            </div>
+          ) : posts.length === 0 ? (
+            <div className="glass-card-static p-12 text-center animate-pop">
+              <div className="text-5xl mb-4">📱</div>
+              <p className="text-sm font-semibold text-white/60 mb-2">Aucun post récupéré</p>
+              <p className="text-xs mb-5" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                {apifyConfigured !== false ? 'Lancez un scraping pour commencer.' : 'Configurez APIFY_TOKEN dans Render.'}
+              </p>
+              {apifyConfigured !== false && (
+                <button onClick={() => handleScrape()} disabled={scraping} className="btn-primary px-5 py-2 text-sm">
+                  {scraping ? 'Scraping...' : '🚀 Premier scraping'}
+                </button>
+              )}
+            </div>
+          ) : viewMode === 'grid' ? (
+            /* ── GRID VIEW — mini carrés ──────────── */
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 stagger-cards">
+              {posts.map(post => (
+                <MiniCard key={post._id} post={post} onClick={() => setSelectedPost(post)} />
+              ))}
+            </div>
+          ) : (
+            /* ── LIST VIEW — cards horizontales ───── */
+            <div className="space-y-3 stagger-posts">
+              {posts.map(post => {
                 const cfg = PLAT[post.platform] || PLAT.twitter
                 const gravity = post.gravity_score || 0
-
                 return (
-                  <div
-                    key={post._id}
-                    className="glass-card p-0 overflow-hidden group cursor-pointer"
-                    onClick={() => setSelectedPost(post)}
-                  >
+                  <div key={post._id} className="glass-card p-0 overflow-hidden group cursor-pointer" onClick={() => setSelectedPost(post)}>
                     <div className="flex">
-                      {/* Image preview — left side */}
                       {post.image_url && (
-                        <div className="w-32 sm:w-40 flex-shrink-0 relative overflow-hidden">
-                          <img
-                            src={post.image_url}
-                            alt=""
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                            style={{ minHeight: '120px' }}
-                            onError={(e) => { (e.target as HTMLImageElement).parentElement!.style.display = 'none' }}
-                          />
-                          {post.media_type === 'video' && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                              <span className="text-2xl">▶️</span>
-                            </div>
-                          )}
+                        <div className="w-28 sm:w-36 flex-shrink-0 relative overflow-hidden">
+                          <img src={post.image_url} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" style={{ minHeight: '100px' }}
+                            onError={(e) => { (e.target as HTMLImageElement).parentElement!.style.display = 'none' }} />
+                          {post.media_type === 'video' && <div className="absolute inset-0 flex items-center justify-center bg-black/30"><span className="text-2xl">▶️</span></div>}
                         </div>
                       )}
-
-                      {/* Content — right side */}
-                      <div className="flex-1 p-4 min-w-0">
-                        {/* Header */}
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <div className="flex items-center gap-2 flex-wrap min-w-0">
-                            <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold flex-shrink-0"
-                              style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.color}30` }}>
-                              {cfg.icon} {cfg.label}
-                            </span>
+                      <div className="flex-1 p-3.5 min-w-0">
+                        <div className="flex items-start justify-between gap-2 mb-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-[9px] px-2 py-0.5 rounded-full font-semibold flex-shrink-0"
+                              style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.color}30` }}>{cfg.icon}</span>
                             <span className="text-sm font-semibold text-white truncate">@{post.author}</span>
-                            {gravity > 0 && (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0"
-                                style={{
-                                  background: `${gravityColor(gravity)}15`,
-                                  color: gravityColor(gravity),
-                                  border: `1px solid ${gravityColor(gravity)}30`,
-                                }}>
-                                ⚡ {(gravity * 10).toFixed(1)}
-                              </span>
+                            {gravity > 0.3 && (
+                              <span className="text-[8px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0"
+                                style={{ background: `${gravityColor(gravity)}15`, color: gravityColor(gravity) }}>⚡{(gravity * 10).toFixed(0)}</span>
                             )}
                           </div>
-                          <span className="text-[10px] flex-shrink-0" style={{ color: 'rgba(255,255,255,0.2)' }}>
-                            {post.scraped_at ? timeAgo(post.scraped_at) : ''}
-                          </span>
+                          <span className="text-[10px] flex-shrink-0" style={{ color: 'rgba(255,255,255,0.2)' }}>{post.scraped_at ? timeAgo(post.scraped_at) : ''}</span>
                         </div>
-
-                        {/* Text preview */}
-                        <p className="text-[12px] leading-relaxed mb-2 transition-colors group-hover:text-white/65 line-clamp-3"
-                          style={{ color: 'rgba(255,255,255,0.5)' }}>
-                          {post.text?.slice(0, 280)}{(post.text?.length || 0) > 280 ? '...' : ''}
-                        </p>
-
-                        {/* AI summary mini */}
+                        <p className="text-[11px] leading-relaxed mb-1.5 line-clamp-2" style={{ color: 'rgba(255,255,255,0.5)' }}>{post.text?.slice(0, 200)}</p>
                         {post.ai_summary && (
-                          <div className="mb-2 text-[10px] px-2.5 py-1.5 rounded-lg truncate"
-                            style={{ background: 'rgba(37,99,235,0.05)', border: '1px solid rgba(37,99,235,0.08)', color: 'rgba(255,255,255,0.4)' }}>
-                            🧠 {post.ai_summary.slice(0, 120)}...
+                          <div className="mb-1.5 text-[9px] px-2 py-1 rounded-lg truncate"
+                            style={{ background: 'rgba(37,99,235,0.05)', border: '1px solid rgba(37,99,235,0.08)', color: 'rgba(255,255,255,0.35)' }}>
+                            🧠 {post.ai_summary.slice(0, 100)}
                           </div>
                         )}
-
-                        {/* Tags row */}
-                        {(post.theme || post.elected?.length) && (
-                          <div className="flex flex-wrap gap-1 mb-2">
-                            {post.theme && post.theme !== 'general' && (
-                              <span className="text-[8px] px-1.5 py-0.5 rounded-full"
-                                style={{ background: 'rgba(234,179,8,0.08)', color: '#facc15', border: '1px solid rgba(234,179,8,0.12)' }}>
-                                {post.theme}
-                              </span>
-                            )}
-                            {post.elected?.slice(0, 2).map((el, i) => (
-                              <span key={i} className="text-[8px] px-1.5 py-0.5 rounded-full"
-                                style={{ background: 'rgba(22,163,74,0.08)', color: '#4ade80', border: '1px solid rgba(22,163,74,0.12)' }}>
-                                {el}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Engagement footer */}
-                        <div className="flex items-center gap-3 text-[10px]" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                        <div className="flex items-center gap-3 text-[9px]" style={{ color: 'rgba(255,255,255,0.25)' }}>
                           {(post.likes || 0) > 0 && <span>❤️ {post.likes?.toLocaleString()}</span>}
-                          {(post.comments || 0) > 0 && <span>💬 {post.comments?.toLocaleString()}</span>}
-                          {(post.shares || 0) > 0 && <span>🔄 {post.shares?.toLocaleString()}</span>}
-                          {(post.retweets || 0) > 0 && <span>🔁 {post.retweets?.toLocaleString()}</span>}
-                          <span className="ml-auto text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity font-medium">
-                            Voir détail →
-                          </span>
+                          {(post.comments || 0) > 0 && <span>💬 {post.comments}</span>}
+                          {(post.shares || 0) > 0 && <span>🔄 {post.shares}</span>}
+                          {(post.retweets || 0) > 0 && <span>🔁 {post.retweets}</span>}
+                          <span className="ml-auto text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity font-medium">Détail →</span>
                         </div>
                       </div>
                     </div>
                   </div>
                 )
-              })
-            )}
-          </div>
+              })}
+            </div>
+          )}
 
           <div className="h-8" />
         </div>
       </main>
 
-      {/* ── Post Detail Modal ──────────────────── */}
       {selectedPost && <PostModal post={selectedPost} onClose={() => setSelectedPost(null)} />}
     </div>
   )

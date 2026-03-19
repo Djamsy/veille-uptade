@@ -115,7 +115,7 @@ export default function ArticlesPage() {
   return (
     <div className="flex">
       <Sidebar />
-      <main className="lg:ml-60 flex-1 p-5 lg:p-8 min-h-screen">
+      <main className="lg:ml-60 flex-1 p-5 lg:p-8 pb-24 lg:pb-8 min-h-screen">
         <div className="max-w-7xl mx-auto animate-fade-in">
 
           {/* ── Header ──────────────────────────── */}
