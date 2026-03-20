@@ -1399,22 +1399,19 @@ def generate_affair_context(
     theme: str,
     articles_titles: list,
     radio_summaries: list,
+    calculated_bmg: int = 0,
+    calculated_sentiment: str = "",
+    calculated_gravity: float = 0.0,
+    item_count: int = 0,
 ) -> Optional[Dict]:
     """
     Génère un contexte enrichi pour une affaire via GPT.
-    Recherche le fond de l'affaire, les enjeux, le contexte politique/social,
-    et évalue le bruit médiatique potentiel et le sentiment global.
+    Séquence en 2 étapes :
+      1. Identification/vérification des personnes et lieux
+      2. Génération du contexte avec les noms vérifiés + scores alignés
 
-    Retourne:
-    {
-        "contexte": "...",          # Paragraphe de contexte (3-5 phrases)
-        "enjeux": ["...", ...],     # Liste des enjeux clés
-        "historique": "...",        # Historique/précédents connus
-        "impact_potentiel": "...",  # Impact potentiel sur la Guadeloupe
-        "bruit_score": 0-100,      # Estimation du bruit médiatique (0-100)
-        "sentiment_ia": "...",      # Sentiment estimé par l'IA
-        "mots_cles_contexte": []    # Mots-clés contextuels supplémentaires
-    }
+    Les scores bruit_score et sentiment_ia sont alignés avec les valeurs
+    déjà calculées par le système (BMG, sentiment dominant) pour cohérence.
     """
     try:
         # Pré-correction STT sur les inputs
@@ -1441,6 +1438,111 @@ def generate_affair_context(
         articles_str = "\n".join(f"- {t}" for t in articles_titles[:10]) if articles_titles else "aucun article"
         radio_str = "\n".join(f"- {s}" for s in radio_summaries[:5]) if radio_summaries else "aucune transcription"
 
+        # ──────────────────────────────────────────────────────────
+        # ÉTAPE 1 : Identification et vérification des personnes
+        # ──────────────────────────────────────────────────────────
+        step1_messages = [
+            {
+                "role": "system",
+                "content": """Tu es un expert de la vie politique et publique en Guadeloupe (département français d'outre-mer).
+Tu dois identifier et vérifier les personnes mentionnées dans une affaire médiatique.
+
+RÈGLES STRICTES:
+- Si tu connais la personne, donne son nom correct, sa fonction et un résumé en 1 phrase
+- Si tu ne connais PAS la personne ou n'es pas sûr, dis-le clairement: "personne non identifiée avec certitude"
+- NE JAMAIS INVENTER de fonction ou de biographie
+- Corrige les noms déformés par la transcription radio (STT) si tu les reconnais
+
+Exemples de noms courants en Guadeloupe:
+- Ary Chalus = président du conseil régional de Guadeloupe
+- Guy Losbar = président du conseil départemental
+- Cédric Cornet = maire du Gosier
+- Marie-Luce Penchard = ancienne ministre, maire de Basse-Terre
+- Josette Borel-Lincertin = ancienne présidente du conseil départemental
+
+Réponds UNIQUEMENT en JSON avec:
+- personnes_identifiees: liste de {"nom": "...", "fonction": "...", "certitude": "confirmé|probable|inconnu"}
+- lieux_identifies: liste de {"nom_corrigé": "...", "nom_original": "..."} si corrections nécessaires
+- corrections_noms: dictionnaire {"forme_erronée": "forme_correcte"}"""
+            },
+            {
+                "role": "user",
+                "content": f"""Identifie et vérifie chaque personne et lieu mentionnés dans cette affaire en Guadeloupe:
+
+TITRE: {title}
+DESCRIPTION: {description}
+ÉLUS MENTIONNÉS: {elected_str}
+INSTITUTIONS: {instit_str}
+
+ARTICLES LIÉS:
+{articles_str}
+
+SUJETS RADIO:
+{radio_str}
+
+Pour chaque personne, donne son vrai nom, sa fonction et ton degré de certitude."""
+            }
+        ]
+
+        step1_raw = _call_ai(step1_messages, temperature=0.2, max_tokens=800, json_mode=True)
+        entities_info = ""
+        corrections = {}
+        if step1_raw:
+            try:
+                step1 = json.loads(step1_raw)
+                # Construire un résumé des personnes identifiées pour l'étape 2
+                personnes = step1.get("personnes_identifiees", [])
+                if personnes:
+                    lines = []
+                    for p in personnes:
+                        cert = p.get("certitude", "inconnu")
+                        if cert == "inconnu":
+                            lines.append(f"- {p.get('nom', '?')}: personne non identifiée avec certitude")
+                        else:
+                            lines.append(f"- {p.get('nom', '?')}: {p.get('fonction', '?')} ({cert})")
+                    entities_info = "\n".join(lines)
+
+                corrections = step1.get("corrections_noms", {})
+
+                # Appliquer les corrections de noms au titre et description
+                for wrong, correct in corrections.items():
+                    title = title.replace(wrong, correct)
+                    description = description.replace(wrong, correct)
+
+                logger.info(f"🔍 Étape 1 contexte: {len(personnes)} personnes identifiées, "
+                           f"{len(corrections)} corrections")
+            except Exception as e1:
+                logger.debug(f"Étape 1 parse: {e1}")
+
+        # ──────────────────────────────────────────────────────────
+        # ÉTAPE 2 : Génération du contexte avec infos vérifiées
+        # ──────────────────────────────────────────────────────────
+
+        # Construire les indications de scores calculés pour guider l'IA
+        scores_info = ""
+        if calculated_bmg or calculated_gravity:
+            scores_info = f"""
+SCORES CALCULÉS PAR LE SYSTÈME (à respecter pour cohérence):
+- BMG (Bruit Médiatique Global) calculé: {calculated_bmg}
+- Gravité calculée: {calculated_gravity:.0%}
+- Nombre de sources/items: {item_count}
+- Sentiment dominant calculé: {calculated_sentiment or 'non défini'}
+
+IMPORTANT: Ton bruit_score doit être COHÉRENT avec le BMG calculé ({calculated_bmg}).
+- Si BMG < 20 → bruit_score entre 10 et 35
+- Si BMG 20-50 → bruit_score entre 25 et 55
+- Si BMG 50-75 → bruit_score entre 45 et 75
+- Si BMG > 75 → bruit_score entre 65 et 95
+Ton sentiment_ia doit correspondre au sentiment dominant calculé "{calculated_sentiment}" sauf si les articles montrent clairement autre chose."""
+
+        entities_section = ""
+        if entities_info:
+            entities_section = f"""
+PERSONNES VÉRIFIÉES (étape 1):
+{entities_info}
+IMPORTANT: Utilise UNIQUEMENT les identifications ci-dessus. Si une personne est marquée "non identifiée",
+ne lui invente PAS de fonction — dis simplement son nom tel quel."""
+
         messages = [
             {
                 "role": "system",
@@ -1453,21 +1555,21 @@ Tu connais bien:
 - Les institutions locales (Région, Département, EPCI, préfecture)
 - L'histoire récente (mouvements sociaux, scandales politiques, catastrophes naturelles)
 
-IMPORTANT: Si tu détectes des noms mal orthographiés (erreurs de transcription radio/speech-to-text),
-utilise la forme correcte dans ta réponse. Exemples courants:
-- "Arichalus" → Ary Chalus (président du conseil régional)
-- "Bémao" → Baie-Mahault (commune)
-- "Harry Chalus" → Ary Chalus
+RÈGLES CRITIQUES:
+1. N'invente JAMAIS une fonction ou un titre pour une personne que tu ne connais pas
+2. Si tu n'es pas sûr de l'identité d'une personne, mentionne simplement son nom sans détailler sa fonction
+3. Utilise les informations de personnes vérifiées fournies ci-dessous
+4. Le bruit_score et sentiment_ia doivent être COHÉRENTS avec les scores système fournis
 
 Réponds UNIQUEMENT en JSON valide avec ces clés:
 - contexte: paragraphe de fond (3-5 phrases) expliquant le contexte de l'affaire
 - enjeux: liste de 2-4 enjeux clés
 - historique: bref historique ou précédents connus (2-3 phrases)
 - impact_potentiel: impact potentiel sur la population/territoire (2-3 phrases)
-- bruit_score: estimation du bruit médiatique potentiel de 0 à 100 (100 = très fort écho médiatique)
+- bruit_score: estimation du bruit médiatique alignée sur le BMG calculé (0-100)
 - sentiment_ia: sentiment dominant parmi "très_négatif", "négatif", "mitigé", "neutre", "positif", "très_positif"
-- mots_cles_contexte: liste de 5-10 mots-clés contextuels qui aident à mieux comprendre l'affaire
-- corrections_noms: dictionnaire des noms corrigés {"forme_erronée": "forme_correcte"} (si des corrections ont été nécessaires)"""
+- mots_cles_contexte: liste de 5-10 mots-clés contextuels
+- corrections_noms: dictionnaire des noms corrigés (si corrections nécessaires)"""
             },
             {
                 "role": "user",
@@ -1478,14 +1580,17 @@ DESCRIPTION: {description}
 THÈME: {theme}
 ÉLUS CONCERNÉS: {elected_str}
 INSTITUTIONS: {instit_str}
+{entities_section}
 
 ARTICLES LIÉS:
 {articles_str}
 
 SUJETS RADIO LIÉS:
 {radio_str}
+{scores_info}
 
-Fournis un contexte approfondi, les enjeux, et ton évaluation du bruit médiatique et du sentiment."""
+Fournis un contexte approfondi, les enjeux, et ton évaluation du bruit médiatique et du sentiment.
+RAPPEL: bruit_score doit être cohérent avec le BMG={calculated_bmg}, sentiment cohérent avec "{calculated_sentiment}"."""
             }
         ]
 
@@ -1505,9 +1610,16 @@ Fournis un contexte approfondi, les enjeux, et ton évaluation du bruit médiati
         # Normaliser le bruit_score entre 0 et 100
         result["bruit_score"] = max(0, min(100, int(result.get("bruit_score", 50))))
 
-        logger.info(f"🧠 Contexte IA généré: bruit={result['bruit_score']}, "
+        # Fusionner les corrections de l'étape 1 avec celles de l'étape 2
+        step2_corrections = result.get("corrections_noms", {})
+        all_corrections = {**corrections, **step2_corrections}
+        if all_corrections:
+            result["corrections_noms"] = all_corrections
+
+        logger.info(f"🧠 Contexte IA généré (2 étapes): bruit={result['bruit_score']}, "
                      f"sentiment={result['sentiment_ia']}, "
-                     f"{len(result.get('enjeux', []))} enjeux")
+                     f"{len(result.get('enjeux', []))} enjeux, "
+                     f"{len(all_corrections)} corrections noms")
         return result
 
     except json.JSONDecodeError as e:

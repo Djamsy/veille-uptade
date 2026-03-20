@@ -905,6 +905,11 @@ class AffairLifecycleService:
                 f"(BMG={bmg_result['bmg']:.2f}, {affair['item_count']} items, "
                 f"sources={affair['sources']})"
             )
+            # Auto-génération du contexte IA
+            try:
+                self.generate_affair_context(affair_id)
+            except Exception as ctx_err:
+                logger.debug(f"Auto-contexte IA cluster: {ctx_err}")
             return affair_id
 
         except Exception as e:
@@ -1583,6 +1588,11 @@ class AffairLifecycleService:
                             _tg_notify(new_affair, source_type="article")
                         except Exception as tg_err:
                             logger.debug(f"Telegram notify: {tg_err}")
+                    # Auto-génération du contexte IA
+                    try:
+                        self.generate_affair_context(new_id)
+                    except Exception as ctx_err:
+                        logger.debug(f"Auto-contexte IA: {ctx_err}")
                 else:
                     # Gravity trop basse pour créer une affaire seule, marquer comme traité
                     self.articles.update_one(
@@ -2241,7 +2251,14 @@ class AffairLifecycleService:
 
     def generate_affair_context(self, affair_id: str) -> Dict:
         """Génère un contexte IA pour une affaire et le sauvegarde.
-        Le contexte contribue au bruit_score et au sentiment global."""
+
+        Séquence en 2 étapes GPT :
+          1. Vérification des personnes/lieux (évite les hallucinations)
+          2. Génération du contexte aligné sur les scores calculés (BMG, sentiment)
+
+        Le contexte IA ne modifie PAS la gravité ni le sentiment calculé
+        (anti-boule-de-neige). Il fournit un éclairage qualitatif uniquement.
+        """
         from bson import ObjectId
         try:
             from backend.ai_groq_service import generate_affair_context as _gen_ctx
@@ -2281,7 +2298,13 @@ class AffairLifecycleService:
                 elif radio.get("summary"):
                     radio_summaries.append(radio["summary"][:200])
 
-        # Générer le contexte via GPT
+        # Récupérer les scores CALCULÉS par le système pour alignement
+        calculated_bmg = int(affair.get("bmg", 0))
+        calculated_sentiment = affair.get("sentiment", "neutre")
+        calculated_gravity = affair.get("gravity_score", 0)
+        item_count = affair.get("item_count", 0)
+
+        # Générer le contexte via GPT (2 étapes séquencées)
         ctx = _gen_ctx(
             title=affair.get("title", ""),
             description=affair.get("description", ""),
@@ -2290,6 +2313,10 @@ class AffairLifecycleService:
             theme=affair.get("theme", "general"),
             articles_titles=articles_titles,
             radio_summaries=radio_summaries,
+            calculated_bmg=calculated_bmg,
+            calculated_sentiment=calculated_sentiment,
+            calculated_gravity=calculated_gravity,
+            item_count=item_count,
         )
 
         if not ctx:
@@ -2298,12 +2325,15 @@ class AffairLifecycleService:
         # Sauvegarder le contexte dans l'affaire
         ctx["generated_at"] = datetime.utcnow().isoformat()
 
+        # ANTI-BOULE-DE-NEIGE : le contexte IA est purement informatif.
+        # On ne modifie NI la gravité, NI le sentiment, NI le BMG calculé.
+        # Le bruit_score IA et sentiment_ia sont stockés dans ai_context
+        # pour affichage mais n'influencent pas les métriques système.
         update_fields = {"ai_context": ctx}
 
-        # Contribuer au sentiment global si le contexte fournit un sentiment IA
+        # On stocke le sentiment IA pour affichage (pas pour calcul)
         sentiment_ia = ctx.get("sentiment_ia", "")
         if sentiment_ia:
-            # Mapper vers les sentiments du système
             sentiment_map = {
                 "très_négatif": "très négatif",
                 "négatif": "négatif",
@@ -2314,22 +2344,7 @@ class AffairLifecycleService:
             }
             mapped = sentiment_map.get(sentiment_ia, sentiment_ia)
             update_fields["ai_context_sentiment"] = mapped
-
-            # Ajouter dans l'historique de sentiment pour influencer le dominant
-            self.affairs.update_one(
-                {"_id": affair["_id"]},
-                {"$push": {"sentiment_history": f"ctx:{mapped}"}}
-            )
-
-        # Contribuer au bruit : le bruit_score GPT ajuste la gravité
-        bruit_score = ctx.get("bruit_score", 50)
-        if bruit_score >= 75:
-            # Affaire à fort bruit — augmenter la gravité si elle est basse
-            current_gravity = affair.get("gravity_score", 0.5)
-            if current_gravity < 0.7:
-                boost = min(0.15, (bruit_score - 75) / 100)
-                update_fields["gravity_score"] = round(current_gravity + boost, 3)
-                logger.info(f"🧠 Boost gravité via contexte IA: {current_gravity:.2f} → {current_gravity + boost:.2f}")
+            # PAS de push dans sentiment_history (anti-boule-de-neige)
 
         self.affairs.update_one(
             {"_id": affair["_id"]},
@@ -2341,20 +2356,23 @@ class AffairLifecycleService:
             "affair_id": affair_id,
             "event": "context_generated",
             "details": {
-                "bruit_score": bruit_score,
+                "bruit_score_ia": ctx.get("bruit_score", 0),
+                "bmg_calculated": calculated_bmg,
                 "sentiment_ia": sentiment_ia,
+                "sentiment_calculated": calculated_sentiment,
                 "enjeux_count": len(ctx.get("enjeux", [])),
             },
             "timestamp": datetime.utcnow(),
         })
 
-        logger.info(f"🧠 Contexte IA sauvegardé pour affaire '{affair.get('title', '?')[:50]}'")
+        logger.info(f"🧠 Contexte IA sauvegardé pour affaire '{affair.get('title', '?')[:50]}' "
+                     f"(bruit_ia={ctx.get('bruit_score', 0)}, bmg_calc={calculated_bmg})")
 
         return {
             "affair_id": affair_id,
             "ai_context": ctx,
-            "sentiment_updated": bool(sentiment_ia),
-            "gravity_adjusted": "gravity_score" in update_fields,
+            "sentiment_updated": False,  # Plus de modification du sentiment
+            "gravity_adjusted": False,   # Plus de modification de la gravité
         }
 
     def cleanup_affair(self, affair_id: str) -> Dict:
@@ -2778,6 +2796,11 @@ class AffairLifecycleService:
                         _tg_notify(new_affair, source_type="transcription")
                     except Exception as tg_err:
                         logger.debug(f"Telegram notify radio: {tg_err}")
+                # Auto-génération du contexte IA
+                try:
+                    self.generate_affair_context(str(result.inserted_id))
+                except Exception as ctx_err:
+                    logger.debug(f"Auto-contexte IA radio: {ctx_err}")
 
             # Marquer la transcription comme traitée pour création d'affaires
             self.transcriptions.update_one(
@@ -3720,6 +3743,11 @@ class AffairLifecycleService:
                 active_affairs.append(new_affair)
                 stats["created"] += 1
                 logger.info(f"🆕 Affaire directe: '{title[:50]}' (gravity={gravity:.2f})")
+                # Auto-génération du contexte IA
+                try:
+                    self.generate_affair_context(new_id)
+                except Exception as ctx_err:
+                    logger.debug(f"Auto-contexte IA direct: {ctx_err}")
 
         self._enforce_max_affairs()
         logger.info(f"📊 Création directe: {stats['created']} créées, {stats['merged']} fusionnées")

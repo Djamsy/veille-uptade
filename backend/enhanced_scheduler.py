@@ -248,11 +248,63 @@ async def cleanup_job():
             "captured_at": {"$lt": cutoff_transcriptions}
         })
         cleanup_stats["old_transcriptions_removed"] = old_transcriptions.deleted_count
-        
+
+        # ── Nettoyage audio GridFS (radio_audio.files / radio_audio.chunks) ──
+        # Les transcriptions sont supprimées ci-dessus mais les fichiers audio
+        # GridFS restent orphelins → stockage qui grimpe indéfiniment
+        cleanup_stats["audio_files_removed"] = 0
+        cleanup_stats["audio_chunks_freed_mb"] = 0
+        try:
+            import gridfs
+            grid_fs = gridfs.GridFS(db, collection="radio_audio")
+            audio_files_col = db["radio_audio.files"]
+            audio_chunks_col = db["radio_audio.chunks"]
+
+            # 1. Supprimer les fichiers audio de plus de 7 jours
+            # (les transcriptions sont déjà extraites, on n'a plus besoin de l'audio)
+            audio_cutoff = datetime.now() - timedelta(days=7)
+            old_audio_files = list(audio_files_col.find(
+                {"uploadDate": {"$lt": audio_cutoff}},
+                {"_id": 1, "length": 1}
+            ))
+
+            total_bytes = 0
+            for af in old_audio_files:
+                total_bytes += af.get("length", 0)
+                try:
+                    grid_fs.delete(af["_id"])
+                except Exception:
+                    # Fallback : supprimer manuellement fichier + chunks
+                    audio_chunks_col.delete_many({"files_id": af["_id"]})
+                    audio_files_col.delete_one({"_id": af["_id"]})
+
+            cleanup_stats["audio_files_removed"] = len(old_audio_files)
+            cleanup_stats["audio_chunks_freed_mb"] = round(total_bytes / (1024 * 1024), 1)
+
+            # 2. Nettoyer les chunks orphelins (dont le fichier parent n'existe plus)
+            all_file_ids = set(
+                f["_id"] for f in audio_files_col.find({}, {"_id": 1})
+            )
+            orphan_result = audio_chunks_col.delete_many({
+                "files_id": {"$nin": list(all_file_ids)}
+            }) if all_file_ids else None
+            orphan_count = orphan_result.deleted_count if orphan_result else 0
+            if orphan_count > 0:
+                cleanup_stats["orphan_chunks_removed"] = orphan_count
+                logger.info(f"   🧹 {orphan_count} chunks audio orphelins supprimés")
+
+            logger.info(
+                f"   🎙️ Audio: {len(old_audio_files)} fichiers supprimés "
+                f"({cleanup_stats['audio_chunks_freed_mb']} MB libérés)"
+            )
+        except Exception as audio_err:
+            logger.warning(f"⚠️ Nettoyage audio GridFS: {audio_err}")
+
         logger.info(
             f"✅ Nettoyage terminé: "
             f"{cleanup_stats['old_articles_removed']} articles, "
-            f"{cleanup_stats['old_transcriptions_removed']} transcriptions supprimés"
+            f"{cleanup_stats['old_transcriptions_removed']} transcriptions, "
+            f"{cleanup_stats.get('audio_files_removed', 0)} fichiers audio supprimés"
         )
         
         return cleanup_stats

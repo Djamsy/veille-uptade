@@ -724,6 +724,36 @@ async def job_full_pipeline():
 # Job: Analyse prédictive IA (toutes les heures)
 # ============================================================
 
+async def job_daily_report():
+    """Génère et envoie le bilan PDF quotidien par Telegram (7h du matin)."""
+    if _db is None:
+        logger.warning("⚠️ Daily report: DB indisponible")
+        return {"status": "skip", "reason": "no_db"}
+
+    try:
+        try:
+            from backend.daily_report_service import generate_and_send_daily_report
+        except ImportError:
+            from daily_report_service import generate_and_send_daily_report
+
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, generate_and_send_daily_report, _db)
+
+        if result.get("success"):
+            logger.info(
+                f"📄 Bilan quotidien envoyé — {result.get('date')} "
+                f"({result.get('pdf_size_kb')} KB), Telegram: {result.get('telegram_sent')}"
+            )
+        else:
+            logger.warning(f"⚠️ Bilan quotidien échoué: {result.get('error')}")
+
+        return result
+
+    except Exception as e:
+        logger.error(f"❌ Erreur bilan quotidien: {e}")
+        return {"status": "error", "reason": str(e)}
+
+
 async def job_predictive_analysis():
     """Lance l'analyse prédictive IA sur les affaires actives et stocke le résultat."""
     if _db is None:
@@ -839,6 +869,14 @@ def _ensure_scheduler():
         CronTrigger(minute="30", timezone=TZ),
         id="predictive_analysis",
         name="Analyse prédictive IA (GPT)"
+    )
+
+    # 📄 Bilan PDF quotidien à 7h du matin (heure Guadeloupe)
+    _scheduler.add_job(
+        job_daily_report,
+        CronTrigger(hour=7, minute=0, timezone=TZ),
+        id="daily_report",
+        name="Bilan PDF quotidien (Telegram)"
     )
 
     return _scheduler
@@ -1068,6 +1106,58 @@ async def bulk_enrich(
         "method": method,
         "message": f"{enriched_count} articles enrichis. {remaining_after} restants à traiter."
     }
+
+
+@router.post("/daily-report-now")
+async def daily_report_now():
+    """Génère et envoie le bilan quotidien maintenant"""
+    result = await job_daily_report()
+    return {"success": True, "result": result}
+
+
+@router.get("/daily-report/latest")
+async def download_latest_report():
+    """Télécharge le dernier bilan PDF depuis MongoDB."""
+    if _db is None:
+        raise HTTPException(503, "DB indisponible")
+
+    reports_col = _db.get_collection("daily_reports")
+    report = reports_col.find_one(sort=[("generated_at", -1)])
+
+    if not report or not report.get("pdf_data"):
+        raise HTTPException(404, "Aucun rapport disponible")
+
+    from fastapi.responses import Response
+    date_str = report.get("date", "unknown")
+    filename = f"bilan_veille_{date_str}.pdf"
+
+    return Response(
+        content=bytes(report["pdf_data"]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/daily-report/{date}")
+async def download_report_by_date(date: str):
+    """Télécharge un bilan PDF par date (format YYYY-MM-DD)."""
+    if _db is None:
+        raise HTTPException(503, "DB indisponible")
+
+    reports_col = _db.get_collection("daily_reports")
+    report = reports_col.find_one({"date": date})
+
+    if not report or not report.get("pdf_data"):
+        raise HTTPException(404, f"Aucun rapport pour le {date}")
+
+    from fastapi.responses import Response
+    filename = f"bilan_veille_{date}.pdf"
+
+    return Response(
+        content=bytes(report["pdf_data"]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/telegram-test")
