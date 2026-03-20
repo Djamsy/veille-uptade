@@ -629,3 +629,43 @@ export const fetchAdminActivityLog = (limit = 50) =>
   adminFetch<{ events: Array<{ _id: string; affair_id: string; event: string; details: Record<string, unknown>; timestamp: string }>; total: number }>(
     `/api/admin/activity-log?limit=${limit}`
   );
+
+// --- Création de comptes par admin ---
+export const adminCreateUser = (email: string, password: string, name: string, role: string) =>
+  adminFetch<{ success: boolean; user: { id: string; email: string; name: string; role: string } }>(
+    '/api/auth/create-user',
+    { method: 'POST', body: JSON.stringify({ email, password, name, role }) }
+  );
+
+export const adminDeleteUser = (userId: string) =>
+  adminFetch<{ success: boolean; message: string }>(
+    `/api/auth/delete-user/${userId}`,
+    { method: 'DELETE' }
+  );
+
+// --- Liens de consultation publics ---
+export const createShareLink = (affairId: string) =>
+  adminFetch<{ success: boolean; share_token: string; share_url: string }>(
+    `/api/affairs/share/${affairId}`,
+    { method: 'POST' }
+  );
+
+export const revokeShareLink = (affairId: string) =>
+  adminFetch<{ success: boolean }>(
+    `/api/affairs/share/${affairId}`,
+    { method: 'DELETE' }
+  );
+
+// --- Accès public (pas de token) ---
+export const fetchSharedAffair = (token: string) =>
+  apiFetch<{
+    affair: {
+      id: string; title: string; description: string; theme: string;
+      status: string; gravity_score: number; bmg: number; sentiment: string;
+      elected: string[]; institutions: string[]; item_count: number;
+      created_at: string; last_activity: string;
+    };
+    ai_context: AffairContext | null;
+    articles: Array<{ _id: string; title: string; source: string; scraped_at: string; gravity_score: number; theme: string }>;
+    total_articles: number;
+  }>(`/api/affairs/shared/${token}`);

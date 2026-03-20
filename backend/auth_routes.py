@@ -196,3 +196,107 @@ async def me(token: str = Depends(oauth2_scheme)):
         }
     except JWTError:
         raise HTTPException(401, "Token invalide")
+
+
+# ============================================================
+# CRÉATION DE COMPTES PAR UN ADMIN
+# ============================================================
+
+def _require_admin_auth(token: str = Depends(oauth2_scheme)):
+    """Vérifie que l'appelant est admin."""
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email = payload.get("sub")
+        role = payload.get("role", "user")
+    except JWTError:
+        raise HTTPException(401, "Token invalide ou expiré")
+    if role != "admin":
+        raise HTTPException(403, "Accès réservé aux administrateurs")
+    db = get_db()
+    user = db["users"].find_one({"email": email})
+    if not user or user.get("role") != "admin":
+        raise HTTPException(403, "Accès réservé aux administrateurs")
+    return {"email": email, "role": "admin"}
+
+
+@router.post("/create-user")
+def admin_create_user(
+    payload: Dict[str, Any] = Body(...),
+    admin: dict = Depends(_require_admin_auth),
+):
+    """Crée un compte utilisateur avec le rôle souhaité. (Admin uniquement)"""
+    email = payload.get("email", "").strip().lower()
+    password = payload.get("password", "")
+    name = payload.get("name", "").strip()
+    role = payload.get("role", "viewer")
+
+    if not email or not password:
+        raise HTTPException(400, "email et password requis")
+
+    if role not in ("admin", "editor", "viewer", "user"):
+        raise HTTPException(400, "Rôle invalide. Valides : admin, editor, viewer, user")
+
+    if len(password) < 6:
+        raise HTTPException(400, "Le mot de passe doit contenir au moins 6 caractères")
+
+    db = get_db()
+    users_col = db["users"]
+
+    if users_col.find_one({"email": email}):
+        raise HTTPException(409, "Email déjà utilisé")
+
+    password_truncated = password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
+
+    doc = {
+        "email": email,
+        "name": name or email.split("@")[0],
+        "password_hash": pwd_context.hash(password_truncated),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": admin["email"],
+        "role": role,
+        "active": True,
+    }
+
+    result = users_col.insert_one(doc)
+
+    logger.info(f"👤 Compte créé par admin {admin['email']}: {email} (rôle: {role})")
+
+    return {
+        "success": True,
+        "user": {
+            "id": str(result.inserted_id),
+            "email": email,
+            "name": doc["name"],
+            "role": role,
+        }
+    }
+
+
+@router.delete("/delete-user/{user_id}")
+def admin_delete_user(
+    user_id: str,
+    admin: dict = Depends(_require_admin_auth),
+):
+    """Supprime un compte utilisateur. (Admin uniquement)"""
+    from bson import ObjectId
+    db = get_db()
+    users_col = db["users"]
+
+    try:
+        user = users_col.find_one({"_id": ObjectId(user_id)})
+    except Exception:
+        raise HTTPException(400, "ID invalide")
+
+    if not user:
+        raise HTTPException(404, "Utilisateur non trouvé")
+
+    # Empêcher la suppression du dernier admin
+    if user.get("role") == "admin":
+        admin_count = users_col.count_documents({"role": "admin"})
+        if admin_count <= 1:
+            raise HTTPException(400, "Impossible de supprimer le dernier administrateur")
+
+    users_col.delete_one({"_id": ObjectId(user_id)})
+    logger.info(f"👤 Compte supprimé par admin {admin['email']}: {user.get('email')}")
+
+    return {"success": True, "message": f"Utilisateur {user.get('email')} supprimé"}

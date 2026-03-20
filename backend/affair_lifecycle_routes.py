@@ -1,17 +1,49 @@
 # backend/affair_lifecycle_routes.py
 """
 Routes API pour le nouveau système d'affaires à cycle de vie.
+
+Sécurité :
+- Routes POST (génération, pipeline, cleanup) → admin uniquement
+- Routes GET (consultation) → tous les utilisateurs authentifiés
+- Routes /share/ → accès public via token de partage
 """
 
 import logging
+import secrets
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
-from fastapi import APIRouter, HTTPException, Query, Body
+from fastapi import APIRouter, HTTPException, Query, Body, Depends
 from bson import ObjectId
 
 logger = logging.getLogger("affair_lifecycle_routes")
 router = APIRouter(prefix="/api/affairs", tags=["affairs-v2"])
+
+# ── Auth dependencies (lazy import pour éviter les imports circulaires) ──
+_auth_deps = {}
+
+def _get_auth_deps():
+    """Lazy-load des dépendances auth depuis admin_routes."""
+    if not _auth_deps:
+        try:
+            from backend.admin_routes import get_current_user, require_role
+        except ImportError:
+            from admin_routes import get_current_user, require_role
+        _auth_deps["get_current_user"] = get_current_user
+        _auth_deps["require_role"] = require_role
+    return _auth_deps
+
+def _require_admin():
+    deps = _get_auth_deps()
+    return deps["require_role"]("admin")
+
+def _require_editor():
+    deps = _get_auth_deps()
+    return deps["require_role"]("admin", "editor")
+
+def _require_authenticated():
+    deps = _get_auth_deps()
+    return deps["require_role"]("admin", "editor", "viewer", "user")
 
 _service = None
 
@@ -32,47 +64,47 @@ def _svc():
 # ============================================================
 
 @router.post("/cycle/run")
-async def run_full_cycle():
-    """Lance le cycle simplifié : créer → consolider → radio → BMG."""
+async def run_full_cycle(user: Dict = Depends(_require_admin)):
+    """Lance le cycle simplifié : créer → consolider → radio → BMG. (Admin)"""
     svc = _svc()
     return svc.run_simple_cycle()
 
 
 @router.post("/cycle/run-ai")
-async def run_ai_cycle():
-    """Force le cycle IA (legacy). Fallback classique si IA indisponible."""
+async def run_ai_cycle(user: Dict = Depends(_require_admin)):
+    """Force le cycle IA (legacy). (Admin)"""
     svc = _svc()
     return svc.run_ai_managed_cycle()
 
 
 @router.post("/cycle/run-classic")
-async def run_classic_cycle():
-    """Force le cycle classique (clustering → promotion → lifecycle)."""
+async def run_classic_cycle(user: Dict = Depends(_require_admin)):
+    """Force le cycle classique. (Admin)"""
     svc = _svc()
     return svc.run_full_cycle()
 
 
 @router.post("/cycle/clustering")
-async def run_clustering_only():
-    """Lance uniquement le clustering des candidats."""
+async def run_clustering_only(user: Dict = Depends(_require_admin)):
+    """Lance uniquement le clustering. (Admin)"""
     return _svc().run_clustering()
 
 
 @router.post("/cycle/promotion")
-async def run_promotion_only():
-    """Lance uniquement la promotion des clusters."""
+async def run_promotion_only(user: Dict = Depends(_require_admin)):
+    """Lance uniquement la promotion. (Admin)"""
     return _svc().run_promotion()
 
 
 @router.post("/cycle/lifecycle")
-async def run_lifecycle_only():
-    """Lance uniquement la mise à jour du cycle de vie."""
+async def run_lifecycle_only(user: Dict = Depends(_require_admin)):
+    """Lance uniquement la mise à jour du cycle de vie. (Admin)"""
     return _svc().update_affair_lifecycle()
 
 
 @router.post("/cycle/reaffiliate")
-async def reaffiliate_orphans():
-    """Force la ré-affiliation des articles orphelins aux affaires actives."""
+async def reaffiliate_orphans(user: Dict = Depends(_require_admin)):
+    """Force la ré-affiliation des articles orphelins. (Admin)"""
     svc = _svc()
     count = svc._reaffiliate_orphans()
     return {
@@ -92,6 +124,7 @@ async def list_affairs(
     limit: int = Query(default=30, ge=1, le=200),
     skip: int = Query(default=0, ge=0),
     sort_by: str = Query(default="bmg", description="bmg|gravity_score|created_at|last_activity"),
+    user: Dict = Depends(_require_authenticated),
 ):
     """Liste les affaires avec filtres et pagination."""
     svc = _svc()
@@ -121,7 +154,7 @@ async def list_affairs(
 
 
 @router.get("/detail/{affair_id}")
-async def get_affair_detail(affair_id: str):
+async def get_affair_detail(affair_id: str, user: Dict = Depends(_require_authenticated)):
     """Détail complet d'une affaire avec timeline, BMG et items liés."""
     svc = _svc()
     try:
@@ -251,7 +284,7 @@ async def get_affair_detail(affair_id: str):
 
 
 @router.post("/generate-context/{affair_id}")
-async def generate_context(affair_id: str):
+async def generate_context(affair_id: str, user: Dict = Depends(_require_admin)):
     """Génère un contexte IA approfondi pour une affaire.
     Utilise GPT pour rechercher le fond, les enjeux,
     et évalue le bruit médiatique et le sentiment.
@@ -264,7 +297,7 @@ async def generate_context(affair_id: str):
 
 
 @router.get("/context/{affair_id}")
-async def get_context(affair_id: str):
+async def get_context(affair_id: str, user: Dict = Depends(_require_authenticated)):
     """Récupère le contexte IA d'une affaire (sans regénérer)."""
     svc = _svc()
     try:
@@ -280,7 +313,7 @@ async def get_context(affair_id: str):
 
 
 @router.post("/cleanup/{affair_id}")
-async def cleanup_affair(affair_id: str):
+async def cleanup_affair(affair_id: str, user: Dict = Depends(_require_admin)):
     """Nettoie une affaire en retirant les articles sans lien réel.
     Compare chaque article au titre/entités de référence et retire ceux qui ne matchent pas."""
     svc = _svc()
@@ -291,14 +324,14 @@ async def cleanup_affair(affair_id: str):
 
 
 @router.post("/cleanup-all")
-async def cleanup_all_affairs():
-    """Nettoie TOUTES les affaires actives en retirant les articles mal groupés."""
+async def cleanup_all_affairs(user: Dict = Depends(_require_admin)):
+    """Nettoie TOUTES les affaires actives. (Admin)"""
     svc = _svc()
     return svc.cleanup_all_affairs()
 
 
 @router.post("/recalculate-bmg/{affair_id}")
-async def recalculate_affair_bmg(affair_id: str):
+async def recalculate_affair_bmg(affair_id: str, user: Dict = Depends(_require_admin)):
     """Recalcule le BMG d'une affaire spécifique."""
     svc = _svc()
     try:
@@ -321,7 +354,7 @@ async def recalculate_affair_bmg(affair_id: str):
 # ============================================================
 
 @router.get("/analytics/predictive")
-async def get_predictive_analysis(force: bool = Query(default=False)):
+async def get_predictive_analysis(force: bool = Query(default=False), user: Dict = Depends(_require_authenticated)):
     """
     Analyse prédictive IA : tendances, anticipations, recommandations.
     Sert le cache (mis à jour toutes les heures par le scheduler).
@@ -396,6 +429,7 @@ async def get_predictive_analysis(force: bool = Query(default=False)):
 
 @router.get("/clusters")
 async def list_clusters(
+    user: Dict = Depends(_require_authenticated),
     status: str = Query(default="active"),
     limit: int = Query(default=30, ge=1, le=100),
 ):
@@ -416,7 +450,7 @@ async def list_clusters(
 # ============================================================
 
 @router.get("/candidates/stats")
-async def candidates_stats():
+async def candidates_stats(, user: Dict = Depends(_require_authenticated)):
     """Statistiques sur les candidats."""
     svc = _svc()
     total = svc.candidates.count_documents({})
@@ -436,7 +470,7 @@ async def candidates_stats():
 # ============================================================
 
 @router.get("/dashboard")
-async def affairs_dashboard():
+async def affairs_dashboard(, user: Dict = Depends(_require_authenticated)):
     """
     Vue dashboard : top affaires, alertes, stats globales.
     """
@@ -470,13 +504,13 @@ async def affairs_dashboard():
 
 
 @router.get("/health")
-async def affair_system_health():
+async def affair_system_health(, user: Dict = Depends(_require_authenticated)):
     """Santé du système d'affaires."""
     return _svc().health_check()
 
 
 @router.get("/dashboard/enriched")
-async def enriched_dashboard():
+async def enriched_dashboard(, user: Dict = Depends(_require_authenticated)):
     """Dashboard enrichi avec stats détaillées, couverture, tendances."""
     svc = _svc()
     from datetime import timedelta
@@ -708,7 +742,7 @@ async def enriched_dashboard():
 
 
 @router.post("/recalculate-priorities")
-async def recalculate_all_priorities():
+async def recalculate_all_priorities(, user: Dict = Depends(_require_admin)):
     """Recalcule la priorité de TOUTES les affaires actives/stale avec les nouveaux seuils."""
     svc = _svc()
     updated = 0
@@ -734,7 +768,7 @@ async def recalculate_all_priorities():
 
 
 @router.post("/clean-parasites")
-async def clean_parasitic_articles():
+async def clean_parasitic_articles(, user: Dict = Depends(_require_admin)):
     """Nettoie les affaires existantes :
     1. Supprime les articles parasites (pas assez liés à l'affaire d'origine)
     2. Fusionne les affaires doublons (titres quasi-identiques)
@@ -889,7 +923,7 @@ async def clean_parasitic_articles():
 
 
 @router.post("/purge-v1")
-async def purge_v1_affairs():
+async def purge_v1_affairs(, user: Dict = Depends(_require_admin)):
     """Supprime les affaires créées par le V1 (sans promoted_at)
     et vide les topic_candidates/clusters pour repartir proprement."""
     svc = _svc()
@@ -915,7 +949,7 @@ async def purge_v1_affairs():
 
 
 @router.get("/debug/radio-transcriptions")
-async def debug_radio_transcriptions():
+async def debug_radio_transcriptions(, user: Dict = Depends(_require_authenticated)):
     """Debug: voir les transcriptions radio récentes et leur état."""
     svc = _svc()
     from datetime import timedelta
@@ -1020,7 +1054,7 @@ def _detect_communes(affair: dict) -> list:
 
 
 @router.get("/by-commune")
-async def affairs_by_commune():
+async def affairs_by_commune(, user: Dict = Depends(_require_authenticated)):
     """Retourne les affaires groupées par commune pour la carte."""
     svc = _svc()
     affairs = list(svc.affairs.find({"status": "active"}).sort("gravity_score", -1))
@@ -1048,7 +1082,7 @@ async def affairs_by_commune():
 
 
 @router.get("/elections")
-async def elections_affairs():
+async def elections_affairs(, user: Dict = Depends(_require_authenticated)):
     """Retourne les affaires liées aux élections municipales 2026."""
     svc = _svc()
 
@@ -1313,6 +1347,7 @@ def _is_affair_guadeloupe(affair: dict) -> bool:
 @router.get("/by-institution")
 async def affairs_by_institution(
     institution: str = Query(default="departement", description="departement|region"),
+    user: Dict = Depends(_require_authenticated),
 ):
     """Retourne les affaires groupées par compétence institutionnelle."""
     svc = _svc()
@@ -1360,7 +1395,7 @@ async def affairs_by_institution(
     }
 
 @router.post("/reset")
-async def full_reset():
+async def full_reset(user: Dict = Depends(_require_admin)):
     """RESET COMPLET — Vide toutes les collections (articles, affaires,
     candidats, clusters, timeline, transcriptions). Repart de zéro."""
     svc = _svc()
@@ -1386,4 +1421,100 @@ async def full_reset():
         "success": True,
         "deleted": results,
         "message": "Base vidée. Le prochain scraping + cycle créera tout depuis zéro."
+    }
+
+
+# ============================================================
+# LIENS DE CONSULTATION PUBLICS (share tokens)
+# ============================================================
+
+@router.post("/share/{affair_id}")
+async def create_share_link(affair_id: str, user: Dict = Depends(_require_admin)):
+    """Crée un lien de consultation public pour une affaire. (Admin)
+    Le lien est valide sans authentification."""
+    svc = _svc()
+    try:
+        affair = svc.affairs.find_one({"_id": ObjectId(affair_id)})
+    except Exception:
+        raise HTTPException(400, "ID invalide")
+    if not affair:
+        raise HTTPException(404, "Affaire non trouvée")
+
+    # Générer un token unique
+    token = secrets.token_urlsafe(24)
+
+    # Sauvegarder le token dans l'affaire
+    svc.affairs.update_one(
+        {"_id": ObjectId(affair_id)},
+        {"$set": {
+            "share_token": token,
+            "share_created_at": datetime.utcnow().isoformat(),
+            "share_created_by": user.get("email", ""),
+        }}
+    )
+
+    return {
+        "success": True,
+        "share_token": token,
+        "share_url": f"/share/{token}",
+        "affair_id": affair_id,
+    }
+
+
+@router.delete("/share/{affair_id}")
+async def revoke_share_link(affair_id: str, user: Dict = Depends(_require_admin)):
+    """Révoque le lien de consultation d'une affaire. (Admin)"""
+    svc = _svc()
+    svc.affairs.update_one(
+        {"_id": ObjectId(affair_id)},
+        {"$unset": {"share_token": "", "share_created_at": "", "share_created_by": ""}}
+    )
+    return {"success": True, "message": "Lien de partage révoqué"}
+
+
+@router.get("/shared/{token}")
+async def get_shared_affair(token: str):
+    """Accès PUBLIC à une affaire via son token de partage.
+    Aucune authentification requise — lecture seule, données limitées."""
+    svc = _svc()
+    affair = svc.affairs.find_one({"share_token": token})
+    if not affair:
+        raise HTTPException(404, "Lien de partage invalide ou expiré")
+
+    # Retourner uniquement les données de consultation (pas d'info admin)
+    affair_id = str(affair["_id"])
+
+    # Articles liés (titres + sources seulement)
+    linked_articles = []
+    for art_ref in (affair.get("articles") or [])[:20]:
+        art = svc.articles.find_one(
+            {"_id": ObjectId(art_ref) if isinstance(art_ref, str) else art_ref},
+            {"title": 1, "source": 1, "scraped_at": 1, "gravity_score": 1, "theme": 1}
+        )
+        if art:
+            art["_id"] = str(art["_id"])
+            linked_articles.append(art)
+
+    # Contexte IA (s'il existe)
+    ai_context = affair.get("ai_context")
+
+    return {
+        "affair": {
+            "id": affair_id,
+            "title": affair.get("title", ""),
+            "description": affair.get("description", ""),
+            "theme": affair.get("theme", ""),
+            "status": affair.get("status", ""),
+            "gravity_score": affair.get("gravity_score", 0),
+            "bmg": affair.get("bmg", 0),
+            "sentiment": affair.get("sentiment", "neutre"),
+            "elected": affair.get("elected", []),
+            "institutions": affair.get("institutions", []),
+            "item_count": affair.get("item_count", 0),
+            "created_at": affair.get("created_at", ""),
+            "last_activity": affair.get("last_activity", ""),
+        },
+        "ai_context": ai_context,
+        "articles": linked_articles,
+        "total_articles": len(affair.get("articles", [])),
     }

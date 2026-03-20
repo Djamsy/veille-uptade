@@ -16,6 +16,9 @@ import {
   fetchAdminActivityLog,
   fetchUsers,
   updateUserRole,
+  adminCreateUser,
+  adminDeleteUser,
+  createShareLink,
   type Affair,
   type OrphanArticleAdmin,
   type AffairDetailResponse,
@@ -243,6 +246,54 @@ export default function AdminPage() {
     }
   }
 
+  // ── Create user state ──
+  const [newUserEmail, setNewUserEmail] = useState('')
+  const [newUserPassword, setNewUserPassword] = useState('')
+  const [newUserName, setNewUserName] = useState('')
+  const [newUserRole, setNewUserRole] = useState('viewer')
+  const [creatingUser, setCreatingUser] = useState(false)
+
+  const handleCreateUser = async () => {
+    if (!newUserEmail || !newUserPassword) return showMsg('Email et mot de passe requis')
+    if (newUserPassword.length < 6) return showMsg('Mot de passe : 6 caractères minimum')
+    setCreatingUser(true)
+    try {
+      await adminCreateUser(newUserEmail, newUserPassword, newUserName, newUserRole)
+      showMsg(`Compte créé : ${newUserEmail} (${newUserRole})`)
+      setNewUserEmail('')
+      setNewUserPassword('')
+      setNewUserName('')
+      setNewUserRole('viewer')
+      loadUsers()
+    } catch (e: any) {
+      showMsg(`Erreur : ${e.message}`)
+    } finally {
+      setCreatingUser(false)
+    }
+  }
+
+  const handleDeleteUser = async (userId: string, email: string) => {
+    if (!confirm(`Supprimer le compte ${email} ?`)) return
+    try {
+      await adminDeleteUser(userId)
+      showMsg(`Compte ${email} supprimé`)
+      loadUsers()
+    } catch (e: any) {
+      showMsg(`Erreur : ${e.message}`)
+    }
+  }
+
+  const handleShareLink = async (affairId: string) => {
+    try {
+      const res = await createShareLink(affairId)
+      const url = `${window.location.origin}/share/${res.share_token}`
+      await navigator.clipboard.writeText(url)
+      showMsg('Lien de consultation copié !')
+    } catch (e: any) {
+      showMsg(`Erreur : ${e.message}`)
+    }
+  }
+
   const toggleAffairSelect = (id: string) => {
     setSelectedAffairs(prev => {
       const n = new Set(prev)
@@ -421,6 +472,13 @@ export default function AdminPage() {
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                         </button>
                         <button
+                          onClick={() => handleShareLink(affair._id)}
+                          className="p-1.5 rounded-lg hover:bg-white/10 text-white/30 hover:text-emerald-400 transition"
+                          title="Lien de consultation"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                        </button>
+                        <button
                           onClick={() => handleArchive(affair._id)}
                           className="p-1.5 rounded-lg hover:bg-white/10 text-white/30 hover:text-red-400 transition"
                           title="Archiver"
@@ -515,22 +573,50 @@ export default function AdminPage() {
 
       {/* ═══ TAB : USERS ═══ */}
       {tab === 'users' && user.role === 'admin' && (
-        <div>
-          <p className="text-sm text-white/40 mb-4">
-            Gérez les rôles : <span className="text-red-400">admin</span> (tout), <span className="text-amber-400">editor</span> (pilotage affaires), <span className="text-blue-400">viewer</span> (lecture seule), <span className="text-white/50">user</span> (standard).
-          </p>
-          <div className="space-y-2">
-            {users.map(u => (
-              <div key={u._id} className="flex items-center gap-4 p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
-                <div className="flex-1">
-                  <span className="text-sm text-white font-medium">{u.name || u.email}</span>
-                  <span className="text-xs text-white/30 ml-2">{u.email}</span>
-                </div>
+        <div className="space-y-6">
+          {/* ── Créer un compte ── */}
+          <div className="p-5 bg-white/[0.03] border border-emerald-500/20 rounded-2xl">
+            <h3 className="text-sm font-semibold text-emerald-400 mb-3 flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
+              Créer un compte
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] text-white/40 uppercase tracking-wider mb-1">Email *</label>
+                <input
+                  type="email"
+                  value={newUserEmail}
+                  onChange={e => setNewUserEmail(e.target.value)}
+                  placeholder="email@exemple.com"
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-white/40 uppercase tracking-wider mb-1">Mot de passe *</label>
+                <input
+                  type="password"
+                  value={newUserPassword}
+                  onChange={e => setNewUserPassword(e.target.value)}
+                  placeholder="6 caractères min."
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-white/40 uppercase tracking-wider mb-1">Nom</label>
+                <input
+                  type="text"
+                  value={newUserName}
+                  onChange={e => setNewUserName(e.target.value)}
+                  placeholder="Nom affiché"
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-white/40 uppercase tracking-wider mb-1">Rôle</label>
                 <select
-                  value={u.role}
-                  onChange={(e) => handleRoleChange(u._id, e.target.value)}
-                  disabled={u._id === user.id}
-                  className="bg-white/5 border border-white/10 text-white text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-30"
+                  value={newUserRole}
+                  onChange={e => setNewUserRole(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 >
                   <option value="admin">admin</option>
                   <option value="editor">editor</option>
@@ -538,7 +624,67 @@ export default function AdminPage() {
                   <option value="user">user</option>
                 </select>
               </div>
-            ))}
+            </div>
+            <button
+              onClick={handleCreateUser}
+              disabled={creatingUser || !newUserEmail || !newUserPassword}
+              className="mt-3 px-5 py-2 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-500 disabled:opacity-40 transition flex items-center gap-2"
+            >
+              {creatingUser ? (
+                <span className="animate-spin w-4 h-4 border-2 border-white/50 border-t-white rounded-full" />
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              )}
+              Créer le compte
+            </button>
+          </div>
+
+          {/* ── Liste des utilisateurs ── */}
+          <div>
+            <p className="text-sm text-white/40 mb-3">
+              Rôles : <span className="text-red-400">admin</span> (tout), <span className="text-amber-400">editor</span> (pilotage), <span className="text-blue-400">viewer</span> (lecture), <span className="text-white/50">user</span> (standard).
+            </p>
+            <div className="space-y-2">
+              {users.map(u => (
+                <div key={u._id} className="flex items-center gap-4 p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-white font-medium truncate">{u.name || u.email}</span>
+                      {u._id === user.id && (
+                        <span className="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded-full">vous</span>
+                      )}
+                    </div>
+                    <span className="text-xs text-white/30">{u.email}</span>
+                    {u.created_at && (
+                      <span className="text-[10px] text-white/20 ml-2">inscrit {timeAgo(u.created_at)}</span>
+                    )}
+                  </div>
+                  <select
+                    value={u.role}
+                    onChange={(e) => handleRoleChange(u._id, e.target.value)}
+                    disabled={u._id === user.id}
+                    className="bg-white/5 border border-white/10 text-white text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-30"
+                  >
+                    <option value="admin">admin</option>
+                    <option value="editor">editor</option>
+                    <option value="viewer">viewer</option>
+                    <option value="user">user</option>
+                  </select>
+                  {u._id !== user.id && (
+                    <button
+                      onClick={() => handleDeleteUser(u._id, u.email)}
+                      className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/20 hover:text-red-400 transition"
+                      title="Supprimer ce compte"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                  )}
+                </div>
+              ))}
+              {users.length === 0 && (
+                <p className="text-center text-white/30 text-sm py-8">Aucun utilisateur</p>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -14,7 +14,7 @@ from typing import Optional, Dict, Any, List
 from zoneinfo import ZoneInfo
 from collections import Counter
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
@@ -903,9 +903,28 @@ def stop_scheduler(app=None):
 
 router = APIRouter()
 
+# ── Auth dependencies ──
+_sched_auth = {}
+
+def _get_sched_auth():
+    if not _sched_auth:
+        try:
+            from backend.admin_routes import get_current_user, require_role
+        except ImportError:
+            from admin_routes import get_current_user, require_role
+        _sched_auth["get_current_user"] = get_current_user
+        _sched_auth["require_role"] = require_role
+    return _sched_auth
+
+def _sched_admin():
+    return _get_sched_auth()["require_role"]("admin")
+
+def _sched_auth_any():
+    return _get_sched_auth()["require_role"]("admin", "editor", "viewer", "user")
+
 
 @router.get("/dashboard")
-async def scheduler_dashboard():
+async def scheduler_dashboard(user: dict = Depends(_sched_auth_any)):
     """Dashboard du scheduler"""
     if _db is None:
         raise HTTPException(503, "DB indisponible")
@@ -958,50 +977,50 @@ async def scheduler_dashboard():
 
 
 @router.post("/run-pipeline")
-async def run_pipeline_now():
-    """Lance le pipeline complet maintenant"""
+async def run_pipeline_now(user: dict = Depends(_sched_admin)):
+    """Lance le pipeline complet maintenant (Admin)"""
     result = await job_full_pipeline()
     return {"success": True, "result": result}
 
 
 @router.post("/scrape-now")
-async def scrape_now():
-    """Lance le scraping maintenant"""
+async def scrape_now(user: dict = Depends(_sched_admin)):
+    """Lance le scraping maintenant (Admin)"""
     result = await job_scrape()
     return {"success": True, "result": result}
 
 
 @router.post("/enrich-now")
-async def enrich_now():
-    """Lance l'enrichissement maintenant"""
+async def enrich_now(user: dict = Depends(_sched_admin)):
+    """Lance l'enrichissement maintenant (Admin)"""
     result = await job_enrich()
     return {"success": True, "result": result}
 
 
 @router.post("/detect-affairs-now")
-async def detect_now():
-    """Lance le cycle affaires V2 maintenant"""
+async def detect_now(user: dict = Depends(_sched_admin)):
+    """Lance le cycle affaires V2 maintenant (Admin)"""
     result = await job_affair_cycle()
     return {"success": True, "result": result}
 
 
 @router.post("/radio-capture-now")
-async def radio_capture_now():
-    """Lance la capture radio maintenant"""
+async def radio_capture_now(user: dict = Depends(_sched_admin)):
+    """Lance la capture radio maintenant (Admin)"""
     result = await job_radio_capture()
     return {"success": True, "result": result}
 
 
 @router.post("/radio-health-check-now")
-async def radio_health_check_now():
-    """Lance le health-check radio maintenant"""
+async def radio_health_check_now(user: dict = Depends(_sched_admin)):
+    """Lance le health-check radio maintenant (Admin)"""
     result = await job_radio_health_check()
     return {"success": True, "result": result}
 
 
 @router.post("/social-scrape-now")
-async def social_scrape_now():
-    """Lance le scraping social maintenant"""
+async def social_scrape_now(user: dict = Depends(_sched_admin)):
+    """Lance le scraping social maintenant (Admin)"""
     result = await job_social_scrape()
     return {"success": True, "result": result}
 
@@ -1010,10 +1029,9 @@ async def social_scrape_now():
 async def bulk_enrich(
     batch_size: int = Query(default=100, ge=10, le=500),
     days: int = Query(default=90, ge=1, le=365),
+    user: dict = Depends(_sched_admin),
 ):
-    """Rattrapage massif : enrichit les vieux articles jamais analysés.
-    Utile au premier déploiement pour traiter le backlog.
-    """
+    """Rattrapage massif : enrichit les vieux articles. (Admin)"""
     if _db is None:
         raise HTTPException(503, "DB indisponible")
 
@@ -1109,14 +1127,14 @@ async def bulk_enrich(
 
 
 @router.post("/daily-report-now")
-async def daily_report_now():
-    """Génère et envoie le bilan quotidien maintenant"""
+async def daily_report_now(user: dict = Depends(_sched_admin)):
+    """Génère et envoie le bilan quotidien maintenant (Admin)"""
     result = await job_daily_report()
     return {"success": True, "result": result}
 
 
 @router.get("/daily-report/latest")
-async def download_latest_report():
+async def download_latest_report(user: dict = Depends(_sched_auth_any)):
     """Télécharge le dernier bilan PDF depuis MongoDB."""
     if _db is None:
         raise HTTPException(503, "DB indisponible")
@@ -1139,7 +1157,7 @@ async def download_latest_report():
 
 
 @router.get("/daily-report/{date}")
-async def download_report_by_date(date: str):
+async def download_report_by_date(date: str, user: dict = Depends(_sched_auth_any)):
     """Télécharge un bilan PDF par date (format YYYY-MM-DD)."""
     if _db is None:
         raise HTTPException(503, "DB indisponible")
@@ -1161,8 +1179,8 @@ async def download_report_by_date(date: str):
 
 
 @router.post("/telegram-test")
-async def telegram_test():
-    """Teste la connexion Telegram."""
+async def telegram_test(user: dict = Depends(_sched_admin)):
+    """Teste la connexion Telegram. (Admin)"""
     try:
         from backend.telegram_service import test_connection
     except ImportError:
