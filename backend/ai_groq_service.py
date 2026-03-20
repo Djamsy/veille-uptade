@@ -1628,3 +1628,91 @@ Ne te base pas sur des scores pré-calculés — évalue par toi-même en te bas
     except Exception as e:
         logger.warning(f"⚠️ Contexte IA échoué: {e}")
         return None
+
+
+# ============================================================
+# VÉRIFICATION GPT DES ARTICLES LIÉS (NETTOYAGE HORS-SUJET)
+# ============================================================
+
+def verify_linked_articles(
+    affair_title: str,
+    affair_description: str,
+    affair_theme: str,
+    articles: List[Dict],
+) -> Optional[Dict]:
+    """
+    GPT lit le titre de l'affaire + les titres de tous les articles liés.
+    Il identifie les articles qui n'ont RIEN à voir avec l'affaire.
+
+    articles: [{"id": "...", "title": "...", "source": "..."}]
+
+    Retourne: {
+        "keep": ["id1", "id2", ...],       # Articles cohérents
+        "unlink": ["id3", ...],              # Articles hors-sujet à délier
+        "reasons": {"id3": "Raison du déliage"}
+    }
+    """
+    if not articles or len(articles) < 2:
+        return None  # Pas besoin de vérifier avec 0-1 articles
+
+    articles_list_str = "\n".join(
+        f"- ID={a['id']} | {a.get('source', '?')} | \"{a['title']}\""
+        for a in articles
+    )
+
+    prompt = f"""Tu es un analyste média en Guadeloupe. Tu dois vérifier la cohérence des articles rattachés à une affaire.
+
+AFFAIRE:
+- Titre: {affair_title}
+- Description: {affair_description or 'Non disponible'}
+- Thème: {affair_theme}
+
+ARTICLES LIÉS ({len(articles)}):
+{articles_list_str}
+
+TÂCHE:
+Analyse chaque article et détermine s'il est réellement lié à cette affaire.
+Un article est HORS-SUJET si:
+- Il parle d'un sujet complètement différent
+- Il mentionne des personnes/lieux sans rapport
+- Il a été regroupé par erreur (homonyme, thème similaire mais sujet différent)
+
+Un article est COHÉRENT s'il parle du même sujet, des mêmes personnes, du même événement, même indirectement.
+
+IMPORTANT: Sois conservateur. En cas de doute, GARDE l'article. Ne délie que les articles clairement hors-sujet.
+
+Retourne un JSON:
+{{
+  "keep": ["id1", "id2"],
+  "unlink": ["id3"],
+  "reasons": {{"id3": "Explication courte du pourquoi"}}
+}}"""
+
+    raw = _call_ai(
+        [{"role": "user", "content": prompt}],
+        temperature=0.1,
+        max_tokens=1000,
+        json_mode=True,
+    )
+
+    if not raw:
+        return None
+
+    try:
+        result = json.loads(raw)
+        keep_ids = result.get("keep", [])
+        unlink_ids = result.get("unlink", [])
+        reasons = result.get("reasons", {})
+
+        logger.info(f"🔍 Vérification articles: {len(keep_ids)} gardés, {len(unlink_ids)} à délier")
+        return {
+            "keep": keep_ids,
+            "unlink": unlink_ids,
+            "reasons": reasons,
+        }
+    except json.JSONDecodeError as e:
+        logger.warning(f"⚠️ Vérification articles: JSON invalide: {e}")
+        return None
+    except Exception as e:
+        logger.warning(f"⚠️ Vérification articles échouée: {e}")
+        return None

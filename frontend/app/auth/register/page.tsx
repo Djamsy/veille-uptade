@@ -48,14 +48,15 @@ export default function RegisterPage() {
 
       const data = await response.json()
 
-      if (data.success) {
+      if (response.ok && data.success) {
         setSuccess('Inscription réussie ! Redirection...')
         setTimeout(() => router.push('/auth/login'), 2000)
       } else {
-        setError(data.error || 'Erreur lors de l\'inscription')
+        // FastAPI renvoie { detail: "..." } en cas d'erreur
+        setError(data.detail || data.error || data.message || `Erreur ${response.status}`)
       }
     } catch (err: any) {
-      setError('Impossible de contacter le serveur')
+      setError('Impossible de contacter le serveur. Vérifiez votre connexion.')
     } finally {
       setLoading(false)
     }

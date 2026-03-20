@@ -48,15 +48,15 @@ export default function LoginPage() {
 
       const data = await response.json()
 
-      if (data.success) {
+      if (response.ok && data.success) {
         localStorage.setItem('token', data.token)
         router.push('/')
       } else {
-        setError(data.error || 'Identifiants incorrects')
+        setError(data.detail || data.error || 'Identifiants incorrects')
         setLoading(false)
       }
     } catch (err: any) {
-      setError('Impossible de contacter le serveur')
+      setError('Impossible de contacter le serveur. Vérifiez votre connexion.')
       setLoading(false)
     }
   }

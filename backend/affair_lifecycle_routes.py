@@ -450,7 +450,7 @@ async def list_clusters(
 # ============================================================
 
 @router.get("/candidates/stats")
-async def candidates_stats(, user: Dict = Depends(_require_authenticated)):
+async def candidates_stats(user: Dict = Depends(_require_authenticated)):
     """Statistiques sur les candidats."""
     svc = _svc()
     total = svc.candidates.count_documents({})
@@ -470,7 +470,7 @@ async def candidates_stats(, user: Dict = Depends(_require_authenticated)):
 # ============================================================
 
 @router.get("/dashboard")
-async def affairs_dashboard(, user: Dict = Depends(_require_authenticated)):
+async def affairs_dashboard(user: Dict = Depends(_require_authenticated)):
     """
     Vue dashboard : top affaires, alertes, stats globales.
     """
@@ -504,13 +504,13 @@ async def affairs_dashboard(, user: Dict = Depends(_require_authenticated)):
 
 
 @router.get("/health")
-async def affair_system_health(, user: Dict = Depends(_require_authenticated)):
+async def affair_system_health(user: Dict = Depends(_require_authenticated)):
     """Santé du système d'affaires."""
     return _svc().health_check()
 
 
 @router.get("/dashboard/enriched")
-async def enriched_dashboard(, user: Dict = Depends(_require_authenticated)):
+async def enriched_dashboard(user: Dict = Depends(_require_authenticated)):
     """Dashboard enrichi avec stats détaillées, couverture, tendances."""
     svc = _svc()
     from datetime import timedelta
@@ -742,7 +742,7 @@ async def enriched_dashboard(, user: Dict = Depends(_require_authenticated)):
 
 
 @router.post("/recalculate-priorities")
-async def recalculate_all_priorities(, user: Dict = Depends(_require_admin)):
+async def recalculate_all_priorities(user: Dict = Depends(_require_admin)):
     """Recalcule la priorité de TOUTES les affaires actives/stale avec les nouveaux seuils."""
     svc = _svc()
     updated = 0
@@ -768,7 +768,7 @@ async def recalculate_all_priorities(, user: Dict = Depends(_require_admin)):
 
 
 @router.post("/clean-parasites")
-async def clean_parasitic_articles(, user: Dict = Depends(_require_admin)):
+async def clean_parasitic_articles(user: Dict = Depends(_require_admin)):
     """Nettoie les affaires existantes :
     1. Supprime les articles parasites (pas assez liés à l'affaire d'origine)
     2. Fusionne les affaires doublons (titres quasi-identiques)
@@ -923,7 +923,7 @@ async def clean_parasitic_articles(, user: Dict = Depends(_require_admin)):
 
 
 @router.post("/purge-v1")
-async def purge_v1_affairs(, user: Dict = Depends(_require_admin)):
+async def purge_v1_affairs(user: Dict = Depends(_require_admin)):
     """Supprime les affaires créées par le V1 (sans promoted_at)
     et vide les topic_candidates/clusters pour repartir proprement."""
     svc = _svc()
@@ -949,7 +949,7 @@ async def purge_v1_affairs(, user: Dict = Depends(_require_admin)):
 
 
 @router.get("/debug/radio-transcriptions")
-async def debug_radio_transcriptions(, user: Dict = Depends(_require_authenticated)):
+async def debug_radio_transcriptions(user: Dict = Depends(_require_authenticated)):
     """Debug: voir les transcriptions radio récentes et leur état."""
     svc = _svc()
     from datetime import timedelta
@@ -1054,7 +1054,7 @@ def _detect_communes(affair: dict) -> list:
 
 
 @router.get("/by-commune")
-async def affairs_by_commune(, user: Dict = Depends(_require_authenticated)):
+async def affairs_by_commune(user: Dict = Depends(_require_authenticated)):
     """Retourne les affaires groupées par commune pour la carte."""
     svc = _svc()
     affairs = list(svc.affairs.find({"status": "active"}).sort("gravity_score", -1))
@@ -1082,7 +1082,7 @@ async def affairs_by_commune(, user: Dict = Depends(_require_authenticated)):
 
 
 @router.get("/elections")
-async def elections_affairs(, user: Dict = Depends(_require_authenticated)):
+async def elections_affairs(user: Dict = Depends(_require_authenticated)):
     """Retourne les affaires liées aux élections municipales 2026."""
     svc = _svc()
 
@@ -1421,6 +1421,96 @@ async def full_reset(user: Dict = Depends(_require_admin)):
         "success": True,
         "deleted": results,
         "message": "Base vidée. Le prochain scraping + cycle créera tout depuis zéro."
+    }
+
+
+# ============================================================
+# VÉRIFICATION GPT DES ARTICLES LIÉS (nettoyage hors-sujet)
+# ============================================================
+
+@router.post("/verify-articles/{affair_id}")
+async def verify_linked_articles(affair_id: str, auto_unlink: bool = Query(False), user: Dict = Depends(_require_admin)):
+    """GPT vérifie la cohérence des articles liés à une affaire.
+    Si auto_unlink=true, les articles hors-sujet sont automatiquement déliés."""
+    svc = _svc()
+    from bson import ObjectId
+
+    try:
+        from backend.ai_groq_service import verify_linked_articles as _verify_articles
+    except ImportError:
+        try:
+            from ai_groq_service import verify_linked_articles as _verify_articles
+        except ImportError:
+            raise HTTPException(500, "Service IA non disponible")
+
+    affair = svc.affairs.find_one({"_id": ObjectId(affair_id)})
+    if not affair:
+        raise HTTPException(404, "Affaire introuvable")
+
+    # Récupérer tous les articles liés
+    article_ids = affair.get("articles", [])
+    if len(article_ids) < 2:
+        return {"success": True, "message": "Pas assez d'articles pour vérifier", "keep": len(article_ids), "unlinked": 0}
+
+    articles_data = []
+    for art_ref in article_ids:
+        art = svc.articles.find_one(
+            {"_id": ObjectId(art_ref) if isinstance(art_ref, str) else art_ref},
+            {"title": 1, "source": 1}
+        )
+        if art:
+            articles_data.append({
+                "id": str(art["_id"]),
+                "title": art.get("title", "Sans titre"),
+                "source": art.get("source", "?"),
+            })
+
+    # Appeler GPT
+    result = _verify_articles(
+        affair_title=affair.get("title", ""),
+        affair_description=affair.get("description", ""),
+        affair_theme=affair.get("theme", "general"),
+        articles=articles_data,
+    )
+
+    if not result:
+        raise HTTPException(500, "Échec de la vérification IA")
+
+    unlinked_count = 0
+    if auto_unlink and result.get("unlink"):
+        for art_id in result["unlink"]:
+            try:
+                svc.affairs.update_one(
+                    {"_id": ObjectId(affair_id)},
+                    {"$pull": {"articles": ObjectId(art_id)}}
+                )
+                # Aussi essayer avec la string
+                svc.affairs.update_one(
+                    {"_id": ObjectId(affair_id)},
+                    {"$pull": {"articles": art_id}}
+                )
+                unlinked_count += 1
+            except Exception:
+                pass
+
+        # Recalculer item_count
+        if unlinked_count > 0:
+            updated = svc.affairs.find_one({"_id": ObjectId(affair_id)})
+            if updated:
+                new_count = len(updated.get("articles", [])) + len(updated.get("radio_transcriptions", [])) + len(updated.get("social_posts", []))
+                svc.affairs.update_one(
+                    {"_id": ObjectId(affair_id)},
+                    {"$set": {"item_count": new_count}}
+                )
+
+    return {
+        "success": True,
+        "affair_id": affair_id,
+        "total_articles": len(articles_data),
+        "keep": result.get("keep", []),
+        "unlink": result.get("unlink", []),
+        "reasons": result.get("reasons", {}),
+        "auto_unlinked": unlinked_count,
     }
 
 

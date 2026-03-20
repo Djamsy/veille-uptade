@@ -669,3 +669,53 @@ export const fetchSharedAffair = (token: string) =>
     articles: Array<{ _id: string; title: string; source: string; scraped_at: string; gravity_score: number; theme: string }>;
     total_articles: number;
   }>(`/api/affairs/shared/${token}`);
+
+// --- Changement de mot de passe ---
+export const changePassword = (currentPassword: string, newPassword: string) =>
+  adminFetch<{ success: boolean; message: string }>(
+    '/api/auth/change-password',
+    { method: 'PUT', body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) }
+  );
+
+// --- Santé système (Admin) ---
+export interface SystemHealthData {
+  health: {
+    last_scrape: string | null;
+    last_enrichment: string | null;
+    last_scheduler_run: string | null;
+    scheduler_last_status: string;
+    last_radio_capture: string | null;
+    last_daily_report: string | null;
+    recent_errors_24h: number;
+  };
+  counts: {
+    articles: number;
+    affairs_active: number;
+    radio_transcriptions: number;
+    social_posts: number;
+    users: number;
+  };
+  timestamp: string;
+}
+
+export const fetchSystemHealth = () =>
+  adminFetch<{ success: boolean } & SystemHealthData>('/api/auth/system-health');
+
+// --- Bilans PDF ---
+export const triggerDailyReport = () =>
+  adminFetch<{ success: boolean; message: string }>('/api/scheduler/daily-report-now', { method: 'POST' });
+
+export const fetchLatestReport = () =>
+  `/api/scheduler/daily-report/latest`;
+
+// --- Vérification GPT des articles liés ---
+export const verifyLinkedArticles = (affairId: string, autoUnlink: boolean = false) =>
+  adminFetch<{
+    success: boolean;
+    affair_id: string;
+    total_articles: number;
+    keep: string[];
+    unlink: string[];
+    reasons: Record<string, string>;
+    auto_unlinked: number;
+  }>(`/api/affairs/verify-articles/${affairId}?auto_unlink=${autoUnlink}`, { method: 'POST' });

@@ -19,9 +19,13 @@ import {
   adminCreateUser,
   adminDeleteUser,
   createShareLink,
+  fetchSystemHealth,
+  triggerDailyReport,
+  verifyLinkedArticles,
   type Affair,
   type OrphanArticleAdmin,
   type AffairDetailResponse,
+  type SystemHealthData,
 } from '../../lib/api'
 
 // ── Types ──────────────────────────────────────────
@@ -32,7 +36,7 @@ interface User {
   role: string
 }
 
-type Tab = 'affairs' | 'orphans' | 'users' | 'log'
+type Tab = 'affairs' | 'orphans' | 'users' | 'log' | 'health'
 
 // ── Helpers ────────────────────────────────────────
 const priorityBadge = (p?: string) => {
@@ -88,6 +92,10 @@ export default function AdminPage() {
   const [editTheme, setEditTheme] = useState('')
   const [editPriority, setEditPriority] = useState('')
 
+  // Health
+  const [healthData, setHealthData] = useState<SystemHealthData | null>(null)
+  const [healthLoading, setHealthLoading] = useState(false)
+
   // ── Auth from context (AuthGuard already handles redirect) ──
   useEffect(() => {
     if (authUser) {
@@ -125,6 +133,15 @@ export default function AdminPage() {
     } catch {}
   }, [])
 
+  const loadHealth = useCallback(async () => {
+    setHealthLoading(true)
+    try {
+      const data = await fetchSystemHealth()
+      setHealthData(data)
+    } catch {}
+    setHealthLoading(false)
+  }, [])
+
   useEffect(() => {
     if (!user) return
     loadAffairs()
@@ -134,6 +151,12 @@ export default function AdminPage() {
     }
     loadLog()
   }, [user, loadAffairs, loadOrphans, loadUsers, loadLog])
+
+  useEffect(() => {
+    if (tab === 'health') {
+      loadHealth()
+    }
+  }, [tab, loadHealth])
 
   // ── Actions ──
   const showMsg = (msg: string) => {
@@ -342,6 +365,7 @@ export default function AdminPage() {
     { key: 'orphans', label: `Orphelins (${orphans.length})` },
     { key: 'users', label: 'Utilisateurs', adminOnly: true },
     { key: 'log', label: 'Journal' },
+    { key: 'health', label: 'Santé', adminOnly: true },
   ]
 
   return (
@@ -477,6 +501,20 @@ export default function AdminPage() {
                           title="Lien de consultation"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                        </button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              const res = await verifyLinkedArticles(affair._id, true)
+                              showMsg(`Vérification : ${res.total_articles} articles, ${res.auto_unlinked} délié(s)`)
+                            } catch (e: any) {
+                              showMsg(`Erreur : ${e.message}`)
+                            }
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-white/10 text-white/30 hover:text-cyan-400 transition"
+                          title="Vérifier articles"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         </button>
                         <button
                           onClick={() => handleArchive(affair._id)}
@@ -717,6 +755,104 @@ export default function AdminPage() {
               <p className="text-center text-white/30 text-sm py-8">Aucune action manuelle enregistrée</p>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ═══ TAB : HEALTH ═══ */}
+      {tab === 'health' && user.role === 'admin' && (
+        <div className="space-y-4">
+          {healthLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full" />
+            </div>
+          ) : healthData ? (
+            <>
+              {/* Last operations */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
+                  <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Dernier scrape</h4>
+                  <p className="text-sm text-white">{healthData.health.last_scrape ? timeAgo(healthData.health.last_scrape) : 'Jamais'}</p>
+                </div>
+                <div className="p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
+                  <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Dernier enrichissement</h4>
+                  <p className="text-sm text-white">{healthData.health.last_enrichment ? timeAgo(healthData.health.last_enrichment) : 'Jamais'}</p>
+                </div>
+                <div className="p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
+                  <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Dernier scheduler</h4>
+                  <p className="text-sm text-white">{healthData.health.last_scheduler_run ? timeAgo(healthData.health.last_scheduler_run) : 'Jamais'}</p>
+                </div>
+                <div className="p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
+                  <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Dernier radio</h4>
+                  <p className="text-sm text-white">{healthData.health.last_radio_capture ? timeAgo(healthData.health.last_radio_capture) : 'Jamais'}</p>
+                </div>
+                <div className="p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
+                  <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Dernier rapport</h4>
+                  <p className="text-sm text-white">{healthData.health.last_daily_report ? timeAgo(healthData.health.last_daily_report) : 'Jamais'}</p>
+                </div>
+                <div className="p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
+                  <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Erreurs 24h</h4>
+                  <p className={`text-sm font-medium ${healthData.health.recent_errors_24h > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                    {healthData.health.recent_errors_24h}
+                  </p>
+                </div>
+              </div>
+
+              {/* Total counts */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
+                  <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Articles</h4>
+                  <p className="text-2xl font-bold text-blue-400">{healthData.counts.articles}</p>
+                </div>
+                <div className="p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
+                  <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Affaires</h4>
+                  <p className="text-2xl font-bold text-amber-400">{healthData.counts.affairs_active}</p>
+                </div>
+                <div className="p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
+                  <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Radio</h4>
+                  <p className="text-2xl font-bold text-purple-400">{healthData.counts.radio_transcriptions}</p>
+                </div>
+                <div className="p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
+                  <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Réseaux</h4>
+                  <p className="text-2xl font-bold text-pink-400">{healthData.counts.social_posts}</p>
+                </div>
+                <div className="p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
+                  <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Utilisateurs</h4>
+                  <p className="text-2xl font-bold text-emerald-400">{healthData.counts.users}</p>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <button
+                  onClick={async () => {
+                    try {
+                      await triggerDailyReport()
+                      showMsg('Génération du bilan en cours...')
+                      setTimeout(() => loadHealth(), 2000)
+                    } catch (e: any) {
+                      showMsg(`Erreur : ${e.message}`)
+                    }
+                  }}
+                  className="px-5 py-2.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-500 transition flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  Générer bilan PDF
+                </button>
+                <a
+                  href={`/api/scheduler/daily-report/latest`}
+                  download
+                  className="px-5 py-2.5 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-500 transition flex items-center gap-2"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  Télécharger dernier bilan
+                </a>
+              </div>
+            </>
+          ) : (
+            <p className="text-center text-white/30 text-sm py-8">Impossible de charger les données de santé</p>
+          )}
         </div>
       )}
 

@@ -101,6 +101,8 @@ export default function AffairsPage() {
   const [sortBy, setSortBy] = useState<SortField>('bmg')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [minorExpanded, setMinorExpanded] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [themeFilter, setThemeFilter] = useState<string>('all')
 
   const loadAffairs = useCallback(async () => {
     setLoading(true)
@@ -128,8 +130,25 @@ export default function AffairsPage() {
     }
   })
 
+  const filteredAffairs = sortedAffairs.filter(a => {
+    // Text search
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase()
+      const match = (a.title || '').toLowerCase().includes(q) ||
+        (a.description || '').toLowerCase().includes(q) ||
+        (a.primary_entity || '').toLowerCase().includes(q) ||
+        (a.entities || []).some(e => e.toLowerCase().includes(q)) ||
+        (a.elected || []).some(e => e.toLowerCase().includes(q)) ||
+        (a.theme || '').toLowerCase().includes(q)
+      if (!match) return false
+    }
+    // Theme filter
+    if (themeFilter !== 'all' && a.theme !== themeFilter) return false
+    return true
+  })
+
   const grouped: Record<Priority, Affair[]> = { hot: [], watch: [], minor: [] }
-  sortedAffairs.forEach(a => {
+  filteredAffairs.forEach(a => {
     const p = getAffairPriority(a)
     grouped[p].push(a)
   })
@@ -332,8 +351,27 @@ export default function AffairsPage() {
             </button>
           </div>
 
+          {/* Search bar */}
+          <div className="mb-4">
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'rgba(255,255,255,0.25)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Rechercher une affaire, entité, élu..."
+                className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/30 transition-all"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Priority summary pills */}
-          {!loading && sortedAffairs.length > 0 && (
+          {!loading && filteredAffairs.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-4">
               {(['hot', 'watch', 'minor'] as Priority[]).map(p => {
                 const count = grouped[p].length
@@ -371,6 +409,21 @@ export default function AffairsPage() {
               <option value="recent">Tri: Plus récent</option>
               <option value="items">Tri: Nb items</option>
             </select>
+            <select value={themeFilter} onChange={(e) => setThemeFilter(e.target.value)} className="input-dark px-3 py-1.5 text-xs">
+              <option value="all">Tous thèmes</option>
+              <option value="politique">Politique</option>
+              <option value="economie">Économie</option>
+              <option value="social">Social</option>
+              <option value="environnement">Environnement</option>
+              <option value="sante">Santé</option>
+              <option value="justice">Justice</option>
+              <option value="securite">Sécurité</option>
+              <option value="education">Éducation</option>
+              <option value="culture">Culture</option>
+              <option value="sport">Sport</option>
+              <option value="infrastructure">Infrastructure</option>
+              <option value="general">Général</option>
+            </select>
             <div className="ml-auto flex rounded-xl p-0.5" style={{ background: 'rgba(255,255,255,0.03)' }}>
               {(['grid', 'list'] as const).map((mode) => (
                 <button key={mode} onClick={() => setViewMode(mode)} className="p-1.5 rounded-lg transition-all"
@@ -396,13 +449,26 @@ export default function AffairsPage() {
                 <div key={i} className="glass-card-static p-5"><div className="skeleton h-4 w-32 mb-3" /><div className="skeleton h-16 w-full mb-3" /><div className="skeleton h-3 w-24" /></div>
               ))}
             </div>
-          ) : sortedAffairs.length === 0 ? (
+          ) : filteredAffairs.length === 0 ? (
             <div className="glass-card-static p-16 text-center">
               <svg className="w-14 h-14 mx-auto mb-4" style={{ color: 'rgba(255,255,255,0.1)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
               </svg>
-              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.3)' }}>Aucune affaire avec ce filtre</p>
-              <button onClick={() => setStatusFilter('all')} className="text-sm mt-2 font-medium hover:underline" style={{ color: '#60a5fa' }}>Voir toutes les affaires</button>
+              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                {searchQuery || themeFilter !== 'all'
+                  ? 'Aucune affaire ne correspond à votre recherche'
+                  : 'Aucune affaire avec ce filtre'}
+              </p>
+              <button
+                onClick={() => {
+                  setSearchQuery('')
+                  setThemeFilter('all')
+                }}
+                className="text-sm mt-2 font-medium hover:underline"
+                style={{ color: '#60a5fa' }}
+              >
+                Réinitialiser
+              </button>
             </div>
           ) : (
             <div>

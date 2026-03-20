@@ -300,3 +300,115 @@ def admin_delete_user(
     logger.info(f"👤 Compte supprimé par admin {admin['email']}: {user.get('email')}")
 
     return {"success": True, "message": f"Utilisateur {user.get('email')} supprimé"}
+
+
+@router.put("/change-password")
+def change_password(
+    payload: Dict[str, Any] = Body(...),
+    token: str = Depends(oauth2_scheme),
+):
+    """Permet à un utilisateur connecté de changer son mot de passe."""
+    try:
+        decoded = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email = decoded.get("sub")
+    except JWTError:
+        raise HTTPException(401, "Token invalide ou expiré")
+
+    current_password = payload.get("current_password", "")
+    new_password = payload.get("new_password", "")
+
+    if not current_password or not new_password:
+        raise HTTPException(400, "Ancien et nouveau mot de passe requis")
+    if len(new_password) < 6:
+        raise HTTPException(400, "Le nouveau mot de passe doit contenir au moins 6 caractères")
+
+    db = get_db()
+    users_col = db["users"]
+    user = users_col.find_one({"email": email})
+
+    if not user:
+        raise HTTPException(404, "Utilisateur non trouvé")
+
+    # Vérifier l'ancien mot de passe
+    current_truncated = current_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
+    try:
+        if not pwd_context.verify(current_truncated, user.get("password_hash", "")):
+            raise HTTPException(401, "Mot de passe actuel incorrect")
+    except ValueError:
+        raise HTTPException(401, "Mot de passe actuel incorrect")
+
+    # Hasher et sauvegarder le nouveau
+    new_truncated = new_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
+    new_hash = pwd_context.hash(new_truncated)
+    users_col.update_one({"email": email}, {"$set": {"password_hash": new_hash}})
+
+    logger.info(f"🔑 Mot de passe changé pour {email}")
+    return {"success": True, "message": "Mot de passe mis à jour"}
+
+
+@router.get("/system-health")
+def system_health(admin: dict = Depends(_require_admin_auth)):
+    """Retourne l'état de santé du système (Admin uniquement)."""
+    from datetime import datetime, timezone
+    db = get_db()
+
+    now = datetime.now(timezone.utc)
+
+    # Dernier scraping
+    last_article = db["articles_guadeloupe"].find_one(sort=[("scraped_at", -1)])
+    last_scrape = last_article.get("scraped_at") if last_article else None
+
+    # Dernier enrichissement
+    last_enriched = db["articles_guadeloupe"].find_one(
+        {"enriched": True}, sort=[("enriched_at", -1)]
+    )
+    last_enrich = last_enriched.get("enriched_at") if last_enriched else None
+
+    # Stats scheduler
+    last_log = db["scheduler_logs"].find_one(sort=[("timestamp", -1)])
+    last_scheduler = last_log.get("timestamp") if last_log else None
+    scheduler_status = last_log.get("status") if last_log else "unknown"
+
+    # Dernière radio
+    last_radio = db["radio_transcriptions"].find_one(sort=[("captured_at", -1)])
+    last_radio_at = last_radio.get("captured_at") if last_radio else None
+
+    # Dernier rapport PDF
+    last_report = db["daily_reports"].find_one(sort=[("generated_at", -1)])
+    last_report_at = last_report.get("generated_at") if last_report else None
+
+    # Compteurs
+    total_articles = db["articles_guadeloupe"].count_documents({})
+    total_affairs = db["affairs"].count_documents({"status": "active"})
+    total_radio = db["radio_transcriptions"].count_documents({})
+    total_social = db["social_media_posts"].count_documents({})
+    total_users = db["users"].count_documents({})
+
+    # Erreurs récentes (dernières 24h)
+    from datetime import timedelta
+    yesterday = (now - timedelta(hours=24)).isoformat()
+    recent_errors = db["scheduler_logs"].count_documents({
+        "status": "error",
+        "timestamp": {"$gte": yesterday}
+    })
+
+    return {
+        "success": True,
+        "health": {
+            "last_scrape": last_scrape,
+            "last_enrichment": last_enrich,
+            "last_scheduler_run": last_scheduler,
+            "scheduler_last_status": scheduler_status,
+            "last_radio_capture": last_radio_at,
+            "last_daily_report": last_report_at,
+            "recent_errors_24h": recent_errors,
+        },
+        "counts": {
+            "articles": total_articles,
+            "affairs_active": total_affairs,
+            "radio_transcriptions": total_radio,
+            "social_posts": total_social,
+            "users": total_users,
+        },
+        "timestamp": now.isoformat(),
+    }
