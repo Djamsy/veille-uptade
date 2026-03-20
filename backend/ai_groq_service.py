@@ -1399,19 +1399,16 @@ def generate_affair_context(
     theme: str,
     articles_titles: list,
     radio_summaries: list,
-    calculated_bmg: int = 0,
-    calculated_sentiment: str = "",
-    calculated_gravity: float = 0.0,
     item_count: int = 0,
 ) -> Optional[Dict]:
     """
     Génère un contexte enrichi pour une affaire via GPT.
     Séquence en 2 étapes :
       1. Identification/vérification des personnes et lieux
-      2. Génération du contexte avec les noms vérifiés + scores alignés
+      2. Génération du contexte avec évaluation LIBRE du bruit et du sentiment
 
-    Les scores bruit_score et sentiment_ia sont alignés avec les valeurs
-    déjà calculées par le système (BMG, sentiment dominant) pour cohérence.
+    GPT est la source PRIMAIRE pour bruit_score et sentiment_ia.
+    Le système calculé (BMG) sert de fallback quand le contexte IA n'existe pas.
     """
     try:
         # Pré-correction STT sur les inputs
@@ -1516,24 +1513,9 @@ Pour chaque personne, donne son vrai nom, sa fonction et ton degré de certitude
 
         # ──────────────────────────────────────────────────────────
         # ÉTAPE 2 : Génération du contexte avec infos vérifiées
+        # GPT évalue LIBREMENT le bruit médiatique et le sentiment
+        # Ses scores deviennent la source de vérité primaire
         # ──────────────────────────────────────────────────────────
-
-        # Construire les indications de scores calculés pour guider l'IA
-        scores_info = ""
-        if calculated_bmg or calculated_gravity:
-            scores_info = f"""
-SCORES CALCULÉS PAR LE SYSTÈME (à respecter pour cohérence):
-- BMG (Bruit Médiatique Global) calculé: {calculated_bmg}
-- Gravité calculée: {calculated_gravity:.0%}
-- Nombre de sources/items: {item_count}
-- Sentiment dominant calculé: {calculated_sentiment or 'non défini'}
-
-IMPORTANT: Ton bruit_score doit être COHÉRENT avec le BMG calculé ({calculated_bmg}).
-- Si BMG < 20 → bruit_score entre 10 et 35
-- Si BMG 20-50 → bruit_score entre 25 et 55
-- Si BMG 50-75 → bruit_score entre 45 et 75
-- Si BMG > 75 → bruit_score entre 65 et 95
-Ton sentiment_ia doit correspondre au sentiment dominant calculé "{calculated_sentiment}" sauf si les articles montrent clairement autre chose."""
 
         entities_section = ""
         if entities_info:
@@ -1542,6 +1524,8 @@ PERSONNES VÉRIFIÉES (étape 1):
 {entities_info}
 IMPORTANT: Utilise UNIQUEMENT les identifications ci-dessus. Si une personne est marquée "non identifiée",
 ne lui invente PAS de fonction — dis simplement son nom tel quel."""
+
+        volume_info = f"\nNOMBRE DE SOURCES/ITEMS: {item_count}" if item_count else ""
 
         messages = [
             {
@@ -1559,14 +1543,30 @@ RÈGLES CRITIQUES:
 1. N'invente JAMAIS une fonction ou un titre pour une personne que tu ne connais pas
 2. Si tu n'es pas sûr de l'identité d'une personne, mentionne simplement son nom sans détailler sa fonction
 3. Utilise les informations de personnes vérifiées fournies ci-dessous
-4. Le bruit_score et sentiment_ia doivent être COHÉRENTS avec les scores système fournis
+
+ÉVALUATION DU BRUIT MÉDIATIQUE (bruit_score 0-100):
+Évalue LIBREMENT le potentiel de bruit médiatique de cette affaire en te basant sur:
+- L'importance des personnalités impliquées (élu régional > maire > inconnu)
+- La gravité des faits (scandale financier > inauguration > fait divers banal)
+- Le nombre et la diversité des sources (multi-source = fort bruit)
+- L'impact sur la population guadeloupéenne
+- Le potentiel de rebondissements médiatiques
+Exemples de calibration:
+- 0-20: fait divers mineur, peu d'intérêt public
+- 20-40: actualité locale ordinaire, un seul média en parle
+- 40-60: sujet notable, plusieurs médias, touche un élu ou une institution
+- 60-80: affaire importante, multi-source, implications politiques/sociales
+- 80-100: crise majeure, scandale, mobilisation populaire, impact territorial
+
+ÉVALUATION DU SENTIMENT:
+Évalue LIBREMENT le sentiment dominant à partir du contenu des articles et radio.
 
 Réponds UNIQUEMENT en JSON valide avec ces clés:
 - contexte: paragraphe de fond (3-5 phrases) expliquant le contexte de l'affaire
 - enjeux: liste de 2-4 enjeux clés
 - historique: bref historique ou précédents connus (2-3 phrases)
 - impact_potentiel: impact potentiel sur la population/territoire (2-3 phrases)
-- bruit_score: estimation du bruit médiatique alignée sur le BMG calculé (0-100)
+- bruit_score: TON estimation libre du bruit médiatique (0-100), basée sur ta compréhension
 - sentiment_ia: sentiment dominant parmi "très_négatif", "négatif", "mitigé", "neutre", "positif", "très_positif"
 - mots_cles_contexte: liste de 5-10 mots-clés contextuels
 - corrections_noms: dictionnaire des noms corrigés (si corrections nécessaires)"""
@@ -1587,10 +1587,10 @@ ARTICLES LIÉS:
 
 SUJETS RADIO LIÉS:
 {radio_str}
-{scores_info}
+{volume_info}
 
-Fournis un contexte approfondi, les enjeux, et ton évaluation du bruit médiatique et du sentiment.
-RAPPEL: bruit_score doit être cohérent avec le BMG={calculated_bmg}, sentiment cohérent avec "{calculated_sentiment}"."""
+Fournis un contexte approfondi, les enjeux, et TON évaluation LIBRE du bruit médiatique et du sentiment.
+Ne te base pas sur des scores pré-calculés — évalue par toi-même en te basant sur le contenu."""
             }
         ]
 

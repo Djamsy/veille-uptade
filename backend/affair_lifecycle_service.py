@@ -2253,11 +2253,12 @@ class AffairLifecycleService:
         """Génère un contexte IA pour une affaire et le sauvegarde.
 
         Séquence en 2 étapes GPT :
-          1. Vérification des personnes/lieux (évite les hallucinations)
-          2. Génération du contexte aligné sur les scores calculés (BMG, sentiment)
+          1. Vérification des personnes/lieux (anti-hallucination)
+          2. Génération du contexte avec évaluation LIBRE du bruit et du sentiment
 
-        Le contexte IA ne modifie PAS la gravité ni le sentiment calculé
-        (anti-boule-de-neige). Il fournit un éclairage qualitatif uniquement.
+        GPT est la source PRIMAIRE : ses scores bruit_score et sentiment_ia
+        ÉCRASENT les valeurs système (BMG, sentiment calculé).
+        Le BMG formulaire devient le fallback quand le contexte IA n'existe pas.
         """
         from bson import ObjectId
         try:
@@ -2298,13 +2299,9 @@ class AffairLifecycleService:
                 elif radio.get("summary"):
                     radio_summaries.append(radio["summary"][:200])
 
-        # Récupérer les scores CALCULÉS par le système pour alignement
-        calculated_bmg = int(affair.get("bmg", 0))
-        calculated_sentiment = affair.get("sentiment", "neutre")
-        calculated_gravity = affair.get("gravity_score", 0)
         item_count = affair.get("item_count", 0)
 
-        # Générer le contexte via GPT (2 étapes séquencées)
+        # Générer le contexte via GPT (2 étapes séquencées, évaluation LIBRE)
         ctx = _gen_ctx(
             title=affair.get("title", ""),
             description=affair.get("description", ""),
@@ -2313,9 +2310,6 @@ class AffairLifecycleService:
             theme=affair.get("theme", "general"),
             articles_titles=articles_titles,
             radio_summaries=radio_summaries,
-            calculated_bmg=calculated_bmg,
-            calculated_sentiment=calculated_sentiment,
-            calculated_gravity=calculated_gravity,
             item_count=item_count,
         )
 
@@ -2325,13 +2319,21 @@ class AffairLifecycleService:
         # Sauvegarder le contexte dans l'affaire
         ctx["generated_at"] = datetime.utcnow().isoformat()
 
-        # ANTI-BOULE-DE-NEIGE : le contexte IA est purement informatif.
-        # On ne modifie NI la gravité, NI le sentiment, NI le BMG calculé.
-        # Le bruit_score IA et sentiment_ia sont stockés dans ai_context
-        # pour affichage mais n'influencent pas les métriques système.
+        # GPT = SOURCE PRIMAIRE — ses scores écrasent le système
+        old_bmg = affair.get("bmg", 0)
+        old_sentiment = affair.get("sentiment", "neutre")
+
         update_fields = {"ai_context": ctx}
 
-        # On stocke le sentiment IA pour affichage (pas pour calcul)
+        # bruit_score GPT (0-100) → bmg de l'affaire (0-1 float, source de vérité)
+        # Le frontend affiche bmg * 100, donc on divise par 100 pour rester compatible
+        bruit_score = ctx.get("bruit_score", 0)
+        bmg_normalized = round(bruit_score / 100, 3)
+        update_fields["bmg"] = bmg_normalized
+        # Conserver l'ancien BMG calculé comme référence
+        update_fields["bmg_formula"] = old_bmg
+
+        # sentiment GPT → sentiment de l'affaire (source de vérité)
         sentiment_ia = ctx.get("sentiment_ia", "")
         if sentiment_ia:
             sentiment_map = {
@@ -2343,8 +2345,20 @@ class AffairLifecycleService:
                 "très_positif": "très positif",
             }
             mapped = sentiment_map.get(sentiment_ia, sentiment_ia)
-            update_fields["ai_context_sentiment"] = mapped
-            # PAS de push dans sentiment_history (anti-boule-de-neige)
+            update_fields["sentiment"] = mapped
+            update_fields["sentiment_formula"] = old_sentiment
+            # Ajouter dans l'historique
+            self.affairs.update_one(
+                {"_id": affair["_id"]},
+                {"$push": {"sentiment_history": f"ia:{mapped}"}}
+            )
+
+        # Recalculer la priorité avec le nouveau BMG (0-1)
+        gravity = affair.get("gravity_score", 0.5)
+        new_sentiment = update_fields.get("sentiment", old_sentiment)
+        update_fields["priority"] = self.compute_priority(
+            gravity, bmg_normalized, affair.get("item_count", 1), sentiment=new_sentiment
+        )
 
         self.affairs.update_one(
             {"_id": affair["_id"]},
@@ -2356,23 +2370,29 @@ class AffairLifecycleService:
             "affair_id": affair_id,
             "event": "context_generated",
             "details": {
-                "bruit_score_ia": ctx.get("bruit_score", 0),
-                "bmg_calculated": calculated_bmg,
+                "bruit_score_ia": bruit_score,
+                "bmg_new": bmg_normalized,
+                "bmg_old_formula": old_bmg,
                 "sentiment_ia": sentiment_ia,
-                "sentiment_calculated": calculated_sentiment,
+                "sentiment_old": old_sentiment,
                 "enjeux_count": len(ctx.get("enjeux", [])),
             },
             "timestamp": datetime.utcnow(),
         })
 
-        logger.info(f"🧠 Contexte IA sauvegardé pour affaire '{affair.get('title', '?')[:50]}' "
-                     f"(bruit_ia={ctx.get('bruit_score', 0)}, bmg_calc={calculated_bmg})")
+        logger.info(
+            f"🧠 Contexte IA → affaire '{affair.get('title', '?')[:50]}' "
+            f"| bmg: {old_bmg:.2f}→{bmg_normalized:.2f} (GPT {bruit_score}/100) "
+            f"| sentiment: {old_sentiment}→{new_sentiment}"
+        )
 
         return {
             "affair_id": affair_id,
             "ai_context": ctx,
-            "sentiment_updated": False,  # Plus de modification du sentiment
-            "gravity_adjusted": False,   # Plus de modification de la gravité
+            "bmg_updated": True,
+            "sentiment_updated": bool(sentiment_ia),
+            "old_bmg": round(old_bmg * 100),
+            "new_bmg": bruit_score,
         }
 
     def cleanup_affair(self, affair_id: str) -> Dict:
