@@ -18431,3 +18431,10 @@ AttributeError: module 'bcrypt' has no attribute '__about__'
 2026-03-03 01:45:29,516 - veille_media_backend - INFO - MONGO_URL: mongodb+srv://djamalloiseau:djamalloiseau@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority
 2026-03-03 01:45:29,516 - veille_media_backend - INFO - Environment: development
 2026-03-03 01:45:29,516 - veille_media_backend - INFO - Seuil gravité affaires: 0.6
+2026-03-20 13:51:04,231 - veille_media_backend - INFO - ============================================================
+2026-03-20 13:51:04,233 - veille_media_backend - INFO - 🏝️ VEILLE MÉDIA GUADELOUPE - VERSION 5.2.0-NO-OLLAMA
+2026-03-20 13:51:04,233 - veille_media_backend - INFO - 🚀 Mode: SANS OLLAMA - 100% règles déterministes
+2026-03-20 13:51:04,234 - veille_media_backend - INFO - ============================================================
+2026-03-20 13:51:04,234 - veille_media_backend - INFO - MONGO_URL: mongodb+srv://djamalloiseau:djamalloiseau@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority
+2026-03-20 13:51:04,234 - veille_media_backend - INFO - Environment: development
+2026-03-20 13:51:04,234 - veille_media_backend - INFO - Seuil gravité affaires: 0.6

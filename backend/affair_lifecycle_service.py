@@ -3518,31 +3518,37 @@ class AffairLifecycleService:
                 if not common:
                     continue
 
-                # Score de match
+                # Score de match — distinguer génériques (Chalus, Lurel...) vs spécifiques
                 score = 0
-                # 1 personne en commun = fort signal
-                if common_elected:
-                    score += len(common_elected) * 3
+                for elu in common_elected:
+                    if elu in self.GENERIC_ELECTED:
+                        score += 1  # élu générique = signal faible (anti boule de neige)
+                    else:
+                        score += 3  # élu spécifique = fort signal
                 # Institutions en commun
                 score += len(common - common_elected) * 1
-                # Bonus même thème
+                # Bonus même thème (hors général)
                 if art_theme == aff_theme and art_theme != "general":
                     score += 2
 
-                # Seuil : au moins 3 points (1 personne, ou 1 institution + même thème, etc.)
+                # Seuil : au moins 3 points
+                # 1 élu générique (1pt) + même thème (2pt) = 3 → OK si même sujet
+                # 1 élu spécifique (3pt) = OK
+                # 1 élu générique seul (1pt) = PAS assez → anti boule de neige
                 if score >= 3 and score > best_score:
                     best_score = score
                     best_match = affair
 
             if best_match:
                 art_id = str(art["_id"])
+                # IMPORTANT : NE PAS ajouter les entités de l'article dans l'affaire
+                # pour éviter l'effet boule de neige (une affaire qui absorbe tout)
                 self.affairs.update_one(
                     {"_id": best_match["_id"]},
                     {
                         "$addToSet": {
                             "articles": art_id,
                             "sources": art.get("source", ""),
-                            "entities": {"$each": list(art_entities)[:10]},
                         },
                         "$inc": {"item_count": 1},
                         "$set": {"last_activity": now},

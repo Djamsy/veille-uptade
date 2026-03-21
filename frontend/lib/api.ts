@@ -10,6 +10,18 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+function authHeaders(): Record<string, string> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
+function adminFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  return apiFetch<T>(path, {
+    ...options,
+    headers: { ...authHeaders(), ...options?.headers },
+  });
+}
+
 // ============================================================
 // TYPES
 // ============================================================
@@ -244,24 +256,24 @@ export interface RadioCardsResponse {
 
 // --- Dashboard ---
 export const fetchDashboard = () =>
-  apiFetch<DashboardData>('/api/affairs/dashboard');
+  adminFetch<DashboardData>('/api/affairs/dashboard');
 
 export const fetchEnrichedDashboard = () =>
-  apiFetch<EnrichedDashboardData>('/api/affairs/dashboard/enriched');
+  adminFetch<EnrichedDashboardData>('/api/affairs/dashboard/enriched');
 
 // --- Affaires ---
 export const fetchAffairs = (status = 'active', limit = 30, sortBy = 'bmg') =>
-  apiFetch<{ affairs: Affair[]; total: number }>(
+  adminFetch<{ affairs: Affair[]; total: number }>(
     `/api/affairs/list?status=${status}&limit=${limit}&sort_by=${sortBy}`
   );
 
 export const fetchAffairDetail = (id: string) =>
-  apiFetch<AffairDetailResponse>(
+  adminFetch<AffairDetailResponse>(
     `/api/affairs/detail/${id}`
   );
 
 export const recalculateBmg = (id: string) =>
-  apiFetch<{ success: boolean; bmg: BmgDetails }>(
+  adminFetch<{ success: boolean; bmg: BmgDetails }>(
     `/api/affairs/recalculate-bmg/${id}`, { method: 'POST' }
   );
 
@@ -277,29 +289,29 @@ export interface AffairContext {
 }
 
 export const generateAffairContext = (id: string) =>
-  apiFetch<{ affair_id: string; ai_context: AffairContext; sentiment_updated: boolean; gravity_adjusted: boolean }>(
+  adminFetch<{ affair_id: string; ai_context: AffairContext; sentiment_updated: boolean; gravity_adjusted: boolean }>(
     `/api/affairs/generate-context/${id}`, { method: 'POST' }
   );
 
 export const fetchAffairContext = (id: string) =>
-  apiFetch<AffairContext>(`/api/affairs/context/${id}`);
+  adminFetch<AffairContext>(`/api/affairs/context/${id}`);
 
 export const runFullCycle = () =>
-  apiFetch<Record<string, unknown>>('/api/affairs/cycle/run', { method: 'POST' });
+  adminFetch<Record<string, unknown>>('/api/affairs/cycle/run', { method: 'POST' });
 
 export const runScrapeNow = () =>
-  apiFetch<Record<string, unknown>>('/api/scheduler/scrape-now', { method: 'POST' });
+  adminFetch<Record<string, unknown>>('/api/scheduler/scrape-now', { method: 'POST' });
 
 export const runFullPipeline = () =>
-  apiFetch<Record<string, unknown>>('/api/scheduler/run-pipeline', { method: 'POST' });
+  adminFetch<Record<string, unknown>>('/api/scheduler/run-pipeline', { method: 'POST' });
 
 export const runBulkEnrich = (batchSize = 100, days = 90) =>
-  apiFetch<{ success: boolean; enriched: number; embeddings: number; remaining: number; message: string }>(
+  adminFetch<{ success: boolean; enriched: number; embeddings: number; remaining: number; message: string }>(
     `/api/scheduler/bulk-enrich?batch_size=${batchSize}&days=${days}`, { method: 'POST' }
   );
 
 export const runReaffiliate = () =>
-  apiFetch<{ success: boolean; reaffiliated: number; message: string }>(
+  adminFetch<{ success: boolean; reaffiliated: number; message: string }>(
     '/api/affairs/cycle/reaffiliate', { method: 'POST' }
   );
 
@@ -311,10 +323,10 @@ export const fetchArticles = (limit = 30, skip = 0) =>
 
 // --- Réconciliation ---
 export const fetchReconciliationHealth = () =>
-  apiFetch<Record<string, unknown>>('/api/reconciliation/health');
+  adminFetch<Record<string, unknown>>('/api/reconciliation/health');
 
 export const fetchArticleIndex = () =>
-  apiFetch<Record<string, unknown>>('/api/reconciliation/index/status');
+  adminFetch<Record<string, unknown>>('/api/reconciliation/index/status');
 
 export const runReconciliation = (days = 3, dryRun = false) =>
   apiFetch<{ success: boolean; stats: ReconciliationStats }>(
@@ -385,7 +397,7 @@ export interface StreamHealthResponse {
 }
 
 export const fetchRadioHealthCheck = () =>
-  apiFetch<StreamHealthResponse>('/api/radio/health-check');
+  adminFetch<StreamHealthResponse>('/api/radio/health-check');
 
 export const fetchRadioHealthCheckSingle = (key: string) =>
   apiFetch<{ success: boolean; stream: StreamHealthResult }>(
@@ -455,7 +467,7 @@ export interface SocialStats {
 }
 
 export const fetchSocialStats = () =>
-  apiFetch<SocialStats>('/api/social/stats');
+  adminFetch<SocialStats>('/api/social/stats');
 
 export const fetchSocialPosts = (platform?: string, limit = 50) =>
   apiFetch<{ posts: SocialPost[]; count: number }>(
@@ -463,28 +475,28 @@ export const fetchSocialPosts = (platform?: string, limit = 50) =>
   );
 
 export const fetchSocialScrapeAll = () =>
-  apiFetch<Record<string, unknown>>('/api/social/scrape', { method: 'POST' });
+  adminFetch<Record<string, unknown>>('/api/social/scrape', { method: 'POST' });
 
 export const fetchSocialScrapeSingle = (platform: string) =>
   apiFetch<Record<string, unknown>>(`/api/social/scrape/${platform}`, { method: 'POST' });
 
 export const fetchSocialConfig = () =>
-  apiFetch<Record<string, unknown>>('/api/social/config');
+  adminFetch<Record<string, unknown>>('/api/social/config');
 
 export const fetchSocialSentiment = () =>
-  apiFetch<SocialSentiment>('/api/social/sentiment');
+  adminFetch<SocialSentiment>('/api/social/sentiment');
 
 export const fetchSocialPostDetail = (id: string) =>
   apiFetch<{ post: SocialPost & { raw?: Record<string, unknown> } }>(`/api/social/posts/${id}`);
 
 // --- Elections & Carte ---
 export const fetchAffairsByCommune = () =>
-  apiFetch<{ communes: Record<string, { count: number; maxGravity: number; affairs: Array<{ _id: string; title: string; gravity_score: number; sentiment: string; theme: string }> }>; total_affairs: number }>(
+  adminFetch<{ communes: Record<string, { count: number; maxGravity: number; affairs: Array<{ _id: string; title: string; gravity_score: number; sentiment: string; theme: string }> }>; total_affairs: number }>(
     '/api/affairs/by-commune'
   );
 
 export const fetchElectionsAffairs = () =>
-  apiFetch<{ affairs: Affair[]; total: number }>('/api/affairs/elections');
+  adminFetch<{ affairs: Affair[]; total: number }>('/api/affairs/elections');
 
 // --- Compétences institutionnelles ---
 export interface CompetenceGroup {
@@ -503,7 +515,7 @@ export interface InstitutionResponse {
 }
 
 export const fetchAffairsByInstitution = (institution: 'departement' | 'region') =>
-  apiFetch<InstitutionResponse>(`/api/affairs/by-institution?institution=${institution}`);
+  adminFetch<InstitutionResponse>(`/api/affairs/by-institution?institution=${institution}`);
 
 // --- Analyse prédictive IA ---
 export interface PredictiveItem {
@@ -521,7 +533,7 @@ export interface PredictiveAnalysis {
 }
 
 export const fetchPredictiveAnalysis = () =>
-  apiFetch<{ success: boolean; analysis: PredictiveAnalysis; affairs_analyzed: number }>(
+  adminFetch<{ success: boolean; analysis: PredictiveAnalysis; affairs_analyzed: number }>(
     '/api/affairs/analytics/predictive'
   );
 
@@ -529,23 +541,11 @@ export const fetchPredictiveAnalysis = () =>
 export const fetchHealth = () => apiFetch<Record<string, unknown>>('/health');
 
 export const fetchAffairSystemHealth = () =>
-  apiFetch<SystemStats>('/api/affairs/health');
+  adminFetch<SystemStats>('/api/affairs/health');
 
 // ============================================================
 // ADMIN — Pilotage manuel des affaires
 // ============================================================
-
-function authHeaders(): Record<string, string> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  return token ? { 'Authorization': `Bearer ${token}` } : {};
-}
-
-function adminFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  return apiFetch<T>(path, {
-    ...options,
-    headers: { ...authHeaders(), ...options?.headers },
-  });
-}
 
 // --- Auth ---
 export const fetchCurrentUser = () =>

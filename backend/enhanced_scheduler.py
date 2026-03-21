@@ -313,6 +313,30 @@ async def cleanup_job():
         logger.error(f"Erreur nettoyage: {e}")
         raise
 
+async def affair_lifecycle_job():
+    """Tâche automatique : cycle de vie des affaires (clustering, promotion, fusion, ré-affiliation)"""
+    logger.info("🔄 Démarrage cycle de vie des affaires automatique")
+    try:
+        try:
+            from backend.affair_lifecycle_service import get_affair_lifecycle_service
+        except ImportError:
+            from affair_lifecycle_service import get_affair_lifecycle_service
+        svc = get_affair_lifecycle_service()
+        if not svc:
+            logger.warning("AffairLifecycleService non disponible")
+            return
+        result = svc.run_simple_cycle()
+        logger.info(
+            f"✅ Cycle affaires terminé: "
+            f"{result.get('promoted', 0)} promues, "
+            f"{result.get('inter_merged', 0)} fusionnées, "
+            f"{result.get('reaffiliated', 0)} ré-affiliées"
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Erreur cycle affaires: {e}")
+        raise
+
 def setup_scheduler_jobs():
     """Configuration de toutes les tâches planifiées"""
     if not scheduler:
@@ -369,6 +393,17 @@ def setup_scheduler_jobs():
         trigger=CronTrigger(hour=2, minute=0, timezone=timezone),
         id="cleanup",
         name="Nettoyage automatique",
+        replace_existing=True,
+        max_instances=1
+    )
+
+    # 6. Cycle de vie des affaires - Toutes les heures à :30
+    # Clustering, promotion, fusion doublons, ré-affiliation orphelins
+    scheduler.add_job(
+        affair_lifecycle_job,
+        trigger=CronTrigger(minute=30, timezone=timezone),
+        id="affair_lifecycle",
+        name="Cycle de vie des affaires (auto)",
         replace_existing=True,
         max_instances=1
     )
