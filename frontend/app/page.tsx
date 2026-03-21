@@ -558,10 +558,32 @@ function GravityDonut({ distribution }: {
 // ── Skeleton ────────────────────────────────
 function SkeletonCard() {
   return (
+    <div className="glass-card-static p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="skeleton h-2.5 w-20" />
+        <div className="skeleton h-5 w-5 rounded-full" />
+      </div>
+      <div className="skeleton h-8 w-16 mb-2" />
+      <div className="skeleton h-1.5 w-full mb-2 rounded-full" />
+      <div className="skeleton h-2 w-24" />
+    </div>
+  )
+}
+
+function SkeletonWidget() {
+  return (
     <div className="glass-card-static p-5">
-      <div className="skeleton h-3 w-20 mb-3" />
-      <div className="skeleton h-8 w-14 mb-2" />
-      <div className="skeleton h-2 w-16" />
+      <div className="flex items-center justify-between mb-2">
+        <div className="skeleton h-2.5 w-24" />
+        <div className="skeleton h-5 w-5 rounded-full" />
+      </div>
+      <div className="skeleton h-2 w-40 mb-4" />
+      <div className="space-y-3">
+        <div className="skeleton h-3 w-full" />
+        <div className="skeleton h-3 w-4/5" />
+        <div className="skeleton h-3 w-3/5" />
+        <div className="skeleton h-3 w-4/5" />
+      </div>
     </div>
   )
 }
@@ -639,16 +661,32 @@ export default function DashboardPage() {
     return (
       <div className="flex">
         <Sidebar />
-        <main className="lg:ml-60 flex-1 p-6 min-h-screen">
-          <div className="max-w-[1440px] mx-auto">
-            <div className="skeleton h-7 w-44 mb-8" />
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+        <main className="lg:ml-60 flex-1 p-4 lg:p-6 min-h-screen">
+          <div className="max-w-[1440px] mx-auto animate-fade-in">
+            {/* Header skeleton */}
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <div className="skeleton h-7 w-44 mb-2" />
+                <div className="skeleton h-2.5 w-32" />
+              </div>
+              <div className="flex gap-2">
+                <div className="skeleton h-8 w-20 rounded-lg" />
+                <div className="skeleton h-8 w-20 rounded-lg" />
+              </div>
+            </div>
+            {/* Insight banner skeleton */}
+            <div className="skeleton h-12 w-full rounded-xl mb-5" />
+            {/* KPI cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
               {[...Array(4)].map((_, i) => <SkeletonCard key={i} />)}
             </div>
+            {/* ROW 2 widgets */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
+              {[...Array(3)].map((_, i) => <SkeletonWidget key={i} />)}
+            </div>
+            {/* ROW 3 widgets */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="glass-card-static p-5"><div className="skeleton h-3 w-28 mb-4" /><div className="skeleton h-28 w-full" /></div>
-              ))}
+              {[...Array(3)].map((_, i) => <SkeletonWidget key={i} />)}
             </div>
           </div>
         </main>
@@ -742,101 +780,229 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* ═══ ROW 1 : KPI Strip ═══════════════════════ */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5 stagger-fade">
-            {/* Affaires actives */}
-            <div className="glass-card-static p-4">
-              <p className="text-[10px] uppercase tracking-wider mb-1 font-semibold" style={{ color: 'rgba(255,255,255,0.25)' }}>Affaires actives</p>
-              <div className="flex items-baseline gap-2">
-                <p className="text-3xl font-bold" style={{ color: '#60a5fa' }}>{stats?.affairs_active ?? 0}</p>
-                <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.15)' }}>{stats?.affairs_stale ?? 0} veille</span>
+          {/* ═══ INSIGHT BANNER — phrase clé contextuelle ═══ */}
+          {(() => {
+            const insights: string[] = []
+            if ((priorityCounts.hot || 0) > 0) insights.push(`${priorityCounts.hot} affaire${(priorityCounts.hot || 0) > 1 ? 's' : ''} urgente${(priorityCounts.hot || 0) > 1 ? 's' : ''} en cours`)
+            if (trends && trends.articles_trend_pct > 20) insights.push(`activité en hausse de ${trends.articles_trend_pct}% cette semaine`)
+            if (trends && trends.articles_trend_pct < -20) insights.push(`activité en baisse de ${Math.abs(trends.articles_trend_pct)}%`)
+            if (orphans.length > 5) insights.push(`${orphans.length} articles en attente d'affiliation`)
+            const topTheme = Object.entries(themes).sort(([,a],[,b]) => b - a)[0]
+            if (topTheme) insights.push(`thème dominant : ${themeLabel(topTheme[0])}`)
+            const insight = insights.length > 0 ? insights[0] : 'Surveillance en cours'
+            return (
+              <div className="mb-5 px-4 py-3 rounded-xl flex items-center gap-3"
+                style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.1)' }}>
+                <span className="text-lg">💡</span>
+                <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                  {insight}
+                  {insights.length > 1 && <span style={{ color: 'rgba(255,255,255,0.25)' }}> · {insights[1]}</span>}
+                </p>
               </div>
-              {(priorityCounts.hot || 0) > 0 && (
-                <div className="flex items-center gap-1.5 mt-2">
+            )
+          })()}
+
+          {/* ═══ ROW 1 : KPI Cards — avec contexte ═══════ */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5 stagger-fade">
+
+            {/* Affaires actives — avec répartition */}
+            <div className="glass-card-static p-4 kpi-card" style={{ '--kpi-color': 'rgba(96,165,250,0.3)' } as React.CSSProperties}>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'rgba(255,255,255,0.3)' }}>Affaires suivies</p>
+                <span className="text-lg">📋</span>
+              </div>
+              <p className="text-3xl font-bold" style={{ color: '#60a5fa' }}>{stats?.affairs_active ?? 0}</p>
+              <div className="flex items-center gap-2 mt-2">
+                {(priorityCounts.hot || 0) > 0 && (
                   <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171' }}>
-                    {priorityCounts.hot} urgente{(priorityCounts.hot || 0) > 1 ? 's' : ''}
+                    🔴 {priorityCounts.hot} urgentes
                   </span>
-                </div>
-              )}
+                )}
+                {(priorityCounts.watch || 0) > 0 && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'rgba(251,191,36,0.1)', color: '#fbbf24' }}>
+                    {priorityCounts.watch} suivi
+                  </span>
+                )}
+              </div>
+              <p className="text-[10px] mt-1.5" style={{ color: 'rgba(255,255,255,0.2)' }}>
+                {stats?.affairs_stale ?? 0} en veille · {stats?.clusters_active ?? 0} clusters
+              </p>
             </div>
 
-            {/* Articles 7j */}
-            <div className="glass-card-static p-4">
-              <p className="text-[10px] uppercase tracking-wider mb-1 font-semibold" style={{ color: 'rgba(255,255,255,0.25)' }}>Articles 7j</p>
+            {/* Articles — avec tendance en phrase */}
+            <div className="glass-card-static p-4 kpi-card" style={{ '--kpi-color': 'rgba(255,255,255,0.15)' } as React.CSSProperties}>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'rgba(255,255,255,0.3)' }}>Articles cette semaine</p>
+                <span className="text-lg">📰</span>
+              </div>
               <div className="flex items-baseline gap-2">
                 <p className="text-3xl font-bold text-white">{coverage?.total_articles_7d ?? 0}</p>
                 {trends && <TrendArrow pct={trends.articles_trend_pct} />}
               </div>
-              <p className="text-[10px] mt-0.5" style={{ color: 'rgba(255,255,255,0.15)' }}>{coverage?.enriched_articles_7d ?? 0} enrichis</p>
+              <p className="text-[10px] mt-1.5" style={{ color: 'rgba(255,255,255,0.2)' }}>
+                {coverage?.enriched_articles_7d ?? 0} enrichis par IA ·{' '}
+                {trends ? (
+                  trends.articles_trend_pct > 0
+                    ? <span style={{ color: '#34d399' }}>+{trends.articles_trend_pct}% vs semaine préc.</span>
+                    : trends.articles_trend_pct < 0
+                    ? <span style={{ color: '#f87171' }}>{trends.articles_trend_pct}% vs semaine préc.</span>
+                    : 'stable'
+                ) : '—'}
+              </p>
             </div>
 
-            {/* BMG Moyen */}
-            <div className="glass-card-static p-4">
-              <p className="text-[10px] uppercase tracking-wider mb-1 font-semibold" style={{ color: 'rgba(255,255,255,0.25)' }}>BMG moyen</p>
-              <div className="flex items-center gap-3">
-                <BmgGauge value={avgBmg * 100} size={48} />
-                <div>
-                  <p className="text-2xl font-bold text-white">{Math.round(avgBmg * 100)}</p>
-                  <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.15)' }}>/ 100</p>
-                </div>
+            {/* Climat — résumé sentiment en une phrase */}
+            <div className="glass-card-static p-4 kpi-card" style={{ '--kpi-color': 'rgba(59,130,246,0.2)' } as React.CSSProperties}>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'rgba(255,255,255,0.3)' }}>Climat médias</p>
+                {(() => {
+                  const pos = sentimentDist['positif'] || sentimentDist['positive'] || 0
+                  const neg = sentimentDist['négatif'] || sentimentDist['negatif'] || sentimentDist['negative'] || 0
+                  const total = Object.values(sentimentDist).reduce((s, v) => s + v, 0)
+                  const pctPos = total > 0 ? Math.round(pos / total * 100) : 0
+                  const pctNeg = total > 0 ? Math.round(neg / total * 100) : 0
+                  return <span className="text-lg">{pctNeg > pctPos ? (pctNeg > 40 ? '😡' : '😟') : pctPos > 40 ? '😊' : '😐'}</span>
+                })()}
               </div>
+              {(() => {
+                const pos = sentimentDist['positif'] || sentimentDist['positive'] || 0
+                const neg = sentimentDist['négatif'] || sentimentDist['negatif'] || sentimentDist['negative'] || 0
+                const neu = sentimentDist['neutre'] || sentimentDist['neutral'] || 0
+                const total = Object.values(sentimentDist).reduce((s, v) => s + v, 0)
+                const pctPos = total > 0 ? Math.round(pos / total * 100) : 0
+                const pctNeg = total > 0 ? Math.round(neg / total * 100) : 0
+                const dominant = pctNeg > pctPos ? 'Négatif' : pctPos > pctNeg ? 'Positif' : 'Neutre'
+                const color = pctNeg > pctPos ? '#f87171' : pctPos > pctNeg ? '#34d399' : '#60a5fa'
+                return (
+                  <>
+                    <p className="text-2xl font-bold" style={{ color }}>{dominant}</p>
+                    <div className="flex items-center gap-1 mt-2">
+                      <div className="flex-1 h-1.5 rounded-full overflow-hidden flex" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                        <div style={{ width: `${pctPos}%`, background: '#34d399' }} />
+                        <div style={{ width: `${100 - pctPos - pctNeg}%`, background: '#60a5fa' }} />
+                        <div style={{ width: `${pctNeg}%`, background: '#f87171' }} />
+                      </div>
+                    </div>
+                    <p className="text-[10px] mt-1" style={{ color: 'rgba(255,255,255,0.2)' }}>
+                      {pctPos}% positif · {pctNeg}% négatif · {total} articles analysés
+                    </p>
+                  </>
+                )
+              })()}
             </div>
 
-            {/* Radio + Social */}
-            <div className="glass-card-static p-4">
-              <p className="text-[10px] uppercase tracking-wider mb-1 font-semibold" style={{ color: 'rgba(255,255,255,0.25)' }}>Radio & Sources</p>
-              <div className="flex items-baseline gap-2">
-                <p className="text-3xl font-bold" style={{ color: '#facc15' }}>{coverage?.total_transcriptions_7d ?? 0}</p>
-                <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.15)' }}>transcriptions</span>
+            {/* Couverture — affiliation + radio */}
+            <div className="glass-card-static p-4 kpi-card" style={{ '--kpi-color': 'rgba(251,191,36,0.2)' } as React.CSSProperties}>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'rgba(255,255,255,0.3)' }}>Couverture</p>
+                <span className="text-lg">📡</span>
               </div>
-              <div className="h-1 rounded-full mt-2" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                <div className="h-full rounded-full transition-all duration-1000" style={{
+              <p className="text-3xl font-bold" style={{
+                color: (coverage?.affiliation_rate ?? 0) >= 60 ? '#34d399' : (coverage?.affiliation_rate ?? 0) >= 30 ? '#fbbf24' : '#f87171'
+              }}>{coverage?.affiliation_rate ?? 0}%</p>
+              <div className="h-1.5 rounded-full mt-2 overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                <div className="h-full rounded-full transition-all duration-700" style={{
                   width: `${Math.min(100, coverage?.affiliation_rate ?? 0)}%`,
-                  background: 'linear-gradient(90deg, #16a34a, #facc15)',
-                  boxShadow: '0 0 6px rgba(22,163,74,0.3)',
+                  background: (coverage?.affiliation_rate ?? 0) >= 60 ? '#34d399' : (coverage?.affiliation_rate ?? 0) >= 30 ? '#fbbf24' : '#f87171',
                 }} />
               </div>
-              <p className="text-[10px] mt-1" style={{ color: 'rgba(255,255,255,0.15)' }}>{coverage?.affiliation_rate ?? 0}% affiliés</p>
+              <p className="text-[10px] mt-1.5" style={{ color: 'rgba(255,255,255,0.2)' }}>
+                {coverage?.affiliated_articles_7d ?? 0}/{coverage?.total_articles_7d ?? 0} articles · {coverage?.total_transcriptions_7d ?? 0} radios
+              </p>
             </div>
           </div>
 
           {/* ═══ ROW 2 : Sentiment + Top Personnalités + Trending ═══ */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5 stagger-fade">
-            {/* Sentiment Gauge */}
+            {/* Sentiment Gauge — avec insight contextuel */}
             <div className="glass-card-static p-5">
-              <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                Climat médiatique
-              </h2>
+              <div className="flex items-center justify-between mb-1">
+                <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                  Climat médiatique
+                </h2>
+                {(() => {
+                  const pos = sentimentDist['positif'] || sentimentDist['positive'] || 0
+                  const neg = sentimentDist['négatif'] || sentimentDist['negatif'] || sentimentDist['negative'] || 0
+                  return <span className="text-lg">{neg > pos ? '⚠️' : pos > neg ? '✅' : '➖'}</span>
+                })()}
+              </div>
+              {/* Insight phrase */}
+              {(() => {
+                const pos = sentimentDist['positif'] || sentimentDist['positive'] || 0
+                const neg = sentimentDist['négatif'] || sentimentDist['negatif'] || sentimentDist['negative'] || 0
+                const total = Object.values(sentimentDist).reduce((s, v) => s + v, 0)
+                const pctNeg = total > 0 ? Math.round(neg / total * 100) : 0
+                const pctPos = total > 0 ? Math.round(pos / total * 100) : 0
+                const phrase = pctNeg > 40 ? `Climat tendu : ${pctNeg}% de couverture négative`
+                  : pctPos > 50 ? `Climat favorable : ${pctPos}% de ton positif`
+                  : pctNeg > pctPos ? `Légère tension (${pctNeg}% négatif)`
+                  : 'Couverture équilibrée'
+                return (
+                  <p className="text-[10px] mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>{phrase}</p>
+                )
+              })()}
               <SentimentGauge sentimentDist={sentimentDist} />
             </div>
 
-            {/* Top Personnalités */}
+            {/* Top Personnalités — avec insight contextuel */}
             <div className="glass-card-static p-5">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-1">
                 <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                  Top personnalités
+                  Personnalités clés
                 </h2>
-                <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.25)' }}>
-                  {entities.length} détectées
-                </span>
+                <span className="text-lg">👤</span>
               </div>
+              {/* Insight phrase */}
+              {entities.length > 0 && (() => {
+                const top = entities[0]
+                const totalMentions = entities.reduce((s, e) => s + e.count, 0)
+                const topPct = totalMentions > 0 ? Math.round(top.count / totalMentions * 100) : 0
+                return (
+                  <p className="text-[10px] mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                    <span style={{ color: '#60a5fa' }}>{top.name}</span> domine avec {topPct}% des mentions ({top.count} cit.)
+                  </p>
+                )
+              })()}
               <TopPersonalities entities={entities} />
+              {entities.length > 8 && (
+                <p className="text-[9px] mt-2 text-center" style={{ color: 'rgba(255,255,255,0.15)' }}>
+                  +{entities.length - 8} autres personnalités détectées
+                </p>
+              )}
             </div>
 
-            {/* Trending Topics */}
+            {/* Trending Topics — avec insight contextuel */}
             <div className="glass-card-static p-5">
-              <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                Sujets tendance
-              </h2>
+              <div className="flex items-center justify-between mb-1">
+                <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                  Sujets tendance
+                </h2>
+                <span className="text-lg">📊</span>
+              </div>
+              {/* Insight phrase */}
+              {(() => {
+                const sorted = Object.entries(themes).sort(([,a],[,b]) => b - a)
+                if (sorted.length >= 2) {
+                  const totalThemes = sorted.reduce((s, [, c]) => s + c, 0)
+                  const topPct = totalThemes > 0 ? Math.round(sorted[0][1] / totalThemes * 100) : 0
+                  return (
+                    <p className="text-[10px] mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                      <span style={{ color: themeColor(sorted[0][0]) }}>{themeLabel(sorted[0][0])}</span> concentre {topPct}% de l'actualité
+                      {sorted.length >= 3 && <>, suivi de {themeLabel(sorted[1][0])} et {themeLabel(sorted[2][0])}</>}
+                    </p>
+                  )
+                }
+                return <p className="text-[10px] mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>Répartition des thèmes</p>
+              })()}
               <TrendingTopics themes={themes} />
             </div>
           </div>
 
           {/* ═══ ROW 3 : Major Story + Activity Chart + Gravity ═══ */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
-            {/* Major Story */}
+            {/* Major Story — avec insight urgence */}
             <div className="glass-card-static p-5">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-1">
                 <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>
                   Affaire du moment
                 </h2>
@@ -844,12 +1010,23 @@ export default function DashboardPage() {
                   Tout voir →
                 </Link>
               </div>
+              {/* Insight phrase */}
+              {topAffairs.length > 0 && (() => {
+                const top = topAffairs[0]
+                const hotCount = topAffairs.filter(a => a.priority === 'hot').length
+                const phrase = hotCount > 1
+                  ? `🔴 ${hotCount} affaires urgentes nécessitent votre attention`
+                  : top.priority === 'hot'
+                  ? `🔴 ${top.title || top.primary_entity || 'Affaire urgente'} — BMG ${Math.round((top.bmg || 0) * 100)}`
+                  : `Focus : ${top.title || top.primary_entity || 'Affaire principale'}`
+                return <p className="text-[10px] mb-3 line-clamp-1" style={{ color: 'rgba(255,255,255,0.3)' }}>{phrase}</p>
+              })()}
               <MajorStories affairs={topAffairs} />
             </div>
 
-            {/* Activity Chart */}
+            {/* Activity Chart — avec insight pic d'activité */}
             <div className="glass-card-static p-5">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-1">
                 <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>Activité 7 jours</h2>
                 {trends && (
                   <div className="flex items-center gap-1">
@@ -858,6 +1035,20 @@ export default function DashboardPage() {
                   </div>
                 )}
               </div>
+              {/* Insight phrase */}
+              {(() => {
+                const totalWeek = activity.reduce((s, d) => s + d.articles, 0)
+                const peakDay = activity.length > 0 ? activity.reduce((best, d) => d.articles > best.articles ? d : best, activity[0]) : null
+                const todayCount = activity.length > 0 ? activity[activity.length - 1].articles : 0
+                const avgDaily = activity.length > 0 ? Math.round(totalWeek / activity.length) : 0
+                return (
+                  <p className="text-[10px] mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                    {totalWeek} articles cette semaine (moy. {avgDaily}/j)
+                    {peakDay && peakDay.articles > avgDaily * 1.5 && <> · pic {peakDay.label?.split(' ')[0]}</>}
+                    {todayCount > 0 && <span style={{ color: '#facc15' }}> · {todayCount} aujourd'hui</span>}
+                  </p>
+                )
+              })()}
               {activity.length > 0 ? (
                 <ActivityMiniChart data={activity} />
               ) : (
@@ -875,9 +1066,27 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Gravity Distribution */}
+            {/* Gravity Distribution — avec insight risque */}
             <div className="glass-card-static p-5">
-              <h2 className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: 'rgba(255,255,255,0.35)' }}>Gravité des affaires</h2>
+              <div className="flex items-center justify-between mb-1">
+                <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>Gravité des affaires</h2>
+                {gravityDist && (() => {
+                  const critPct = (gravityDist.critical + gravityDist.high) / Math.max(1, gravityDist.low + gravityDist.medium + gravityDist.high + gravityDist.critical) * 100
+                  return <span className="text-lg">{critPct > 30 ? '🚨' : critPct > 15 ? '⚡' : '🟢'}</span>
+                })()}
+              </div>
+              {/* Insight phrase */}
+              {gravityDist && (() => {
+                const total = gravityDist.low + gravityDist.medium + gravityDist.high + gravityDist.critical
+                const critCount = gravityDist.critical + gravityDist.high
+                const critPct = total > 0 ? Math.round(critCount / total * 100) : 0
+                const phrase = critPct > 30
+                  ? `${critCount} affaires à gravité élevée (${critPct}%) — vigilance requise`
+                  : critCount > 0
+                  ? `${critCount} affaire${critCount > 1 ? 's' : ''} sensible${critCount > 1 ? 's' : ''} sur ${total} suivies`
+                  : `Situation calme : ${total} affaires toutes faible gravité`
+                return <p className="text-[10px] mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>{phrase}</p>
+              })()}
               {gravityDist ? (
                 <GravityDonut distribution={gravityDist} />
               ) : (
@@ -889,10 +1098,13 @@ export default function DashboardPage() {
           {/* ═══ ROW 4 : Carte Guadeloupe + Sources ═══════ */}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-5">
             <div className="xl:col-span-2 glass-card-static p-5">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                  Carte des affaires
-                </h2>
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                    Carte des affaires
+                  </h2>
+                  <span className="text-lg">🗺️</span>
+                </div>
                 {selectedCommune && (
                   <button onClick={() => setSelectedCommune(null)}
                     className="text-[10px] px-2 py-0.5 rounded-full transition-all hover:scale-105"
@@ -901,6 +1113,17 @@ export default function DashboardPage() {
                   </button>
                 )}
               </div>
+              {/* Insight phrase */}
+              {(() => {
+                const communeCount = Object.keys(communeMapData).length
+                const topCommune = Object.entries(communeMapData).sort(([,a],[,b]) => b.count - a.count)[0]
+                return communeCount > 0 ? (
+                  <p className="text-[10px] mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                    {communeCount} commune{communeCount > 1 ? 's' : ''} concernée{communeCount > 1 ? 's' : ''}
+                    {topCommune && <> · <span style={{ color: '#60a5fa' }}>{topCommune[0]}</span> la plus active ({topCommune[1].count} affaires)</>}
+                  </p>
+                ) : null
+              })()}
               <GuadeloupeMap
                 communeData={Object.fromEntries(
                   Object.entries(communeMapData).map(([k, v]) => [k, { count: v.count, maxGravity: v.maxGravity }])
@@ -939,9 +1162,18 @@ export default function DashboardPage() {
                 </>
               ) : (
                 <>
-                  <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                    Sources actives 7j
-                  </h2>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                      Sources actives 7j
+                    </h2>
+                    <span className="text-lg">📡</span>
+                  </div>
+                  {sources.length > 0 && (
+                    <p className="text-[10px] mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                      {sources.length} sources · {sources.reduce((s, src) => s + src.count, 0)} articles collectés
+                      {sources[0] && <> · <span style={{ color: '#60a5fa' }}>{sources[0].name}</span> en tête</>}
+                    </p>
+                  )}
                   {sources.length > 0 ? (
                     <div className="space-y-2">
                       {sources.map((s, i) => {
@@ -973,10 +1205,28 @@ export default function DashboardPage() {
 
           {/* ═══ ROW 5 : Top Affaires Grid ════════════════ */}
           <div className="mb-5">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-white">Affaires majeures</h2>
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-white">Affaires majeures</h2>
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{
+                  background: 'rgba(96,165,250,0.08)', color: '#60a5fa', border: '1px solid rgba(96,165,250,0.15)'
+                }}>{topAffairs.length}</span>
+              </div>
               <Link href="/affairs" className="text-xs font-medium transition-colors hover:text-blue-300" style={{ color: '#60a5fa' }}>Voir tout →</Link>
             </div>
+            {topAffairs.length > 0 && (
+              <p className="text-[10px] mb-3" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                BMG moyen : <span style={{ color: avgBmg >= 0.6 ? '#f87171' : avgBmg >= 0.3 ? '#fbbf24' : '#34d399' }}>
+                  {Math.round(avgBmg * 100)}/100
+                </span>
+                {' · '}Top thème : {(() => {
+                  const themeCounts: Record<string, number> = {}
+                  topAffairs.forEach(a => { themeCounts[a.theme] = (themeCounts[a.theme] || 0) + 1 })
+                  const top = Object.entries(themeCounts).sort(([,a],[,b]) => b - a)[0]
+                  return top ? <span style={{ color: themeColor(top[0]) }}>{themeLabel(top[0])}</span> : '—'
+                })()}
+              </p>
+            )}
             {topAffairs.length === 0 ? (
               <div className="glass-card-static p-10 text-center">
                 <p className="text-sm" style={{ color: 'rgba(255,255,255,0.3)' }}>Aucune affaire active</p>
@@ -1039,8 +1289,17 @@ export default function DashboardPage() {
             <div className="lg:col-span-2">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <h2 className="text-sm font-semibold text-white">Articles non affiliés</h2>
-                  <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.2)' }}>Enrichis mais sans affaire</p>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-semibold text-white">Articles non affiliés</h2>
+                    <span className="text-base">{orphans.length > 10 ? '🔴' : orphans.length > 3 ? '🟡' : '🟢'}</span>
+                  </div>
+                  <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.2)' }}>
+                    {orphans.length > 10
+                      ? `${orphans.length} articles en attente — ré-affiliation recommandée`
+                      : orphans.length > 0
+                      ? `${orphans.length} article${orphans.length > 1 ? 's' : ''} enrichi${orphans.length > 1 ? 's' : ''} sans affaire`
+                      : 'Tous les articles sont affiliés'}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   {orphans.length > 0 && (
@@ -1122,7 +1381,20 @@ export default function DashboardPage() {
           {/* ═══ ROW 7 : Pipeline technique ═══════════════ */}
           {stats && (
             <div className="glass-card-static p-4">
-              <h2 className="text-[10px] uppercase tracking-wider mb-3 font-semibold" style={{ color: 'rgba(255,255,255,0.25)' }}>Pipeline technique</h2>
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'rgba(255,255,255,0.25)' }}>Pipeline technique</h2>
+                  <span className="text-sm">⚙️</span>
+                </div>
+                {stats.candidates_unclustered > 20 && (
+                  <span className="text-[9px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(239,68,68,0.08)', color: '#f87171', border: '1px solid rgba(239,68,68,0.12)' }}>
+                    {stats.candidates_unclustered} en attente
+                  </span>
+                )}
+              </div>
+              <p className="text-[10px] mb-3" style={{ color: 'rgba(255,255,255,0.2)' }}>
+                {stats.candidates_total} candidats → {stats.clusters_active} clusters → {stats.affairs_active} affaires promues
+              </p>
               <div className="flex items-center gap-3 lg:gap-4 overflow-x-auto pb-1">
                 {[
                   { label: 'Candidats', value: stats.candidates_total, sub: 'Ingestion', color: '#fbbf24', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.15)' },
