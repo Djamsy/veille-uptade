@@ -105,13 +105,13 @@ class RadioTranscriptionService:
                 "priority": 2,
                 "enabled": True,
             },
-            "rci_1200": {
+            "rci_1300": {
                 "name": "RCI Journal 12h00",
-                "section": "12H RCI",
+                "section": "13H RCI",
                 "description": "RCI — Journal de midi",
                 "type": "radio",
                 "url": "https://n10.rcs.revma.com/v4hf7bwspwzuv",
-                "duration_minutes": 20,
+                "duration_minutes": 30,
                 "schedule": {"days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"], "hour": 12, "minute": 0},
                 "priority": 3,
                 "enabled": True,
