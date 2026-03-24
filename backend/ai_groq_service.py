@@ -1314,6 +1314,78 @@ def detect_duplicate_affairs(affairs: List[Dict[str, Any]]) -> Optional[List[Dic
 
 
 # ============================================================
+# VALIDATION GPT — PERTINENCE ARTICLE ↔ AFFAIRE
+# ============================================================
+
+RELEVANCE_PROMPT = """Tu es un éditeur de veille médiatique en Guadeloupe.
+On te donne le TITRE et un RÉSUMÉ d'un article, ainsi que le TITRE et la DESCRIPTION d'une affaire existante.
+Tu dois déterminer si l'article traite RÉELLEMENT du même sujet que l'affaire.
+
+ATTENTION : deux articles peuvent partager des mots-clés (ex: même catégorie "sécurité/justice", même lieu) sans être liés.
+Par exemple :
+- Un meurtre aux Abymes ≠ une affaire de détournement de fonds d'un élu
+- Un accident de la route ≠ une affaire de pollution de l'eau
+- Un procès pour trafic de drogue ≠ un scandale politique
+
+Réponds UNIQUEMENT en JSON :
+{"relevant": true/false, "reason": "explication courte (max 20 mots)"}
+
+Sois STRICT : en cas de doute, réponds false. Seuls les articles qui traitent clairement du MÊME SUJET doivent être validés."""
+
+
+def validate_article_affair_relevance(
+    article_title: str,
+    article_summary: str,
+    affair_title: str,
+    affair_description: str,
+) -> Optional[bool]:
+    """
+    Demande à GPT-4o-mini si un article est réellement pertinent pour une affaire.
+    Retourne True (pertinent), False (non pertinent), ou None (IA indisponible → fallback).
+
+    Conçu pour être rapide et économe en tokens (~200 tokens par appel).
+    """
+    if not is_available():
+        return None
+
+    user_content = (
+        f"ARTICLE:\n"
+        f"  Titre: {article_title[:200]}\n"
+        f"  Résumé: {(article_summary or 'N/A')[:300]}\n\n"
+        f"AFFAIRE:\n"
+        f"  Titre: {affair_title[:200]}\n"
+        f"  Description: {(affair_description or 'N/A')[:300]}\n"
+    )
+
+    try:
+        raw = _call_ai(
+            messages=[
+                {"role": "system", "content": RELEVANCE_PROMPT},
+                {"role": "user", "content": user_content},
+            ],
+            temperature=0.0,
+            max_tokens=100,
+            json_mode=True,
+        )
+        if raw is None:
+            return None
+
+        result = json.loads(raw)
+        relevant = result.get("relevant", None)
+        reason = result.get("reason", "")
+
+        logger.info(
+            f"🧠 GPT relevance: article='{article_title[:50]}' vs affair='{affair_title[:50]}' "
+            f"→ {'✅ OUI' if relevant else '❌ NON'} ({reason})"
+        )
+        return bool(relevant)
+
+    except (json.JSONDecodeError, Exception) as e:
+        logger.warning(f"⚠️ GPT relevance check échoué: {e}")
+        return None
+
+
+# ============================================================
 # ANALYSE PRÉDICTIVE IA
 # ============================================================
 

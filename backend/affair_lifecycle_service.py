@@ -55,14 +55,20 @@ from bson import ObjectId
 # Dédup IA (optionnel)
 try:
     from backend.ai_groq_service import detect_duplicate_affairs as _ai_dedup
+    from backend.ai_groq_service import validate_article_affair_relevance as _ai_relevance
     _ai_dedup_ok = True
+    _ai_relevance_ok = True
 except ImportError:
     try:
         from ai_groq_service import detect_duplicate_affairs as _ai_dedup
+        from ai_groq_service import validate_article_affair_relevance as _ai_relevance
         _ai_dedup_ok = True
+        _ai_relevance_ok = True
     except ImportError:
         _ai_dedup_ok = False
         _ai_dedup = None
+        _ai_relevance_ok = False
+        _ai_relevance = None
 
 logger = logging.getLogger("affair_lifecycle")
 
@@ -1489,6 +1495,48 @@ class AffairLifecycleService:
                 logger.info(f"      → Aucun match trouvé parmi {len(active_affairs)} affaires actives → CRÉATION")
 
             if best_match and best_score >= 6:
+                # ── GPT VALIDATION GATE ──
+                # Score 6-14 = borderline → demander à GPT si l'article est vraiment pertinent
+                # Score >= 15 = haute confiance → fusion directe
+                gpt_blocked = False
+                if best_score < 15 and _ai_relevance_ok and _ai_relevance:
+                    try:
+                        art_summary = art.get("summary", "") or art.get("gpt_analysis", "") or ""
+                        aff_desc = best_match.get("description", "") or best_match.get("gpt_context", "") or ""
+                        is_relevant = _ai_relevance(
+                            article_title=art.get("title", ""),
+                            article_summary=art_summary[:300],
+                            affair_title=best_match.get("title", ""),
+                            affair_description=aff_desc[:300],
+                        )
+                        if is_relevant is False:
+                            gpt_blocked = True
+                            logger.info(
+                                f"      🚫 GPT REJET: '{art.get('title', '?')[:50]}' n'est PAS lié à "
+                                f"'{best_match.get('title', '?')[:50]}' (score={best_score})"
+                            )
+                            stats["gpt_rejected"] = stats.get("gpt_rejected", 0) + 1
+                        elif is_relevant is True:
+                            logger.info(f"      🧠 GPT VALIDÉ: fusion confirmée (score={best_score})")
+                        # is_relevant is None → IA indisponible, on laisse passer si score >= 8
+                        elif is_relevant is None and best_score < 8:
+                            gpt_blocked = True
+                            logger.info(
+                                f"      ⚠️ GPT indisponible + score faible ({best_score}) → pas de fusion"
+                            )
+                    except Exception as e:
+                        logger.warning(f"      ⚠️ GPT relevance error: {e}")
+                        # En cas d'erreur GPT, on laisse passer seulement si score >= 8
+                        if best_score < 8:
+                            gpt_blocked = True
+
+                if gpt_blocked:
+                    # L'article ne matche pas réellement → le traiter comme non-matché
+                    # Il pourra créer une nouvelle affaire s'il a une gravity suffisante
+                    best_match = None
+                    best_score = 0
+
+            if best_match and best_score >= 6:
                 # Fusionner avec l'affaire existante
                 # IMPORTANT : NE PAS ajouter les entités de l'article dans l'affaire
                 # pour éviter l'effet boule de neige (une affaire qui matche tout)
@@ -2224,6 +2272,29 @@ class AffairLifecycleService:
                     best_match = affair
 
             if best_match and best_score >= 6:
+                # ── GPT validation gate (même logique que le matching principal) ──
+                if best_score < 15 and _ai_relevance_ok and _ai_relevance:
+                    try:
+                        art_summary = art.get("summary", "") or art.get("gpt_analysis", "") or ""
+                        aff_desc = best_match.get("description", "") or best_match.get("gpt_context", "") or ""
+                        is_relevant = _ai_relevance(
+                            article_title=art.get("title", ""),
+                            article_summary=art_summary[:300],
+                            affair_title=best_match.get("title", ""),
+                            affair_description=aff_desc[:300],
+                        )
+                        if is_relevant is False:
+                            logger.info(f"   🚫 GPT REJET consolidation: '{art.get('title', '?')[:50]}'")
+                            self.articles.update_one(
+                                {"_id": art["_id"]},
+                                {"$inc": {"_affair_attempts": 1}}
+                            )
+                            continue
+                    except Exception as e:
+                        logger.warning(f"   ⚠️ GPT consolidation relevance error: {e}")
+                        if best_score < 8:
+                            continue
+
                 logger.info(f"   🔗 Consolidé: '{art.get('title', '?')[:50]}' → "
                            f"affaire '{best_match.get('title', '?')[:40]}' (score={best_score})")
                 self.affairs.update_one(
@@ -2444,13 +2515,47 @@ class AffairLifecycleService:
                 art.get("theme", "general"), art_title_words, affair,
             )
 
-            if score >= 4:  # Seuil assoupli par rapport au seuil de fusion (6)
+            if score >= 15:
+                # Score très élevé → garder sans vérification
                 kept.append(art_ref)
+            elif score >= 4:
+                # Score borderline → vérifier avec GPT
+                should_keep = True
+                if _ai_relevance_ok and _ai_relevance:
+                    try:
+                        art_summary = art.get("summary", "") or art.get("gpt_analysis", "") or ""
+                        aff_desc = affair.get("description", "") or affair.get("gpt_context", "") or ""
+                        is_relevant = _ai_relevance(
+                            article_title=art.get("title", ""),
+                            article_summary=art_summary[:300],
+                            affair_title=aff_title,
+                            affair_description=aff_desc[:300],
+                        )
+                        if is_relevant is False:
+                            should_keep = False
+                    except Exception:
+                        pass  # En cas d'erreur GPT, on garde l'article par défaut
+
+                if should_keep:
+                    kept.append(art_ref)
+                else:
+                    removed.append({
+                        "id": str(art_ref),
+                        "title": art.get("title", "?")[:80],
+                        "score": score,
+                        "reason": "gpt_rejected",
+                    })
+                    self.articles.update_one(
+                        {"_id": art["_id"]},
+                        {"$unset": {"_affair_id": "", "_affair_processed": ""},
+                         "$set": {"_affair_ignored": False}}
+                    )
             else:
                 removed.append({
                     "id": str(art_ref),
                     "title": art.get("title", "?")[:80],
                     "score": score,
+                    "reason": "low_score",
                 })
                 # Libérer l'article pour qu'il puisse être réassigné
                 self.articles.update_one(
@@ -2639,6 +2744,36 @@ class AffairLifecycleService:
                     or len(specific_common) >= 1
                 )
                 if match:
+                    # ── GPT validation pour radio aussi ──
+                    # Une radio qui mentionne Chalus dans les résultats d'élections
+                    # ne devrait pas être liée à son affaire judiciaire
+                    if _ai_relevance_ok and _ai_relevance and len(common) < 3:
+                        try:
+                            # Construire un résumé de la transcription
+                            trans_summary = ""
+                            for t in (trans.get("ai_topics", []) or []):
+                                if any(c in (t.get("title", "").lower() + " " + " ".join(t.get("entities", [])).lower())
+                                       for c in common):
+                                    trans_summary = t.get("title", "") + " - " + t.get("summary", "")
+                                    break
+                            if not trans_summary:
+                                trans_summary = trans.get("summary", "") or trans.get("text", "")[:200] or ""
+
+                            radio_relevant = _ai_relevance(
+                                article_title=trans_summary[:200] or f"Radio {trans.get('station', '?')}",
+                                article_summary=trans_summary[:300],
+                                affair_title=affair.get("title", ""),
+                                affair_description=(affair.get("description", "") or "")[:300],
+                            )
+                            if radio_relevant is False:
+                                logger.info(
+                                    f"   🚫 GPT REJET radio: '{trans.get('station', '?')}' "
+                                    f"pas lié à '{affair.get('title', '?')[:40]}'"
+                                )
+                                continue  # Skip this affair, try next one
+                        except Exception as e:
+                            logger.warning(f"   ⚠️ GPT radio relevance error: {e}")
+
                     logger.info(f"   📻 Radio '{trans.get('station', '?')}' → "
                                f"affaire '{affair.get('title', '?')[:40]}' "
                                f"(entités communes: {list(common)[:3]})")
@@ -2935,6 +3070,24 @@ class AffairLifecycleService:
 
             # Seuil 5 : un élu spécifique OU une institution + keywords
             if best_affair and best_score >= 5:
+                # ── GPT validation pour posts sociaux ──
+                if best_score < 12 and _ai_relevance_ok and _ai_relevance:
+                    try:
+                        post_text = post.get("ai_summary", "") or post.get("text", "") or ""
+                        aff_desc = best_affair.get("description", "") or best_affair.get("gpt_context", "") or ""
+                        is_relevant = _ai_relevance(
+                            article_title=post_text[:200],
+                            article_summary=post_text[:300],
+                            affair_title=best_affair.get("title", ""),
+                            affair_description=aff_desc[:300],
+                        )
+                        if is_relevant is False:
+                            logger.info(f"   🚫 GPT REJET social: '{post_text[:50]}'")
+                            self.social.update_one({"_id": post["_id"]}, {"$set": {"_affair_processed": True}})
+                            continue
+                    except Exception as e:
+                        logger.warning(f"   ⚠️ GPT social relevance error: {e}")
+
                 logger.info(f"   📱 Post '{post.get('ai_summary', post.get('text', '?'))[:50]}' → "
                            f"affaire '{best_affair.get('title', '?')[:40]}' (score={best_score})")
                 self.affairs.update_one(

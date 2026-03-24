@@ -1006,6 +1006,28 @@ async def get_affairs(
         logger.error(f"Erreur récupération affaires: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/affairs/{affair_id}/cleanup")
+async def cleanup_affair_endpoint(affair_id: str, background_tasks: BackgroundTasks):
+    """Nettoyer une affaire avec validation GPT — retire les articles non pertinents."""
+    try:
+        lifecycle = get_affair_lifecycle_service(db)
+        result = lifecycle.cleanup_affair(affair_id)
+        return result
+    except Exception as e:
+        logger.error(f"Erreur cleanup affaire: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/affairs/cleanup-all")
+async def cleanup_all_affairs_endpoint(background_tasks: BackgroundTasks):
+    """Nettoyer TOUTES les affaires actives avec validation GPT."""
+    try:
+        lifecycle = get_affair_lifecycle_service(db)
+        result = lifecycle.cleanup_all_affairs()
+        return result
+    except Exception as e:
+        logger.error(f"Erreur cleanup toutes affaires: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/scrape")
 async def trigger_scraping(background_tasks: BackgroundTasks):
     """Déclencher le scraping"""
