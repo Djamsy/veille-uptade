@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import Sidebar from '../components/Sidebar'
 import BmgGauge from '../components/BmgGauge'
@@ -9,6 +9,7 @@ import {
   fetchEnrichedDashboard,
   fetchAffairsByCommune,
   fetchStorageStats,
+  fetchMapData,
   runFullCycle,
   runReaffiliate,
   runScrapeNow,
@@ -21,7 +22,114 @@ import {
   type OrphanArticle,
   type TimelineEvent,
   type StorageStats,
+  type MapResponse,
 } from '../lib/api'
+
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
+
+// ── Mapbox 3D Background ─────────────────────────────
+function MapBackground({ communes }: { communes?: Record<string, { stats: { total_items: number; max_gravity: number } }> }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<any>(null);
+  const markersRef = useRef<any[]>([]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !MAPBOX_TOKEN) return;
+
+    const init = () => {
+      if (!containerRef.current || mapRef.current) return;
+      const mapboxgl = (window as any).mapboxgl;
+      if (!mapboxgl) return;
+
+      mapboxgl.accessToken = MAPBOX_TOKEN;
+      const map = new mapboxgl.Map({
+        container: containerRef.current,
+        style: 'mapbox://styles/mapbox/satellite-streets-v12',
+        center: [-61.55, 16.18],
+        zoom: 10.2,
+        pitch: 50,
+        bearing: -10,
+        antialias: true,
+        interactive: false, // pas d'interaction — c'est juste un fond
+        attributionControl: false,
+      });
+
+      map.on('load', () => {
+        map.addSource('mapbox-dem', {
+          type: 'raster-dem',
+          url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+          tileSize: 512, maxzoom: 14,
+        });
+        map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.5 });
+        map.addLayer({
+          id: 'sky', type: 'sky',
+          paint: { 'sky-type': 'atmosphere', 'sky-atmosphere-sun': [0.0, 90.0], 'sky-atmosphere-sun-intensity': 15 },
+        });
+
+        // Slow auto-rotation
+        let bearing = -10;
+        const rotate = () => {
+          if (!mapRef.current) return;
+          bearing += 0.01;
+          map.setBearing(bearing);
+          requestAnimationFrame(rotate);
+        };
+        rotate();
+      });
+
+      mapRef.current = map;
+    };
+
+    if ((window as any).mapboxgl) { init(); return; }
+    const css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = 'https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.css';
+    document.head.appendChild(css);
+    const js = document.createElement('script');
+    js.src = 'https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.js';
+    js.onload = init;
+    document.head.appendChild(js);
+
+    return () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } };
+  }, []);
+
+  // Update markers
+  useEffect(() => {
+    if (!mapRef.current || !communes) return;
+    const mapboxgl = (window as any).mapboxgl;
+    if (!mapboxgl) return;
+
+    markersRef.current.forEach(m => m.remove());
+    markersRef.current = [];
+
+    const COORDS: Record<string, [number, number]> = {
+      'Pointe-à-Pitre': [-61.5339, 16.2411], 'Les Abymes': [-61.5028, 16.2706],
+      'Baie-Mahault': [-61.5917, 16.2678], 'Le Moule': [-61.3469, 16.3339],
+      'Sainte-Anne': [-61.3833, 16.2267], 'Saint-François': [-61.2753, 16.2536],
+      'Le Gosier': [-61.4936, 16.2133], 'Petit-Bourg': [-61.5897, 16.1933],
+      'Capesterre-Belle-Eau': [-61.5667, 16.0500], 'Sainte-Rose': [-61.6972, 16.3339],
+      'Deshaies': [-61.7917, 16.3078], 'Bouillante': [-61.7719, 16.1378],
+      'Trois-Rivières': [-61.6333, 15.9750], 'Basse-Terre': [-61.7256, 15.9978],
+      "Morne-à-l'Eau": [-61.4539, 16.3339], 'Port-Louis': [-61.5278, 16.4189],
+    };
+
+    for (const [name, data] of Object.entries(communes)) {
+      const coords = COORDS[name];
+      if (!coords || !data.stats) continue;
+      const g = data.stats.max_gravity;
+      const color = g >= 0.7 ? '#ef4444' : g >= 0.5 ? '#f97316' : g >= 0.3 ? '#eab308' : '#10b981';
+      const size = Math.min(36, Math.max(12, 8 + data.stats.total_items * 1.5));
+
+      const el = document.createElement('div');
+      el.style.cssText = `width:${size}px;height:${size}px;background:radial-gradient(circle,${color}99 0%,${color}33 60%,transparent 100%);border:1.5px solid ${color}88;border-radius:50%;box-shadow:0 0 ${size}px ${color}44;pointer-events:none;`;
+
+      const marker = new mapboxgl.Marker({ element: el }).setLngLat(coords).addTo(mapRef.current);
+      markersRef.current.push(marker);
+    }
+  }, [communes]);
+
+  return <div ref={containerRef} className="absolute inset-0 z-0" />;
+}
 
 // ── Helpers ──────────────────────────────────────────────
 function timeAgo(dateStr: string): string {
@@ -606,17 +714,20 @@ export default function DashboardPage() {
   const [communeMapData, setCommuneMapData] = useState<Record<string, { count: number; maxGravity: number; affairs: Array<{ _id: string; title: string; gravity_score: number; sentiment: string; theme: string }> }>>({})
   const [selectedCommune, setSelectedCommune] = useState<string | null>(null)
   const [storageStats, setStorageStats] = useState<StorageStats | null>(null)
+  const [mapBgData, setMapBgData] = useState<Record<string, { stats: { total_items: number; max_gravity: number } }>>({})
 
   const loadData = useCallback(async () => {
     try {
-      const [result, mapRes, storageRes] = await Promise.all([
+      const [result, mapRes, storageRes, mapBgRes] = await Promise.all([
         fetchEnrichedDashboard(),
         fetchAffairsByCommune().catch(() => ({ communes: {} })),
         fetchStorageStats().catch(() => null),
+        fetchMapData(7).catch(() => null),
       ])
       setData(result)
       setCommuneMapData(mapRes.communes || {})
       if (storageRes) setStorageStats(storageRes)
+      if (mapBgRes?.communes) setMapBgData(mapBgRes.communes as any)
       setError('')
       setLastRefresh(new Date())
     } catch (e: unknown) {
@@ -666,35 +777,34 @@ export default function DashboardPage() {
     return (
       <div className="flex">
         <Sidebar />
-        <main className="lg:ml-60 flex-1 p-4 lg:p-6 min-h-screen">
-          <div className="max-w-[1440px] mx-auto animate-fade-in">
-            {/* Header skeleton */}
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <div className="skeleton h-7 w-44 mb-2" />
-                <div className="skeleton h-2.5 w-32" />
+        <div className="lg:ml-60 flex-1 relative min-h-screen overflow-hidden">
+          <MapBackground communes={mapBgData} />
+          <div className="absolute inset-0 z-[1]" style={{ background: 'linear-gradient(180deg, rgba(2,6,23,0.72) 0%, rgba(2,6,23,0.85) 100%)' }} />
+          <main className="relative z-10 p-4 lg:p-6 min-h-screen">
+            <div className="max-w-[1440px] mx-auto animate-fade-in">
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <div className="skeleton h-7 w-44 mb-2" />
+                  <div className="skeleton h-2.5 w-32" />
+                </div>
+                <div className="flex gap-2">
+                  <div className="skeleton h-8 w-20 rounded-lg" />
+                  <div className="skeleton h-8 w-20 rounded-lg" />
+                </div>
               </div>
-              <div className="flex gap-2">
-                <div className="skeleton h-8 w-20 rounded-lg" />
-                <div className="skeleton h-8 w-20 rounded-lg" />
+              <div className="skeleton h-12 w-full rounded-xl mb-5" />
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+                {[...Array(4)].map((_, i) => <SkeletonCard key={i} />)}
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
+                {[...Array(3)].map((_, i) => <SkeletonWidget key={i} />)}
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {[...Array(3)].map((_, i) => <SkeletonWidget key={i} />)}
               </div>
             </div>
-            {/* Insight banner skeleton */}
-            <div className="skeleton h-12 w-full rounded-xl mb-5" />
-            {/* KPI cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-              {[...Array(4)].map((_, i) => <SkeletonCard key={i} />)}
-            </div>
-            {/* ROW 2 widgets */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
-              {[...Array(3)].map((_, i) => <SkeletonWidget key={i} />)}
-            </div>
-            {/* ROW 3 widgets */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              {[...Array(3)].map((_, i) => <SkeletonWidget key={i} />)}
-            </div>
-          </div>
-        </main>
+          </main>
+        </div>
       </div>
     )
   }
@@ -718,7 +828,13 @@ export default function DashboardPage() {
   return (
     <div className="flex">
       <Sidebar />
-      <main className="lg:ml-60 flex-1 p-4 lg:p-6 min-h-screen">
+      <div className="lg:ml-60 flex-1 relative min-h-screen overflow-hidden">
+        {/* 3D Mapbox satellite background */}
+        <MapBackground communes={mapBgData} />
+        {/* Semi-transparent overlay so widgets are readable */}
+        <div className="absolute inset-0 z-[1]" style={{ background: 'linear-gradient(180deg, rgba(2,6,23,0.65) 0%, rgba(2,6,23,0.82) 60%, rgba(2,6,23,0.92) 100%)' }} />
+
+        <main className="relative z-10 p-4 lg:p-6 min-h-screen">
         <div className="max-w-[1440px] mx-auto animate-fade-in">
 
           {/* ── HEADER ───────────────────────────────────── */}
@@ -1513,6 +1629,7 @@ export default function DashboardPage() {
 
         </div>
       </main>
+      </div>
     </div>
   )
 }

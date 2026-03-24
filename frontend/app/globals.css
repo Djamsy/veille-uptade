@@ -116,43 +116,59 @@ body {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
-/* ── Colored cards — vivantes et colorées ────────────── */
+/* ── Colored cards — vivantes et colorées + glassmorphism ── */
 .card-blue {
-  background: linear-gradient(135deg, #1e3a5f 0%, #1e293b 100%);
-  border: 1px solid rgba(96,165,250,0.15);
+  background: linear-gradient(135deg, rgba(30,58,95,0.75) 0%, rgba(30,41,59,0.75) 100%);
+  border: 1px solid rgba(96,165,250,0.2);
   border-radius: var(--radius);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 .card-amber {
-  background: linear-gradient(135deg, #78350f 0%, #451a03 100%);
-  border: 1px solid rgba(245,158,11,0.2);
+  background: linear-gradient(135deg, rgba(120,53,15,0.75) 0%, rgba(69,26,3,0.75) 100%);
+  border: 1px solid rgba(245,158,11,0.25);
   border-radius: var(--radius);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 .card-emerald {
-  background: linear-gradient(135deg, #064e3b 0%, #022c22 100%);
-  border: 1px solid rgba(16,185,129,0.2);
+  background: linear-gradient(135deg, rgba(6,78,59,0.75) 0%, rgba(2,44,34,0.75) 100%);
+  border: 1px solid rgba(16,185,129,0.25);
   border-radius: var(--radius);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 .card-rose {
-  background: linear-gradient(135deg, #4c0519 0%, #310413 100%);
-  border: 1px solid rgba(244,63,94,0.2);
+  background: linear-gradient(135deg, rgba(76,5,25,0.75) 0%, rgba(49,4,19,0.75) 100%);
+  border: 1px solid rgba(244,63,94,0.25);
   border-radius: var(--radius);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 .card-violet {
-  background: linear-gradient(135deg, #2e1065 0%, #1e0a3e 100%);
-  border: 1px solid rgba(139,92,246,0.2);
+  background: linear-gradient(135deg, rgba(46,16,101,0.75) 0%, rgba(30,10,62,0.75) 100%);
+  border: 1px solid rgba(139,92,246,0.25);
   border-radius: var(--radius);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 .card-yellow {
-  background: linear-gradient(135deg, #713f12 0%, #422006 100%);
-  border: 1px solid rgba(234,179,8,0.2);
+  background: linear-gradient(135deg, rgba(113,63,18,0.75) 0%, rgba(66,32,6,0.75) 100%);
+  border: 1px solid rgba(234,179,8,0.25);
   border-radius: var(--radius);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 .card-cyan {
-  background: linear-gradient(135deg, #083344 0%, #042f2e 100%);
-  border: 1px solid rgba(34,211,238,0.2);
+  background: linear-gradient(135deg, rgba(8,51,68,0.75) 0%, rgba(4,47,46,0.75) 100%);
+  border: 1px solid rgba(34,211,238,0.25);
   border-radius: var(--radius);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 /* ── Sidebar ─────────────────────────────────────────── */
@@ -236,6 +252,8 @@ body {
   border-radius: 12px;
   font-weight: 500;
   transition: all 0.2s ease;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 .btn-glass:hover {
   background: rgba(255,255,255,0.1);
