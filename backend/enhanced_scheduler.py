@@ -337,6 +337,167 @@ async def affair_lifecycle_job():
         logger.error(f"Erreur cycle affaires: {e}")
         raise
 
+async def telegram_morning_digest_job():
+    """Briefing matinal GPT envoyé sur Telegram — résumé des affaires actives des dernières 24h."""
+    logger.info("📰 Génération du digest matinal GPT pour Telegram...")
+    try:
+        from pymongo import MongoClient
+        try:
+            from backend.telegram_alerts_service import TelegramAlertsService
+        except ImportError:
+            from telegram_alerts_service import TelegramAlertsService
+        try:
+            from backend.ai_groq_service import _call_ai, is_available as ai_available
+        except ImportError:
+            from ai_groq_service import _call_ai, is_available as ai_available
+
+        mongo_uri = os.environ.get("MONGODB_URI") or os.environ.get("MONGO_URI")
+        if not mongo_uri:
+            logger.warning("MongoDB URI manquant pour digest matinal")
+            return
+
+        client = MongoClient(mongo_uri, serverSelectionTimeoutMS=8000)
+        db = client.get_default_database()
+
+        # Récupérer les affaires actives triées par BMG
+        affairs = list(db["affairs"].find(
+            {"status": "active"},
+            {"title": 1, "gravity_score": 1, "bmg": 1, "priority": 1,
+             "sentiment": 1, "item_count": 1, "theme": 1, "elected": 1,
+             "last_activity": 1, "description": 1}
+        ).sort("bmg", -1).limit(15))
+
+        if not affairs:
+            logger.info("📰 Aucune affaire active → pas de digest")
+            client.close()
+            return
+
+        # Récupérer les stats des dernières 24h
+        cutoff = datetime.utcnow() - timedelta(hours=24)
+        new_articles_24h = db["articles_guadeloupe"].count_documents({
+            "scraped_at": {"$gte": cutoff}
+        })
+        new_transcriptions_24h = db["radio_transcriptions"].count_documents({
+            "captured_at": {"$gte": cutoff}
+        })
+
+        # Construire le prompt pour GPT
+        affairs_text = []
+        for i, aff in enumerate(affairs[:10], 1):
+            bmg = aff.get("bmg", 0)
+            gravity = aff.get("gravity_score", 0)
+            sentiment = aff.get("sentiment", "neutre")
+            items = aff.get("item_count", 0)
+            title = aff.get("title", "?")
+            elected = ", ".join((aff.get("elected", []) or [])[:3])
+            priority = aff.get("priority", "minor")
+            desc = (aff.get("description", "") or "")[:150]
+
+            line = (f"{i}. [{priority.upper()}] {title} "
+                    f"(BMG={round(bmg*100) if bmg < 2 else round(bmg)}, "
+                    f"gravity={round(gravity*100)}%, sentiment={sentiment}, "
+                    f"{items} items)")
+            if elected:
+                line += f" — Élus: {elected}"
+            if desc:
+                line += f"\n   {desc}"
+            affairs_text.append(line)
+
+        affairs_block = "\n".join(affairs_text)
+
+        gpt_prompt = f"""Tu es l'éditeur en chef de la veille médiatique Guadeloupe.
+Rédige un BRIEFING MATINAL concis (max 600 mots) pour Telegram.
+
+Données du jour :
+- {len(affairs)} affaires actives, {new_articles_24h} nouveaux articles, {new_transcriptions_24h} transcriptions radio (24h)
+
+Top affaires :
+{affairs_block}
+
+Structure ton briefing en HTML (pour Telegram) :
+1. <b>🌅 Briefing du [date]</b> — accroche en 1 phrase
+2. <b>🔥 Affaires prioritaires</b> — 2-3 affaires HOT/WATCH avec analyse
+3. <b>📊 Tendances</b> — sentiment général, thèmes dominants
+4. <b>👁️ À surveiller</b> — 1-2 points de vigilance
+
+Sois direct, journalistique, sans blabla. Utilise des emojis sobrement.
+Pas de Markdown, que du HTML (balises <b>, <i>, <u>).
+Ne dépasse pas 4000 caractères."""
+
+        # Appel GPT
+        digest_text = None
+        if ai_available():
+            raw = _call_ai(
+                messages=[
+                    {"role": "system", "content": "Tu es un éditeur de veille médiatique pour la Guadeloupe. Réponds en HTML pour Telegram."},
+                    {"role": "user", "content": gpt_prompt},
+                ],
+                temperature=0.4,
+                max_tokens=1200,
+                json_mode=False,
+            )
+            if raw:
+                digest_text = raw.strip()
+
+        if not digest_text:
+            # Fallback sans GPT — juste la liste
+            lines = [f"<b>📰 Briefing Veille Guadeloupe</b>\n"]
+            lines.append(f"📊 {len(affairs)} affaires actives | {new_articles_24h} articles | {new_transcriptions_24h} radios (24h)\n")
+            for aff in affairs[:5]:
+                emoji = "🔴" if aff.get("priority") == "hot" else "🟠" if aff.get("priority") == "watch" else "🔵"
+                lines.append(f"{emoji} <b>{aff.get('title', '?')[:60]}</b> — BMG {round(aff.get('bmg', 0) * 100 if aff.get('bmg', 0) < 2 else aff.get('bmg', 0))}")
+            digest_text = "\n".join(lines)
+
+        # Envoyer sur Telegram
+        tg = TelegramAlertsService()
+        sent = False
+        if tg.bot or tg.telegram_token:
+            sent = await tg.send_alert(digest_text[:4000])
+        if not sent:
+            tg._send_via_http(digest_text[:4000])
+
+        # Sauvegarder le digest en DB
+        db["digests"].insert_one({
+            "type": "morning_telegram",
+            "content": digest_text,
+            "affairs_count": len(affairs),
+            "articles_24h": new_articles_24h,
+            "transcriptions_24h": new_transcriptions_24h,
+            "generated_at": datetime.utcnow(),
+            "sent": True,
+        })
+
+        client.close()
+        logger.info(f"📰 Digest matinal envoyé ({len(digest_text)} chars, {len(affairs)} affaires)")
+        return {"sent": True, "length": len(digest_text), "affairs": len(affairs)}
+
+    except Exception as e:
+        logger.error(f"Erreur digest matinal: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise
+
+
+async def gpt_affair_cleanup_job():
+    """Nettoyage GPT périodique des affaires — retire les articles mal classés."""
+    logger.info("🧹🧠 Nettoyage GPT des affaires...")
+    try:
+        try:
+            from backend.affair_lifecycle_service import get_affair_lifecycle_service
+        except ImportError:
+            from affair_lifecycle_service import get_affair_lifecycle_service
+        svc = get_affair_lifecycle_service()
+        if not svc:
+            logger.warning("AffairLifecycleService non disponible")
+            return
+        result = svc.cleanup_all_affairs()
+        logger.info(f"🧹🧠 Cleanup GPT: {result.get('total_removed', 0)} articles retirés de {result.get('affairs_cleaned', 0)} affaires")
+        return result
+    except Exception as e:
+        logger.error(f"Erreur cleanup GPT: {e}")
+        raise
+
+
 async def storage_monitor_job():
     """Tâche automatique : vérification stockage MongoDB Atlas (512 Mo free tier)"""
     logger.info("💾 Vérification stockage MongoDB...")
@@ -517,6 +678,26 @@ def setup_scheduler_jobs():
         trigger=CronTrigger(hour="*/6", minute=45, timezone=timezone),
         id="storage_monitor",
         name="Monitoring stockage MongoDB",
+        replace_existing=True,
+        max_instances=1
+    )
+
+    # 8. Digest matinal GPT Telegram — 7h du matin
+    scheduler.add_job(
+        telegram_morning_digest_job,
+        trigger=CronTrigger(hour=7, minute=0, timezone=timezone),
+        id="telegram_morning_digest",
+        name="Briefing matinal GPT Telegram",
+        replace_existing=True,
+        max_instances=1
+    )
+
+    # 9. Nettoyage GPT des affaires — toutes les 12h
+    scheduler.add_job(
+        gpt_affair_cleanup_job,
+        trigger=CronTrigger(hour="4,16", minute=15, timezone=timezone),
+        id="gpt_affair_cleanup",
+        name="Nettoyage GPT affaires (anti-pollution)",
         replace_existing=True,
         max_instances=1
     )

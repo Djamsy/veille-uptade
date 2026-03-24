@@ -1006,6 +1006,185 @@ async def get_affairs(
         logger.error(f"Erreur récupération affaires: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/map")
+async def get_map_data(days: int = Query(7, ge=1, le=30)):
+    """Données géolocalisées par commune pour la carte interactive.
+    Retourne articles, transcriptions et affaires groupés par commune."""
+    if db is None:
+        raise HTTPException(status_code=503, detail="DB non disponible")
+
+    from datetime import timedelta
+    cutoff = datetime.utcnow() - timedelta(days=days)
+
+    # Communes de Guadeloupe avec leurs noms normalisés
+    COMMUNE_ALIASES = {
+        "pointe-à-pitre": "Pointe-à-Pitre", "pointe-a-pitre": "Pointe-à-Pitre",
+        "les abymes": "Les Abymes", "abymes": "Les Abymes",
+        "baie-mahault": "Baie-Mahault", "baie mahault": "Baie-Mahault",
+        "le moule": "Le Moule", "moule": "Le Moule",
+        "sainte-anne": "Sainte-Anne", "sainte anne": "Sainte-Anne",
+        "saint-françois": "Saint-François", "saint françois": "Saint-François",
+        "le gosier": "Le Gosier", "gosier": "Le Gosier",
+        "petit-bourg": "Petit-Bourg", "petit bourg": "Petit-Bourg",
+        "capesterre-belle-eau": "Capesterre-Belle-Eau", "capesterre belle eau": "Capesterre-Belle-Eau",
+        "capesterre": "Capesterre-Belle-Eau",
+        "sainte-rose": "Sainte-Rose", "sainte rose": "Sainte-Rose",
+        "deshaies": "Deshaies",
+        "bouillante": "Bouillante",
+        "goyave": "Goyave",
+        "lamentin": "Lamentin",
+        "trois-rivières": "Trois-Rivières", "trois rivières": "Trois-Rivières",
+        "vieux-habitants": "Vieux-Habitants", "vieux habitants": "Vieux-Habitants",
+        "basse-terre": "Basse-Terre", "basse terre": "Basse-Terre",
+        "saint-claude": "Saint-Claude", "saint claude": "Saint-Claude",
+        "baillif": "Baillif",
+        "gourbeyre": "Gourbeyre",
+        "vieux-fort": "Vieux-Fort",
+        "pointe-noire": "Pointe-Noire", "pointe noire": "Pointe-Noire",
+        "morne-à-l'eau": "Morne-à-l'Eau", "morne a l'eau": "Morne-à-l'Eau",
+        "port-louis": "Port-Louis", "port louis": "Port-Louis",
+        "petit-canal": "Petit-Canal", "petit canal": "Petit-Canal",
+        "anse-bertrand": "Anse-Bertrand", "anse bertrand": "Anse-Bertrand",
+        "marie-galante": "Grand-Bourg", "grand-bourg": "Grand-Bourg",
+        "capesterre-de-marie-galante": "Capesterre-de-Marie-Galante",
+        "saint-louis": "Saint-Louis",
+        "la désirade": "La Désirade", "désirade": "La Désirade",
+        "terre-de-haut": "Terre-de-Haut", "les saintes": "Terre-de-Haut",
+        "terre-de-bas": "Terre-de-Bas",
+        "sonis": "Les Abymes", "dampierre": "Le Gosier",
+        "grande-anse": "Deshaies", "l'autre-bord": "Le Moule", "l'autre bord": "Le Moule",
+        "la traversée": "Petit-Bourg",
+    }
+
+    def detect_commune(text: str) -> list:
+        """Détecte les communes mentionnées dans un texte."""
+        if not text:
+            return []
+        text_lower = text.lower()
+        found = set()
+        for alias, canonical in COMMUNE_ALIASES.items():
+            if alias in text_lower:
+                found.add(canonical)
+        return list(found)
+
+    # Résultat : {commune: {articles: [...], transcriptions: [...], affairs: [...], stats: {...}}}
+    commune_data = {}
+
+    # 1. Articles
+    articles = list(db["articles_guadeloupe"].find(
+        {"scraped_at": {"$gte": cutoff}},
+        {"title": 1, "source": 1, "theme": 1, "gravity_score": 1,
+         "sentiment": 1, "scraped_at": 1, "elected": 1}
+    ).sort("scraped_at", -1).limit(500))
+
+    for art in articles:
+        title = art.get("title", "")
+        communes = detect_commune(title)
+        for c in communes:
+            if c not in commune_data:
+                commune_data[c] = {"articles": [], "transcriptions": [], "affairs": [], "stats": {}}
+            commune_data[c]["articles"].append({
+                "id": str(art["_id"]),
+                "title": title[:120],
+                "source": art.get("source", ""),
+                "theme": art.get("theme", "general"),
+                "gravity": art.get("gravity_score", 0),
+                "sentiment": art.get("sentiment", "neutre"),
+                "date": str(art.get("scraped_at", "")),
+            })
+
+    # 2. Transcriptions radio (topics IA)
+    transcriptions = list(db["radio_transcriptions"].find(
+        {"captured_at": {"$gte": cutoff}, "ai_topics": {"$exists": True}},
+        {"ai_topics": 1, "radio": 1, "captured_at": 1, "station": 1}
+    ).sort("captured_at", -1).limit(200))
+
+    for trans in transcriptions:
+        for topic in (trans.get("ai_topics", []) or []):
+            topic_title = topic.get("title", "")
+            topic_summary = topic.get("summary", "")
+            text = f"{topic_title} {topic_summary}"
+            communes = detect_commune(text)
+            for c in communes:
+                if c not in commune_data:
+                    commune_data[c] = {"articles": [], "transcriptions": [], "affairs": [], "stats": {}}
+                commune_data[c]["transcriptions"].append({
+                    "title": topic_title[:120],
+                    "summary": topic_summary[:200],
+                    "station": trans.get("station", "") or trans.get("radio", ""),
+                    "gravity": topic.get("gravity", 0),
+                    "date": str(trans.get("captured_at", "")),
+                })
+
+    # 3. Affaires actives
+    affairs = list(db["affairs"].find(
+        {"status": "active"},
+        {"title": 1, "gravity_score": 1, "bmg": 1, "priority": 1,
+         "sentiment": 1, "item_count": 1, "theme": 1, "elected": 1}
+    ))
+
+    for aff in affairs:
+        title = aff.get("title", "")
+        desc = aff.get("description", "") or ""
+        communes = detect_commune(f"{title} {desc} {' '.join(aff.get('elected', []) or [])}")
+        for c in communes:
+            if c not in commune_data:
+                commune_data[c] = {"articles": [], "transcriptions": [], "affairs": [], "stats": {}}
+            commune_data[c]["affairs"].append({
+                "id": str(aff["_id"]),
+                "title": title[:120],
+                "gravity": aff.get("gravity_score", 0),
+                "bmg": aff.get("bmg", 0),
+                "priority": aff.get("priority", "minor"),
+                "sentiment": aff.get("sentiment", "neutre"),
+                "items": aff.get("item_count", 0),
+            })
+
+    # Calculer les stats par commune
+    for c, data in commune_data.items():
+        data["stats"] = {
+            "total_items": len(data["articles"]) + len(data["transcriptions"]),
+            "article_count": len(data["articles"]),
+            "transcription_count": len(data["transcriptions"]),
+            "affair_count": len(data["affairs"]),
+            "max_gravity": max(
+                [a.get("gravity", 0) for a in data["articles"]] +
+                [t.get("gravity", 0) for t in data["transcriptions"]] +
+                [af.get("gravity", 0) for af in data["affairs"]] +
+                [0]
+            ),
+            "dominant_theme": max(
+                set(a.get("theme", "general") for a in data["articles"]) or {"general"},
+                key=lambda t: sum(1 for a in data["articles"] if a.get("theme") == t),
+                default="general",
+            ) if data["articles"] else "general",
+        }
+
+    return {
+        "communes": commune_data,
+        "period_days": days,
+        "total_communes_active": len(commune_data),
+        "generated_at": datetime.utcnow().isoformat(),
+    }
+
+
+@app.post("/api/digest/send")
+async def send_digest_now():
+    """Déclencher manuellement l'envoi du digest Telegram GPT."""
+    try:
+        from enhanced_scheduler import telegram_morning_digest_job
+        result = await telegram_morning_digest_job()
+        return result or {"sent": True}
+    except Exception as e:
+        try:
+            from backend.enhanced_scheduler import telegram_morning_digest_job
+            result = await telegram_morning_digest_job()
+            return result or {"sent": True}
+        except Exception as e2:
+            logger.error(f"Erreur envoi digest: {e2}")
+            raise HTTPException(status_code=500, detail=str(e2))
+
+
 @app.post("/api/affairs/{affair_id}/cleanup")
 async def cleanup_affair_endpoint(affair_id: str, background_tasks: BackgroundTasks):
     """Nettoyer une affaire avec validation GPT — retire les articles non pertinents."""

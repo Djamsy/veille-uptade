@@ -340,6 +340,55 @@ export interface StorageStats {
 export const fetchStorageStats = () =>
   adminFetch<StorageStats>('/api/storage');
 
+// --- Carte interactive ---
+export interface MapCommuneItem {
+  id?: string;
+  title: string;
+  source?: string;
+  station?: string;
+  summary?: string;
+  theme?: string;
+  gravity: number;
+  sentiment?: string;
+  bmg?: number;
+  priority?: string;
+  items?: number;
+  date?: string;
+}
+
+export interface MapCommuneData {
+  articles: MapCommuneItem[];
+  transcriptions: MapCommuneItem[];
+  affairs: MapCommuneItem[];
+  stats: {
+    total_items: number;
+    article_count: number;
+    transcription_count: number;
+    affair_count: number;
+    max_gravity: number;
+    dominant_theme: string;
+  };
+}
+
+export interface MapResponse {
+  communes: Record<string, MapCommuneData>;
+  period_days: number;
+  total_communes_active: number;
+  generated_at: string;
+}
+
+export const fetchMapData = (days = 7) =>
+  adminFetch<MapResponse>(`/api/map?days=${days}`);
+
+export const sendDigestNow = () =>
+  adminFetch<{ sent: boolean }>('/api/digest/send', { method: 'POST' });
+
+export const cleanupAffair = (affairId: string) =>
+  adminFetch<{ kept: number; removed: number }>(`/api/affairs/${affairId}/cleanup`, { method: 'POST' });
+
+export const cleanupAllAffairs = () =>
+  adminFetch<{ total_removed: number }>('/api/affairs/cleanup-all', { method: 'POST' });
+
 export const fetchArticleIndex = () =>
   adminFetch<Record<string, unknown>>('/api/reconciliation/index/status');
 
