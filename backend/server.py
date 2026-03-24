@@ -1207,6 +1207,17 @@ async def cleanup_all_affairs_endpoint(background_tasks: BackgroundTasks):
         logger.error(f"Erreur cleanup toutes affaires: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/affairs/crosscheck-stale")
+async def crosscheck_stale_active_endpoint():
+    """Cross-check GPT : compare affaires en veille vs actives pour fusion."""
+    try:
+        lifecycle = get_affair_lifecycle_service(db)
+        merged = lifecycle._cross_check_stale_active()
+        return {"merged": merged}
+    except Exception as e:
+        logger.error(f"Erreur cross-check stale↔active: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/scrape")
 async def trigger_scraping(background_tasks: BackgroundTasks):
     """Déclencher le scraping"""

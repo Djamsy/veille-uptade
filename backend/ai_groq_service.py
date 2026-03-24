@@ -1386,6 +1386,151 @@ def validate_article_affair_relevance(
 
 
 # ============================================================
+# COMPARAISON GPT — AFFAIRES EN VEILLE ↔ AFFAIRES ACTIVES
+# ============================================================
+
+STALE_ACTIVE_PROMPT = """Tu es un analyste média spécialisé Guadeloupe/Antilles.
+
+On te donne deux listes :
+1. AFFAIRES EN VEILLE (stale) — sans activité récente
+2. AFFAIRES ACTIVES — en cours de couverture
+
+Identifie les PAIRES où une affaire en veille et une affaire active traitent du MÊME SUJET ou événement.
+Si une affaire en veille est la SUITE, le DÉVELOPPEMENT ou la MÊME AFFAIRE qu'une active, c'est un match.
+
+EXEMPLES DE MATCH :
+- Veille: "Pénurie d'eau à Petit-Pérou" ↔ Active: "Crise de l'eau aux Abymes" (même sujet)
+- Veille: "Procès Chalus" ↔ Active: "Convocation Arichalus parquet" (même personne, même affaire judiciaire)
+- Veille: "Grève enseignants Guadeloupe" ↔ Active: "Mobilisation éducation nationale 971" (même mouvement)
+
+CE QUI N'EST PAS UN MATCH :
+- Même thème mais événements totalement différents
+- Même personne mais sujets sans rapport
+- Même lieu mais incidents distincts
+
+Réponds UNIQUEMENT en JSON :
+{
+  "matches": [
+    {
+      "stale_id": "ID affaire en veille",
+      "active_id": "ID affaire active",
+      "confidence": "high" ou "medium",
+      "reason": "explication courte"
+    }
+  ]
+}
+
+Si aucun match → {"matches": []}
+Sois CONSERVATEUR : en cas de doute, ne matche PAS. Seuls les vrais liens sont utiles."""
+
+
+def detect_stale_active_matches(
+    stale_affairs: List[Dict[str, Any]],
+    active_affairs: List[Dict[str, Any]],
+) -> Optional[List[Dict[str, Any]]]:
+    """
+    Compare les affaires en veille aux affaires actives via GPT.
+    Identifie les paires qui devraient être fusionnées.
+
+    Retourne une liste de matches :
+    [{"stale_id": "...", "active_id": "...", "confidence": "high|medium", "reason": "..."}]
+
+    Retourne None si IA indisponible.
+    """
+    if not is_available():
+        return None
+
+    if not stale_affairs or not active_affairs:
+        return []
+
+    # Limiter pour rester dans les limites de tokens
+    stale_to_check = stale_affairs[:25]
+    active_to_check = active_affairs[:30]
+
+    lines = ["=== AFFAIRES EN VEILLE (stale) ==="]
+    for aff in stale_to_check:
+        aff_id = str(aff.get("_id", "?"))
+        title = (aff.get("title", "") or "")[:120]
+        elected = ", ".join((aff.get("elected", []) or [])[:4])
+        institutions = ", ".join((aff.get("institutions", []) or [])[:4])
+        theme = aff.get("theme", "")
+        items = aff.get("item_count", 0)
+        line = f"[{aff_id}] theme={theme} items={items} | {title}"
+        if elected:
+            line += f" | Élus: {elected}"
+        if institutions:
+            line += f" | Instit: {institutions}"
+        lines.append(line)
+
+    lines.append("\n=== AFFAIRES ACTIVES ===")
+    for aff in active_to_check:
+        aff_id = str(aff.get("_id", "?"))
+        title = (aff.get("title", "") or "")[:120]
+        elected = ", ".join((aff.get("elected", []) or [])[:4])
+        institutions = ", ".join((aff.get("institutions", []) or [])[:4])
+        theme = aff.get("theme", "")
+        items = aff.get("item_count", 0)
+        gravity = aff.get("gravity_score", 0)
+        line = f"[{aff_id}] theme={theme} gravity={gravity:.2f} items={items} | {title}"
+        if elected:
+            line += f" | Élus: {elected}"
+        if institutions:
+            line += f" | Instit: {institutions}"
+        lines.append(line)
+
+    user_content = "\n".join(lines)
+
+    try:
+        raw = _call_ai(
+            messages=[
+                {"role": "system", "content": STALE_ACTIVE_PROMPT},
+                {"role": "user", "content": user_content},
+            ],
+            temperature=0.05,
+            max_tokens=800,
+            json_mode=True,
+        )
+        if raw is None:
+            return None
+
+        result = json.loads(raw)
+        matches = result.get("matches", [])
+
+        if not matches:
+            logger.info("🔍 Stale↔Active: aucun match détecté")
+            return []
+
+        # Valider les IDs
+        valid_stale_ids = {str(a.get("_id", "")) for a in stale_to_check}
+        valid_active_ids = {str(a.get("_id", "")) for a in active_to_check}
+        validated = []
+        for m in matches:
+            sid = str(m.get("stale_id", ""))
+            aid = str(m.get("active_id", ""))
+            if sid in valid_stale_ids and aid in valid_active_ids:
+                validated.append({
+                    "stale_id": sid,
+                    "active_id": aid,
+                    "confidence": m.get("confidence", "medium"),
+                    "reason": m.get("reason", "match IA"),
+                })
+
+        if validated:
+            logger.info(
+                f"🤖 Stale↔Active: {len(validated)} matches détectés "
+                f"({sum(1 for v in validated if v['confidence'] == 'high')} high confidence)"
+            )
+        return validated
+
+    except json.JSONDecodeError as e:
+        logger.warning(f"⚠️ Stale↔Active: JSON invalide: {e}")
+        return None
+    except Exception as e:
+        logger.warning(f"⚠️ Stale↔Active échoué: {e}")
+        return None
+
+
+# ============================================================
 # ANALYSE PRÉDICTIVE IA
 # ============================================================
 

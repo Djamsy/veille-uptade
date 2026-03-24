@@ -498,6 +498,26 @@ async def gpt_affair_cleanup_job():
         raise
 
 
+async def stale_active_crosscheck_job():
+    """Cross-check GPT : compare les affaires en veille aux actives pour fusion."""
+    logger.info("🔄🧠 Cross-check stale ↔ active...")
+    try:
+        try:
+            from backend.affair_lifecycle_service import get_affair_lifecycle_service
+        except ImportError:
+            from affair_lifecycle_service import get_affair_lifecycle_service
+        svc = get_affair_lifecycle_service()
+        if not svc:
+            logger.warning("AffairLifecycleService non disponible")
+            return
+        merged = svc._cross_check_stale_active()
+        logger.info(f"🔄🧠 Cross-check stale↔active: {merged} affaires fusionnées")
+        return {"merged": merged}
+    except Exception as e:
+        logger.error(f"Erreur cross-check stale↔active: {e}")
+        raise
+
+
 async def storage_monitor_job():
     """Tâche automatique : vérification stockage MongoDB Atlas (512 Mo free tier)"""
     logger.info("💾 Vérification stockage MongoDB...")
@@ -698,6 +718,16 @@ def setup_scheduler_jobs():
         trigger=CronTrigger(hour="4,16", minute=15, timezone=timezone),
         id="gpt_affair_cleanup",
         name="Nettoyage GPT affaires (anti-pollution)",
+        replace_existing=True,
+        max_instances=1
+    )
+
+    # 10. Cross-check stale ↔ active (GPT) — toutes les 8h
+    scheduler.add_job(
+        stale_active_crosscheck_job,
+        trigger=CronTrigger(hour="6,14,22", minute=30, timezone=timezone),
+        id="stale_active_crosscheck",
+        name="Cross-check GPT stale↔active (fusion)",
         replace_existing=True,
         max_instances=1
     )

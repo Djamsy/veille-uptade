@@ -56,19 +56,25 @@ from bson import ObjectId
 try:
     from backend.ai_groq_service import detect_duplicate_affairs as _ai_dedup
     from backend.ai_groq_service import validate_article_affair_relevance as _ai_relevance
+    from backend.ai_groq_service import detect_stale_active_matches as _ai_stale_active
     _ai_dedup_ok = True
     _ai_relevance_ok = True
+    _ai_stale_active_ok = True
 except ImportError:
     try:
         from ai_groq_service import detect_duplicate_affairs as _ai_dedup
         from ai_groq_service import validate_article_affair_relevance as _ai_relevance
+        from ai_groq_service import detect_stale_active_matches as _ai_stale_active
         _ai_dedup_ok = True
         _ai_relevance_ok = True
+        _ai_stale_active_ok = True
     except ImportError:
         _ai_dedup_ok = False
         _ai_dedup = None
         _ai_relevance_ok = False
         _ai_relevance = None
+        _ai_stale_active_ok = False
+        _ai_stale_active = None
 
 logger = logging.getLogger("affair_lifecycle")
 
@@ -1689,12 +1695,18 @@ class AffairLifecycleService:
         # ── ÉTAPE 8 : Lifecycle ──
         stats["lifecycle"] = self.update_affair_lifecycle()
 
+        # ── ÉTAPE 9 : Cross-check stale ↔ active (GPT) ──
+        # Après le lifecycle qui peut avoir passé des affaires en stale,
+        # on vérifie si des stale et des actives parlent du même sujet
+        stats["stale_active_merged"] = self._cross_check_stale_active()
+
         logger.info(
             f"✅ Cycle simplifié: {stats['created']} créées, {stats['merged']} fusionnées, "
             f"{stats['consolidated']} consolidées, {stats.get('inter_merged', 0)} inter-fusionnées, "
             f"{stats.get('ai_deduped', 0)} dédup-IA, {stats.get('geo_cleaned', 0)} hors-GP archivées, "
             f"{stats['radio_enriched']} radio enrichies, "
             f"{stats['radio_linked']} radio liées, {stats.get('radio_created', 0)} radio→affaires, "
+            f"{stats.get('stale_active_merged', 0)} stale↔active fusionnées, "
             f"{ignored_count} ignorées (gravity<0.30 ou seuil création)"
         )
         logger.info(f"📊 Bilan: {len(active_affairs)} affaires actives maintenant")
@@ -2214,6 +2226,146 @@ class AffairLifecycleService:
 
         if merged_count > 0:
             logger.info(f"🤖 Dédup IA: {merged_count} affaires fusionnées")
+        return merged_count
+
+    def _cross_check_stale_active(self) -> int:
+        """Compare les affaires en veille (stale) aux affaires actives via GPT.
+        Si GPT détecte que deux affaires traitent du même sujet,
+        fusionne la stale dans l'active (transfère articles, réactive le contenu).
+
+        Évite de recréer des doublons quand un sujet ancien revient dans l'actualité.
+        """
+        if not _ai_stale_active_ok or not _ai_stale_active:
+            logger.info("⏭️ Cross-check stale↔active: IA non disponible, skip")
+            return 0
+
+        stale_affairs = list(self.affairs.find({"status": "stale"}))
+        active_affairs = list(self.affairs.find({"status": "active"}))
+
+        if not stale_affairs or not active_affairs:
+            logger.info(f"⏭️ Cross-check stale↔active: {len(stale_affairs)} stale, {len(active_affairs)} active — rien à comparer")
+            return 0
+
+        logger.info(f"🔄 Cross-check stale↔active: {len(stale_affairs)} stale vs {len(active_affairs)} active")
+
+        try:
+            matches = _ai_stale_active(stale_affairs, active_affairs)
+        except Exception as e:
+            logger.warning(f"⚠️ Cross-check stale↔active échoué: {e}")
+            return 0
+
+        if not matches:
+            return 0
+
+        merged_count = 0
+        now = datetime.utcnow()
+
+        for match in matches:
+            stale_id = match.get("stale_id")
+            active_id = match.get("active_id")
+            confidence = match.get("confidence", "medium")
+            reason = match.get("reason", "match IA stale↔active")
+
+            # Ne fusionner que les matches "high" confidence
+            # Pour "medium", on ne fusionne que si le score de matching est aussi bon
+            if confidence not in ("high", "medium"):
+                continue
+
+            stale_affair = None
+            active_affair = None
+            for a in stale_affairs:
+                if str(a.get("_id")) == stale_id:
+                    stale_affair = a
+                    break
+            for a in active_affairs:
+                if str(a.get("_id")) == active_id:
+                    active_affair = a
+                    break
+
+            if not stale_affair or not active_affair:
+                continue
+
+            # Pour medium confidence, vérifier aussi le score de matching
+            if confidence == "medium":
+                aff_elected = set(
+                    e.lower().strip() for e in (stale_affair.get("elected", []) or []) if e and len(e) > 3
+                )
+                aff_institutions = set(
+                    e.lower().strip() for e in (stale_affair.get("institutions", []) or []) if e and len(e) > 3
+                )
+                aff_entities = aff_elected | aff_institutions
+                aff_title_words = set(
+                    w.lower() for w in (stale_affair.get("title", "").split()) if len(w) > 4
+                )
+                score = self._match_score(
+                    aff_elected, aff_institutions, aff_entities,
+                    stale_affair.get("theme", "general"), aff_title_words, active_affair,
+                )
+                if score < 4:
+                    logger.info(
+                        f"   ⏭️ Medium confidence mais score={score} < 4, skip: "
+                        f"'{stale_affair.get('title', '?')[:40]}' ↔ '{active_affair.get('title', '?')[:40]}'"
+                    )
+                    continue
+
+            logger.info(
+                f"🔗 FUSION stale→active [{confidence}]: "
+                f"'{stale_affair.get('title', '?')[:40]}' → '{active_affair.get('title', '?')[:40]}' "
+                f"({reason})"
+            )
+
+            # Transférer tous les contenus de la stale vers l'active
+            self.affairs.update_one(
+                {"_id": active_affair["_id"]},
+                {
+                    "$addToSet": {
+                        "articles": {"$each": stale_affair.get("articles", [])},
+                        "sources": {"$each": stale_affair.get("sources", [])},
+                        "radio_transcriptions": {"$each": stale_affair.get("radio_transcriptions", [])},
+                        "social_posts": {"$each": stale_affair.get("social_posts", [])},
+                    },
+                    "$inc": {"item_count": stale_affair.get("item_count", 0)},
+                    "$max": {"gravity_score": stale_affair.get("gravity_score", 0)},
+                    "$set": {"last_activity": now},
+                }
+            )
+
+            # Marquer la stale comme fusionnée
+            self.affairs.update_one(
+                {"_id": stale_affair["_id"]},
+                {"$set": {
+                    "status": "merged",
+                    "_merged_into": active_id,
+                    "_merged_at": now,
+                    "_merge_reason": f"stale_active_gpt: {reason}",
+                }}
+            )
+
+            # Mettre à jour les articles de la stale pour pointer vers la nouvelle affaire
+            for art_ref in stale_affair.get("articles", []):
+                self.articles.update_one(
+                    {"_id": art_ref if not isinstance(art_ref, str) else ObjectId(art_ref)},
+                    {"$set": {"_affair_id": active_id}},
+                )
+
+            # Timeline
+            self.timeline.insert_one({
+                "affair_id": active_id,
+                "event": "stale_merged",
+                "details": {
+                    "merged_from": stale_id,
+                    "merged_title": stale_affair.get("title", "")[:80],
+                    "confidence": confidence,
+                    "reason": reason,
+                    "items_transferred": stale_affair.get("item_count", 0),
+                },
+                "timestamp": now,
+            })
+
+            merged_count += 1
+
+        if merged_count > 0:
+            logger.info(f"🤖 Cross-check stale↔active: {merged_count} affaires en veille fusionnées")
         return merged_count
 
     def _consolidate_affairs_24h(self, active_affairs: list) -> int:
@@ -3785,6 +3937,9 @@ class AffairLifecycleService:
 
         # 5. BMG
         self._recalculate_active_bmg()
+
+        # 6. Cross-check stale ↔ active (GPT)
+        results["stale_active_merged"] = self._cross_check_stale_active()
 
         logger.info(f"✅ Cycle classique terminé: {results}")
         return results
