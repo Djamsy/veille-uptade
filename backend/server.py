@@ -884,6 +884,65 @@ async def health():
         "timestamp": datetime.now().isoformat()
     }
 
+@app.get("/api/storage")
+async def get_storage():
+    """Statistiques stockage MongoDB Atlas"""
+    try:
+        if not db:
+            raise HTTPException(status_code=503, detail="Base de données non connectée")
+
+        stats = db.command("dbStats")
+        data_size_mb = round(stats.get("dataSize", 0) / (1024 * 1024), 1)
+        storage_size_mb = round(stats.get("storageSize", 0) / (1024 * 1024), 1)
+        index_size_mb = round(stats.get("indexSize", 0) / (1024 * 1024), 1)
+        total_used_mb = round(data_size_mb + index_size_mb, 1)
+
+        atlas_limit_mb = int(os.environ.get("ATLAS_STORAGE_LIMIT_MB", "512"))
+        usage_pct = round((total_used_mb / atlas_limit_mb) * 100, 1) if atlas_limit_mb > 0 else 0
+
+        # Stats par collection (top 10)
+        collections_stats = []
+        for coll_name in db.list_collection_names():
+            try:
+                coll_stats = db.command("collStats", coll_name)
+                coll_size_mb = round(coll_stats.get("storageSize", 0) / (1024 * 1024), 2)
+                coll_count = coll_stats.get("count", 0)
+                collections_stats.append({
+                    "name": coll_name,
+                    "size_mb": coll_size_mb,
+                    "count": coll_count,
+                })
+            except Exception:
+                pass
+        collections_stats.sort(key=lambda x: x["size_mb"], reverse=True)
+
+        # Seuils d'alerte
+        alert_level = "ok"
+        if usage_pct >= 95:
+            alert_level = "critical"
+        elif usage_pct >= 90:
+            alert_level = "high"
+        elif usage_pct >= 80:
+            alert_level = "warning"
+
+        return {
+            "data_size_mb": data_size_mb,
+            "storage_size_mb": storage_size_mb,
+            "index_size_mb": index_size_mb,
+            "total_used_mb": total_used_mb,
+            "limit_mb": atlas_limit_mb,
+            "usage_pct": usage_pct,
+            "alert_level": alert_level,
+            "collections": collections_stats[:10],
+            "checked_at": datetime.now().isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur storage stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/stats")
 async def get_stats():
     """Statistiques globales"""

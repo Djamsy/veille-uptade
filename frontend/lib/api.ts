@@ -325,6 +325,21 @@ export const fetchArticles = (limit = 30, skip = 0) =>
 export const fetchReconciliationHealth = () =>
   adminFetch<Record<string, unknown>>('/api/reconciliation/health');
 
+// --- Storage ---
+export interface StorageStats {
+  data_size_mb: number;
+  storage_size_mb: number;
+  index_size_mb: number;
+  total_used_mb: number;
+  limit_mb: number;
+  usage_pct: number;
+  alert_level: 'ok' | 'warning' | 'high' | 'critical';
+  collections: Array<{ name: string; size_mb: number; count: number }>;
+  checked_at: string;
+}
+export const fetchStorageStats = () =>
+  adminFetch<StorageStats>('/api/storage');
+
 export const fetchArticleIndex = () =>
   adminFetch<Record<string, unknown>>('/api/reconciliation/index/status');
 

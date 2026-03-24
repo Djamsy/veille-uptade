@@ -8,6 +8,7 @@ import GuadeloupeMap from '../components/GuadeloupeMap'
 import {
   fetchEnrichedDashboard,
   fetchAffairsByCommune,
+  fetchStorageStats,
   runFullCycle,
   runReaffiliate,
   runScrapeNow,
@@ -19,6 +20,7 @@ import {
   type TopSource,
   type OrphanArticle,
   type TimelineEvent,
+  type StorageStats,
 } from '../lib/api'
 
 // ── Helpers ──────────────────────────────────────────────
@@ -603,15 +605,18 @@ export default function DashboardPage() {
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [communeMapData, setCommuneMapData] = useState<Record<string, { count: number; maxGravity: number; affairs: Array<{ _id: string; title: string; gravity_score: number; sentiment: string; theme: string }> }>>({})
   const [selectedCommune, setSelectedCommune] = useState<string | null>(null)
+  const [storageStats, setStorageStats] = useState<StorageStats | null>(null)
 
   const loadData = useCallback(async () => {
     try {
-      const [result, mapRes] = await Promise.all([
+      const [result, mapRes, storageRes] = await Promise.all([
         fetchEnrichedDashboard(),
         fetchAffairsByCommune().catch(() => ({ communes: {} })),
+        fetchStorageStats().catch(() => null),
       ])
       setData(result)
       setCommuneMapData(mapRes.communes || {})
+      if (storageRes) setStorageStats(storageRes)
       setError('')
       setLastRefresh(new Date())
     } catch (e: unknown) {
@@ -1418,6 +1423,89 @@ export default function DashboardPage() {
                       </svg>
                     )}
                   </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ═══ ROW 8 : Stockage MongoDB ═══════════════ */}
+          {storageStats && (
+            <div className={`mt-5 p-4 kpi-card ${
+              storageStats.alert_level === 'critical' ? 'card-rose' :
+              storageStats.alert_level === 'high' ? 'card-amber' :
+              storageStats.alert_level === 'warning' ? 'card-yellow' :
+              'glass-card-static'
+            }`} style={{
+              '--kpi-color': storageStats.alert_level === 'critical' ? '#f87171' :
+                storageStats.alert_level === 'high' ? '#fb923c' :
+                storageStats.alert_level === 'warning' ? '#fbbf24' : '#34d399'
+            } as React.CSSProperties}>
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                    Stockage MongoDB Atlas
+                  </h2>
+                  <span className="text-sm">
+                    {storageStats.alert_level === 'critical' ? '🔴' :
+                     storageStats.alert_level === 'high' ? '🟠' :
+                     storageStats.alert_level === 'warning' ? '🟡' : '🟢'}
+                  </span>
+                </div>
+                <span className="text-xs font-bold" style={{
+                  color: storageStats.alert_level === 'critical' ? '#f87171' :
+                    storageStats.alert_level === 'high' ? '#fb923c' :
+                    storageStats.alert_level === 'warning' ? '#fbbf24' : '#34d399'
+                }}>
+                  {storageStats.usage_pct}%
+                </span>
+              </div>
+
+              {/* Insight phrase */}
+              <p className="text-[10px] mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                {storageStats.alert_level === 'critical'
+                  ? `CRITIQUE : ${storageStats.total_used_mb} Mo / ${storageStats.limit_mb} Mo — nettoyage urgent requis`
+                  : storageStats.alert_level === 'high'
+                  ? `Espace limité : ${storageStats.total_used_mb} Mo / ${storageStats.limit_mb} Mo — pensez à nettoyer`
+                  : storageStats.alert_level === 'warning'
+                  ? `Attention : ${storageStats.total_used_mb} Mo / ${storageStats.limit_mb} Mo utilisés`
+                  : `${storageStats.total_used_mb} Mo / ${storageStats.limit_mb} Mo — espace suffisant`}
+              </p>
+
+              {/* Progress bar */}
+              <div className="h-3 rounded-full overflow-hidden mb-3" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                <div className="h-full rounded-full transition-all duration-700" style={{
+                  width: `${Math.min(100, storageStats.usage_pct)}%`,
+                  background: storageStats.usage_pct >= 95 ? '#ef4444'
+                    : storageStats.usage_pct >= 90 ? '#f97316'
+                    : storageStats.usage_pct >= 80 ? '#eab308'
+                    : storageStats.usage_pct >= 60 ? '#3b82f6'
+                    : '#10b981',
+                  boxShadow: storageStats.usage_pct >= 80
+                    ? `0 0 12px ${storageStats.usage_pct >= 95 ? 'rgba(239,68,68,0.4)' : 'rgba(234,179,8,0.3)'}`
+                    : 'none',
+                }} />
+              </div>
+
+              {/* Details */}
+              <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full" style={{ background: '#60a5fa' }} />
+                  <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    Données <span className="font-semibold text-white/70">{storageStats.data_size_mb} Mo</span>
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full" style={{ background: '#a78bfa' }} />
+                  <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    Index <span className="font-semibold text-white/70">{storageStats.index_size_mb} Mo</span>
+                  </span>
+                </div>
+                {storageStats.collections.slice(0, 4).map((c) => (
+                  <span key={c.name} className="text-[9px] px-2 py-0.5 rounded-full" style={{
+                    background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.35)'
+                  }}>
+                    {c.name.replace(/_/g, ' ')}: {c.size_mb} Mo
+                  </span>
                 ))}
               </div>
             </div>

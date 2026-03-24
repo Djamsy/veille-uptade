@@ -337,6 +337,109 @@ async def affair_lifecycle_job():
         logger.error(f"Erreur cycle affaires: {e}")
         raise
 
+async def storage_monitor_job():
+    """Tâche automatique : vérification stockage MongoDB Atlas (512 Mo free tier)"""
+    logger.info("💾 Vérification stockage MongoDB...")
+    try:
+        from pymongo import MongoClient
+        mongo_uri = os.environ.get("MONGODB_URI") or os.environ.get("MONGO_URI")
+        if not mongo_uri:
+            logger.warning("MONGODB_URI non configuré pour le monitoring stockage")
+            return
+
+        client = MongoClient(mongo_uri)
+        db_name = os.environ.get("MONGODB_DB", "veille_guadeloupe")
+        db = client[db_name]
+
+        # Récupérer les stats de la base
+        stats = db.command("dbStats")
+        data_size_mb = round(stats.get("dataSize", 0) / (1024 * 1024), 1)
+        storage_size_mb = round(stats.get("storageSize", 0) / (1024 * 1024), 1)
+        index_size_mb = round(stats.get("indexSize", 0) / (1024 * 1024), 1)
+        total_used_mb = round(data_size_mb + index_size_mb, 1)
+
+        # Atlas Free Tier = 512 Mo
+        atlas_limit_mb = int(os.environ.get("ATLAS_STORAGE_LIMIT_MB", "512"))
+        usage_pct = round((total_used_mb / atlas_limit_mb) * 100, 1) if atlas_limit_mb > 0 else 0
+
+        # Stats par collection
+        collections_stats = []
+        for coll_name in db.list_collection_names():
+            try:
+                coll_stats = db.command("collStats", coll_name)
+                coll_size = round(coll_stats.get("storageSize", 0) / (1024 * 1024), 2)
+                coll_count = coll_stats.get("count", 0)
+                collections_stats.append({
+                    "name": coll_name,
+                    "size_mb": coll_size,
+                    "count": coll_count,
+                })
+            except Exception:
+                pass
+
+        collections_stats.sort(key=lambda x: x["size_mb"], reverse=True)
+        result = {
+            "data_size_mb": data_size_mb,
+            "storage_size_mb": storage_size_mb,
+            "index_size_mb": index_size_mb,
+            "total_used_mb": total_used_mb,
+            "limit_mb": atlas_limit_mb,
+            "usage_pct": usage_pct,
+            "collections": collections_stats[:10],
+            "checked_at": datetime.now().isoformat(),
+        }
+
+        logger.info(f"💾 Stockage: {total_used_mb} Mo / {atlas_limit_mb} Mo ({usage_pct}%)")
+
+        # Alertes Telegram si seuil dépassé
+        if usage_pct >= 80:
+            try:
+                try:
+                    from backend.telegram_alerts_service import TelegramAlertsService
+                except ImportError:
+                    from telegram_alerts_service import TelegramAlertsService
+
+                tg = TelegramAlertsService()
+                if tg.bot or tg.bot_token:
+                    top_colls = "\n".join(
+                        f"  • {c['name']}: {c['size_mb']} Mo ({c['count']} docs)"
+                        for c in collections_stats[:5]
+                    )
+
+                    if usage_pct >= 95:
+                        emoji = "🔴"
+                        level = "CRITIQUE"
+                        extra = "\n\n⚠️ <b>Action immédiate requise !</b> Le stockage est presque plein. Lancez un nettoyage ou supprimez des anciennes données."
+                    elif usage_pct >= 90:
+                        emoji = "🟠"
+                        level = "ÉLEVÉ"
+                        extra = "\n\n⚠️ Pensez à lancer un nettoyage pour libérer de l'espace."
+                    else:
+                        emoji = "🟡"
+                        level = "ATTENTION"
+                        extra = ""
+
+                    msg = (
+                        f"{emoji} <b>Alerte Stockage MongoDB — {level}</b>\n\n"
+                        f"📊 <b>{total_used_mb} Mo / {atlas_limit_mb} Mo ({usage_pct}%)</b>\n"
+                        f"  • Données : {data_size_mb} Mo\n"
+                        f"  • Index : {index_size_mb} Mo\n\n"
+                        f"📁 <b>Top collections :</b>\n{top_colls}"
+                        f"{extra}"
+                    )
+                    await tg.send_alert(msg)
+                    logger.info(f"📨 Alerte stockage Telegram envoyée ({usage_pct}%)")
+            except Exception as tg_err:
+                logger.warning(f"Telegram storage alert error: {tg_err}")
+
+        client.close()
+        return result
+
+    except Exception as e:
+        logger.error(f"Erreur monitoring stockage: {e}")
+        raise
+
+
 def setup_scheduler_jobs():
     """Configuration de toutes les tâches planifiées"""
     if not scheduler:
@@ -407,7 +510,17 @@ def setup_scheduler_jobs():
         replace_existing=True,
         max_instances=1
     )
-    
+
+    # 7. Monitoring stockage — toutes les 6h
+    scheduler.add_job(
+        storage_monitor_job,
+        trigger=CronTrigger(hour="*/6", minute=45, timezone=timezone),
+        id="storage_monitor",
+        name="Monitoring stockage MongoDB",
+        replace_existing=True,
+        max_instances=1
+    )
+
     logger.info("✅ Tâches planifiées configurées:")
     for job in scheduler.get_jobs():
         logger.info(f"   - {job.name} ({job.id}): {job.trigger}")
