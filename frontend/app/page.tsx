@@ -32,16 +32,21 @@ function MapBackground({ communes }: { communes?: Record<string, { stats: { tota
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
+  const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !MAPBOX_TOKEN) return;
+    if (typeof window === 'undefined') return;
+    const token = MAPBOX_TOKEN;
+    console.log('[MapBackground] token present:', !!token, 'length:', token.length);
+    if (!token) return;
 
     const init = () => {
       if (!containerRef.current || mapRef.current) return;
       const mapboxgl = (window as any).mapboxgl;
-      if (!mapboxgl) return;
+      if (!mapboxgl) { console.log('[MapBackground] mapboxgl not loaded yet'); return; }
 
-      mapboxgl.accessToken = MAPBOX_TOKEN;
+      console.log('[MapBackground] Initializing map...');
+      mapboxgl.accessToken = token;
       const map = new mapboxgl.Map({
         container: containerRef.current,
         style: 'mapbox://styles/mapbox/satellite-streets-v12',
@@ -50,11 +55,13 @@ function MapBackground({ communes }: { communes?: Record<string, { stats: { tota
         pitch: 50,
         bearing: -10,
         antialias: true,
-        interactive: false, // pas d'interaction — c'est juste un fond
+        interactive: false,
         attributionControl: false,
       });
 
       map.on('load', () => {
+        console.log('[MapBackground] Map loaded!');
+        setMapReady(true);
         map.addSource('mapbox-dem', {
           type: 'raster-dem',
           url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
@@ -77,6 +84,7 @@ function MapBackground({ communes }: { communes?: Record<string, { stats: { tota
         rotate();
       });
 
+      map.on('error', (e: any) => { console.error('[MapBackground] Map error:', e); });
       mapRef.current = map;
     };
 
@@ -87,7 +95,8 @@ function MapBackground({ communes }: { communes?: Record<string, { stats: { tota
     document.head.appendChild(css);
     const js = document.createElement('script');
     js.src = 'https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.js';
-    js.onload = init;
+    js.onload = () => { console.log('[MapBackground] Mapbox GL JS loaded'); init(); };
+    js.onerror = () => { console.error('[MapBackground] Failed to load Mapbox GL JS'); };
     document.head.appendChild(js);
 
     return () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } };
@@ -128,7 +137,10 @@ function MapBackground({ communes }: { communes?: Record<string, { stats: { tota
     }
   }, [communes]);
 
-  return <div ref={containerRef} className="absolute inset-0 z-0" />;
+  return (
+    <div ref={containerRef} className="absolute inset-0 z-0"
+      style={{ background: mapReady ? undefined : 'radial-gradient(ellipse at center, #0c1929 0%, #020617 100%)' }} />
+  );
 }
 
 // ── Helpers ──────────────────────────────────────────────
@@ -832,7 +844,7 @@ export default function DashboardPage() {
         {/* 3D Mapbox satellite background */}
         <MapBackground communes={mapBgData} />
         {/* Semi-transparent overlay so widgets are readable */}
-        <div className="absolute inset-0 z-[1]" style={{ background: 'linear-gradient(180deg, rgba(2,6,23,0.65) 0%, rgba(2,6,23,0.82) 60%, rgba(2,6,23,0.92) 100%)' }} />
+        <div className="absolute inset-0 z-[1]" style={{ background: 'linear-gradient(180deg, rgba(2,6,23,0.45) 0%, rgba(2,6,23,0.60) 50%, rgba(2,6,23,0.75) 100%)' }} />
 
         <main className="relative z-10 p-4 lg:p-6 min-h-screen">
         <div className="max-w-[1440px] mx-auto animate-fade-in">
