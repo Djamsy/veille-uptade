@@ -791,125 +791,126 @@ export default function DashboardPage() {
             if (topTheme) insights.push(`thème dominant : ${themeLabel(topTheme[0])}`)
             const insight = insights.length > 0 ? insights[0] : 'Surveillance en cours'
             return (
-              <div className="mb-5 px-4 py-3 rounded-xl flex items-center gap-3"
-                style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.1)' }}>
+              <div className="mb-5 px-4 py-3 rounded-2xl flex items-center gap-3"
+                style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(139,92,246,0.08) 100%)', border: '1px solid rgba(99,102,241,0.15)' }}>
                 <span className="text-lg">💡</span>
-                <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.75)' }}>
                   {insight}
-                  {insights.length > 1 && <span style={{ color: 'rgba(255,255,255,0.25)' }}> · {insights[1]}</span>}
+                  {insights.length > 1 && <span style={{ color: 'rgba(255,255,255,0.35)' }}> · {insights[1]}</span>}
                 </p>
               </div>
             )
           })()}
 
-          {/* ═══ ROW 1 : KPI Cards — avec contexte ═══════ */}
+          {/* ═══ ROW 1 : KPI Cards — colorées et vibrantes ═══════ */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5 stagger-fade">
 
-            {/* Affaires actives — avec répartition */}
-            <div className="glass-card-static p-4 kpi-card" style={{ '--kpi-color': 'rgba(96,165,250,0.3)' } as React.CSSProperties}>
+            {/* Affaires actives — fond bleu profond */}
+            <div className="card-blue p-4 kpi-card" style={{ '--kpi-color': '#60a5fa' } as React.CSSProperties}>
               <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'rgba(255,255,255,0.3)' }}>Affaires suivies</p>
+                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'rgba(147,197,253,0.7)' }}>Affaires suivies</p>
                 <span className="text-lg">📋</span>
               </div>
-              <p className="text-3xl font-bold" style={{ color: '#60a5fa' }}>{stats?.affairs_active ?? 0}</p>
+              <p className="text-3xl font-bold" style={{ color: '#93c5fd' }}>{stats?.affairs_active ?? 0}</p>
               <div className="flex items-center gap-2 mt-2">
                 {(priorityCounts.hot || 0) > 0 && (
-                  <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171' }}>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'rgba(239,68,68,0.2)', color: '#fca5a5' }}>
                     🔴 {priorityCounts.hot} urgentes
                   </span>
                 )}
                 {(priorityCounts.watch || 0) > 0 && (
-                  <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'rgba(251,191,36,0.1)', color: '#fbbf24' }}>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'rgba(251,191,36,0.15)', color: '#fde68a' }}>
                     {priorityCounts.watch} suivi
                   </span>
                 )}
               </div>
-              <p className="text-[10px] mt-1.5" style={{ color: 'rgba(255,255,255,0.2)' }}>
+              <p className="text-[10px] mt-1.5" style={{ color: 'rgba(147,197,253,0.4)' }}>
                 {stats?.affairs_stale ?? 0} en veille · {stats?.clusters_active ?? 0} clusters
               </p>
             </div>
 
-            {/* Articles — avec tendance en phrase */}
-            <div className="glass-card-static p-4 kpi-card" style={{ '--kpi-color': 'rgba(255,255,255,0.15)' } as React.CSSProperties}>
+            {/* Articles — fond ambre/or */}
+            <div className="card-amber p-4 kpi-card" style={{ '--kpi-color': '#fbbf24' } as React.CSSProperties}>
               <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'rgba(255,255,255,0.3)' }}>Articles cette semaine</p>
+                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'rgba(253,224,71,0.7)' }}>Articles cette semaine</p>
                 <span className="text-lg">📰</span>
               </div>
               <div className="flex items-baseline gap-2">
-                <p className="text-3xl font-bold text-white">{coverage?.total_articles_7d ?? 0}</p>
+                <p className="text-3xl font-bold" style={{ color: '#fde68a' }}>{coverage?.total_articles_7d ?? 0}</p>
                 {trends && <TrendArrow pct={trends.articles_trend_pct} />}
               </div>
-              <p className="text-[10px] mt-1.5" style={{ color: 'rgba(255,255,255,0.2)' }}>
+              <p className="text-[10px] mt-1.5" style={{ color: 'rgba(253,224,71,0.4)' }}>
                 {coverage?.enriched_articles_7d ?? 0} enrichis par IA ·{' '}
                 {trends ? (
                   trends.articles_trend_pct > 0
-                    ? <span style={{ color: '#34d399' }}>+{trends.articles_trend_pct}% vs semaine préc.</span>
+                    ? <span style={{ color: '#86efac' }}>+{trends.articles_trend_pct}% vs semaine préc.</span>
                     : trends.articles_trend_pct < 0
-                    ? <span style={{ color: '#f87171' }}>{trends.articles_trend_pct}% vs semaine préc.</span>
+                    ? <span style={{ color: '#fca5a5' }}>{trends.articles_trend_pct}% vs semaine préc.</span>
                     : 'stable'
                 ) : '—'}
               </p>
             </div>
 
-            {/* Climat — résumé sentiment en une phrase */}
-            <div className="glass-card-static p-4 kpi-card" style={{ '--kpi-color': 'rgba(59,130,246,0.2)' } as React.CSSProperties}>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'rgba(255,255,255,0.3)' }}>Climat médias</p>
-                {(() => {
-                  const pos = sentimentDist['positif'] || sentimentDist['positive'] || 0
-                  const neg = sentimentDist['négatif'] || sentimentDist['negatif'] || sentimentDist['negative'] || 0
-                  const total = Object.values(sentimentDist).reduce((s, v) => s + v, 0)
-                  const pctPos = total > 0 ? Math.round(pos / total * 100) : 0
-                  const pctNeg = total > 0 ? Math.round(neg / total * 100) : 0
-                  return <span className="text-lg">{pctNeg > pctPos ? (pctNeg > 40 ? '😡' : '😟') : pctPos > 40 ? '😊' : '😐'}</span>
-                })()}
-              </div>
-              {(() => {
-                const pos = sentimentDist['positif'] || sentimentDist['positive'] || 0
-                const neg = sentimentDist['négatif'] || sentimentDist['negatif'] || sentimentDist['negative'] || 0
-                const neu = sentimentDist['neutre'] || sentimentDist['neutral'] || 0
-                const total = Object.values(sentimentDist).reduce((s, v) => s + v, 0)
-                const pctPos = total > 0 ? Math.round(pos / total * 100) : 0
-                const pctNeg = total > 0 ? Math.round(neg / total * 100) : 0
-                const dominant = pctNeg > pctPos ? 'Négatif' : pctPos > pctNeg ? 'Positif' : 'Neutre'
-                const color = pctNeg > pctPos ? '#f87171' : pctPos > pctNeg ? '#34d399' : '#60a5fa'
-                return (
-                  <>
-                    <p className="text-2xl font-bold" style={{ color }}>{dominant}</p>
-                    <div className="flex items-center gap-1 mt-2">
-                      <div className="flex-1 h-1.5 rounded-full overflow-hidden flex" style={{ background: 'rgba(255,255,255,0.04)' }}>
-                        <div style={{ width: `${pctPos}%`, background: '#34d399' }} />
-                        <div style={{ width: `${100 - pctPos - pctNeg}%`, background: '#60a5fa' }} />
-                        <div style={{ width: `${pctNeg}%`, background: '#f87171' }} />
-                      </div>
-                    </div>
-                    <p className="text-[10px] mt-1" style={{ color: 'rgba(255,255,255,0.2)' }}>
-                      {pctPos}% positif · {pctNeg}% négatif · {total} articles analysés
-                    </p>
-                  </>
-                )
-              })()}
-            </div>
+            {/* Climat — fond vert/émeraude ou rose selon sentiment */}
+            {(() => {
+              const pos = sentimentDist['positif'] || sentimentDist['positive'] || 0
+              const neg = sentimentDist['négatif'] || sentimentDist['negatif'] || sentimentDist['negative'] || 0
+              const total = Object.values(sentimentDist).reduce((s, v) => s + v, 0)
+              const pctPos = total > 0 ? Math.round(pos / total * 100) : 0
+              const pctNeg = total > 0 ? Math.round(neg / total * 100) : 0
+              const isNeg = pctNeg > pctPos
+              const dominant = isNeg ? 'Négatif' : pctPos > pctNeg ? 'Positif' : 'Neutre'
+              const color = isNeg ? '#fca5a5' : pctPos > pctNeg ? '#86efac' : '#93c5fd'
+              const labelColor = isNeg ? 'rgba(252,165,165,0.7)' : pctPos > pctNeg ? 'rgba(134,239,172,0.7)' : 'rgba(147,197,253,0.7)'
+              const subColor = isNeg ? 'rgba(252,165,165,0.4)' : pctPos > pctNeg ? 'rgba(134,239,172,0.4)' : 'rgba(147,197,253,0.4)'
+              const cardClass = isNeg ? 'card-rose' : pctPos > pctNeg ? 'card-emerald' : 'card-blue'
+              const kpiColor = isNeg ? '#f87171' : pctPos > pctNeg ? '#34d399' : '#60a5fa'
+              return (
+                <div className={`${cardClass} p-4 kpi-card`} style={{ '--kpi-color': kpiColor } as React.CSSProperties}>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: labelColor }}>Climat médias</p>
+                    <span className="text-lg">{isNeg ? (pctNeg > 40 ? '😡' : '😟') : pctPos > 40 ? '😊' : '😐'}</span>
+                  </div>
+                  <p className="text-2xl font-bold" style={{ color }}>{dominant}</p>
+                  <div className="flex-1 h-2 rounded-full overflow-hidden flex mt-2" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                    <div style={{ width: `${pctPos}%`, background: '#34d399' }} />
+                    <div style={{ width: `${100 - pctPos - pctNeg}%`, background: '#60a5fa' }} />
+                    <div style={{ width: `${pctNeg}%`, background: '#f87171' }} />
+                  </div>
+                  <p className="text-[10px] mt-1" style={{ color: subColor }}>
+                    {pctPos}% positif · {pctNeg}% négatif · {total} articles analysés
+                  </p>
+                </div>
+              )
+            })()}
 
-            {/* Couverture — affiliation + radio */}
-            <div className="glass-card-static p-4 kpi-card" style={{ '--kpi-color': 'rgba(251,191,36,0.2)' } as React.CSSProperties}>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'rgba(255,255,255,0.3)' }}>Couverture</p>
-                <span className="text-lg">📡</span>
-              </div>
-              <p className="text-3xl font-bold" style={{
-                color: (coverage?.affiliation_rate ?? 0) >= 60 ? '#34d399' : (coverage?.affiliation_rate ?? 0) >= 30 ? '#fbbf24' : '#f87171'
-              }}>{coverage?.affiliation_rate ?? 0}%</p>
-              <div className="h-1.5 rounded-full mt-2 overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)' }}>
-                <div className="h-full rounded-full transition-all duration-700" style={{
-                  width: `${Math.min(100, coverage?.affiliation_rate ?? 0)}%`,
-                  background: (coverage?.affiliation_rate ?? 0) >= 60 ? '#34d399' : (coverage?.affiliation_rate ?? 0) >= 30 ? '#fbbf24' : '#f87171',
-                }} />
-              </div>
-              <p className="text-[10px] mt-1.5" style={{ color: 'rgba(255,255,255,0.2)' }}>
-                {coverage?.affiliated_articles_7d ?? 0}/{coverage?.total_articles_7d ?? 0} articles · {coverage?.total_transcriptions_7d ?? 0} radios
-              </p>
-            </div>
+            {/* Couverture — fond violet/magenta */}
+            {(() => {
+              const rate = coverage?.affiliation_rate ?? 0
+              const cardClass = rate >= 60 ? 'card-emerald' : rate >= 30 ? 'card-yellow' : 'card-rose'
+              const kpiColor = rate >= 60 ? '#34d399' : rate >= 30 ? '#fbbf24' : '#f87171'
+              const labelColor = rate >= 60 ? 'rgba(134,239,172,0.7)' : rate >= 30 ? 'rgba(253,224,71,0.7)' : 'rgba(252,165,165,0.7)'
+              const valColor = rate >= 60 ? '#86efac' : rate >= 30 ? '#fde68a' : '#fca5a5'
+              const subColor = rate >= 60 ? 'rgba(134,239,172,0.4)' : rate >= 30 ? 'rgba(253,224,71,0.4)' : 'rgba(252,165,165,0.4)'
+              return (
+                <div className={`${cardClass} p-4 kpi-card`} style={{ '--kpi-color': kpiColor } as React.CSSProperties}>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: labelColor }}>Couverture</p>
+                    <span className="text-lg">📡</span>
+                  </div>
+                  <p className="text-3xl font-bold" style={{ color: valColor }}>{rate}%</p>
+                  <div className="h-2 rounded-full mt-2 overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                    <div className="h-full rounded-full transition-all duration-700" style={{
+                      width: `${Math.min(100, rate)}%`,
+                      background: kpiColor,
+                    }} />
+                  </div>
+                  <p className="text-[10px] mt-1.5" style={{ color: subColor }}>
+                    {coverage?.affiliated_articles_7d ?? 0}/{coverage?.total_articles_7d ?? 0} articles · {coverage?.total_transcriptions_7d ?? 0} radios
+                  </p>
+                </div>
+              )
+            })()}
           </div>
 
           {/* ═══ ROW 2 : Sentiment + Top Personnalités + Trending ═══ */}

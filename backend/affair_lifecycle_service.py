@@ -1720,9 +1720,14 @@ class AffairLifecycleService:
         "trois-rivières", "vieux-habitants", "petit-canal",
         "port-louis", "anse-bertrand", "morne-à-l'eau",
         "marie-galante", "les saintes", "la désirade",
+        "pointe-noire", "vieux-fort", "terre-de-haut", "terre-de-bas",
+        "saint-louis marie-galante", "grand-bourg", "capesterre-de-marie-galante",
+        "route des mamelles", "la traversée", "l'autre-bord", "l'autre bord",
+        "étang buisson", "albioma guadeloupe",
         "971", "gwadloup", "antilles françaises",
         "smgeag", "chu guadeloupe", "ars guadeloupe",
         "france-antilles", "rci guadeloupe", "guadeloupe 1ère",
+        "karibinfo", "france-antilles guadeloupe",
     }
 
     def _is_guadeloupe_related(self, article: dict) -> bool:
