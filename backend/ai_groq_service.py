@@ -1933,3 +1933,192 @@ Retourne un JSON:
     except Exception as e:
         logger.warning(f"⚠️ Vérification articles échouée: {e}")
         return None
+
+
+# ============================================================
+# COMPARAISON IA INDIVIDUELLE — 1 ARTICLE vs TOUTES LES AFFAIRES
+# ============================================================
+
+INDIVIDUAL_MATCH_PROMPT = """Tu es un analyste média expert en Guadeloupe/Antilles.
+
+On te donne :
+1. UN ARTICLE avec son titre et résumé
+2. La liste des AFFAIRES EXISTANTES (ID + titre + description courte)
+
+Ta mission : déterminer si cet article correspond à UNE affaire existante.
+
+RÈGLES STRICTES :
+- L'article doit parler du MÊME ÉVÉNEMENT CONCRET ou du même sujet spécifique
+- Le thème commun ne suffit PAS (ex: deux articles "santé" ≠ même affaire)
+- Les mêmes personnes ne suffisent PAS si le sujet est différent
+- Le même lieu ne suffit PAS si les incidents sont distincts
+- En cas de doute → "no_match" (mieux vaut créer une affaire de trop que mal fusionner)
+
+EXEMPLES :
+- Article "Vaccin chikungunya : 21 cas graves" + Affaire "Vaccin chikungunya sous surveillance" → MATCH ✅
+- Article "Laurent Petit exclu du RN" + Affaire "Vaccin chikungunya" → NO MATCH ❌
+- Article "Chlordécone : contrôles renforcés" + Affaire "Vaccin chikungunya" → NO MATCH ❌
+- Article "Éric Jalton réélu" + Affaire "Élections municipales Pointe-à-Pitre" → MATCH ✅
+
+Réponds UNIQUEMENT en JSON :
+{
+  "match": "affair_id" ou "no_match",
+  "confidence": "high" ou "medium",
+  "reason": "explication courte (max 20 mots)"
+}"""
+
+
+def match_article_to_affairs(
+    article: Dict[str, Any],
+    affairs: List[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """
+    Compare UN article individuellement à toutes les affaires existantes via GPT.
+    Retourne {"match": "affair_id"|"no_match", "confidence": "high"|"medium", "reason": "..."}
+    ou None si IA indisponible.
+    """
+    if not is_available():
+        return None
+    if not affairs:
+        return {"match": "no_match", "confidence": "high", "reason": "aucune affaire existante"}
+
+    # Construire le contexte
+    art_title = (article.get("title") or "")[:200]
+    art_summary = (article.get("ai_summary") or article.get("summary") or "")[:300]
+    art_theme = article.get("theme", "")
+    art_source = article.get("source", "")
+
+    lines = [
+        f"=== ARTICLE ===",
+        f"Titre: {art_title}",
+        f"Résumé: {art_summary}",
+        f"Thème: {art_theme}",
+        f"Source: {art_source}",
+        f"",
+        f"=== AFFAIRES EXISTANTES ({len(affairs)}) ===",
+    ]
+
+    # Limiter à 40 affaires max pour rester dans les tokens
+    for aff in affairs[:40]:
+        aff_id = str(aff.get("_id", "?"))
+        title = (aff.get("title") or "")[:120]
+        desc = (aff.get("description") or "")[:100]
+        theme = aff.get("theme", "")
+        items = aff.get("item_count", 0)
+        lines.append(f"[{aff_id}] ({theme}, {items} items) {title}")
+        if desc:
+            lines.append(f"   → {desc}")
+
+    user_content = "\n".join(lines)
+
+    try:
+        raw = _call_ai(
+            messages=[
+                {"role": "system", "content": INDIVIDUAL_MATCH_PROMPT},
+                {"role": "user", "content": user_content},
+            ],
+            temperature=0.0,
+            max_tokens=200,
+            json_mode=True,
+        )
+        if raw is None:
+            return None
+
+        result = json.loads(raw)
+        match_id = result.get("match", "no_match")
+        confidence = result.get("confidence", "medium")
+        reason = result.get("reason", "")
+
+        # Valider que l'affair_id existe dans la liste fournie
+        valid_ids = {str(a.get("_id", "")) for a in affairs}
+        if match_id != "no_match" and match_id not in valid_ids:
+            logger.warning(f"⚠️ GPT a retourné un ID invalide: {match_id}")
+            match_id = "no_match"
+
+        logger.info(
+            f"🎯 Match IA: '{art_title[:50]}' → "
+            f"{'✅ ' + match_id[:24] if match_id != 'no_match' else '🆕 no_match'} "
+            f"({confidence}: {reason})"
+        )
+        return {"match": match_id, "confidence": confidence, "reason": reason}
+
+    except json.JSONDecodeError as e:
+        logger.warning(f"⚠️ Match IA: JSON invalide: {e}")
+        return None
+    except Exception as e:
+        logger.warning(f"⚠️ Match IA échoué: {e}")
+        return None
+
+
+# ============================================================
+# CLASSIFICATION PAR COMMUNE — IA FALLBACK
+# ============================================================
+
+COMMUNE_DETECT_PROMPT = """Tu es un expert géographique de la Guadeloupe.
+
+On te donne le titre et le résumé d'un article de presse locale.
+Identifie la ou les COMMUNES de Guadeloupe mentionnées ou impliquées.
+
+COMMUNES DE GUADELOUPE (32) :
+Pointe-à-Pitre, Les Abymes, Baie-Mahault, Le Moule, Sainte-Anne,
+Saint-François, Le Gosier, Petit-Bourg, Capesterre-Belle-Eau,
+Sainte-Rose, Deshaies, Bouillante, Trois-Rivières, Basse-Terre,
+Morne-à-l'Eau, Port-Louis, Lamentin, Goyave, Vieux-Habitants,
+Pointe-Noire, Saint-Claude, Gourbeyre, Vieux-Fort, Marie-Galante,
+La Désirade, Terre-de-Haut, Terre-de-Bas, Anse-Bertrand,
+Petit-Canal, Grand-Bourg, Capesterre-de-Marie-Galante, Saint-Louis
+
+DÉPENDANCES (communes de Marie-Galante = Grand-Bourg, Capesterre-de-MG, Saint-Louis)
+
+INDICES À UTILISER :
+- Noms de quartiers connus (ex: Petit-Pérou = Les Abymes, Bergevin = Pointe-à-Pitre)
+- Institutions locales (ex: CHU = Pointe-à-Pitre, préfecture = Basse-Terre)
+- Élus connus et leur commune
+- Lieux mentionnés (plages, routes, infrastructures)
+
+Si AUCUNE commune n'est identifiable → retourne une liste vide.
+Ne devine PAS : si l'article parle de la Guadeloupe en général sans lieu précis, retourne [].
+
+Réponds UNIQUEMENT en JSON :
+{"communes": ["Commune1", "Commune2"], "reason": "explication courte"}"""
+
+
+def detect_commune_ai(title: str, summary: str = "", content: str = "") -> Optional[List[str]]:
+    """
+    Détecte la/les commune(s) de Guadeloupe d'un article via GPT.
+    Utilisé en fallback quand le regex ne trouve rien.
+    Retourne une liste de noms de communes normalisés, ou None si IA indisponible.
+    """
+    if not is_available():
+        return None
+
+    text = f"Titre: {title[:200]}"
+    if summary:
+        text += f"\nRésumé: {summary[:300]}"
+    elif content:
+        text += f"\nContenu (extrait): {content[:500]}"
+
+    try:
+        raw = _call_ai(
+            messages=[
+                {"role": "system", "content": COMMUNE_DETECT_PROMPT},
+                {"role": "user", "content": text},
+            ],
+            temperature=0.0,
+            max_tokens=200,
+            json_mode=True,
+        )
+        if raw is None:
+            return None
+
+        result = json.loads(raw)
+        communes = result.get("communes", [])
+        reason = result.get("reason", "")
+
+        if communes:
+            logger.info(f"📍 Commune IA: '{title[:50]}' → {communes} ({reason})")
+        return communes if isinstance(communes, list) else []
+
+    except (json.JSONDecodeError, Exception) as e:
+        logger.warning(f"⚠️ Commune IA échoué: {e}")
+        return None

@@ -57,17 +57,25 @@ try:
     from backend.ai_groq_service import detect_duplicate_affairs as _ai_dedup
     from backend.ai_groq_service import validate_article_affair_relevance as _ai_relevance
     from backend.ai_groq_service import detect_stale_active_matches as _ai_stale_active
+    from backend.ai_groq_service import match_article_to_affairs as _ai_match_article
+    from backend.ai_groq_service import detect_commune_ai as _ai_detect_commune
     _ai_dedup_ok = True
     _ai_relevance_ok = True
     _ai_stale_active_ok = True
+    _ai_match_ok = True
+    _ai_commune_ok = True
 except ImportError:
     try:
         from ai_groq_service import detect_duplicate_affairs as _ai_dedup
         from ai_groq_service import validate_article_affair_relevance as _ai_relevance
         from ai_groq_service import detect_stale_active_matches as _ai_stale_active
+        from ai_groq_service import match_article_to_affairs as _ai_match_article
+        from ai_groq_service import detect_commune_ai as _ai_detect_commune
         _ai_dedup_ok = True
         _ai_relevance_ok = True
         _ai_stale_active_ok = True
+        _ai_match_ok = True
+        _ai_commune_ok = True
     except ImportError:
         _ai_dedup_ok = False
         _ai_dedup = None
@@ -75,8 +83,148 @@ except ImportError:
         _ai_relevance = None
         _ai_stale_active_ok = False
         _ai_stale_active = None
+        _ai_match_ok = False
+        _ai_match_article = None
+        _ai_commune_ok = False
+        _ai_detect_commune = None
 
 logger = logging.getLogger("affair_lifecycle")
+
+# ============================================================
+# CLASSIFICATION PAR COMMUNE — REGEX + IA FALLBACK
+# ============================================================
+
+# Les 32 communes de Guadeloupe + variantes sans accents
+COMMUNES_GUADELOUPE = {
+    "Pointe-à-Pitre": ["pointe a pitre", "pointe-a-pitre", "pointe à pitre", "pap", "pointe-à-pitre"],
+    "Les Abymes": ["les abymes", "abymes", "petit-pérou", "petit perou", "raizet"],
+    "Baie-Mahault": ["baie-mahault", "baie mahault", "jarry", "destrellan"],
+    "Le Moule": ["le moule", "moule"],
+    "Sainte-Anne": ["sainte-anne", "sainte anne", "ste-anne", "ste anne", "st-anne"],
+    "Saint-François": ["saint-françois", "saint-francois", "saint françois", "st-françois", "st-francois"],
+    "Le Gosier": ["le gosier", "gosier"],
+    "Petit-Bourg": ["petit-bourg", "petit bourg"],
+    "Capesterre-Belle-Eau": ["capesterre-belle-eau", "capesterre belle eau", "capesterre"],
+    "Sainte-Rose": ["sainte-rose", "sainte rose", "ste-rose", "ste rose"],
+    "Deshaies": ["deshaies", "déhaies"],
+    "Bouillante": ["bouillante"],
+    "Trois-Rivières": ["trois-rivières", "trois-rivieres", "trois rivières", "trois rivieres"],
+    "Basse-Terre": ["basse-terre", "basse terre"],
+    "Morne-à-l'Eau": ["morne-à-l'eau", "morne a l'eau", "morne-a-l'eau", "morne à l'eau"],
+    "Port-Louis": ["port-louis", "port louis"],
+    "Lamentin": ["lamentin"],
+    "Goyave": ["goyave"],
+    "Vieux-Habitants": ["vieux-habitants", "vieux habitants"],
+    "Pointe-Noire": ["pointe-noire", "pointe noire"],
+    "Saint-Claude": ["saint-claude", "saint claude", "st-claude"],
+    "Gourbeyre": ["gourbeyre"],
+    "Vieux-Fort": ["vieux-fort", "vieux fort"],
+    "Marie-Galante": ["marie-galante", "marie galante"],
+    "La Désirade": ["la désirade", "la desirade", "désirade", "desirade"],
+    "Terre-de-Haut": ["terre-de-haut", "terre de haut", "les saintes"],
+    "Terre-de-Bas": ["terre-de-bas", "terre de bas"],
+    "Anse-Bertrand": ["anse-bertrand", "anse bertrand"],
+    "Petit-Canal": ["petit-canal", "petit canal"],
+    "Grand-Bourg": ["grand-bourg", "grand bourg"],
+    "Capesterre-de-Marie-Galante": ["capesterre-de-marie-galante", "capesterre de marie galante"],
+    "Saint-Louis": ["saint-louis", "saint louis", "st-louis"],
+}
+
+# Quartiers connus → commune
+QUARTIER_TO_COMMUNE = {
+    "petit-pérou": "Les Abymes", "petit perou": "Les Abymes",
+    "raizet": "Les Abymes", "grand-camp": "Les Abymes",
+    "jarry": "Baie-Mahault", "destrellan": "Baie-Mahault", "convenance": "Baie-Mahault",
+    "bergevin": "Pointe-à-Pitre", "lauricisque": "Pointe-à-Pitre",
+    "carénage": "Pointe-à-Pitre", "carenage": "Pointe-à-Pitre",
+    "assainissement": "Pointe-à-Pitre",
+    "baimbridge": "Les Abymes", "dugazon": "Les Abymes",
+    "providence": "Le Gosier", "bas-du-fort": "Le Gosier",
+    "saint-félix": "Le Gosier", "saint-felix": "Le Gosier",
+    "gourdeliane": "Baie-Mahault",
+    "vernou": "Petit-Bourg", "montebello": "Petit-Bourg",
+    "rivière-salée": "Petit-Bourg", "riviere-salee": "Petit-Bourg",
+    "matouba": "Saint-Claude",
+    "pigeon": "Bouillante",
+    "malendure": "Bouillante",
+    "desmarais": "Capesterre-Belle-Eau",
+    "sainte-marthe": "Capesterre-Belle-Eau",
+}
+
+
+def detect_communes_regex(text: str) -> List[str]:
+    """
+    Détecte les communes de Guadeloupe dans un texte par regex.
+    Retourne une liste de noms normalisés (ex: ['Pointe-à-Pitre', 'Les Abymes']).
+    """
+    if not text:
+        return []
+
+    text_lower = text.lower()
+    found = set()
+
+    # 1. Chercher les quartiers connus → mapper à la commune
+    for quartier, commune in QUARTIER_TO_COMMUNE.items():
+        if quartier in text_lower:
+            found.add(commune)
+
+    # 2. Chercher les noms de communes (variantes)
+    for commune_norm, variants in COMMUNES_GUADELOUPE.items():
+        for variant in variants:
+            # Chercher le variant comme mot entier (bordures de mot)
+            pattern = r'\b' + re.escape(variant) + r'\b'
+            if re.search(pattern, text_lower):
+                found.add(commune_norm)
+                break
+
+    return list(found)
+
+
+def classify_article_commune(article: Dict[str, Any]) -> List[str]:
+    """
+    Classifie un article par commune(s) de Guadeloupe.
+    Stratégie en 2 passes :
+    1. Regex sur titre + contenu + résumé + event_structured.location
+    2. Si rien trouvé → fallback IA (GPT)
+
+    Retourne la liste des communes détectées.
+    """
+    # Texte à analyser
+    title = article.get("title", "")
+    summary = article.get("ai_summary", "") or ""
+    content = article.get("content", "") or ""
+    event_loc = ""
+    event_struct = article.get("event_structured", {})
+    if isinstance(event_struct, dict):
+        event_loc = event_struct.get("location", "") or ""
+
+    # Concaténer tous les textes utiles
+    full_text = f"{title} {summary} {event_loc} {content[:1000]}"
+
+    # Passe 1 : regex
+    communes = detect_communes_regex(full_text)
+
+    if communes:
+        return communes
+
+    # Passe 2 : IA fallback (seulement si regex n'a rien trouvé)
+    if _ai_commune_ok and _ai_detect_commune:
+        try:
+            ai_result = _ai_detect_commune(title, summary, content[:500])
+            if ai_result:
+                # Normaliser les résultats IA contre notre liste officielle
+                normalized = []
+                for c in ai_result:
+                    c_lower = c.lower().strip()
+                    for commune_norm, variants in COMMUNES_GUADELOUPE.items():
+                        if c_lower in variants or c_lower == commune_norm.lower():
+                            normalized.append(commune_norm)
+                            break
+                return normalized
+        except Exception as e:
+            logger.warning(f"⚠️ Commune IA fallback: {e}")
+
+    return []
 
 # ============================================================
 # CONFIGURATION
@@ -1433,7 +1581,26 @@ class AffairLifecycleService:
         # Charger les affaires actives
         active_affairs = list(self.affairs.find({"status": "active"}))
 
-        # ── ÉTAPE 2 : Pour chaque article → créer ou fusionner ──
+        # ── ÉTAPE 1b : Classifier les articles par commune ──
+        commune_stats = {"regex": 0, "ai": 0, "none": 0}
+        for art in unprocessed:
+            if art.get("communes"):
+                continue  # Déjà classifié
+            communes = classify_article_commune(art)
+            if communes:
+                self.articles.update_one(
+                    {"_id": art["_id"]},
+                    {"$set": {"communes": communes}}
+                )
+                art["communes"] = communes
+                commune_stats["regex" if detect_communes_regex(
+                    f"{art.get('title', '')} {art.get('ai_summary', '')}") else "ai"] += 1
+            else:
+                commune_stats["none"] += 1
+        logger.info(f"📍 Communes: {commune_stats}")
+
+        # ── ÉTAPE 2 : Pour chaque article → COMPARAISON IA INDIVIDUELLE ──
+        # NOUVEAU FLOW : 1 article = 1 affaire d'abord, puis match IA contre existantes
         ignored_count = 0
         for art in unprocessed:
             art_id = str(art["_id"])
@@ -1457,15 +1624,8 @@ class AffairLifecycleService:
             )
             art_entities = art_elected | art_institutions
             art_theme = art.get("theme", "general")
-            # Normaliser le titre (tirets→espaces) pour un meilleur matching
-            art_title_norm = self._normalize_title(art.get("title", ""))
-            art_title_words = set(
-                w for w in art_title_norm.split() if len(w) >= 4
-            )
-            art_embedding = art.get("embedding")
 
             # ── Filtre géographique : focus Guadeloupe ──
-            # Exclure les articles clairement hors Guadeloupe sauf si gravité >= 0.7
             if gravity < 0.70 and not self._is_guadeloupe_related(art):
                 logger.debug(f"   🌍 Hors Guadeloupe, ignoré: {art.get('title', '?')[:60]}")
                 self.articles.update_one(
@@ -1476,113 +1636,103 @@ class AffairLifecycleService:
                 stats["ignored"] = stats.get("ignored", 0) + 1
                 continue
 
-            # Chercher une affaire existante similaire
-            best_match = None
-            best_score = 0
-
-            for affair in active_affairs:
-                score = self._match_score(
-                    art_elected, art_institutions, art_entities,
-                    art_theme, art_title_words, affair,
-                    art_embedding=art_embedding,
-                )
-                if score > best_score:
-                    best_score = score
-                    best_match = affair
-
-            # Log de la décision de matching
+            # ── NOUVEAU : COMPARAISON IA INDIVIDUELLE ──
+            # Chaque article est comparé individuellement par GPT à toutes les affaires
+            # Seul GPT décide si l'article matche une affaire existante (pas de score heuristique)
             logger.info(f"   📄 Art: '{art.get('title', '?')[:60]}' | gravity={gravity:.2f} "
-                        f"| élus={list(art_elected)[:3]} | instit={list(art_institutions)[:3]} "
-                        f"| thème={art_theme}")
-            if best_match:
-                logger.info(f"      → Meilleur match: '{best_match.get('title', '?')[:50]}' "
-                            f"(score={best_score}, seuil=6)")
-            else:
-                logger.info(f"      → Aucun match trouvé parmi {len(active_affairs)} affaires actives → CRÉATION")
+                        f"| élus={list(art_elected)[:3]} | thème={art_theme}")
 
-            if best_match and best_score >= 6:
-                # ── GPT VALIDATION GATE ──
-                # Score 6-14 = borderline → demander à GPT si l'article est vraiment pertinent
-                # Score >= 15 = haute confiance → fusion directe
-                gpt_blocked = False
-                if best_score < 15 and _ai_relevance_ok and _ai_relevance:
-                    try:
-                        art_summary = art.get("summary", "") or art.get("gpt_analysis", "") or ""
-                        aff_desc = best_match.get("description", "") or best_match.get("gpt_context", "") or ""
-                        is_relevant = _ai_relevance(
-                            article_title=art.get("title", ""),
-                            article_summary=art_summary[:300],
-                            affair_title=best_match.get("title", ""),
-                            affair_description=aff_desc[:300],
-                        )
-                        if is_relevant is False:
-                            gpt_blocked = True
-                            logger.info(
-                                f"      🚫 GPT REJET: '{art.get('title', '?')[:50]}' n'est PAS lié à "
-                                f"'{best_match.get('title', '?')[:50]}' (score={best_score})"
-                            )
-                            stats["gpt_rejected"] = stats.get("gpt_rejected", 0) + 1
-                        elif is_relevant is True:
-                            logger.info(f"      🧠 GPT VALIDÉ: fusion confirmée (score={best_score})")
-                        # is_relevant is None → IA indisponible, on laisse passer si score >= 8
-                        elif is_relevant is None and best_score < 8:
-                            gpt_blocked = True
-                            logger.info(
-                                f"      ⚠️ GPT indisponible + score faible ({best_score}) → pas de fusion"
-                            )
-                    except Exception as e:
-                        logger.warning(f"      ⚠️ GPT relevance error: {e}")
-                        # En cas d'erreur GPT, on laisse passer seulement si score >= 8
-                        if best_score < 8:
-                            gpt_blocked = True
+            best_match = None
+            ai_match_used = False
 
-                if gpt_blocked:
-                    # L'article ne matche pas réellement → le traiter comme non-matché
-                    # Il pourra créer une nouvelle affaire s'il a une gravity suffisante
+            if _ai_match_ok and _ai_match_article and active_affairs:
+                try:
+                    result = _ai_match_article(art, active_affairs)
+                    if result and result.get("match") != "no_match":
+                        match_id = result["match"]
+                        confidence = result.get("confidence", "medium")
+                        reason = result.get("reason", "")
+                        # Trouver l'affaire correspondante
+                        for aff in active_affairs:
+                            if str(aff.get("_id", "")) == match_id:
+                                best_match = aff
+                                ai_match_used = True
+                                logger.info(
+                                    f"      🎯 IA MATCH ({confidence}): → '{aff.get('title', '?')[:50]}' "
+                                    f"({reason})"
+                                )
+                                break
+                        if not best_match:
+                            logger.warning(f"      ⚠️ IA match ID introuvable: {match_id}")
+                    else:
+                        ai_match_used = True
+                        logger.info(f"      🆕 IA: aucun match → nouvelle affaire")
+                except Exception as e:
+                    logger.warning(f"      ⚠️ IA match error: {e}")
+                    ai_match_used = False
+
+            # Fallback : si IA indisponible, utiliser le _match_score heuristique + GPT validation
+            if not ai_match_used and active_affairs:
+                art_title_norm = self._normalize_title(art.get("title", ""))
+                art_title_words = set(w for w in art_title_norm.split() if len(w) >= 4)
+                art_embedding = art.get("embedding")
+                best_score = 0
+                for affair in active_affairs:
+                    score = self._match_score(
+                        art_elected, art_institutions, art_entities,
+                        art_theme, art_title_words, affair,
+                        art_embedding=art_embedding,
+                    )
+                    if score > best_score:
+                        best_score = score
+                        best_match = affair
+                # Seuil strict en fallback : 10 au lieu de 6
+                if best_match and best_score < 10:
                     best_match = None
-                    best_score = 0
+                if best_match:
+                    logger.info(f"      📊 Fallback score: {best_score} → fusion")
 
-            if best_match and best_score >= 6:
+            if best_match:
                 # Fusionner avec l'affaire existante
-                # IMPORTANT : NE PAS ajouter les entités de l'article dans l'affaire
-                # pour éviter l'effet boule de neige (une affaire qui matche tout)
-                logger.info(f"      ✅ FUSION avec affaire existante (score={best_score})")
+                logger.info(f"      ✅ FUSION avec: '{best_match.get('title', '?')[:50]}'")
                 merged_gravity = max(gravity, best_match.get("gravity_score", 0))
                 merged_bmg = best_match.get("bmg", 0)
                 merged_items = best_match.get("item_count", 1) + 1
                 merge_sentiment = art.get("sentiment", "neutre")
-                # Recalculer le sentiment dominant AVANT de l'utiliser
                 existing_sentiments = best_match.get("sentiment_history", []) or []
                 updated_sentiments = existing_sentiments + [merge_sentiment]
                 dominant_sentiment = self._dominant_sentiment(updated_sentiments)
                 new_priority = self.compute_priority(merged_gravity, merged_bmg, merged_items,
                                                      sentiment=dominant_sentiment)
 
-                self.affairs.update_one(
-                    {"_id": best_match["_id"]},
-                    {
-                        "$addToSet": {
-                            "articles": art_id,
-                            "sources": art.get("source", ""),
-                        },
-                        "$push": {"sentiment_history": merge_sentiment},
-                        "$inc": {"item_count": 1},
-                        "$set": {"last_activity": now, "priority": new_priority,
-                                 "sentiment": dominant_sentiment},
-                        "$max": {"gravity_score": gravity},
-                    }
-                )
+                # Ajouter les communes de l'article à l'affaire
+                art_communes = art.get("communes", [])
+
+                update_ops = {
+                    "$addToSet": {
+                        "articles": art_id,
+                        "sources": art.get("source", ""),
+                    },
+                    "$push": {"sentiment_history": merge_sentiment},
+                    "$inc": {"item_count": 1},
+                    "$set": {"last_activity": now, "priority": new_priority,
+                             "sentiment": dominant_sentiment},
+                    "$max": {"gravity_score": gravity},
+                }
+                if art_communes:
+                    update_ops["$addToSet"]["communes"] = {"$each": art_communes}
+
+                self.affairs.update_one({"_id": best_match["_id"]}, update_ops)
                 self.articles.update_one(
                     {"_id": art["_id"]},
                     {"$set": {"_affair_processed": True, "_affair_id": str(best_match["_id"])}}
                 )
                 stats["merged"] += 1
             else:
-                # Créer une nouvelle affaire si critères remplis :
-                # - gravity >= 0.40 (événement significatif)
-                # - OU gravity >= 0.30 + au moins un élu identifié
+                # Créer une nouvelle affaire
+                # NOUVEAU SEUIL : gravity >= 0.35 (on crée plus facilement car GPT décide des fusions)
                 has_key_entity = len(art_elected) >= 1
-                if gravity >= 0.40 or (gravity >= 0.30 and has_key_entity):
+                if gravity >= 0.35 or (gravity >= 0.30 and has_key_entity):
                     title = art.get("title", "Nouvelle affaire")[:200]
                     art_sentiment = art.get("sentiment", "neutre")
                     new_affair = {
@@ -1611,10 +1761,12 @@ class AffairLifecycleService:
                         "last_activity": now,
                         "promoted_at": now,
                         "bmg": 0, "bmg_details": {}, "bmg_history": [],
-                        "ai_managed": False,
-                        "_creation_method": "simple_cycle",
+                        "communes": art.get("communes", []),
+                        "ai_managed": True,
+                        "_creation_method": "simple_cycle_v2",
                     }
                     # Stocker l'embedding de l'article fondateur sur l'affaire
+                    art_embedding = art.get("embedding")
                     if art_embedding:
                         new_affair["embedding"] = art_embedding
                     result = self.affairs.insert_one(new_affair)

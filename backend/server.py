@@ -1218,6 +1218,62 @@ async def crosscheck_stale_active_endpoint():
         logger.error(f"Erreur cross-check stale↔active: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/articles/classify-communes")
+async def classify_communes_endpoint(background_tasks: BackgroundTasks):
+    """Re-classifie tous les articles sans commune par regex + IA fallback."""
+    try:
+        from backend.affair_lifecycle_service import classify_article_commune
+    except ImportError:
+        from affair_lifecycle_service import classify_article_commune
+
+    def _run_classification():
+        try:
+            articles = list(db["articles_guadeloupe"].find({
+                "$or": [
+                    {"communes": {"$exists": False}},
+                    {"communes": []},
+                    {"communes": None},
+                ]
+            }).limit(500))
+            updated = 0
+            for art in articles:
+                communes = classify_article_commune(art)
+                if communes:
+                    db["articles_guadeloupe"].update_one(
+                        {"_id": art["_id"]},
+                        {"$set": {"communes": communes}}
+                    )
+                    updated += 1
+            logger.info(f"📍 Classification communes: {updated}/{len(articles)} articles mis à jour")
+        except Exception as e:
+            logger.error(f"Erreur classification communes: {e}")
+
+    background_tasks.add_task(_run_classification)
+    return {"message": "Classification des communes lancée en arrière-plan"}
+
+
+@app.post("/api/affairs/revalidate")
+async def revalidate_affairs_endpoint(background_tasks: BackgroundTasks):
+    """Re-vérifie les articles de chaque affaire active pour nettoyer les faux positifs."""
+    try:
+        lifecycle = get_affair_lifecycle_service(db)
+        # Réinitialiser les articles pour retraitement
+        count = db["articles_guadeloupe"].update_many(
+            {"_affair_processed": True},
+            {"$set": {"_affair_processed": False, "_affair_id": None}}
+        ).modified_count
+        # Archiver toutes les affaires actuelles
+        db["affairs"].update_many(
+            {"status": "active"},
+            {"$set": {"status": "archived", "_archived_reason": "revalidation_v2"}}
+        )
+        return {"message": f"Revalidation lancée: {count} articles réinitialisés. "
+                           f"Les affaires seront recréées au prochain cycle."}
+    except Exception as e:
+        logger.error(f"Erreur revalidation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/scrape")
 async def trigger_scraping(background_tasks: BackgroundTasks):
     """Déclencher le scraping"""

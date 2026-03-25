@@ -518,6 +518,42 @@ async def stale_active_crosscheck_job():
         raise
 
 
+async def classify_communes_job():
+    """Classifie les articles sans commune par regex + IA fallback."""
+    logger.info("📍 Classification communes en cours...")
+    try:
+        try:
+            from backend.affair_lifecycle_service import classify_article_commune
+            from backend.affair_lifecycle_service import get_affair_lifecycle_service
+        except ImportError:
+            from affair_lifecycle_service import classify_article_commune
+            from affair_lifecycle_service import get_affair_lifecycle_service
+        svc = get_affair_lifecycle_service()
+        if not svc:
+            return
+        articles = list(svc.articles.find({
+            "$or": [
+                {"communes": {"$exists": False}},
+                {"communes": []},
+                {"communes": None},
+            ]
+        }).limit(200))
+        updated = 0
+        for art in articles:
+            communes = classify_article_commune(art)
+            if communes:
+                svc.articles.update_one(
+                    {"_id": art["_id"]},
+                    {"$set": {"communes": communes}}
+                )
+                updated += 1
+        logger.info(f"📍 Classification communes: {updated}/{len(articles)} articles classifiés")
+        return {"classified": updated, "total_checked": len(articles)}
+    except Exception as e:
+        logger.error(f"Erreur classification communes: {e}")
+        raise
+
+
 async def storage_monitor_job():
     """Tâche automatique : vérification stockage MongoDB Atlas (512 Mo free tier)"""
     logger.info("💾 Vérification stockage MongoDB...")
@@ -728,6 +764,16 @@ def setup_scheduler_jobs():
         trigger=CronTrigger(minute=45, timezone=timezone),
         id="stale_active_crosscheck",
         name="Cross-check GPT stale↔active (fusion)",
+        replace_existing=True,
+        max_instances=1
+    )
+
+    # 11. Classification communes — toutes les 3h
+    scheduler.add_job(
+        classify_communes_job,
+        trigger=CronTrigger(hour="*/3", minute=20, timezone=timezone),
+        id="classify_communes",
+        name="Classification articles par commune (regex+IA)",
         replace_existing=True,
         max_instances=1
     )
