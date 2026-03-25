@@ -1176,30 +1176,38 @@ def smart_enrich_article(article: Dict[str, Any]) -> Dict[str, Any]:
 # Déduplication IA des affaires — GPT compare les affaires actives
 # ============================================================
 
-DEDUP_PROMPT = """Tu es un analyste média spécialisé Guadeloupe/Antilles.
+DEDUP_PROMPT = """Tu es un analyste média spécialisé Guadeloupe/Antilles. Tu es TRÈS STRICT sur les fusions.
 
-On te donne une liste d'AFFAIRES ACTIVES. Certaines parlent du MÊME événement ou sujet
-mais ont été créées séparément (titres légèrement différents, sources différentes, etc.).
+On te donne une liste d'AFFAIRES ACTIVES. Identifie UNIQUEMENT les affaires qui parlent du MÊME ÉVÉNEMENT PRÉCIS (pas du même type d'événement).
 
-Identifie les GROUPES D'AFFAIRES QUI SONT DES DOUBLONS (même événement réel).
+⚠️ RÈGLE D'OR : "même type d'événement" ≠ "même événement".
+Deux meurtres = deux affaires distinctes (sauf si c'est EXACTEMENT le même meurtre vu par des sources différentes).
+Deux noyades = deux affaires distinctes. Deux accidents = deux affaires distinctes.
 
-CRITÈRES POUR CONSIDÉRER COMME DOUBLON :
-- Même événement concret (même incident, même décision, même personne impliquée dans la même action)
-- Même sujet traité sous des angles différents (ex: "Pénurie d'eau à Petit-Pérou" et "Résidents sans eau aux Abymes")
-- Même institution/personne + même action (ex: "Ary Chalus convoqué" et "Arichalus devant le parquet")
-- Même lieu + même type d'incident (ex: "Plongeur décédé à Sainte-Anne" et "Mort d'un touriste à Sainte-Anne")
+CRITÈRES STRICTS POUR FUSIONNER (TOUS doivent être remplis) :
+1. MÊME ÉVÉNEMENT CONCRET : même incident précis, même fait divers, même décision
+2. MÊME LIEU ou zone très proche : vérifier la commune/quartier
+3. MÊME PÉRIODE : les dates doivent se chevaucher (même jour ou jours consécutifs)
+4. AU MOINS UNE PERSONNE/ENTITÉ SPÉCIFIQUE en commun (victime, élu, institution impliquée)
+
+EXEMPLES DE VRAIS DOUBLONS :
+- "Pénurie d'eau à Petit-Pérou" + "Résidents sans eau aux Abymes" → même crise d'eau, même quartier ✅
+- "Ary Chalus convoqué par le parquet" + "Arichalus devant le tribunal" → même personne, même procédure ✅
 
 CE QUI N'EST PAS UN DOUBLON (NE JAMAIS FUSIONNER) :
-- Même thème mais événements différents (ex: deux accidents différents, deux grèves différentes)
-- Même personne mais actions différentes (ex: "Chalus annonce" vs "Chalus critiqué pour corruption")
+- Même type d'événement mais incidents différents (ex: deux meurtres distincts, deux accidents distincts)
+- Même lieu mais événements différents (ex: "Meurtre aux Abymes" + "Accident aux Abymes")
+- Même lieu + même type mais victimes/personnes différentes (ex: meurtre d'une femme aux Abymes ≠ meurtre d'un homme aux Abymes)
+- Même personne mais actions différentes (ex: "Chalus annonce" vs "Chalus critiqué")
 - Même institution mais sujets différents
-- CATÉGORIES D'ÉVÉNEMENTS INCOMPATIBLES : un meurtre ≠ une noyade ≠ une élection ≠ un accident de la route ≠ un procès ≠ un trafic de drogue ≠ une grève ≠ une catastrophe naturelle. Même si la même personne ou le même lieu est cité, ces types d'événements sont TOUJOURS des affaires distinctes.
+- Lieux dans des pays/régions différents (ex: Guadeloupe ≠ RDC ≠ Martinique ≠ Haïti)
+- CATÉGORIES INCOMPATIBLES : meurtre ≠ noyade ≠ élection ≠ accident ≠ procès ≠ trafic ≠ grève ≠ catastrophe
 
-EXEMPLES DE NON-DOUBLONS (NE PAS FUSIONNER) :
-- "X élu président de la Région" + "Meurtre aux Abymes" → JAMAIS un doublon
-- "Noyade à Sainte-Anne" + "X gagne les élections" → JAMAIS un doublon
-- "Accident mortel sur la RN1" + "Procès d'un trafiquant" → JAMAIS un doublon
-- "Grève des enseignants" + "Noyade d'un touriste" → JAMAIS un doublon
+EXEMPLES DE NON-DOUBLONS :
+- "Meurtre d'une femme aux Abymes" + "Homme tué par balles au Gosier" → DEUX meurtres différents ❌
+- "Meurtre aux Abymes" + "Humanitaire tuée en RDC" → pays différents ❌
+- "Noyade à Sainte-Anne mardi" + "Noyade à Sainte-Anne vendredi" → deux incidents distincts ❌
+- "Accident mortel RN1" + "Accident mortel RN2" → deux accidents différents ❌
 
 Réponds UNIQUEMENT en JSON :
 {
@@ -1213,7 +1221,7 @@ Réponds UNIQUEMENT en JSON :
 }
 
 Si aucun doublon → {"duplicates": []}
-Sois CONSERVATEUR : en cas de doute, ne fusionne PAS."""
+Sois TRÈS CONSERVATEUR : en cas de doute, ne fusionne PAS. Il vaut mieux avoir 2 affaires séparées qu'une mauvaise fusion."""
 
 
 def detect_duplicate_affairs(affairs: List[Dict[str, Any]]) -> Optional[List[Dict[str, Any]]]:
@@ -1399,20 +1407,24 @@ def rewrite_affair_title(
 # VALIDATION GPT — PERTINENCE ARTICLE ↔ AFFAIRE
 # ============================================================
 
-RELEVANCE_PROMPT = """Tu es un éditeur de veille médiatique en Guadeloupe.
+RELEVANCE_PROMPT = """Tu es un éditeur de veille médiatique en Guadeloupe. Tu es TRÈS STRICT.
 On te donne le TITRE et un RÉSUMÉ d'un article, ainsi que le TITRE et la DESCRIPTION d'une affaire existante.
-Tu dois déterminer si l'article traite RÉELLEMENT du même sujet que l'affaire.
+Tu dois déterminer si l'article traite du MÊME ÉVÉNEMENT PRÉCIS que l'affaire (pas juste le même thème).
 
-ATTENTION : deux articles peuvent partager des mots-clés (ex: même catégorie "sécurité/justice", même lieu) sans être liés.
-Par exemple :
+⚠️ "même type d'événement" ≠ "même événement". Deux meurtres différents = false.
+
+ATTENTION : ces situations = false (PAS pertinent) :
+- Même catégorie mais événements différents (ex: deux meurtres distincts, deux accidents distincts)
+- Même lieu mais incidents différents (ex: meurtre aux Abymes ≠ autre meurtre aux Abymes si victimes différentes)
+- Mots-clés partagés mais faits distincts (ex: "sécurité/justice" + même commune ≠ même affaire)
 - Un meurtre aux Abymes ≠ une affaire de détournement de fonds d'un élu
 - Un accident de la route ≠ une affaire de pollution de l'eau
-- Un procès pour trafic de drogue ≠ un scandale politique
+- Lieux dans des régions/pays différents (Guadeloupe ≠ RDC ≠ Martinique)
 
 Réponds UNIQUEMENT en JSON :
 {"relevant": true/false, "reason": "explication courte (max 20 mots)"}
 
-Sois STRICT : en cas de doute, réponds false. Seuls les articles qui traitent clairement du MÊME SUJET doivent être validés."""
+Sois TRÈS STRICT : en cas de doute, réponds false. Il vaut mieux ne pas lier un article que de le lier à tort."""
 
 
 def validate_article_affair_relevance(
@@ -1471,29 +1483,39 @@ def validate_article_affair_relevance(
 # COMPARAISON GPT — AFFAIRES EN VEILLE ↔ AFFAIRES ACTIVES
 # ============================================================
 
-STALE_ACTIVE_PROMPT = """Tu es un analyste média spécialisé Guadeloupe/Antilles.
+STALE_ACTIVE_PROMPT = """Tu es un analyste média spécialisé Guadeloupe/Antilles. Tu es TRÈS STRICT.
 
 On te donne deux listes :
 1. AFFAIRES EN VEILLE (stale) — sans activité récente
 2. AFFAIRES ACTIVES — en cours de couverture
 
-Identifie les PAIRES où une affaire en veille et une affaire active traitent du MÊME SUJET ou événement.
-Si une affaire en veille est la SUITE, le DÉVELOPPEMENT ou la MÊME AFFAIRE qu'une active, c'est un match.
+Identifie UNIQUEMENT les paires où l'affaire en veille et l'affaire active parlent du MÊME ÉVÉNEMENT PRÉCIS.
+Un match = la suite, le développement ou la même affaire exacte. PAS juste le même thème.
+
+⚠️ RÈGLE D'OR : "même type d'événement" ≠ "même événement".
+Deux meurtres distincts = deux affaires. Deux accidents distincts = deux affaires.
+
+CRITÈRES STRICTS POUR MATCHER :
+1. MÊME ÉVÉNEMENT CONCRET (même incident, même crise, même procédure judiciaire)
+2. MÊME ZONE GÉOGRAPHIQUE (même commune/quartier, même pays)
+3. AU MOINS UNE PERSONNE/ENTITÉ SPÉCIFIQUE en commun
 
 EXEMPLES DE MATCH :
-- Veille: "Pénurie d'eau à Petit-Pérou" ↔ Active: "Crise de l'eau aux Abymes" (même sujet)
-- Veille: "Procès Chalus" ↔ Active: "Convocation Arichalus parquet" (même personne, même affaire judiciaire)
-- Veille: "Grève enseignants Guadeloupe" ↔ Active: "Mobilisation éducation nationale 971" (même mouvement)
+- Veille: "Pénurie d'eau à Petit-Pérou" ↔ Active: "Crise de l'eau aux Abymes" → même crise d'eau ✅
+- Veille: "Procès Chalus" ↔ Active: "Convocation Arichalus parquet" → même personne, même procédure ✅
 
 CE QUI N'EST PAS UN MATCH (NE JAMAIS FUSIONNER) :
-- Même thème mais événements totalement différents
-- Même personne mais sujets sans rapport
+- Même type d'événement mais incidents différents (ex: deux meurtres distincts, deux noyades)
+- Même lieu + même type mais personnes/victimes différentes
+- Même personne mais sujets/actions sans rapport
 - Même lieu mais incidents distincts
-- CATÉGORIES INCOMPATIBLES : un meurtre ≠ une noyade ≠ une élection ≠ un accident ≠ un procès ≠ un trafic ≠ une grève ≠ une catastrophe naturelle. Ces types d'événements sont TOUJOURS des affaires distinctes, même avec les mêmes personnes ou lieux.
+- Lieux dans des pays/régions différents (Guadeloupe ≠ Martinique ≠ RDC ≠ Haïti)
+- CATÉGORIES INCOMPATIBLES : meurtre ≠ noyade ≠ élection ≠ accident ≠ procès ≠ trafic ≠ grève ≠ catastrophe
 
 EXEMPLES DE NON-MATCH :
-- Veille: "Victoire électorale de X" ↔ Active: "Noyade d'un touriste" → PAS un match
-- Veille: "Accident de la route mortel" ↔ Active: "Grève au CHU" → PAS un match
+- Veille: "Meurtre aux Abymes" ↔ Active: "Homme abattu au Gosier" → deux meurtres différents ❌
+- Veille: "Accident mortel RN1" ↔ Active: "Accident mortel RN5" → deux accidents ❌
+- Veille: "Victoire électorale de X" ↔ Active: "Noyade d'un touriste" → rien à voir ❌
 
 Réponds UNIQUEMENT en JSON :
 {
@@ -1508,7 +1530,7 @@ Réponds UNIQUEMENT en JSON :
 }
 
 Si aucun match → {"matches": []}
-Sois CONSERVATEUR : en cas de doute, ne matche PAS. Seuls les vrais liens sont utiles."""
+Sois TRÈS CONSERVATEUR : en cas de doute, ne matche PAS. Il vaut mieux avoir 2 affaires que fusionner à tort."""
 
 
 def detect_stale_active_matches(
@@ -2026,26 +2048,38 @@ Retourne un JSON:
 # COMPARAISON IA INDIVIDUELLE — 1 ARTICLE vs TOUTES LES AFFAIRES
 # ============================================================
 
-INDIVIDUAL_MATCH_PROMPT = """Tu es un analyste média expert en Guadeloupe/Antilles.
+INDIVIDUAL_MATCH_PROMPT = """Tu es un analyste média expert en Guadeloupe/Antilles. Tu es TRÈS STRICT.
 
 On te donne :
 1. UN ARTICLE avec son titre et résumé
 2. La liste des AFFAIRES EXISTANTES (ID + titre + description courte)
 
-Ta mission : déterminer si cet article correspond à UNE affaire existante.
+Ta mission : déterminer si cet article parle du MÊME ÉVÉNEMENT PRÉCIS qu'une affaire existante.
 
-RÈGLES STRICTES :
-- L'article doit parler du MÊME ÉVÉNEMENT CONCRET ou du même sujet spécifique
-- Le thème commun ne suffit PAS (ex: deux articles "santé" ≠ même affaire)
-- Les mêmes personnes ne suffisent PAS si le sujet est différent
-- Le même lieu ne suffit PAS si les incidents sont distincts
-- En cas de doute → "no_match" (mieux vaut créer une affaire de trop que mal fusionner)
+⚠️ RÈGLE D'OR : "même type d'événement" ≠ "même événement".
+Un article sur un meurtre ne matche PAS avec une affaire sur un AUTRE meurtre, même au même endroit.
 
-EXEMPLES :
+CRITÈRES STRICTS POUR MATCHER :
+1. L'article doit parler du MÊME INCIDENT/FAIT PRÉCIS que l'affaire
+2. MÊME ZONE GÉOGRAPHIQUE (commune, quartier, ou pays)
+3. AU MOINS UNE PERSONNE, VICTIME ou ENTITÉ SPÉCIFIQUE en commun
+4. MÊME PÉRIODE TEMPORELLE (dates cohérentes)
+
+CE QUI NE SUFFIT PAS POUR MATCHER :
+- Même thème/catégorie seul (deux articles "sécurité" ≠ même affaire)
+- Même lieu seul (deux événements aux Abymes ≠ même affaire)
+- Même type d'incident seul (deux meurtres ≠ même meurtre)
+- Même personne si le sujet est différent
+
+EXEMPLES DE MATCH :
 - Article "Vaccin chikungunya : 21 cas graves" + Affaire "Vaccin chikungunya sous surveillance" → MATCH ✅
-- Article "Laurent Petit exclu du RN" + Affaire "Vaccin chikungunya" → NO MATCH ❌
-- Article "Chlordécone : contrôles renforcés" + Affaire "Vaccin chikungunya" → NO MATCH ❌
 - Article "Éric Jalton réélu" + Affaire "Élections municipales Pointe-à-Pitre" → MATCH ✅
+
+EXEMPLES DE NON-MATCH :
+- Article "Meurtre d'un homme aux Abymes" + Affaire "Femme tuée par balles aux Abymes" → NO MATCH ❌ (deux victimes différentes)
+- Article "Noyade à Sainte-Anne" + Affaire "Noyade au Gosier" → NO MATCH ❌ (deux lieux, deux incidents)
+- Article "Accident sur la RN1 Baie-Mahault" + Affaire "Accident mortel RN2 Gosier" → NO MATCH ❌
+- En cas de doute → "no_match" (mieux vaut créer une affaire de trop que mal fusionner)
 
 Réponds UNIQUEMENT en JSON :
 {

@@ -647,3 +647,29 @@ async def activity_log(
             e["timestamp"] = e["timestamp"].isoformat()
 
     return {"events": manual_events, "total": len(manual_events)}
+
+
+# ── Séparation d'affaires mal fusionnées ──────────────────
+
+@router.post("/affairs/split")
+async def split_affair(
+    payload: Dict[str, Any] = Body(...),
+    user: Dict = Depends(require_role("admin")),
+):
+    """
+    Sépare une affaire en deux par zone géographique.
+    Les articles hors-Guadeloupe sont déplacés dans une nouvelle affaire.
+
+    Body: { "affair_id": "..." }
+    """
+    affair_id = payload.get("affair_id")
+    if not affair_id:
+        raise HTTPException(400, "affair_id requis")
+
+    try:
+        from backend.scripts.split_merged_affairs import split_affair as do_split
+        do_split(affair_id, dry_run=False)
+        return {"success": True, "message": f"Affaire {affair_id} séparée avec succès"}
+    except Exception as e:
+        logger.error(f"Erreur séparation affaire {affair_id}: {e}")
+        raise HTTPException(500, f"Erreur: {str(e)}")

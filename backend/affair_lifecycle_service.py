@@ -1791,8 +1791,9 @@ class AffairLifecycleService:
                     if score > best_score:
                         best_score = score
                         best_match = affair
-                # Seuil strict en fallback : 10 au lieu de 6
-                if best_match and best_score < 10:
+                # Seuil strict en fallback : 12 (relevé de 10)
+                # Exige plusieurs signaux convergents (entités + titre + contexte)
+                if best_match and best_score < 12:
                     best_match = None
                 if best_match:
                     logger.info(f"      📊 Fallback score: {best_score} → fusion")
@@ -2110,14 +2111,71 @@ class AffairLifecycleService:
                 best_cat = cat_name
         return best_cat if best_score >= 1 else None
 
-    def _titles_are_coherent(self, title_a: str, title_b: str, desc_a: str = "", desc_b: str = "") -> tuple:
-        """Vérifie si deux affaires sont sémantiquement cohérentes pour une fusion.
+    def _detect_geo_zone(self, text: str) -> str:
+        """Détecte la zone géographique d'un texte.
 
-        Compare les catégories d'événements. Si les deux affaires sont dans des catégories
-        différentes et incompatibles, la fusion est bloquée.
+        Retourne:
+          - "guadeloupe" si marqueurs locaux détectés
+          - "hors_guadeloupe" si lieux étrangers détectés SANS marqueur local
+          - "inconnu" si rien de détecté
+        """
+        if not text:
+            return "inconnu"
+        text_lower = text.lower()
+
+        has_local = any(m in text_lower for m in self.GUADELOUPE_MARQUEURS)
+        has_foreign = any(lieu in text_lower for lieu in self.HORS_GUADELOUPE_LIEUX)
+
+        if has_local:
+            return "guadeloupe"
+        if has_foreign:
+            return "hors_guadeloupe"
+        return "inconnu"
+
+    def _locations_are_coherent(self, title_a: str, title_b: str, desc_a: str = "", desc_b: str = "") -> tuple:
+        """Vérifie si deux affaires sont dans la même zone géographique.
+
+        Bloque la fusion si une affaire est clairement en Guadeloupe et l'autre
+        clairement hors Guadeloupe (ex: meurtre aux Abymes vs meurtre en RDC).
 
         Retourne (is_coherent: bool, reason: str).
         """
+        text_a = f"{title_a} {desc_a}".strip()
+        text_b = f"{title_b} {desc_b}".strip()
+
+        zone_a = self._detect_geo_zone(text_a)
+        zone_b = self._detect_geo_zone(text_b)
+
+        # Si une des deux est inconnue → on laisse passer
+        if zone_a == "inconnu" or zone_b == "inconnu":
+            return (True, "")
+
+        # Si même zone → cohérent
+        if zone_a == zone_b:
+            return (True, "")
+
+        # Zones différentes → BLOQUER
+        return (
+            False,
+            f"zones géographiques incompatibles: {zone_a} vs {zone_b} "
+            f"('{title_a[:50]}' ≠ '{title_b[:50]}')"
+        )
+
+    def _titles_are_coherent(self, title_a: str, title_b: str, desc_a: str = "", desc_b: str = "") -> tuple:
+        """Vérifie si deux affaires sont sémantiquement cohérentes pour une fusion.
+
+        Vérifie 2 critères :
+        1. Catégories d'événements compatibles (meurtre ≠ élection)
+        2. Zones géographiques compatibles (Guadeloupe ≠ RDC)
+
+        Retourne (is_coherent: bool, reason: str).
+        """
+        # ── Check 1 : géographie ──
+        geo_ok, geo_reason = self._locations_are_coherent(title_a, title_b, desc_a, desc_b)
+        if not geo_ok:
+            return (False, geo_reason)
+
+        # ── Check 2 : catégories d'événements ──
         text_a = f"{title_a} {desc_a}".strip()
         text_b = f"{title_b} {desc_b}".strip()
 
@@ -2151,6 +2209,27 @@ class AffairLifecycleService:
         "haïti", "haiti", "port-au-prince", "jovenel moïse",
         "états-unis", "etats-unis", "washington", "new york",
         "chine", "pékin", "tokyo", "moscou",
+        # Afrique
+        "rdc", "congo", "république démocratique du congo", "republique democratique du congo",
+        "kinshasa", "goma", "nord-kivu", "sud-kivu", "lubumbashi",
+        "sénégal", "senegal", "dakar", "côte d'ivoire", "cote d'ivoire", "abidjan",
+        "cameroun", "yaoundé", "yaounde", "douala",
+        "mali", "bamako", "niger", "niamey", "burkina faso", "ouagadougou",
+        "nigeria", "lagos", "abuja", "afrique du sud", "johannesburg",
+        "algérie", "algerie", "alger", "maroc", "rabat", "casablanca",
+        "tunisie", "tunis", "egypte", "le caire",
+        "kenya", "nairobi", "éthiopie", "ethiopie", "addis-abeba",
+        # Europe (hors France métro)
+        "londres", "berlin", "madrid", "rome", "bruxelles",
+        # Amérique latine
+        "brésil", "bresil", "rio de janeiro", "sao paulo", "colombie", "bogota",
+        "mexique", "mexico", "venezuela", "caracas",
+        # Asie / Moyen-Orient
+        "inde", "new delhi", "mumbai", "pakistan", "islamabad",
+        "arabie saoudite", "riyad", "dubaï", "dubai",
+        # Océan Indien / Pacifique
+        "madagascar", "antananarivo", "nouvelle-calédonie", "nouvelle-caledonie", "nouméa", "noumea",
+        "polynésie", "polynesie", "tahiti", "papeete",
     }
 
     # Marqueurs Guadeloupe — si un de ces termes est présent, l'article est local
@@ -2247,12 +2326,11 @@ class AffairLifecycleService:
     ) -> int:
         """Calcule un score de similarité entre un article et une affaire.
 
-        RÈGLES DE MATCHING v4 :
-        - Titre normalisé (tirets→espaces), mots >= 4 chars
-        - SequenceMatcher pour détecter les titres sémantiquement proches
-        - Fuzzy matching pour entités (transcription ≠ article spelling)
-        - Embeddings en bonus fort
-        - SEUIL DE FUSION = 6
+        RÈGLES DE MATCHING v5 (STRICTES — même événement, pas même type) :
+        - Titre normalisé + SequenceMatcher
+        - Fuzzy entity matching
+        - Embeddings en bonus MODÉRÉ (deux meurtres ≠ même meurtre)
+        - SEUIL DE FUSION = 8 (relevé de 6)
         """
         # Entités de l'affaire
         aff_elected = set(
@@ -2320,41 +2398,44 @@ class AffairLifecycleService:
         score += min(len(common_title), 3)
 
         # ── Bonus titre quasi-identique (word overlap) ──
+        # ATTENTION : word overlap seul = insuffisant (deux meurtres ≠ même meurtre)
+        # Le bonus ne s'applique que si >70% overlap (quasi-identique)
         if len(aff_title_words) >= 2 and len(art_title_words_strict) >= 2:
             overlap = len(common_title) / min(len(aff_title_words), len(art_title_words_strict))
-            if overlap >= 0.5:
-                score += 6  # Quasi-doublon détecté
-            elif overlap >= 0.35:
-                score += 3
+            if overlap >= 0.70:
+                score += 5  # Quasi-doublon détecté (seuil relevé de 0.50 à 0.70)
+            elif overlap >= 0.50:
+                score += 2  # Titres proches (réduit de 6 à 2)
 
         # ── Bonus SequenceMatcher sur titre complet normalisé ──
-        # Détecte: "Neuf mois sans eau à Petit-Pérou" ≈ "Neuf mois sans eau à Petit Pérou"
-        # et aussi: "Décès d'un plongeur à Saint-Anne" ~ "Mort d'un touriste à Saint-Anne"
+        # STRICT : seuls les titres quasi-identiques (>=0.85) donnent un gros bonus
+        # "Meurtre aux Abymes d'une femme" ≠ "Meurtre aux Abymes d'un homme"
         art_raw_title_norm = self._normalize_title(
             " ".join(art_title_words) if art_title_words else ""
         )
         if aff_title_norm and art_raw_title_norm:
             seq_ratio = SequenceMatcher(None, art_raw_title_norm, aff_title_norm).ratio()
-            if seq_ratio >= 0.85:
-                score += 8  # Titre presque identique (ponctuation/tirets différents)
-            elif seq_ratio >= 0.65:
-                score += 5  # Titre très similaire
-            elif seq_ratio >= 0.50:
-                score += 3  # Titre partiellement similaire
+            if seq_ratio >= 0.90:
+                score += 7  # Titre quasi-identique (seuil relevé)
+            elif seq_ratio >= 0.75:
+                score += 3  # Titre similaire (réduit)
+            # Supprimé: le palier 0.50 donnait trop de faux positifs
 
         # ── Bonus embedding sémantique ──
+        # MODÉRÉ : les embeddings captent la similarité thématique, pas l'identité d'événement.
+        # Deux meurtres différents auront un embedding très proche → réduire le bonus.
         if art_embedding:
             aff_embedding = affair.get("embedding")
             if aff_embedding:
                 try:
                     from backend.embedding_service import cosine_similarity
                     sim = cosine_similarity(art_embedding, aff_embedding)
-                    if sim >= 0.80:
-                        score += 6
+                    if sim >= 0.90:
+                        score += 5  # Embedding quasi-identique (réduit de 6)
+                    elif sim >= 0.80:
+                        score += 3  # Embedding proche (réduit de 4)
                     elif sim >= 0.70:
-                        score += 4
-                    elif sim >= 0.60:
-                        score += 2
+                        score += 1  # Embedding vaguement similaire (réduit de 2)
                 except ImportError:
                     pass
 
@@ -2404,27 +2485,38 @@ class AffairLifecycleService:
                 common_words = words_a & words_b
                 word_overlap = len(common_words) / max(min(len(words_a), len(words_b)), 1) if words_a and words_b else 0
 
-                # Critères de fusion inter-affaires (plus stricts que article→affaire)
+                # Critères de fusion inter-affaires v2 (STRICTS — même événement, pas même type)
+                # PRINCIPE : titre similaire seul = INSUFFISANT.
+                # Il faut TOUJOURS titre similaire + au moins 1 entité spécifique en commun.
                 should_merge = False
                 reason = ""
 
-                if seq_ratio >= 0.80:
-                    should_merge = True
-                    reason = f"titre_sim={seq_ratio:.2f}"
-                elif seq_ratio >= 0.60 and (fuzzy_e >= 1 or fuzzy_i >= 1):
+                if seq_ratio >= 0.90:
+                    # Titres quasi-identiques (ponctuation/tirets) → merge SEULEMENT avec entité
+                    if fuzzy_e >= 1 or fuzzy_i >= 1:
+                        should_merge = True
+                        reason = f"titre_sim={seq_ratio:.2f}+entités"
+                    elif word_overlap >= 0.80:
+                        should_merge = True
+                        reason = f"titre_sim={seq_ratio:.2f}+word_overlap={word_overlap:.2f}"
+                elif seq_ratio >= 0.70 and (fuzzy_e >= 1 or fuzzy_i >= 1):
+                    # Titre similaire + entité commune → même événement probable
                     should_merge = True
                     reason = f"titre_sim={seq_ratio:.2f}+entités"
-                elif word_overlap >= 0.6 and (fuzzy_e >= 1 or fuzzy_i >= 1):
+                elif word_overlap >= 0.70 and fuzzy_e >= 1 and fuzzy_i >= 1:
+                    # Fort overlap de mots + élu ET institution en commun → convergence forte
                     should_merge = True
-                    reason = f"word_overlap={word_overlap:.2f}+entités"
+                    reason = f"word_overlap={word_overlap:.2f}+élu+instit"
                 elif fuzzy_e >= 2:
-                    # 2+ élus en commun (non-génériques) = très probable même sujet
+                    # 2+ élus en commun (non-génériques) ET titre assez proche
                     non_generic = elected_a - self.GENERIC_ELECTED
-                    if non_generic & elected_b:
+                    if non_generic & elected_b and seq_ratio >= 0.50:
                         should_merge = True
-                        reason = f"2+élus_communs"
+                        reason = f"2+élus_communs+titre_sim={seq_ratio:.2f}"
 
-                # Embedding check
+                # Embedding check — STRICT: ne suffit JAMAIS seul pour fusionner.
+                # Deux meurtres différents ont un embedding très proche → dangereux.
+                # L'embedding est utilisé uniquement comme confirmation supplémentaire.
                 if not should_merge:
                     emb_a = affair_a.get("embedding")
                     emb_b = affair_b.get("embedding")
@@ -2432,9 +2524,13 @@ class AffairLifecycleService:
                         try:
                             from backend.embedding_service import cosine_similarity
                             sim = cosine_similarity(emb_a, emb_b)
-                            if sim >= 0.82:
+                            # Embedding très fort + titre raisonnablement proche → merge
+                            if sim >= 0.92 and seq_ratio >= 0.60:
                                 should_merge = True
-                                reason = f"embedding_sim={sim:.2f}"
+                                reason = f"embedding={sim:.2f}+titre={seq_ratio:.2f}"
+                            elif sim >= 0.92 and (fuzzy_e >= 1 or fuzzy_i >= 1):
+                                should_merge = True
+                                reason = f"embedding={sim:.2f}+entités"
                         except ImportError:
                             pass
 
@@ -2713,28 +2809,32 @@ class AffairLifecycleService:
             if not stale_affair or not active_affair:
                 continue
 
-            # Pour medium confidence, vérifier aussi le score de matching
-            if confidence == "medium":
-                aff_elected = set(
-                    e.lower().strip() for e in (stale_affair.get("elected", []) or []) if e and len(e) > 3
+            # Vérifier le score heuristique pour TOUTES les confidences (même high)
+            # car l'IA peut confondre "même type d'événement" avec "même événement"
+            aff_elected = set(
+                e.lower().strip() for e in (stale_affair.get("elected", []) or []) if e and len(e) > 3
+            )
+            aff_institutions = set(
+                e.lower().strip() for e in (stale_affair.get("institutions", []) or []) if e and len(e) > 3
+            )
+            aff_entities = aff_elected | aff_institutions
+            aff_title_words = set(
+                w.lower() for w in (stale_affair.get("title", "").split()) if len(w) > 4
+            )
+            score = self._match_score(
+                aff_elected, aff_institutions, aff_entities,
+                stale_affair.get("theme", "general"), aff_title_words, active_affair,
+            )
+
+            # High confidence: score minimum 4 (filet de sécurité)
+            # Medium confidence: score minimum 8 (relevé de 4)
+            min_score = 4 if confidence == "high" else 8
+            if score < min_score:
+                logger.info(
+                    f"   ⏭️ {confidence} confidence mais score={score} < {min_score}, skip: "
+                    f"'{stale_affair.get('title', '?')[:40]}' ↔ '{active_affair.get('title', '?')[:40]}'"
                 )
-                aff_institutions = set(
-                    e.lower().strip() for e in (stale_affair.get("institutions", []) or []) if e and len(e) > 3
-                )
-                aff_entities = aff_elected | aff_institutions
-                aff_title_words = set(
-                    w.lower() for w in (stale_affair.get("title", "").split()) if len(w) > 4
-                )
-                score = self._match_score(
-                    aff_elected, aff_institutions, aff_entities,
-                    stale_affair.get("theme", "general"), aff_title_words, active_affair,
-                )
-                if score < 4:
-                    logger.info(
-                        f"   ⏭️ Medium confidence mais score={score} < 4, skip: "
-                        f"'{stale_affair.get('title', '?')[:40]}' ↔ '{active_affair.get('title', '?')[:40]}'"
-                    )
-                    continue
+                continue
 
             # ── Filtre anti boule de neige ──
             coherent, block_reason = self._titles_are_coherent(
