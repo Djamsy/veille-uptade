@@ -42,7 +42,6 @@ const COMMUNE_COORDS: Record<string, [number, number]> = {
   'La Désirade': [-61.0500, 16.3100], 'Terre-de-Haut': [-61.5900, 15.8600],
   'Terre-de-Bas': [-61.6400, 15.8600], 'Anse-Bertrand': [-61.5000, 16.4700],
   'Petit-Canal': [-61.4900, 16.3700],
-  'Sainte-Rose': [-61.6972, 16.3339],
 };
 
 // ── Mapbox 3D Map (interactif, plein écran) ─────────────
