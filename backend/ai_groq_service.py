@@ -2122,3 +2122,93 @@ def detect_commune_ai(title: str, summary: str = "", content: str = "") -> Optio
     except (json.JSONDecodeError, Exception) as e:
         logger.warning(f"⚠️ Commune IA échoué: {e}")
         return None
+
+
+# ============================================================
+# Résumé automatique — journalier / hebdomadaire
+# ============================================================
+
+SUMMARY_PROMPT = """Tu es un journaliste senior spécialisé en Guadeloupe. Rédige un résumé complet et approfondi de l'actualité guadeloupéenne.
+
+FORMAT REQUIS (JSON):
+{
+  "titre": "Résumé de l'actualité — [période]",
+  "date_generation": "[date du jour]",
+  "introduction": "[2-3 phrases de synthèse globale]",
+  "sections": [
+    {
+      "titre": "[Thème: ex. Politique, Justice, Social, Économie, Environnement, Sport]",
+      "articles": [
+        {
+          "titre": "[titre de l'affaire/sujet]",
+          "resume": "[résumé détaillé 3-5 phrases, factuel, sans faute]",
+          "gravite": "[faible/moyenne/élevée/critique]",
+          "communes": ["[communes concernées]"],
+          "sources": ["[noms des sources]"],
+          "contexte": "[1-2 phrases de contexte/historique si pertinent]"
+        }
+      ]
+    }
+  ],
+  "tendances": "[Analyse des tendances : climat social, sujets récurrents, évolutions]",
+  "a_surveiller": ["[liste des sujets à suivre dans les prochains jours]"]
+}
+
+RÈGLES:
+- Français impeccable, zéro faute d'orthographe ou de grammaire
+- Ton journalistique professionnel mais accessible
+- Chaque sujet doit être contextualisé (historique, enjeux)
+- Cite les communes concernées quand possible
+- Classe par ordre de gravité/importance au sein de chaque section
+- Sois factuel, précis, sourcé
+- Le résumé doit être APPROFONDI, pas superficiel
+"""
+
+
+def generate_summary(affairs: List[Dict], articles: List[Dict], period: str = "journalier") -> Optional[Dict]:
+    """
+    Génère un résumé approfondi de l'actualité à partir des affaires et articles.
+    period: 'journalier' ou 'hebdomadaire'
+    """
+    if not is_available():
+        return None
+
+    # Build context from affairs and articles
+    affairs_text = ""
+    for i, a in enumerate(affairs[:30], 1):
+        communes = ", ".join(a.get("communes", [])) if a.get("communes") else "non précisé"
+        articles_count = len(a.get("articles", []))
+        affairs_text += (
+            f"\n{i}. [{a.get('theme', '?')}] {a.get('title', '?')}\n"
+            f"   Gravité: {a.get('gravity_score', 0):.0%} | Sentiment: {a.get('sentiment', '?')} | "
+            f"Communes: {communes} | Sources: {articles_count} articles\n"
+            f"   Description: {a.get('description', '')[:300]}\n"
+        )
+
+    articles_text = ""
+    for i, art in enumerate(articles[:50], 1):
+        articles_text += (
+            f"\n{i}. {art.get('title', '?')}\n"
+            f"   Source: {art.get('source', '?')} | Date: {art.get('date', '?')}\n"
+            f"   Résumé: {art.get('ai_summary', art.get('content', ''))[:200]}\n"
+        )
+
+    user_msg = (
+        f"Période: {period}\n\n"
+        f"=== AFFAIRES EN COURS ({len(affairs)} total, top 30) ===\n{affairs_text}\n\n"
+        f"=== ARTICLES RÉCENTS ({len(articles)} total, top 50) ===\n{articles_text}"
+    )
+
+    messages = [
+        {"role": "system", "content": SUMMARY_PROMPT},
+        {"role": "user", "content": user_msg},
+    ]
+
+    raw = _call_ai(messages, temperature=0.3, max_tokens=3000, json_mode=True)
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        logger.error(f"❌ Résumé IA — JSON invalide")
+        return None

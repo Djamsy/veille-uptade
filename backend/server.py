@@ -1652,6 +1652,75 @@ except Exception as e:
     logger.warning(f"⚠️ Routes Telegram non disponibles: {e}")
 
 
+# ============================================================
+# RÉSUMÉ AUTOMATIQUE (journalier / hebdomadaire)
+# ============================================================
+
+@app.get("/api/summary")
+async def generate_media_summary(period: str = Query("journalier", regex="^(journalier|hebdomadaire)$")):
+    """Génère un résumé approfondi de l'actualité guadeloupéenne."""
+    try:
+        if db is None:
+            raise HTTPException(status_code=503, detail="Base de données non connectée")
+
+        # Période de collecte
+        if period == "hebdomadaire":
+            since = datetime.now() - timedelta(days=7)
+        else:
+            since = datetime.now() - timedelta(days=1)
+
+        # Récupérer les affaires actives
+        affairs_cursor = db.affairs.find(
+            {"status": "active"},
+            {"title": 1, "description": 1, "theme": 1, "gravity_score": 1,
+             "sentiment": 1, "communes": 1, "articles": 1, "priority": 1}
+        ).sort("gravity_score", -1).limit(30)
+        affairs = list(affairs_cursor)
+        for a in affairs:
+            a["_id"] = str(a["_id"])
+
+        # Récupérer les articles récents
+        articles_cursor = db.articles.find(
+            {"scraped_at": {"$gte": since.isoformat()}},
+            {"title": 1, "source": 1, "date": 1, "ai_summary": 1, "content": 1,
+             "theme": 1, "gravity_score": 1, "sentiment": 1, "communes": 1}
+        ).sort("scraped_at", -1).limit(50)
+        articles = list(articles_cursor)
+        for art in articles:
+            art["_id"] = str(art["_id"])
+
+        # Vérifier si l'IA est disponible
+        try:
+            from backend.ai_groq_service import generate_summary as ai_generate_summary, is_available as ai_is_available
+        except ImportError:
+            from ai_groq_service import generate_summary as ai_generate_summary, is_available as ai_is_available
+
+        if not ai_is_available():
+            raise HTTPException(status_code=503, detail="Service IA non disponible")
+
+        summary = ai_generate_summary(affairs, articles, period)
+        if not summary:
+            raise HTTPException(status_code=500, detail="Erreur lors de la génération du résumé")
+
+        # Cache the summary
+        cache_key = f"summary_{period}"
+        _cache.set(cache_key, summary, ttl_seconds=1800)  # 30min cache
+
+        return {
+            "period": period,
+            "generated_at": datetime.now().isoformat(),
+            "affairs_count": len(affairs),
+            "articles_count": len(articles),
+            "summary": summary,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur génération résumé: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ========== LANCEMENT ==========
 
 if __name__ == "__main__":

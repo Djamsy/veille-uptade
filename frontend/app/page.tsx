@@ -13,6 +13,7 @@ import {
   runReaffiliate,
   runScrapeNow,
   runBulkEnrich,
+  fetchSummary,
   type EnrichedDashboardData,
   type Affair,
   type DailyActivity,
@@ -23,6 +24,8 @@ import {
   type StorageStats,
   type MapResponse,
   type SearchResult,
+  type SummaryResponse,
+  type MediaSummary,
 } from '../lib/api'
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
@@ -798,6 +801,56 @@ export default function DashboardPage() {
   const [searching, setSearching] = useState(false)
   const searchTimeout = useRef<NodeJS.Timeout | null>(null)
 
+  // ── Theme mode ──
+  const [themeMode, setThemeMode] = useState<'dark' | 'light'>('dark')
+
+  useEffect(() => {
+    const saved = localStorage.getItem('veille-theme') || 'dark'
+    setThemeMode(saved as 'dark' | 'light')
+    document.documentElement.setAttribute('data-theme', saved)
+  }, [])
+
+  // ── Summary state ──
+  const [summaryOpen, setSummaryOpen] = useState(false)
+  const [summaryData, setSummaryData] = useState<SummaryResponse | null>(null)
+  const [summaryLoading, setSummaryLoading] = useState(false)
+  const [summaryPeriod, setSummaryPeriod] = useState<'journalier' | 'hebdomadaire'>('journalier')
+
+  // ── Map filters ──
+  const [mapFilterTheme, setMapFilterTheme] = useState<string>('all')
+  const [mapFilterGravity, setMapFilterGravity] = useState<string>('all')
+
+  // ── Notifications ──
+  const [notifications, setNotifications] = useState<Array<{ id: number; text: string; type: 'hot' | 'info' | 'success' }>>([])
+  const notifIdRef = useRef(0)
+
+  const addNotification = useCallback((text: string, type: 'hot' | 'info' | 'success' = 'info') => {
+    const id = ++notifIdRef.current
+    setNotifications(prev => [...prev.slice(-4), { id, text, type }])
+    setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 5000)
+  }, [])
+
+  const handleGenerateSummary = useCallback(async (period: 'journalier' | 'hebdomadaire') => {
+    setSummaryLoading(true)
+    setSummaryPeriod(period)
+    setSummaryOpen(true)
+    try {
+      const res = await fetchSummary(period)
+      setSummaryData(res)
+    } catch (e) {
+      console.error('Summary error:', e)
+    } finally {
+      setSummaryLoading(false)
+    }
+  }, [])
+
+  const toggleTheme = useCallback(() => {
+    const next = themeMode === 'dark' ? 'light' : 'dark'
+    setThemeMode(next)
+    document.documentElement.setAttribute('data-theme', next)
+    localStorage.setItem('veille-theme', next)
+  }, [themeMode])
+
   const handleSearch = useCallback((q: string) => {
     setSearchQuery(q)
     if (searchTimeout.current) clearTimeout(searchTimeout.current)
@@ -831,10 +884,19 @@ export default function DashboardPage() {
       if (mapBgRes?.communes) setMapBgData(mapBgRes.communes as any)
       setError('')
       setLastRefresh(new Date())
+
+      // Check for new hot affairs
+      if (data && result) {
+        const oldHot = data.affairs?.filter((a: any) => a.priority === 'hot').length || 0
+        const newHot = result.affairs?.filter((a: any) => a.priority === 'hot').length || 0
+        if (newHot > oldHot) {
+          addNotification(`${newHot - oldHot} nouvelle(s) affaire(s) urgente(s) détectée(s)`, 'hot')
+        }
+      }
     } catch (e: unknown) {
       setError((e as Error).message || 'Erreur de connexion')
     } finally { setLoading(false) }
-  }, [])
+  }, [data, addNotification])
 
   // Rendre le body + html transparent pour que la carte Mapbox soit visible
   useEffect(() => {
@@ -864,14 +926,14 @@ export default function DashboardPage() {
 
   const handleRunCycle = async () => {
     setCycleRunning(true)
-    try { await runFullCycle(); await loadData() }
+    try { await runFullCycle(); await loadData(); addNotification('Cycle terminé avec succès', 'success') }
     catch (e: unknown) { console.error('Cycle error:', e) }
     finally { setCycleRunning(false) }
   }
 
   const handleScrape = async () => {
     setScraping(true)
-    try { await runScrapeNow(); await loadData() }
+    try { await runScrapeNow(); await loadData(); addNotification('Scraping terminé', 'success') }
     catch (e: unknown) { console.error('Scrape error:', e) }
     finally { setScraping(false) }
   }
@@ -911,8 +973,10 @@ export default function DashboardPage() {
   const avgBmg = data?.avg_bmg || 0
 
   // ── Panneau style commun ──
-  const panelStyle = 'rounded-2xl border border-white/10 shadow-2xl'
-  const panelBg = { background: 'rgba(2,6,23,0.82)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }
+  const panelStyle = `rounded-2xl shadow-2xl ${themeMode === 'light' ? 'border border-black/8' : 'border border-white/10'}`
+  const panelBg = themeMode === 'light'
+    ? { background: 'rgba(255,255,255,0.82)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }
+    : { background: 'rgba(2,6,23,0.82)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -996,7 +1060,15 @@ export default function DashboardPage() {
               )}
             </div>
 
+            {/* Theme Toggle */}
+            <button onClick={toggleTheme} className="btn-glass px-2 py-1.5 rounded-xl text-sm" title={themeMode === 'dark' ? 'Mode clair' : 'Mode sombre'}>
+              {themeMode === 'dark' ? '☀️' : '🌙'}
+            </button>
+
             <div className={`${panelStyle} px-3 py-2 flex items-center gap-2`} style={panelBg}>
+              <button onClick={() => handleGenerateSummary(summaryPeriod)} disabled={summaryLoading} className="btn-glass px-2.5 py-1 text-[10px] disabled:opacity-40">
+                {summaryLoading ? '⟳...' : '📰 Résumé'}
+              </button>
               <button onClick={loadData} className="btn-glass px-2.5 py-1 text-[10px]">
                 <svg className="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                 MAJ
@@ -1016,6 +1088,34 @@ export default function DashboardPage() {
               backdropFilter: 'blur(12px)',
             }}>{error}</div>
           )}
+
+          {/* ── Map Filters ── */}
+          <div className="pointer-events-auto absolute top-16 right-3 flex flex-col gap-1.5 z-20">
+            <div className={`${panelStyle} px-2.5 py-2 flex flex-col gap-1`} style={panelBg}>
+              <p className="text-[8px] uppercase tracking-wider font-semibold opacity-40 mb-0.5">Thème</p>
+              {['all', 'politique', 'justice', 'social', 'économie', 'environnement', 'santé'].map(t => (
+                <button key={t} onClick={() => setMapFilterTheme(t)}
+                  className={`text-[9px] px-2 py-0.5 rounded-lg text-left transition-all ${mapFilterTheme === t ? 'bg-indigo-500/20 text-indigo-300 font-semibold' : 'opacity-50 hover:opacity-80'}`}>
+                  {t === 'all' ? 'Tous' : t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              ))}
+            </div>
+            <div className={`${panelStyle} px-2.5 py-2 flex flex-col gap-1`} style={panelBg}>
+              <p className="text-[8px] uppercase tracking-wider font-semibold opacity-40 mb-0.5">Gravité</p>
+              {[
+                { key: 'all', label: 'Toutes', color: '' },
+                { key: 'critical', label: 'Critique', color: 'text-red-400' },
+                { key: 'high', label: 'Élevée', color: 'text-orange-400' },
+                { key: 'medium', label: 'Moyenne', color: 'text-yellow-400' },
+                { key: 'low', label: 'Faible', color: 'text-green-400' },
+              ].map(g => (
+                <button key={g.key} onClick={() => setMapFilterGravity(g.key)}
+                  className={`text-[9px] px-2 py-0.5 rounded-lg text-left transition-all ${g.color} ${mapFilterGravity === g.key ? 'bg-white/10 font-semibold' : 'opacity-50 hover:opacity-80'}`}>
+                  {g.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* ══ LEFT PANEL: KPIs + Alertes + Affaires ══ */}
           <div className="pointer-events-auto absolute top-16 left-3 bottom-3 w-[320px] lg:w-[340px] flex flex-col gap-2.5 overflow-y-auto overflow-x-hidden scrollbar-hide" style={{ maxHeight: 'calc(100vh - 80px)' }}>
@@ -1224,6 +1324,142 @@ export default function DashboardPage() {
             )}
           </div>
 
+          {/* ── Notifications ── */}
+          <div className="pointer-events-auto fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
+            {notifications.map(n => (
+              <div key={n.id} className="animate-slide-up rounded-xl px-4 py-2.5 shadow-2xl text-xs font-medium flex items-center gap-2"
+                style={{
+                  background: n.type === 'hot' ? 'rgba(239,68,68,0.9)' : n.type === 'success' ? 'rgba(16,185,129,0.9)' : 'rgba(99,102,241,0.9)',
+                  color: 'white',
+                  backdropFilter: 'blur(12px)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                }}>
+                <span>{n.type === 'hot' ? '🔴' : n.type === 'success' ? '✅' : 'ℹ️'}</span>
+                <span>{n.text}</span>
+                <button onClick={() => setNotifications(prev => prev.filter(x => x.id !== n.id))} className="ml-auto opacity-60 hover:opacity-100">✕</button>
+              </div>
+            ))}
+          </div>
+
+
+        {/* ══ SUMMARY MODAL ══ */}
+        {summaryOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
+            <div className="relative w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-2xl shadow-2xl"
+              style={themeMode === 'light'
+                ? { background: '#ffffff', border: '1px solid rgba(0,0,0,0.1)' }
+                : { background: '#0f1219', border: '1px solid rgba(255,255,255,0.1)' }
+              }>
+              {/* Header */}
+              <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b"
+                style={themeMode === 'light'
+                  ? { background: '#ffffff', borderColor: 'rgba(0,0,0,0.08)' }
+                  : { background: '#0f1219', borderColor: 'rgba(255,255,255,0.08)' }
+                }>
+                <div>
+                  <h2 className="text-lg font-bold" style={{ color: themeMode === 'light' ? '#1e293b' : '#f1f5f9' }}>
+                    {summaryData?.summary?.titre || 'Résumé en cours...'}
+                  </h2>
+                  <div className="flex gap-2 mt-1">
+                    <button onClick={() => handleGenerateSummary('journalier')}
+                      className={`text-[10px] px-2.5 py-1 rounded-full font-semibold transition-all ${summaryPeriod === 'journalier' ? 'bg-indigo-500 text-white' : 'btn-glass'}`}>
+                      Journalier
+                    </button>
+                    <button onClick={() => handleGenerateSummary('hebdomadaire')}
+                      className={`text-[10px] px-2.5 py-1 rounded-full font-semibold transition-all ${summaryPeriod === 'hebdomadaire' ? 'bg-indigo-500 text-white' : 'btn-glass'}`}>
+                      Hebdomadaire
+                    </button>
+                  </div>
+                </div>
+                <button onClick={() => setSummaryOpen(false)} className="text-xl opacity-50 hover:opacity-100 transition-opacity">✕</button>
+              </div>
+
+              {/* Body */}
+              <div className="px-6 py-4">
+                {summaryLoading ? (
+                  <div className="flex flex-col items-center justify-center py-16 gap-3">
+                    <div className="text-3xl animate-spin">⟳</div>
+                    <p className="text-sm opacity-50">Génération du résumé IA en cours...</p>
+                    <p className="text-[10px] opacity-30">Analyse de {summaryPeriod === 'journalier' ? "24h" : "7 jours"} d'actualité</p>
+                  </div>
+                ) : summaryData?.summary ? (
+                  <div className="space-y-6">
+                    {/* Introduction */}
+                    <p className="text-sm leading-relaxed opacity-80">{summaryData.summary.introduction}</p>
+
+                    {/* Sections */}
+                    {summaryData.summary.sections?.map((section, si) => (
+                      <div key={si}>
+                        <h3 className="text-sm font-bold mb-3 flex items-center gap-2" style={{ color: themeMode === 'light' ? '#4f46e5' : '#818cf8' }}>
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                          {section.titre}
+                        </h3>
+                        <div className="space-y-3 ml-3">
+                          {section.articles?.map((art, ai) => (
+                            <div key={ai} className="rounded-xl p-3 text-xs"
+                              style={themeMode === 'light'
+                                ? { background: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.06)' }
+                                : { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }
+                              }>
+                              <div className="flex items-start justify-between gap-2 mb-1">
+                                <p className="font-semibold text-xs">{art.titre}</p>
+                                <span className={`flex-shrink-0 text-[9px] px-1.5 py-0.5 rounded-full font-bold ${
+                                  art.gravite === 'critique' ? 'badge-critical' :
+                                  art.gravite === 'élevée' ? 'badge-high' :
+                                  art.gravite === 'moyenne' ? 'badge-medium' : 'badge-low'
+                                }`}>{art.gravite}</span>
+                              </div>
+                              <p className="opacity-70 leading-relaxed mb-1.5">{art.resume}</p>
+                              {art.contexte && <p className="opacity-50 italic text-[10px] mb-1">{art.contexte}</p>}
+                              <div className="flex flex-wrap gap-1.5 mt-1">
+                                {art.communes?.map((c, ci) => (
+                                  <span key={ci} className="text-[9px] px-1.5 py-0.5 rounded-full" style={themeMode === 'light' ? { background: 'rgba(99,102,241,0.1)', color: '#4f46e5' } : { background: 'rgba(99,102,241,0.15)', color: '#a5b4fc' }}>{c}</span>
+                                ))}
+                                {art.sources?.map((s, si) => (
+                                  <span key={si} className="text-[9px] px-1.5 py-0.5 rounded-full" style={themeMode === 'light' ? { background: 'rgba(245,158,11,0.1)', color: '#b45309' } : { background: 'rgba(245,158,11,0.15)', color: '#fbbf24' }}>{s}</span>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Tendances */}
+                    {summaryData.summary.tendances && (
+                      <div className="rounded-xl p-4" style={themeMode === 'light' ? { background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)' } : { background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
+                        <h3 className="text-xs font-bold mb-2" style={{ color: '#34d399' }}>Tendances</h3>
+                        <p className="text-xs opacity-70 leading-relaxed">{summaryData.summary.tendances}</p>
+                      </div>
+                    )}
+
+                    {/* À surveiller */}
+                    {summaryData.summary.a_surveiller?.length > 0 && (
+                      <div className="rounded-xl p-4" style={themeMode === 'light' ? { background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)' } : { background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
+                        <h3 className="text-xs font-bold mb-2" style={{ color: '#fbbf24' }}>À surveiller</h3>
+                        <ul className="space-y-1">
+                          {summaryData.summary.a_surveiller.map((item, i) => (
+                            <li key={i} className="text-xs opacity-70 flex items-start gap-1.5">
+                              <span className="text-[10px] mt-0.5" style={{ color: '#fbbf24' }}>▸</span>
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Meta */}
+                    <p className="text-[10px] opacity-30 text-right">
+                      Généré le {new Date(summaryData.generated_at).toLocaleString('fr-FR')} · {summaryData.affairs_count} affaires · {summaryData.articles_count} articles
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm opacity-50 text-center py-8">Aucun résumé disponible</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         </div>{/* fin pointer-events-none wrapper */}
       </div>{/* fin zone carte */}
     </div>

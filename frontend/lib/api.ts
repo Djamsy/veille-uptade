@@ -795,3 +795,36 @@ export interface SearchResult {
 
 export const fetchSearch = (q: string, limit = 20) =>
   apiFetch<SearchResult>(`/api/search?q=${encodeURIComponent(q)}&limit=${limit}`);
+
+// --- Résumé automatique ---
+export interface SummarySection {
+  titre: string;
+  articles: Array<{
+    titre: string;
+    resume: string;
+    gravite: string;
+    communes: string[];
+    sources: string[];
+    contexte: string;
+  }>;
+}
+
+export interface MediaSummary {
+  titre: string;
+  date_generation: string;
+  introduction: string;
+  sections: SummarySection[];
+  tendances: string;
+  a_surveiller: string[];
+}
+
+export interface SummaryResponse {
+  period: string;
+  generated_at: string;
+  affairs_count: number;
+  articles_count: number;
+  summary: MediaSummary;
+}
+
+export const fetchSummary = (period: 'journalier' | 'hebdomadaire' = 'journalier') =>
+  apiFetch<SummaryResponse>(`/api/summary?period=${period}`);
