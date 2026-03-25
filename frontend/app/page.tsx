@@ -859,6 +859,7 @@ export default function DashboardPage() {
   const [radioToday, setRadioToday] = useState<{ count: number; cards: Array<Record<string, unknown>> }>({ count: 0, cards: [] })
   const [radioCapturing, setRadioCapturing] = useState<string | null>(null)
   const [radioPanelOpen, setRadioPanelOpen] = useState(false)
+  const [radioCaptureDuration, setRadioCaptureDuration] = useState(60)
 
   const loadRadioStatus = useCallback(async () => {
     try {
@@ -874,14 +875,14 @@ export default function DashboardPage() {
   const handleRadioCapture = useCallback(async (streamKey: string) => {
     setRadioCapturing(streamKey)
     try {
-      await triggerRadioCapture(streamKey, 30)
+      await triggerRadioCapture(streamKey, radioCaptureDuration)
       await loadRadioStatus()
     } catch (e) {
       console.error('Radio capture error:', e)
     } finally {
       setRadioCapturing(null)
     }
-  }, [loadRadioStatus])
+  }, [loadRadioStatus, radioCaptureDuration])
 
   useEffect(() => { loadRadioStatus() }, [loadRadioStatus])
 
@@ -1298,7 +1299,16 @@ export default function DashboardPage() {
               {/* Expanded panel */}
               {radioPanelOpen && (
                 <div className="space-y-1.5 mt-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                  <p className="text-[9px] text-white/30 mb-1">Lancer une capture manuelle :</p>
+                  {/* Durée de capture */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-[9px] text-white/30">Durée :</span>
+                    {[30, 60, 120, 300, 600].map(d => (
+                      <button key={d} onClick={() => setRadioCaptureDuration(d)}
+                        className={`text-[9px] px-1.5 py-0.5 rounded-md transition-all ${radioCaptureDuration === d ? 'bg-violet-500/25 text-violet-300 font-semibold' : 'text-white/30 hover:text-white/50'}`}>
+                        {d < 60 ? `${d}s` : `${d / 60}min`}
+                      </button>
+                    ))}
+                  </div>
                   {radioHealth.map(stream => (
                     <div key={stream.key} className="flex items-center justify-between gap-2 py-1">
                       <div className="flex items-center gap-1.5 min-w-0">
@@ -1313,7 +1323,7 @@ export default function DashboardPage() {
                         disabled={radioCapturing !== null}
                         className="flex-shrink-0 text-[9px] px-2 py-0.5 rounded-lg font-semibold transition-all disabled:opacity-30"
                         style={{ background: 'rgba(139,92,246,0.15)', color: '#a78bfa', border: '1px solid rgba(139,92,246,0.2)' }}>
-                        {radioCapturing === stream.key ? '⟳ Capture...' : '▶ Capturer'}
+                        {radioCapturing === stream.key ? `⟳ ${radioCaptureDuration}s...` : `▶ ${radioCaptureDuration < 60 ? radioCaptureDuration + 's' : radioCaptureDuration / 60 + 'min'}`}
                       </button>
                     </div>
                   ))}
