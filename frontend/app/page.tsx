@@ -1093,10 +1093,10 @@ export default function DashboardPage() {
                 <h2 className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.35)' }}>Top sources</h2>
                 <div className="space-y-1">
                   {sources.slice(0, 5).map((s, i) => (
-                    <div key={s.source} className="flex items-center gap-2">
+                    <div key={s.name} className="flex items-center gap-2">
                       <span className="text-[9px] font-bold w-4 text-right" style={{ color: 'rgba(255,255,255,0.25)' }}>#{i + 1}</span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[10px] text-white truncate">{s.source}</p>
+                        <p className="text-[10px] text-white truncate">{s.name}</p>
                       </div>
                       <span className="text-[10px] font-semibold" style={{ color: '#60a5fa' }}>{s.count}</span>
                     </div>
