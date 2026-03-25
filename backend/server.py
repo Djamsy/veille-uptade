@@ -934,7 +934,7 @@ async def health():
 async def get_storage():
     """Statistiques stockage MongoDB Atlas"""
     try:
-        if not db:
+        if db is None:
             raise HTTPException(status_code=503, detail="Base de données non connectée")
 
         stats = db.command("dbStats")
@@ -1032,6 +1032,50 @@ async def get_articles(
     except Exception as e:
         logger.error(f"Erreur récupération articles: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/search")
+async def search_content(
+    q: str = Query(..., min_length=2, max_length=200),
+    limit: int = Query(20, ge=1, le=50),
+):
+    """Recherche full-text dans articles et affaires (cache 2 min)."""
+    cache_key = f"search:{q.lower().strip()}:{limit}"
+    cached = _cache.get(cache_key)
+    if cached:
+        return cached
+    try:
+        # Regex insensible à la casse sur titre + ai_summary
+        regex = {"$regex": q, "$options": "i"}
+        articles = list(
+            collections['articles_guadeloupe']
+            .find({"$or": [{"title": regex}, {"ai_summary": regex}, {"content": regex}]},
+                  {"title": 1, "source": 1, "theme": 1, "gravity_score": 1,
+                   "sentiment": 1, "scraped_at": 1, "communes": 1, "ai_summary": 1})
+            .sort("scraped_at", -1)
+            .limit(limit)
+        )
+        affairs = list(
+            collections['affairs']
+            .find({"$or": [{"title": regex}, {"description": regex}]},
+                  {"title": 1, "description": 1, "gravity_score": 1, "bmg": 1,
+                   "priority": 1, "status": 1, "item_count": 1, "communes": 1,
+                   "theme": 1, "sentiment": 1, "created_at": 1})
+            .sort("created_at", -1)
+            .limit(limit)
+        )
+        result = {
+            "query": q,
+            "articles": [serialize_doc(a) for a in articles],
+            "affairs": [serialize_doc(a) for a in affairs],
+            "total_articles": len(articles),
+            "total_affairs": len(affairs),
+        }
+        _cache.set(cache_key, result, ttl_seconds=120)
+        return result
+    except Exception as e:
+        logger.error(f"Erreur recherche: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/api/affairs")
 async def get_affairs(

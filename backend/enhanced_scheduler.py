@@ -223,7 +223,7 @@ async def cleanup_job():
         from backend.db import get_db
         db = get_db()
         
-        if not db:
+        if db is None:
             logger.warning("Base de données non disponible")
             return
         

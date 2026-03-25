@@ -8,6 +8,7 @@ import {
   fetchAffairsByCommune,
   fetchStorageStats,
   fetchMapData,
+  fetchSearch,
   runFullCycle,
   runReaffiliate,
   runScrapeNow,
@@ -21,6 +22,7 @@ import {
   type TimelineEvent,
   type StorageStats,
   type MapResponse,
+  type SearchResult,
 } from '../lib/api'
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
@@ -789,6 +791,32 @@ export default function DashboardPage() {
   const [storageStats, setStorageStats] = useState<StorageStats | null>(null)
   const [mapBgData, setMapBgData] = useState<Record<string, { stats: { total_items: number; max_gravity: number } }>>({})
 
+  // ── Search state ──
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<SearchResult | null>(null)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searching, setSearching] = useState(false)
+  const searchTimeout = useRef<NodeJS.Timeout | null>(null)
+
+  const handleSearch = useCallback((q: string) => {
+    setSearchQuery(q)
+    if (searchTimeout.current) clearTimeout(searchTimeout.current)
+    if (!q.trim() || q.trim().length < 2) {
+      setSearchResults(null)
+      setSearchOpen(false)
+      return
+    }
+    setSearching(true)
+    searchTimeout.current = setTimeout(async () => {
+      try {
+        const res = await fetchSearch(q.trim())
+        setSearchResults(res)
+        setSearchOpen(true)
+      } catch { setSearchResults(null) }
+      finally { setSearching(false) }
+    }, 400)
+  }, [])
+
   const loadData = useCallback(async () => {
     try {
       const [result, mapRes, storageRes, mapBgRes] = await Promise.all([
@@ -910,6 +938,62 @@ export default function DashboardPage() {
               <span className="text-[10px] font-medium" style={{ color: 'rgba(255,255,255,0.3)' }}>
                 {lastRefresh.toLocaleTimeString('fr-FR')}
               </span>
+            </div>
+
+            {/* ── Search Bar ── */}
+            <div className="relative flex-1 max-w-xs">
+              <div className={`${panelStyle} flex items-center gap-2 px-3 py-1.5`} style={panelBg}>
+                <svg className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.4)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Rechercher…"
+                  value={searchQuery}
+                  onChange={e => handleSearch(e.target.value)}
+                  onFocus={() => searchResults && setSearchOpen(true)}
+                  onBlur={() => setTimeout(() => setSearchOpen(false), 200)}
+                  className="bg-transparent border-none outline-none text-xs text-white placeholder-white/30 w-full"
+                />
+                {searching && <span className="text-[10px] text-cyan-400 animate-pulse">⟳</span>}
+                {searchQuery && !searching && (
+                  <button onClick={() => { setSearchQuery(''); setSearchResults(null); setSearchOpen(false) }}
+                    className="text-white/30 hover:text-white/60 text-xs">✕</button>
+                )}
+              </div>
+              {/* Search Results Dropdown */}
+              {searchOpen && searchResults && (searchResults.total_articles > 0 || searchResults.total_affairs > 0) && (
+                <div className="absolute top-full mt-1 left-0 right-0 z-50 rounded-xl overflow-hidden shadow-2xl"
+                  style={{ background: 'rgba(10,15,30,0.95)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', maxHeight: '400px', overflowY: 'auto' }}>
+                  {searchResults.total_affairs > 0 && (
+                    <div className="px-3 pt-2 pb-1">
+                      <p className="text-[9px] uppercase tracking-wider font-semibold" style={{ color: 'rgba(147,197,253,0.6)' }}>
+                        Affaires ({searchResults.total_affairs})
+                      </p>
+                      {searchResults.affairs.slice(0, 5).map(a => (
+                        <div key={a._id} className="py-1.5 border-b border-white/5 cursor-pointer hover:bg-white/5 px-1 rounded"
+                          onMouseDown={() => { setSelectedCommune(null); setSearchOpen(false) }}>
+                          <p className="text-xs text-white/90 font-medium truncate">{a.title}</p>
+                          <p className="text-[10px] text-white/40 truncate">{a.theme} · gravité {Math.round((a.gravity_score || 0) * 100)}%</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {searchResults.total_articles > 0 && (
+                    <div className="px-3 pt-2 pb-2">
+                      <p className="text-[9px] uppercase tracking-wider font-semibold" style={{ color: 'rgba(253,224,71,0.6)' }}>
+                        Articles ({searchResults.total_articles})
+                      </p>
+                      {searchResults.articles.slice(0, 5).map(a => (
+                        <div key={a._id} className="py-1.5 border-b border-white/5 px-1">
+                          <p className="text-xs text-white/90 truncate">{a.title}</p>
+                          <p className="text-[10px] text-white/40 truncate">{a.source} · {a.date ? new Date(a.date).toLocaleDateString('fr-FR') : ''}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className={`${panelStyle} px-3 py-2 flex items-center gap-2`} style={panelBg}>

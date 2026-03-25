@@ -783,3 +783,15 @@ export const verifyLinkedArticles = (affairId: string, autoUnlink: boolean = fal
     reasons: Record<string, string>;
     auto_unlinked: number;
   }>(`/api/affairs/verify-articles/${affairId}?auto_unlink=${autoUnlink}`, { method: 'POST' });
+
+// --- Recherche full-text ---
+export interface SearchResult {
+  query: string;
+  articles: Article[];
+  affairs: Affair[];
+  total_articles: number;
+  total_affairs: number;
+}
+
+export const fetchSearch = (q: string, limit = 20) =>
+  apiFetch<SearchResult>(`/api/search?q=${encodeURIComponent(q)}&limit=${limit}`);
