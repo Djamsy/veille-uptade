@@ -34,7 +34,53 @@ except ImportError:
 
 from typing import Dict, List, Any, Optional, Tuple, Union
 from collections import defaultdict, Counter
+import threading
 import requests
+
+
+# ============================================================
+# CACHE MÉMOIRE AVEC TTL
+# ============================================================
+class MemoryCache:
+    """Cache en mémoire simple avec TTL par clé. Thread-safe."""
+
+    def __init__(self):
+        self._store: Dict[str, Any] = {}
+        self._expiry: Dict[str, float] = {}
+        self._lock = threading.Lock()
+
+    def get(self, key: str) -> Optional[Any]:
+        with self._lock:
+            if key in self._store:
+                import time
+                if time.time() < self._expiry.get(key, 0):
+                    return self._store[key]
+                # Expiré → supprimer
+                del self._store[key]
+                del self._expiry[key]
+        return None
+
+    def set(self, key: str, value: Any, ttl_seconds: int = 300):
+        import time
+        with self._lock:
+            self._store[key] = value
+            self._expiry[key] = time.time() + ttl_seconds
+
+    def invalidate(self, pattern: str = ""):
+        """Invalide toutes les clés contenant le pattern (ou toutes si vide)."""
+        with self._lock:
+            if not pattern:
+                self._store.clear()
+                self._expiry.clear()
+            else:
+                keys_to_del = [k for k in self._store if pattern in k]
+                for k in keys_to_del:
+                    del self._store[k]
+                    if k in self._expiry:
+                        del self._expiry[k]
+
+
+_cache = MemoryCache()
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
 from bson import ObjectId
@@ -945,7 +991,10 @@ async def get_storage():
 
 @app.get("/api/stats")
 async def get_stats():
-    """Statistiques globales"""
+    """Statistiques globales (cache 5 min)"""
+    cached = _cache.get("stats")
+    if cached:
+        return cached
     try:
         stats = {
             "articles": collections['articles_guadeloupe'].count_documents({}) if collections.get('articles_guadeloupe') else 0,
@@ -954,11 +1003,12 @@ async def get_stats():
             "social_posts": collections['social_media_posts'].count_documents({}) if collections.get('social_media_posts') else 0,
             "today": datetime.now().strftime('%Y-%m-%d')
         }
-        
+
         # Articles du jour
         today = datetime.now().strftime('%Y-%m-%d')
         stats['articles_today'] = collections['articles_guadeloupe'].count_documents({'date': today}) if collections.get('articles_guadeloupe') else 0
-        
+
+        _cache.set("stats", stats, ttl_seconds=300)
         return stats
     except Exception as e:
         logger.error(f"Erreur stats: {e}")
@@ -988,10 +1038,13 @@ async def get_affairs(
     status: str = Query("active", regex="^(active|stale|closed|all)$"),
     limit: int = Query(50, ge=1, le=200)
 ):
-    """Récupérer les affaires (triées par priorité puis BMG)"""
+    """Récupérer les affaires (triées par priorité puis BMG) — cache 3 min"""
+    cache_key = f"affairs:{status}:{limit}"
+    cached = _cache.get(cache_key)
+    if cached:
+        return cached
     try:
         query = {} if status == "all" else {"status": status}
-        # Tri : hot en premier, puis watch, puis minor — et BMG décroissant
         PRIORITY_ORDER = {"hot": 0, "watch": 1, "minor": 2}
         affairs = list(
             collections['affairs']
@@ -999,17 +1052,21 @@ async def get_affairs(
             .sort([("bmg", -1)])
             .limit(limit)
         )
-        # Tri python pour la priorité (MongoDB ne supporte pas facilement un tri custom)
         affairs.sort(key=lambda a: (PRIORITY_ORDER.get(a.get("priority", "minor"), 2), -(a.get("bmg", 0))))
-        return {"affairs": [serialize_doc(a) for a in affairs]}
+        result = {"affairs": [serialize_doc(a) for a in affairs]}
+        _cache.set(cache_key, result, ttl_seconds=180)
+        return result
     except Exception as e:
         logger.error(f"Erreur récupération affaires: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/map")
 async def get_map_data(days: int = Query(7, ge=1, le=30)):
-    """Données géolocalisées par commune pour la carte interactive.
-    Retourne articles, transcriptions et affaires groupés par commune."""
+    """Données géolocalisées par commune pour la carte interactive (cache 5 min)."""
+    cache_key = f"map:{days}"
+    cached = _cache.get(cache_key)
+    if cached:
+        return cached
     if db is None:
         raise HTTPException(status_code=503, detail="DB non disponible")
 
@@ -1160,12 +1217,14 @@ async def get_map_data(days: int = Query(7, ge=1, le=30)):
             ) if data["articles"] else "general",
         }
 
-    return {
+    map_result = {
         "communes": commune_data,
         "period_days": days,
         "total_communes_active": len(commune_data),
         "generated_at": datetime.utcnow().isoformat(),
     }
+    _cache.set(cache_key, map_result, ttl_seconds=300)
+    return map_result
 
 
 @app.post("/api/digest/send")
@@ -1267,6 +1326,7 @@ async def revalidate_affairs_endpoint(background_tasks: BackgroundTasks):
             {"status": "active"},
             {"$set": {"status": "archived", "_archived_reason": "revalidation_v2"}}
         )
+        _cache.invalidate()  # Vider tout le cache
         return {"message": f"Revalidation lancée: {count} articles réinitialisés. "
                            f"Les affaires seront recréées au prochain cycle."}
     except Exception as e:
