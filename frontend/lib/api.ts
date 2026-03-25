@@ -828,3 +828,25 @@ export interface SummaryResponse {
 
 export const fetchSummary = (period: 'journalier' | 'hebdomadaire' = 'journalier') =>
   apiFetch<SummaryResponse>(`/api/summary?period=${period}`);
+
+// --- Fiabilité des sources ---
+export interface SourceReliability {
+  source: string;
+  total_articles: number;
+  reliability_score: number;
+  reliability_level: string;
+  enrichment_rate: number;
+  geo_rate: number;
+  themes: string[];
+  sentiment_distribution: Record<string, number>;
+  avg_gravity: number;
+}
+
+export interface SourceReliabilityResponse {
+  sources: SourceReliability[];
+  total_sources: number;
+  generated_at: string;
+}
+
+export const fetchSourceReliability = () =>
+  apiFetch<SourceReliabilityResponse>('/api/sources/reliability');

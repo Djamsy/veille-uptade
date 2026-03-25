@@ -87,7 +87,7 @@ from bson import ObjectId
 
 from fastapi import FastAPI, HTTPException, Query, Request, BackgroundTasks, Body
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse, StreamingResponse
 import uvicorn
 
 # Configuration des logs
@@ -1718,6 +1718,194 @@ async def generate_media_summary(period: str = Query("journalier", regex="^(jour
         raise
     except Exception as e:
         logger.error(f"Erreur génération résumé: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# EXPORT CSV
+# ============================================================
+
+@app.get("/api/export/csv")
+async def export_csv(type: str = Query("affairs", regex="^(affairs|articles)$"), days: int = Query(7, ge=1, le=90)):
+    """Export des affaires ou articles en CSV."""
+    import csv
+    import io
+
+    try:
+        if db is None:
+            raise HTTPException(status_code=503, detail="Base de données non connectée")
+
+        since = datetime.now() - timedelta(days=days)
+
+        if type == "affairs":
+            cursor = db.affairs.find(
+                {"status": "active"},
+                {"title": 1, "theme": 1, "gravity_score": 1, "sentiment": 1,
+                 "priority": 1, "status": 1, "communes": 1, "description": 1,
+                 "created_at": 1, "articles": 1}
+            ).sort("gravity_score", -1)
+
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerow(["Titre", "Thème", "Gravité", "Sentiment", "Priorité", "Communes", "Nb Articles", "Description"])
+
+            for a in cursor:
+                communes = ", ".join(a.get("communes", []))
+                writer.writerow([
+                    a.get("title", ""),
+                    a.get("theme", ""),
+                    f"{a.get('gravity_score', 0):.0%}",
+                    a.get("sentiment", ""),
+                    a.get("priority", ""),
+                    communes,
+                    len(a.get("articles", [])),
+                    (a.get("description", "") or "")[:200],
+                ])
+        else:
+            cursor = db.articles.find(
+                {"scraped_at": {"$gte": since.isoformat()}},
+                {"title": 1, "source": 1, "date": 1, "theme": 1,
+                 "gravity_score": 1, "sentiment": 1, "communes": 1, "url": 1}
+            ).sort("scraped_at", -1).limit(500)
+
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerow(["Titre", "Source", "Date", "Thème", "Gravité", "Sentiment", "Communes", "URL"])
+
+            for art in cursor:
+                communes = ", ".join(art.get("communes", []))
+                writer.writerow([
+                    art.get("title", ""),
+                    art.get("source", ""),
+                    art.get("date", ""),
+                    art.get("theme", ""),
+                    f"{art.get('gravity_score', 0):.0%}",
+                    art.get("sentiment", ""),
+                    communes,
+                    art.get("url", ""),
+                ])
+
+        output.seek(0)
+        filename = f"veille_971_{type}_{datetime.now().strftime('%Y%m%d')}.csv"
+
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur export CSV: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# SCORE DE FIABILITÉ DES SOURCES
+# ============================================================
+
+@app.get("/api/sources/reliability")
+async def get_source_reliability():
+    """Calcule un score de fiabilité pour chaque source média."""
+    cached = _cache.get("source_reliability")
+    if cached:
+        return cached
+
+    try:
+        if db is None:
+            raise HTTPException(status_code=503, detail="Base de données non connectée")
+
+        # Agréger les stats par source
+        pipeline = [
+            {"$match": {"scraped_at": {"$gte": (datetime.now() - timedelta(days=30)).isoformat()}}},
+            {"$group": {
+                "_id": "$source",
+                "total_articles": {"$sum": 1},
+                "avg_gravity": {"$avg": {"$ifNull": ["$gravity_score", 0]}},
+                "enriched_count": {"$sum": {"$cond": [{"$ifNull": ["$ai_summary", False]}, 1, 0]}},
+                "with_communes": {"$sum": {"$cond": [{"$gt": [{"$size": {"$ifNull": ["$communes", []]}}, 0]}, 1, 0]}},
+                "themes": {"$addToSet": "$theme"},
+                "sentiments": {"$push": "$sentiment"},
+            }},
+            {"$sort": {"total_articles": -1}},
+        ]
+
+        sources_raw = list(db.articles.aggregate(pipeline))
+
+        sources = []
+        for s in sources_raw:
+            if not s["_id"]:
+                continue
+            total = s["total_articles"]
+            enriched = s.get("enriched_count", 0)
+            with_communes = s.get("with_communes", 0)
+
+            # Score de fiabilité (0-100)
+            # - Volume régulier (max 25pts): plus d'articles = plus fiable
+            volume_score = min(25, total * 2.5)
+
+            # - Taux d'enrichissement IA réussi (max 25pts)
+            enrichment_rate = enriched / total if total > 0 else 0
+            enrichment_score = enrichment_rate * 25
+
+            # - Diversité thématique (max 20pts)
+            themes = [t for t in s.get("themes", []) if t]
+            diversity_score = min(20, len(themes) * 4)
+
+            # - Géolocalisation (max 15pts): articles avec communes identifiées
+            geo_rate = with_communes / total if total > 0 else 0
+            geo_score = geo_rate * 15
+
+            # - Régularité (max 15pts): bonus si > 1 article/jour en moyenne
+            regularity = min(15, (total / 30) * 5)
+
+            reliability = round(volume_score + enrichment_score + diversity_score + geo_score + regularity)
+            reliability = min(100, reliability)
+
+            # Niveau
+            if reliability >= 80:
+                level = "excellent"
+            elif reliability >= 60:
+                level = "bon"
+            elif reliability >= 40:
+                level = "moyen"
+            else:
+                level = "faible"
+
+            # Distribution sentiment
+            sentiments = [x for x in s.get("sentiments", []) if x]
+            sentiment_dist = {}
+            for sent in sentiments:
+                sentiment_dist[sent] = sentiment_dist.get(sent, 0) + 1
+
+            sources.append({
+                "source": s["_id"],
+                "total_articles": total,
+                "reliability_score": reliability,
+                "reliability_level": level,
+                "enrichment_rate": round(enrichment_rate * 100, 1),
+                "geo_rate": round(geo_rate * 100, 1),
+                "themes": themes[:8],
+                "sentiment_distribution": sentiment_dist,
+                "avg_gravity": round(s.get("avg_gravity", 0), 3),
+            })
+
+        sources.sort(key=lambda x: x["reliability_score"], reverse=True)
+
+        result = {
+            "sources": sources,
+            "total_sources": len(sources),
+            "generated_at": datetime.now().isoformat(),
+        }
+
+        _cache.set("source_reliability", result, ttl_seconds=600)  # 10min cache
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur source reliability: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

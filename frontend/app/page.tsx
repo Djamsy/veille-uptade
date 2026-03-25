@@ -1079,6 +1079,12 @@ export default function DashboardPage() {
               <button onClick={handleRunCycle} disabled={cycleRunning} className="btn-primary px-3 py-1 text-[10px]">
                 {cycleRunning ? '⟳...' : '▶ Cycle'}
               </button>
+              <button onClick={() => {
+                const url = `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/export/csv?type=affairs`
+                window.open(url, '_blank')
+              }} className="btn-glass px-2.5 py-1 text-[10px]">
+                📥 CSV
+              </button>
             </div>
           </div>
 
@@ -1457,6 +1463,58 @@ export default function DashboardPage() {
                   <p className="text-sm opacity-50 text-center py-8">Aucun résumé disponible</p>
                 )}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── BOTTOM TIMELINE BAR ── */}
+        {!loading && data?.daily_activity && data.daily_activity.length > 0 && (
+          <div className="pointer-events-auto absolute bottom-3 left-3 right-3 lg:left-[360px]">
+            <div className={`${panelStyle} px-4 py-2.5 flex items-end gap-[3px]`}
+              style={themeMode === 'light'
+                ? { background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }
+                : panelBg
+              }>
+              <span className="text-[9px] font-semibold mr-2 self-center"
+                style={{ color: themeMode === 'light' ? '#64748b' : 'rgba(255,255,255,0.4)' }}>
+                30j
+              </span>
+              {(() => {
+                const activity = data.daily_activity.slice(-30)
+                const maxCount = Math.max(...activity.map((d: DailyActivity) => d.count), 1)
+                return activity.map((d: DailyActivity, i: number) => {
+                  const height = Math.max(4, (d.count / maxCount) * 32)
+                  const isToday = i === activity.length - 1
+                  return (
+                    <div key={i} className="group relative flex-1 flex flex-col items-center">
+                      <div className="absolute bottom-full mb-1 hidden group-hover:block z-50">
+                        <div className="px-2 py-1 rounded-lg text-[9px] whitespace-nowrap font-medium"
+                          style={themeMode === 'light'
+                            ? { background: '#1e293b', color: '#f1f5f9' }
+                            : { background: 'rgba(0,0,0,0.9)', color: '#f1f5f9' }
+                          }>
+                          {new Date(d.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} — {d.count} articles
+                        </div>
+                      </div>
+                      <div
+                        className="w-full rounded-sm transition-all duration-200 cursor-pointer hover:opacity-80"
+                        style={{
+                          height: `${height}px`,
+                          minWidth: '3px',
+                          background: isToday
+                            ? '#6366f1'
+                            : d.count > maxCount * 0.7
+                              ? (themeMode === 'light' ? '#f59e0b' : '#fbbf24')
+                              : d.count > maxCount * 0.3
+                                ? (themeMode === 'light' ? '#6366f1' : '#818cf8')
+                                : (themeMode === 'light' ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.15)'),
+                          opacity: isToday ? 1 : 0.7,
+                        }}
+                      />
+                    </div>
+                  )
+                })
+              })()}
             </div>
           </div>
         )}
