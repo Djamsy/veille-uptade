@@ -850,3 +850,57 @@ export interface SourceReliabilityResponse {
 
 export const fetchSourceReliability = () =>
   apiFetch<SourceReliabilityResponse>('/api/sources/reliability');
+
+// --- Radio / Capture ---
+export interface RadioStream {
+  key: string;
+  name: string;
+  original_url: string;
+  working_url: string;
+  url_changed: boolean;
+  enabled: boolean;
+  priority: number;
+}
+
+export interface RadioStreamsResponse {
+  success: boolean;
+  streams: RadioStream[];
+}
+
+export interface RadioHealthResult {
+  key: string;
+  name: string;
+  section: string;
+  type: string;
+  url: string;
+  enabled: boolean;
+  status: string;
+  latency_ms: number;
+  content_type: string;
+}
+
+export interface RadioHealthResponse {
+  results: RadioHealthResult[];
+  summary: { total: number; healthy: number; degraded: number; down: number };
+  checked_at: string;
+}
+
+export interface RadioCaptureResponse {
+  success: boolean;
+  card: Record<string, unknown>;
+  used_key: string;
+  resolution_reason: string;
+  url_used: string;
+}
+
+export const fetchRadioStreams = () =>
+  apiFetch<RadioStreamsResponse>('/api/radio/debug/streams');
+
+export const fetchRadioHealth = () =>
+  apiFetch<RadioHealthResponse>('/api/radio/health-check');
+
+export const triggerRadioCapture = (section: string, duration = 20) =>
+  apiFetch<RadioCaptureResponse>(`/api/radio/capture?section=${encodeURIComponent(section)}&duration=${duration}`, { method: 'POST' });
+
+export const fetchRadioToday = () =>
+  apiFetch<{ cards: Array<Record<string, unknown>>; count: number }>('/api/radio/cards/today');

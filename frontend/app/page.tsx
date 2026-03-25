@@ -14,6 +14,9 @@ import {
   runScrapeNow,
   runBulkEnrich,
   fetchSummary,
+  fetchRadioHealth,
+  fetchRadioToday,
+  triggerRadioCapture,
   type EnrichedDashboardData,
   type Affair,
   type DailyActivity,
@@ -851,6 +854,37 @@ export default function DashboardPage() {
     localStorage.setItem('veille-theme', next)
   }, [themeMode])
 
+  // ── Radio state ──
+  const [radioHealth, setRadioHealth] = useState<Array<{ key: string; name: string; status: string; latency_ms: number }>>([])
+  const [radioToday, setRadioToday] = useState<{ count: number; cards: Array<Record<string, unknown>> }>({ count: 0, cards: [] })
+  const [radioCapturing, setRadioCapturing] = useState<string | null>(null)
+  const [radioPanelOpen, setRadioPanelOpen] = useState(false)
+
+  const loadRadioStatus = useCallback(async () => {
+    try {
+      const [health, today] = await Promise.all([
+        fetchRadioHealth().catch(() => ({ results: [], summary: { total: 0, healthy: 0, degraded: 0, down: 0 }, checked_at: '' })),
+        fetchRadioToday().catch(() => ({ cards: [], count: 0 })),
+      ])
+      setRadioHealth(health.results || [])
+      setRadioToday(today)
+    } catch { /* silent */ }
+  }, [])
+
+  const handleRadioCapture = useCallback(async (streamKey: string) => {
+    setRadioCapturing(streamKey)
+    try {
+      await triggerRadioCapture(streamKey, 30)
+      await loadRadioStatus()
+    } catch (e) {
+      console.error('Radio capture error:', e)
+    } finally {
+      setRadioCapturing(null)
+    }
+  }, [loadRadioStatus])
+
+  useEffect(() => { loadRadioStatus() }, [loadRadioStatus])
+
   const handleSearch = useCallback((q: string) => {
     setSearchQuery(q)
     if (searchTimeout.current) clearTimeout(searchTimeout.current)
@@ -1227,6 +1261,68 @@ export default function DashboardPage() {
             <div className={`${panelStyle} p-3`} style={panelBg}>
               <h2 className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.35)' }}>Sujets tendance</h2>
               <TrendingTopics themes={themes} />
+            </div>
+
+            {/* ── Radio / Captures ── */}
+            <div className={`${panelStyle} p-3`} style={panelBg}>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'rgba(139,92,246,0.6)' }}>
+                  Radio · Captures
+                </h2>
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold"
+                    style={{ background: 'rgba(139,92,246,0.15)', color: '#a78bfa' }}>
+                    {radioToday.count} aujourd'hui
+                  </span>
+                  <button onClick={() => setRadioPanelOpen(!radioPanelOpen)}
+                    className="text-[9px] text-white/30 hover:text-white/60">
+                    {radioPanelOpen ? '▾' : '▸'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Status indicators */}
+              <div className="flex flex-wrap gap-1 mb-2">
+                {radioHealth.slice(0, 6).map(stream => (
+                  <div key={stream.key} className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-lg"
+                    style={{ background: 'rgba(255,255,255,0.03)' }}
+                    title={`${stream.name} — ${stream.status} (${stream.latency_ms}ms)`}>
+                    <span className="w-1.5 h-1.5 rounded-full" style={{
+                      background: stream.status === 'healthy' ? '#34d399' : stream.status === 'degraded' ? '#fbbf24' : '#f87171'
+                    }} />
+                    <span className="text-white/50 truncate max-w-[60px]">{stream.name?.split('_')[0] || stream.key}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Expanded panel */}
+              {radioPanelOpen && (
+                <div className="space-y-1.5 mt-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <p className="text-[9px] text-white/30 mb-1">Lancer une capture manuelle :</p>
+                  {radioHealth.map(stream => (
+                    <div key={stream.key} className="flex items-center justify-between gap-2 py-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{
+                          background: stream.status === 'healthy' ? '#34d399' : stream.status === 'degraded' ? '#fbbf24' : '#f87171'
+                        }} />
+                        <span className="text-[10px] text-white/70 truncate">{stream.name || stream.key}</span>
+                        <span className="text-[8px] text-white/20">{stream.latency_ms}ms</span>
+                      </div>
+                      <button
+                        onClick={() => handleRadioCapture(stream.key)}
+                        disabled={radioCapturing !== null}
+                        className="flex-shrink-0 text-[9px] px-2 py-0.5 rounded-lg font-semibold transition-all disabled:opacity-30"
+                        style={{ background: 'rgba(139,92,246,0.15)', color: '#a78bfa', border: '1px solid rgba(139,92,246,0.2)' }}>
+                        {radioCapturing === stream.key ? '⟳ Capture...' : '▶ Capturer'}
+                      </button>
+                    </div>
+                  ))}
+                  <button onClick={loadRadioStatus}
+                    className="w-full text-[9px] text-white/30 hover:text-white/50 mt-1 py-1">
+                    ↻ Rafraîchir statuts
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
