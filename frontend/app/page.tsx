@@ -41,7 +41,7 @@ const COMMUNE_COORDS: Record<string, [number, number]> = {
   'Vieux-Fort': [-61.7000, 15.9500], 'Marie-Galante': [-61.2700, 15.9400],
   'La Désirade': [-61.0500, 16.3100], 'Terre-de-Haut': [-61.5900, 15.8600],
   'Terre-de-Bas': [-61.6400, 15.8600], 'Anse-Bertrand': [-61.5000, 16.4700],
-  'Petit-Canal': [-61.4900, 16.3700], 'Morne-à-l\'Eau': [-61.4539, 16.3339],
+  'Petit-Canal': [-61.4900, 16.3700],
   'Sainte-Rose': [-61.6972, 16.3339],
 };
 
