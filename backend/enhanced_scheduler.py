@@ -717,11 +717,11 @@ def setup_scheduler_jobs():
         max_instances=1
     )
 
-    # 6. Cycle de vie des affaires - Toutes les heures à :30
+    # 6. Cycle de vie des affaires - Toutes les 30 min
     # Clustering, promotion, fusion doublons, ré-affiliation orphelins
     scheduler.add_job(
         affair_lifecycle_job,
-        trigger=CronTrigger(minute=30, timezone=timezone),
+        trigger=IntervalTrigger(minutes=30),
         id="affair_lifecycle",
         name="Cycle de vie des affaires (auto)",
         replace_existing=True,
@@ -748,30 +748,30 @@ def setup_scheduler_jobs():
         max_instances=1
     )
 
-    # 9. Nettoyage GPT des affaires — toutes les 12h
+    # 9. Nettoyage GPT des affaires — toutes les 6h
     scheduler.add_job(
         gpt_affair_cleanup_job,
-        trigger=CronTrigger(hour="4,16", minute=15, timezone=timezone),
+        trigger=CronTrigger(hour="*/6", minute=15, timezone=timezone),
         id="gpt_affair_cleanup",
         name="Nettoyage GPT affaires (anti-pollution)",
         replace_existing=True,
         max_instances=1
     )
 
-    # 10. Cross-check stale ↔ active (GPT) — toutes les heures
+    # 10. Cross-check stale ↔ active (GPT) — toutes les 30 min (offset 15)
     scheduler.add_job(
         stale_active_crosscheck_job,
-        trigger=CronTrigger(minute=45, timezone=timezone),
+        trigger=IntervalTrigger(minutes=30),
         id="stale_active_crosscheck",
         name="Cross-check GPT stale↔active (fusion)",
         replace_existing=True,
         max_instances=1
     )
 
-    # 11. Classification communes — toutes les 3h
+    # 11. Classification communes — toutes les heures
     scheduler.add_job(
         classify_communes_job,
-        trigger=CronTrigger(hour="*/3", minute=20, timezone=timezone),
+        trigger=CronTrigger(minute=20, timezone=timezone),
         id="classify_communes",
         name="Classification articles par commune (regex+IA)",
         replace_existing=True,
