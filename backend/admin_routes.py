@@ -22,6 +22,19 @@ import os
 logger = logging.getLogger("admin_routes")
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
+# ── Notifications Telegram (optionnel) ──
+try:
+    from backend.telegram_service import notify_affair_merged as _tg_merged, notify_affair_unlinked as _tg_unlinked
+    _tg_notifs_ok = True
+except ImportError:
+    try:
+        from telegram_service import notify_affair_merged as _tg_merged, notify_affair_unlinked as _tg_unlinked
+        _tg_notifs_ok = True
+    except ImportError:
+        _tg_notifs_ok = False
+        _tg_merged = None
+        _tg_unlinked = None
+
 # ── Auth ──────────────────────────────────────────────────────
 SECRET_KEY = os.getenv("JWT_SECRET", "dev-secret-change-me")
 ALGORITHM = "HS256"
@@ -213,6 +226,13 @@ async def merge_affairs(
             "timestamp": datetime.now(timezone.utc),
         })
         merged_count += 1
+
+        # Notification Telegram
+        if _tg_notifs_ok and _tg_merged:
+            try:
+                _tg_merged(keep_affair, source, merge_type="manual", reason=reason, by=user["email"])
+            except Exception as tg_err:
+                logger.debug(f"Telegram notify merge: {tg_err}")
 
     # Recalculer BMG
     updated = svc.affairs.find_one({"_id": ObjectId(keep_id)})
@@ -434,12 +454,35 @@ async def unlink_article_from_affair(
                   "_unlinked_manually": True, "_unlinked_by": user["email"]}}
     )
 
+    # Récupérer le titre de l'article pour la notification
+    art_info = svc.articles.find_one(
+        {"_id": ObjectId(article_id)}, {"title": 1, "source": 1}
+    ) or {}
+
     svc.timeline.insert_one({
         "affair_id": affair_id,
         "event": "manual_unlink",
-        "details": {"article_id": article_id, "by": user["email"]},
+        "details": {
+            "article_id": article_id,
+            "article_title": art_info.get("title", ""),
+            "by": user["email"],
+        },
         "timestamp": datetime.now(timezone.utc),
     })
+
+    # Notification Telegram
+    if _tg_notifs_ok and _tg_unlinked:
+        try:
+            affair = svc.affairs.find_one({"_id": ObjectId(affair_id)}) or {}
+            _tg_unlinked(
+                affair,
+                article_title=art_info.get("title", ""),
+                article_source=art_info.get("source", ""),
+                unlink_type="manual",
+                by=user["email"],
+            )
+        except Exception as tg_err:
+            logger.debug(f"Telegram notify unlink: {tg_err}")
 
     return {"success": True}
 

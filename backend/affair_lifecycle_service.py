@@ -41,15 +41,28 @@ from pymongo import MongoClient, DESCENDING
 
 # Notifications Telegram (optionnel)
 try:
-    from backend.telegram_service import notify_new_affair as _tg_notify
+    from backend.telegram_service import (
+        notify_new_affair as _tg_notify,
+        notify_affair_merged as _tg_merged,
+        notify_affair_unlinked as _tg_unlinked,
+        notify_snowball_alert as _tg_snowball,
+    )
     _telegram_ok = True
 except ImportError:
     try:
-        from telegram_service import notify_new_affair as _tg_notify
+        from telegram_service import (
+            notify_new_affair as _tg_notify,
+            notify_affair_merged as _tg_merged,
+            notify_affair_unlinked as _tg_unlinked,
+            notify_snowball_alert as _tg_snowball,
+        )
         _telegram_ok = True
     except ImportError:
         _telegram_ok = False
         _tg_notify = None
+        _tg_merged = None
+        _tg_unlinked = None
+        _tg_snowball = None
 from bson import ObjectId
 
 # Dédup IA (optionnel)
@@ -250,6 +263,11 @@ PROMOTION_MIN_ITEMS = 2                # Minimum d'items — 1 seul article ne f
 AFFAIR_ACTIVE_DAYS = 7                 # Durée de vie active (1 semaine)
 AFFAIR_STALE_DAYS = 4                  # Jours sans activité → statut "stale"
 MAX_ACTIVE_AFFAIRS = 100               # Maximum d'affaires actives — le frontend gère via priorités
+
+# --- Anti boule de neige ---
+SNOWBALL_MERGE_THRESHOLD = 5           # Nombre de fusions récentes (24h) déclenchant l'alerte
+SNOWBALL_MAX_ITEMS = 25                # Au-delà de ce nb d'items, l'affaire est signalée
+SNOWBALL_WINDOW_HOURS = 24             # Fenêtre de détection des fusions récentes
 
 # --- Priorité des affaires ---
 # 3 niveaux : hot (rouge), watch (jaune), minor (vert)
@@ -1728,6 +1746,18 @@ class AffairLifecycleService:
                     {"$set": {"_affair_processed": True, "_affair_id": str(best_match["_id"])}}
                 )
                 stats["merged"] += 1
+
+                # Notification Telegram fusion auto
+                if _telegram_ok and _tg_merged:
+                    try:
+                        _tg_merged(
+                            best_match,
+                            {"title": art.get("title", ""), "gravity_score": gravity, "item_count": 1},
+                            merge_type="auto",
+                            reason=f"Score matching: {best_score}" if best_score else "",
+                        )
+                    except Exception:
+                        pass
             else:
                 # Créer une nouvelle affaire
                 # NOUVEAU SEUIL : gravity >= 0.35 (on crée plus facilement car GPT décide des fusions)
@@ -1851,6 +1881,9 @@ class AffairLifecycleService:
         # Après le lifecycle qui peut avoir passé des affaires en stale,
         # on vérifie si des stale et des actives parlent du même sujet
         stats["stale_active_merged"] = self._cross_check_stale_active()
+
+        # ── ÉTAPE 10 : Détection boule de neige ──
+        stats["snowball_alerts"] = self._detect_snowball_affairs()
 
         logger.info(
             f"✅ Cycle simplifié: {stats['created']} créées, {stats['merged']} fusionnées, "
@@ -2254,6 +2287,13 @@ class AffairLifecycleService:
                     merged_ids.add(str(absorb["_id"]))
                     merged_count += 1
 
+                    # Notification Telegram fusion inter-affaires
+                    if _telegram_ok and _tg_merged:
+                        try:
+                            _tg_merged(keep, absorb, merge_type="inter", reason=reason)
+                        except Exception:
+                            pass
+
         if merged_count > 0:
             logger.info(f"🔀 {merged_count} affaires fusionnées entre elles")
         return merged_count
@@ -2375,6 +2415,13 @@ class AffairLifecycleService:
                     }}
                 )
                 merged_count += 1
+
+                # Notification Telegram fusion IA
+                if _telegram_ok and _tg_merged:
+                    try:
+                        _tg_merged(keep_affair, absorb_affair, merge_type="ia", reason=reason)
+                    except Exception:
+                        pass
 
         if merged_count > 0:
             logger.info(f"🤖 Dédup IA: {merged_count} affaires fusionnées")
@@ -2515,6 +2562,13 @@ class AffairLifecycleService:
             })
 
             merged_count += 1
+
+            # Notification Telegram fusion stale→active
+            if _telegram_ok and _tg_merged:
+                try:
+                    _tg_merged(active_affair, stale_affair, merge_type="stale", reason=reason)
+                except Exception:
+                    pass
 
         if merged_count > 0:
             logger.info(f"🤖 Cross-check stale↔active: {merged_count} affaires en veille fusionnées")
@@ -3896,6 +3950,100 @@ class AffairLifecycleService:
                 "timestamp": now,
             })
             logger.info(f"📤 Affaire expirée (limite {MAX_ACTIVE_AFFAIRS}): '{aff.get('title', '')[:40]}'")
+
+    def _detect_snowball_affairs(self) -> int:
+        """Détecte les affaires qui accumulent trop de fusions récentes (effet boule de neige).
+
+        Vérifie dans la timeline combien de fusions chaque affaire active a reçu
+        dans les dernières SNOWBALL_WINDOW_HOURS heures. Si ça dépasse le seuil,
+        envoie une alerte Telegram et marque l'affaire comme suspecte.
+
+        Retourne le nombre d'alertes envoyées.
+        """
+        now = datetime.utcnow()
+        cutoff = now - timedelta(hours=SNOWBALL_WINDOW_HOURS)
+        alerts_sent = 0
+
+        # Chercher les événements de fusion récents dans la timeline
+        merge_events = [
+            "manual_merge", "cluster_merged", "consolidated",
+            "stale_merged", "article_added", "radio_topic_added",
+            "article_reaffiliated",
+        ]
+
+        # Compter les fusions par affaire dans la fenêtre
+        pipeline = [
+            {"$match": {
+                "event": {"$in": merge_events},
+                "timestamp": {"$gte": cutoff},
+            }},
+            {"$group": {
+                "_id": "$affair_id",
+                "merge_count": {"$sum": 1},
+            }},
+            {"$match": {
+                "merge_count": {"$gte": SNOWBALL_MERGE_THRESHOLD},
+            }},
+        ]
+
+        try:
+            results = list(self.timeline.aggregate(pipeline))
+        except Exception as e:
+            logger.warning(f"⚠️ Snowball detection: {e}")
+            return 0
+
+        for result in results:
+            affair_id = result["_id"]
+            merge_count = result["merge_count"]
+
+            affair = self.affairs.find_one({"_id": ObjectId(affair_id)}) if ObjectId.is_valid(affair_id) else None
+            if not affair:
+                continue
+
+            # Vérifier aussi le nombre total d'items
+            item_count = affair.get("item_count", 0)
+            already_flagged = affair.get("_snowball_flagged", False)
+
+            if merge_count >= SNOWBALL_MERGE_THRESHOLD or item_count >= SNOWBALL_MAX_ITEMS:
+                # Marquer l'affaire comme suspecte (ne pas la bloquer, juste alerter)
+                if not already_flagged:
+                    self.affairs.update_one(
+                        {"_id": affair["_id"]},
+                        {"$set": {
+                            "_snowball_flagged": True,
+                            "_snowball_flagged_at": now,
+                            "_snowball_merge_count": merge_count,
+                        }}
+                    )
+
+                    self.timeline.insert_one({
+                        "affair_id": affair_id,
+                        "event": "snowball_alert",
+                        "details": {
+                            "merge_count_24h": merge_count,
+                            "item_count": item_count,
+                            "threshold": SNOWBALL_MERGE_THRESHOLD,
+                        },
+                        "timestamp": now,
+                    })
+
+                    # Notification Telegram
+                    if _telegram_ok and _tg_snowball:
+                        try:
+                            _tg_snowball(affair, merge_count, SNOWBALL_MERGE_THRESHOLD)
+                        except Exception:
+                            pass
+
+                    logger.warning(
+                        f"⚠️ BOULE DE NEIGE: '{affair.get('title', '')[:50]}' "
+                        f"— {merge_count} fusions en {SNOWBALL_WINDOW_HOURS}h, "
+                        f"{item_count} items total"
+                    )
+                    alerts_sent += 1
+
+        if alerts_sent > 0:
+            logger.info(f"⚠️ {alerts_sent} alertes boule de neige envoyées")
+        return alerts_sent
 
     def _recalculate_active_bmg(self):
         """Recalcule le BMG de toutes les affaires actives."""

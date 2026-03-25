@@ -291,3 +291,130 @@ def test_connection() -> Dict[str, Any]:
 
     success = send_message("✅ <b>Veille Média Guadeloupe</b> — Connexion Telegram OK !")
     return {"ok": success, "bot_token_set": bool(BOT_TOKEN), "chat_id_set": bool(CHAT_ID)}
+
+
+# ── Notifications Fusion / Déliage ──────────────────────────
+
+def notify_affair_merged(
+    keep_affair: Dict[str, Any],
+    absorbed_affair: Dict[str, Any],
+    merge_type: str = "auto",
+    reason: str = "",
+    by: str = "",
+) -> bool:
+    """Notifie quand une affaire en absorbe une autre (fusion).
+
+    merge_type: "auto" (système), "manual" (admin), "ia" (dédup IA), "stale" (stale→active)
+    """
+    if not is_configured():
+        return False
+
+    keep_title = keep_affair.get("title", "Sans titre")[:120]
+    absorbed_title = absorbed_affair.get("title", "Sans titre")[:120]
+    keep_gravity = keep_affair.get("gravity_score", 0)
+    absorbed_gravity = absorbed_affair.get("gravity_score", 0)
+    keep_items = keep_affair.get("item_count", 0)
+    absorbed_items = absorbed_affair.get("item_count", 0)
+
+    emoji = _gravity_emoji(max(keep_gravity, absorbed_gravity))
+
+    type_labels = {
+        "auto": "🤖 Auto",
+        "manual": "👤 Manuelle",
+        "ia": "🧠 Dédup IA",
+        "stale": "🔄 Stale→Active",
+        "inter": "🔀 Inter-affaires",
+    }
+    type_label = type_labels.get(merge_type, merge_type)
+
+    text = (
+        f"🔗 <b>FUSION — {type_label}</b>\n\n"
+        f"{emoji} <b>{keep_title}</b>\n"
+        f"    ← absorbe ←\n"
+        f"📄 <i>{absorbed_title}</i>\n\n"
+        f"📊 Gravité : {keep_gravity:.0%} (absorbée: {absorbed_gravity:.0%})\n"
+        f"📎 Items : {keep_items} + {absorbed_items}\n"
+    )
+
+    if reason:
+        text += f"💬 Raison : {reason}\n"
+    if by:
+        text += f"👤 Par : {by}\n"
+
+    return send_message(text)
+
+
+def notify_affair_unlinked(
+    affair: Dict[str, Any],
+    article_title: str = "",
+    article_source: str = "",
+    unlink_type: str = "manual",
+    reason: str = "",
+    by: str = "",
+) -> bool:
+    """Notifie quand un article est délié d'une affaire.
+
+    unlink_type: "manual" (admin), "auto" (vérification GPT), "cleanup" (nettoyage)
+    """
+    if not is_configured():
+        return False
+
+    affair_title = affair.get("title", "Sans titre")[:120]
+    gravity = affair.get("gravity_score", 0)
+    remaining_items = affair.get("item_count", 0)
+
+    type_labels = {
+        "manual": "👤 Manuelle",
+        "auto": "🤖 Vérification IA",
+        "cleanup": "🧹 Nettoyage",
+    }
+    type_label = type_labels.get(unlink_type, unlink_type)
+
+    text = (
+        f"✂️ <b>DÉLIAGE — {type_label}</b>\n\n"
+        f"📄 <i>{article_title or 'Article inconnu'}</i>"
+    )
+    if article_source:
+        text += f" ({article_source})"
+    text += (
+        f"\n    délié de →\n"
+        f"📋 <b>{affair_title}</b>\n\n"
+        f"📊 Gravité affaire : {gravity:.0%}\n"
+        f"📎 Items restants : {remaining_items}\n"
+    )
+
+    if reason:
+        text += f"💬 Raison : {reason}\n"
+    if by:
+        text += f"👤 Par : {by}\n"
+
+    return send_message(text)
+
+
+# ── Notification résumé fusions (anti boule de neige) ──────
+
+def notify_snowball_alert(
+    affair: Dict[str, Any],
+    merge_count_recent: int,
+    threshold: int = 5,
+) -> bool:
+    """Alerte quand une affaire accumule trop de fusions récentes (effet boule de neige).
+    Permet de détecter les affaires qui absorbent tout."""
+    if not is_configured():
+        return False
+
+    title = affair.get("title", "Sans titre")[:120]
+    gravity = affair.get("gravity_score", 0)
+    item_count = affair.get("item_count", 0)
+
+    text = (
+        f"⚠️ <b>ALERTE BOULE DE NEIGE</b>\n\n"
+        f"📋 <b>{title}</b>\n\n"
+        f"🔗 {merge_count_recent} fusions récentes (seuil: {threshold})\n"
+        f"📎 {item_count} items au total\n"
+        f"📊 Gravité : {gravity:.0%}\n\n"
+        f"⚠️ Cette affaire absorbe beaucoup de contenu.\n"
+        f"Vérifiez qu'il ne s'agit pas d'un thème trop large."
+    )
+
+    return send_message(text)

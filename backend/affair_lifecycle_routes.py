@@ -19,6 +19,18 @@ from bson import ObjectId
 logger = logging.getLogger("affair_lifecycle_routes")
 router = APIRouter(prefix="/api/affairs", tags=["affairs-v2"])
 
+# ── Notifications Telegram (optionnel) ──
+try:
+    from backend.telegram_service import notify_affair_unlinked as _tg_unlinked
+    _tg_notifs_ok = True
+except ImportError:
+    try:
+        from telegram_service import notify_affair_unlinked as _tg_unlinked
+        _tg_notifs_ok = True
+    except ImportError:
+        _tg_notifs_ok = False
+        _tg_unlinked = None
+
 # ── Auth dependencies (lazy import pour éviter les imports circulaires) ──
 _auth_deps = {}
 
@@ -1490,6 +1502,22 @@ async def verify_linked_articles(affair_id: str, auto_unlink: bool = Query(False
                     {"$pull": {"articles": art_id}}
                 )
                 unlinked_count += 1
+
+                # Notification Telegram déliage auto
+                if _tg_notifs_ok and _tg_unlinked:
+                    try:
+                        art_info = svc.articles.find_one(
+                            {"_id": ObjectId(art_id)}, {"title": 1, "source": 1}
+                        ) or {}
+                        _tg_unlinked(
+                            affair,
+                            article_title=art_info.get("title", ""),
+                            article_source=art_info.get("source", ""),
+                            unlink_type="auto",
+                            reason=result.get("reasons", {}).get(art_id, "Hors-sujet (vérification IA)"),
+                        )
+                    except Exception:
+                        pass
             except Exception:
                 pass
 
