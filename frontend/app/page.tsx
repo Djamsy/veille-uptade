@@ -805,10 +805,10 @@ export default function DashboardPage() {
   const searchTimeout = useRef<NodeJS.Timeout | null>(null)
 
   // ── Theme mode ──
-  const [themeMode, setThemeMode] = useState<'dark' | 'light'>('dark')
+  const [themeMode, setThemeMode] = useState<'dark' | 'light'>('light')
 
   useEffect(() => {
-    const saved = localStorage.getItem('veille-theme') || 'dark'
+    const saved = localStorage.getItem('veille-theme') || 'light'
     setThemeMode(saved as 'dark' | 'light')
     document.documentElement.setAttribute('data-theme', saved)
   }, [])

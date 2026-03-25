@@ -1321,6 +1321,81 @@ def detect_duplicate_affairs(affairs: List[Dict[str, Any]]) -> Optional[List[Dic
 
 
 # ============================================================
+# REFORMULATION DE TITRE D'AFFAIRE
+# ============================================================
+
+REWRITE_TITLE_PROMPT = """Tu es un éditeur de presse en Guadeloupe. On te donne le titre brut d'une affaire, sa description et ses entités.
+
+Reformule le titre pour qu'il soit :
+1. CLAIR et CONTEXTUALISÉ (qui, quoi, où)
+2. CONCIS (max 15 mots)
+3. Avec les NOMS PROPRES corrects (pas de fautes, pas d'abréviations)
+4. Avec le LIEU si pertinent (commune ou quartier)
+
+EXEMPLES :
+- Brut: "Incendie" + lieu: Pointe-à-Pitre → "Incendie dans un immeuble à Pointe-à-Pitre"
+- Brut: "Chalus convoque" + entités: Ary Chalus → "Ary Chalus convoqué par le parquet de Pointe-à-Pitre"
+- Brut: "Grève transport" + lieu: Guadeloupe → "Grève des transports en commun en Guadeloupe"
+- Brut: "Noyade plage" + lieu: Sainte-Anne → "Noyade d'un baigneur à Sainte-Anne"
+
+Si le titre original est déjà bon et contextualisé, retourne-le tel quel.
+
+Réponds UNIQUEMENT en JSON : {"title": "Le titre reformulé"}"""
+
+
+def rewrite_affair_title(
+    raw_title: str,
+    description: str = "",
+    elected: List[str] = None,
+    institutions: List[str] = None,
+    communes: List[str] = None,
+    theme: str = "",
+) -> Optional[str]:
+    """Reformule un titre d'affaire pour le rendre plus clair et contextualisé.
+    Retourne le nouveau titre ou None si échec."""
+    if not is_available() or not raw_title:
+        return None
+
+    context_parts = [f"Titre brut: {raw_title}"]
+    if description:
+        context_parts.append(f"Description: {description[:200]}")
+    if elected:
+        context_parts.append(f"Élus: {', '.join(elected[:5])}")
+    if institutions:
+        context_parts.append(f"Institutions: {', '.join(institutions[:5])}")
+    if communes:
+        context_parts.append(f"Lieux: {', '.join(communes[:3])}")
+    if theme:
+        context_parts.append(f"Thème: {theme}")
+
+    try:
+        raw = _call_ai(
+            messages=[
+                {"role": "system", "content": REWRITE_TITLE_PROMPT},
+                {"role": "user", "content": "\n".join(context_parts)},
+            ],
+            temperature=0.1,
+            max_tokens=100,
+            json_mode=True,
+        )
+        if raw is None:
+            return None
+
+        result = json.loads(raw)
+        new_title = result.get("title", "").strip()
+
+        if new_title and len(new_title) > 5:
+            if new_title != raw_title:
+                logger.info(f"✏️ Titre reformulé: '{raw_title[:40]}' → '{new_title[:40]}'")
+            return new_title
+        return None
+
+    except Exception as e:
+        logger.debug(f"Reformulation titre: {e}")
+        return None
+
+
+# ============================================================
 # VALIDATION GPT — PERTINENCE ARTICLE ↔ AFFAIRE
 # ============================================================
 

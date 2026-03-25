@@ -72,6 +72,7 @@ try:
     from backend.ai_groq_service import detect_stale_active_matches as _ai_stale_active
     from backend.ai_groq_service import match_article_to_affairs as _ai_match_article
     from backend.ai_groq_service import detect_commune_ai as _ai_detect_commune
+    from backend.ai_groq_service import rewrite_affair_title as _ai_rewrite_title
     _ai_dedup_ok = True
     _ai_relevance_ok = True
     _ai_stale_active_ok = True
@@ -84,6 +85,7 @@ except ImportError:
         from ai_groq_service import detect_stale_active_matches as _ai_stale_active
         from ai_groq_service import match_article_to_affairs as _ai_match_article
         from ai_groq_service import detect_commune_ai as _ai_detect_commune
+        from ai_groq_service import rewrite_affair_title as _ai_rewrite_title
         _ai_dedup_ok = True
         _ai_relevance_ok = True
         _ai_stale_active_ok = True
@@ -100,6 +102,21 @@ except ImportError:
         _ai_match_article = None
         _ai_commune_ok = False
         _ai_detect_commune = None
+        _ai_rewrite_title = None
+
+# ── Correction auto des noms/lieux (optionnel) ──
+try:
+    from backend.entity_aliases import correct_text_stt as _correct_stt, correct_entities_list as _correct_entities, resolve_entity as _resolve_entity
+    _entity_aliases_ok = True
+except ImportError:
+    try:
+        from entity_aliases import correct_text_stt as _correct_stt, correct_entities_list as _correct_entities, resolve_entity as _resolve_entity
+        _entity_aliases_ok = True
+    except ImportError:
+        _entity_aliases_ok = False
+        _correct_stt = None
+        _correct_entities = None
+        _resolve_entity = None
 
 logger = logging.getLogger("affair_lifecycle")
 
@@ -373,6 +390,76 @@ class AffairLifecycleService:
             self.timeline.create_index([("timestamp", DESCENDING)])
         except Exception as e:
             logger.warning(f"⚠️ Index creation: {e}")
+
+    # ============================================================
+    # NORMALISATION AUTO — NOMS, LIEUX, TITRES
+    # ============================================================
+
+    @staticmethod
+    def normalize_affair_data(affair_dict: dict) -> dict:
+        """Corrige automatiquement les noms, lieux et titres dans un dict affaire.
+
+        - Corrige le titre (STT + noms propres + lieux)
+        - Corrige la description
+        - Normalise les entités (elected, institutions)
+        - Normalise les communes
+
+        Retourne le dict modifié in-place.
+        """
+        if not _entity_aliases_ok:
+            return affair_dict
+
+        # 1. Corriger le titre (noms propres, lieux, STT)
+        title = affair_dict.get("title", "")
+        if title and _correct_stt:
+            corrected_title = _correct_stt(title)
+            if corrected_title != title:
+                logger.info(f"✏️ Titre corrigé: '{title[:50]}' → '{corrected_title[:50]}'")
+                affair_dict["title"] = corrected_title
+
+        # 2. Corriger la description
+        desc = affair_dict.get("description", "")
+        if desc and _correct_stt:
+            affair_dict["description"] = _correct_stt(desc)
+
+        # 3. Normaliser les entités élues
+        elected = affair_dict.get("elected", [])
+        if elected and _correct_entities:
+            affair_dict["elected"] = _correct_entities(elected)
+
+        # 4. Normaliser les institutions
+        institutions = affair_dict.get("institutions", [])
+        if institutions and _correct_entities:
+            affair_dict["institutions"] = _correct_entities(institutions)
+
+        # 5. Normaliser les entités génériques
+        entities = affair_dict.get("entities", [])
+        if entities and _correct_entities:
+            affair_dict["entities"] = _correct_entities(entities)
+
+        # 6. Normaliser le primary_entity
+        pe = affair_dict.get("primary_entity")
+        if pe and _resolve_entity:
+            affair_dict["primary_entity"] = _resolve_entity(pe)
+
+        # 7. Reformulation du titre via GPT (contextualiser avec lieu/entités)
+        if _ai_rewrite_title:
+            try:
+                new_title = _ai_rewrite_title(
+                    raw_title=affair_dict.get("title", ""),
+                    description=affair_dict.get("description", ""),
+                    elected=affair_dict.get("elected", []),
+                    institutions=affair_dict.get("institutions", []),
+                    communes=affair_dict.get("communes", []),
+                    theme=affair_dict.get("theme", ""),
+                )
+                if new_title:
+                    affair_dict["_original_title"] = affair_dict.get("title", "")
+                    affair_dict["title"] = new_title
+            except Exception as e:
+                logger.debug(f"Reformulation titre: {e}")
+
+        return affair_dict
 
     # ============================================================
     # PRIORITÉ DES AFFAIRES
@@ -1809,6 +1896,7 @@ class AffairLifecycleService:
                     art_embedding = art.get("embedding")
                     if art_embedding:
                         new_affair["embedding"] = art_embedding
+                    self.normalize_affair_data(new_affair)
                     result = self.affairs.insert_one(new_affair)
                     new_id = str(result.inserted_id)
                     new_affair["_id"] = result.inserted_id
@@ -3444,6 +3532,7 @@ class AffairLifecycleService:
                     "_creation_method": "radio_topic",
                     "radio_topics": [topic_info],
                 }
+                self.normalize_affair_data(new_affair)
                 result = self.affairs.insert_one(new_affair)
                 new_affair["_id"] = result.inserted_id
                 active_affairs.append(new_affair)
@@ -3944,6 +4033,7 @@ class AffairLifecycleService:
                     "bmg_history": [],
                     "ai_managed": True,
                 }
+                self.normalize_affair_data(new_affair)
 
                 result = self.affairs.insert_one(new_affair)
                 new_affair_id = str(result.inserted_id)
@@ -4511,6 +4601,7 @@ class AffairLifecycleService:
                     "ai_managed": False,
                     "_creation_method": "direct_from_enriched",
                 }
+                self.normalize_affair_data(new_affair)
                 result = self.affairs.insert_one(new_affair)
                 new_id = str(result.inserted_id)
                 self.articles.update_one(
