@@ -517,9 +517,9 @@ function MajorStories({ affairs }: { affairs: Affair[] }) {
       <Link href={`/affairs/${affair._id}`}>
         <div className="group cursor-pointer transition-all duration-500">
           <div className="flex items-start gap-4">
-            {/* BMG */}
-            <div className="flex-shrink-0">
-              <BmgGauge value={(affair.bmg || 0) * 100} size={56} />
+            {/* BMG inline */}
+            <div className="flex-shrink-0 w-14 h-14 rounded-full border-2 border-cyan-500/40 flex items-center justify-center text-xs font-bold text-cyan-300">
+              {Math.round((affair.bmg || 0) * 100)}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1.5">
