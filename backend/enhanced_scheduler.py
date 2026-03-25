@@ -722,10 +722,10 @@ def setup_scheduler_jobs():
         max_instances=1
     )
 
-    # 10. Cross-check stale ↔ active (GPT) — toutes les 8h
+    # 10. Cross-check stale ↔ active (GPT) — toutes les heures
     scheduler.add_job(
         stale_active_crosscheck_job,
-        trigger=CronTrigger(hour="6,14,22", minute=30, timezone=timezone),
+        trigger=CronTrigger(minute=45, timezone=timezone),
         id="stale_active_crosscheck",
         name="Cross-check GPT stale↔active (fusion)",
         replace_existing=True,

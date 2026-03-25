@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Scrollbar invisible ──────────────────────────── */
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+
 :root {
   /* ── Palette Vivid — lumineux sur fond sombre ───────── */
   --primary: #6366f1;

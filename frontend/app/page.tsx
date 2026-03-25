@@ -3,8 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import Sidebar from '../components/Sidebar'
-import BmgGauge from '../components/BmgGauge'
-import GuadeloupeMap from '../components/GuadeloupeMap'
 import {
   fetchEnrichedDashboard,
   fetchAffairsByCommune,
@@ -27,119 +25,183 @@ import {
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
-// ── Mapbox 3D Background ─────────────────────────────
-function MapBackground({ communes }: { communes?: Record<string, { stats: { total_items: number; max_gravity: number } }> }) {
+// ── Coordonnées communes Guadeloupe ─────────────────
+const COMMUNE_COORDS: Record<string, [number, number]> = {
+  'Pointe-à-Pitre': [-61.5339, 16.2411], 'Les Abymes': [-61.5028, 16.2706],
+  'Baie-Mahault': [-61.5917, 16.2678], 'Le Moule': [-61.3469, 16.3339],
+  'Sainte-Anne': [-61.3833, 16.2267], 'Saint-François': [-61.2753, 16.2536],
+  'Le Gosier': [-61.4936, 16.2133], 'Petit-Bourg': [-61.5897, 16.1933],
+  'Capesterre-Belle-Eau': [-61.5667, 16.0500], 'Sainte-Rose': [-61.6972, 16.3339],
+  'Deshaies': [-61.7917, 16.3078], 'Bouillante': [-61.7719, 16.1378],
+  'Trois-Rivières': [-61.6333, 15.9750], 'Basse-Terre': [-61.7256, 15.9978],
+  "Morne-à-l'Eau": [-61.4539, 16.3339], 'Port-Louis': [-61.5278, 16.4189],
+  'Lamentin': [-61.6333, 16.2700], 'Goyave': [-61.5800, 16.1300],
+  'Vieux-Habitants': [-61.7580, 16.0600], 'Pointe-Noire': [-61.7900, 16.2300],
+  'Saint-Claude': [-61.6900, 16.0200], 'Gourbeyre': [-61.7000, 15.9800],
+  'Vieux-Fort': [-61.7000, 15.9500], 'Marie-Galante': [-61.2700, 15.9400],
+  'La Désirade': [-61.0500, 16.3100], 'Terre-de-Haut': [-61.5900, 15.8600],
+  'Terre-de-Bas': [-61.6400, 15.8600], 'Anse-Bertrand': [-61.5000, 16.4700],
+  'Petit-Canal': [-61.4900, 16.3700], 'Morne-à-l\'Eau': [-61.4539, 16.3339],
+  'Sainte-Rose': [-61.6972, 16.3339],
+};
+
+// ── Mapbox 3D Map (interactif, plein écran) ─────────────
+function MapboxFullMap({
+  communes,
+  onSelectCommune,
+}: {
+  communes?: Record<string, { stats: { total_items: number; max_gravity: number }; affairs?: any[] }>;
+  onSelectCommune?: (name: string | null) => void;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
-  const [mapReady, setMapReady] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [mapError, setMapError] = useState('');
+  const initAttempted = useRef(false);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const token = MAPBOX_TOKEN;
-    console.log('[MapBackground] token present:', !!token, 'length:', token.length);
-    if (!token) return;
+    if (typeof window === 'undefined' || initAttempted.current) return;
+    initAttempted.current = true;
 
-    const init = () => {
+    // Token peut venir de l'env OU être hardcodé en fallback côté client
+    const token = MAPBOX_TOKEN || (window as any).__MAPBOX_TOKEN || '';
+    if (!token) {
+      setMapError('Token Mapbox manquant');
+      return;
+    }
+
+    const initMap = () => {
       if (!containerRef.current || mapRef.current) return;
       const mapboxgl = (window as any).mapboxgl;
-      if (!mapboxgl) { console.log('[MapBackground] mapboxgl not loaded yet'); return; }
+      if (!mapboxgl) { setMapError('Mapbox GL non chargé'); return; }
 
-      console.log('[MapBackground] Initializing map...');
-      mapboxgl.accessToken = token;
-      const map = new mapboxgl.Map({
-        container: containerRef.current,
-        style: 'mapbox://styles/mapbox/satellite-streets-v12',
-        center: [-61.55, 16.18],
-        zoom: 10.2,
-        pitch: 50,
-        bearing: -10,
-        antialias: true,
-        interactive: false,
-        attributionControl: false,
-      });
-
-      map.on('load', () => {
-        console.log('[MapBackground] Map loaded!');
-        setMapReady(true);
-        map.addSource('mapbox-dem', {
-          type: 'raster-dem',
-          url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
-          tileSize: 512, maxzoom: 14,
-        });
-        map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.5 });
-        map.addLayer({
-          id: 'sky', type: 'sky',
-          paint: { 'sky-type': 'atmosphere', 'sky-atmosphere-sun': [0.0, 90.0], 'sky-atmosphere-sun-intensity': 15 },
+      try {
+        mapboxgl.accessToken = token;
+        const map = new mapboxgl.Map({
+          container: containerRef.current,
+          style: 'mapbox://styles/mapbox/satellite-streets-v12',
+          center: [-61.55, 16.18],
+          zoom: 10.2,
+          pitch: 55,
+          bearing: -15,
+          antialias: true,
+          attributionControl: false,
+          failIfMajorPerformanceCaveat: false,
         });
 
-        // Slow auto-rotation
-        let bearing = -10;
-        const rotate = () => {
-          if (!mapRef.current) return;
-          bearing += 0.01;
-          map.setBearing(bearing);
-          requestAnimationFrame(rotate);
-        };
-        rotate();
-      });
+        map.on('load', () => {
+          setReady(true);
+          try {
+            map.addSource('mapbox-dem', {
+              type: 'raster-dem', url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+              tileSize: 512, maxzoom: 14,
+            });
+            map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.8 });
+            map.addLayer({
+              id: 'sky', type: 'sky',
+              paint: { 'sky-type': 'atmosphere', 'sky-atmosphere-sun': [0.0, 80.0], 'sky-atmosphere-sun-intensity': 15 },
+            });
+          } catch (e) { console.warn('[Map] Terrain/Sky error:', e); }
+        });
 
-      map.on('error', (e: any) => { console.error('[MapBackground] Map error:', e); });
-      mapRef.current = map;
+        map.on('error', (e: any) => {
+          console.error('[Map] Error:', e?.error?.message || e);
+        });
+
+        map.addControl(new mapboxgl.NavigationControl({ showCompass: true, visualizePitch: true }), 'bottom-right');
+        mapRef.current = map;
+      } catch (e: any) {
+        setMapError(e.message || 'Erreur init carte');
+      }
     };
 
-    if ((window as any).mapboxgl) { init(); return; }
-    const css = document.createElement('link');
-    css.rel = 'stylesheet';
-    css.href = 'https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.css';
-    document.head.appendChild(css);
-    const js = document.createElement('script');
-    js.src = 'https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.js';
-    js.onload = () => { console.log('[MapBackground] Mapbox GL JS loaded'); init(); };
-    js.onerror = () => { console.error('[MapBackground] Failed to load Mapbox GL JS'); };
-    document.head.appendChild(js);
+    // Charger Mapbox GL JS via CDN si pas déjà chargé
+    const loadAndInit = () => {
+      if ((window as any).mapboxgl) { initMap(); return; }
 
-    return () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } };
+      // CSS
+      if (!document.querySelector('link[href*="mapbox-gl"]')) {
+        const css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = 'https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.css';
+        document.head.appendChild(css);
+      }
+
+      // JS
+      if (!document.querySelector('script[src*="mapbox-gl"]')) {
+        const js = document.createElement('script');
+        js.src = 'https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.js';
+        js.onload = () => { setTimeout(initMap, 100); };
+        js.onerror = () => { setMapError('CDN Mapbox inaccessible'); };
+        document.head.appendChild(js);
+      } else {
+        // Script déjà en cours de chargement, attendre
+        const check = setInterval(() => {
+          if ((window as any).mapboxgl) { clearInterval(check); initMap(); }
+        }, 200);
+        setTimeout(() => clearInterval(check), 10000);
+      }
+    };
+
+    loadAndInit();
+    return () => {
+      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
+    };
   }, []);
 
-  // Update markers
+  // Markers communes
   useEffect(() => {
-    if (!mapRef.current || !communes) return;
+    if (!mapRef.current || !communes || !ready) return;
     const mapboxgl = (window as any).mapboxgl;
     if (!mapboxgl) return;
 
     markersRef.current.forEach(m => m.remove());
     markersRef.current = [];
 
-    const COORDS: Record<string, [number, number]> = {
-      'Pointe-à-Pitre': [-61.5339, 16.2411], 'Les Abymes': [-61.5028, 16.2706],
-      'Baie-Mahault': [-61.5917, 16.2678], 'Le Moule': [-61.3469, 16.3339],
-      'Sainte-Anne': [-61.3833, 16.2267], 'Saint-François': [-61.2753, 16.2536],
-      'Le Gosier': [-61.4936, 16.2133], 'Petit-Bourg': [-61.5897, 16.1933],
-      'Capesterre-Belle-Eau': [-61.5667, 16.0500], 'Sainte-Rose': [-61.6972, 16.3339],
-      'Deshaies': [-61.7917, 16.3078], 'Bouillante': [-61.7719, 16.1378],
-      'Trois-Rivières': [-61.6333, 15.9750], 'Basse-Terre': [-61.7256, 15.9978],
-      "Morne-à-l'Eau": [-61.4539, 16.3339], 'Port-Louis': [-61.5278, 16.4189],
-    };
-
-    for (const [name, data] of Object.entries(communes)) {
-      const coords = COORDS[name];
-      if (!coords || !data.stats) continue;
-      const g = data.stats.max_gravity;
-      const color = g >= 0.7 ? '#ef4444' : g >= 0.5 ? '#f97316' : g >= 0.3 ? '#eab308' : '#10b981';
-      const size = Math.min(36, Math.max(12, 8 + data.stats.total_items * 1.5));
+    for (const [name, cData] of Object.entries(communes)) {
+      const coords = COMMUNE_COORDS[name];
+      if (!coords || !cData.stats) continue;
+      const g = cData.stats.max_gravity;
+      const color = g >= 0.7 ? '#ef4444' : g >= 0.5 ? '#f97316' : g >= 0.3 ? '#eab308' : '#22c55e';
+      const size = Math.min(44, Math.max(16, 10 + cData.stats.total_items * 2));
 
       const el = document.createElement('div');
-      el.style.cssText = `width:${size}px;height:${size}px;background:radial-gradient(circle,${color}99 0%,${color}33 60%,transparent 100%);border:1.5px solid ${color}88;border-radius:50%;box-shadow:0 0 ${size}px ${color}44;pointer-events:none;`;
+      el.style.cssText = `width:${size}px;height:${size}px;cursor:pointer;background:radial-gradient(circle,${color}cc 0%,${color}44 50%,transparent 100%);border:2px solid ${color}aa;border-radius:50%;box-shadow:0 0 ${size * 1.5}px ${color}66;transition:transform 0.2s;`;
+      el.title = `${name} — ${cData.stats.total_items} items`;
+      el.onmouseenter = () => { el.style.transform = 'scale(1.3)'; };
+      el.onmouseleave = () => { el.style.transform = 'scale(1)'; };
+      el.onclick = () => {
+        if (onSelectCommune) onSelectCommune(name);
+        mapRef.current?.flyTo({ center: coords, zoom: 13, pitch: 60, duration: 1500 });
+      };
 
       const marker = new mapboxgl.Marker({ element: el }).setLngLat(coords).addTo(mapRef.current);
       markersRef.current.push(marker);
     }
-  }, [communes]);
+  }, [communes, ready, onSelectCommune]);
 
   return (
-    <div ref={containerRef} className="absolute inset-0 z-0"
-      style={{ background: mapReady ? undefined : 'radial-gradient(ellipse at center, #0c1929 0%, #020617 100%)' }} />
+    <>
+      <div ref={containerRef} className="absolute inset-0" style={{ width: '100%', height: '100%' }} />
+      {/* Fallback visible avant que la carte charge */}
+      {!ready && (
+        <div className="absolute inset-0 flex items-center justify-center"
+          style={{ background: 'radial-gradient(ellipse at 50% 55%, #0c1a30 0%, #020617 70%)' }}>
+          <div className="text-center">
+            <div className="w-16 h-16 rounded-full border-2 border-indigo-500/30 border-t-indigo-400 animate-spin mx-auto mb-4" />
+            <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.5)' }}>
+              {mapError ? mapError : 'Chargement de la carte 3D...'}
+            </p>
+            {mapError && (
+              <p className="text-[10px] mt-2" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                Vérifiez NEXT_PUBLIC_MAPBOX_TOKEN dans Vercel
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -785,42 +847,6 @@ export default function DashboardPage() {
     finally { setBulkEnriching(false) }
   }
 
-  if (loading) {
-    return (
-      <div className="flex">
-        <Sidebar />
-        <div className="lg:ml-60 flex-1 relative min-h-screen overflow-hidden">
-          <MapBackground communes={mapBgData} />
-          <div className="absolute inset-0 z-[1]" style={{ background: 'linear-gradient(180deg, rgba(2,6,23,0.72) 0%, rgba(2,6,23,0.85) 100%)' }} />
-          <main className="relative z-10 p-4 lg:p-6 min-h-screen">
-            <div className="max-w-[1440px] mx-auto animate-fade-in">
-              <div className="flex items-center justify-between mb-5">
-                <div>
-                  <div className="skeleton h-7 w-44 mb-2" />
-                  <div className="skeleton h-2.5 w-32" />
-                </div>
-                <div className="flex gap-2">
-                  <div className="skeleton h-8 w-20 rounded-lg" />
-                  <div className="skeleton h-8 w-20 rounded-lg" />
-                </div>
-              </div>
-              <div className="skeleton h-12 w-full rounded-xl mb-5" />
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-                {[...Array(4)].map((_, i) => <SkeletonCard key={i} />)}
-              </div>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
-                {[...Array(3)].map((_, i) => <SkeletonWidget key={i} />)}
-              </div>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                {[...Array(3)].map((_, i) => <SkeletonWidget key={i} />)}
-              </div>
-            </div>
-          </main>
-        </div>
-      </div>
-    )
-  }
-
   const topAffairs = data?.top_affairs || []
   const criticals = data?.critical_alerts || []
   const stats = data?.stats
@@ -837,811 +863,266 @@ export default function DashboardPage() {
   const trends = data?.trends
   const avgBmg = data?.avg_bmg || 0
 
+  // ── Panneau style commun ──
+  const panelStyle = 'rounded-2xl border border-white/10 shadow-2xl'
+  const panelBg = { background: 'rgba(2,6,23,0.82)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }
+
   return (
-    <div className="flex">
+    <div className="flex h-screen overflow-hidden">
       <Sidebar />
-      <div className="lg:ml-60 flex-1 relative min-h-screen overflow-hidden">
-        {/* 3D Mapbox satellite background */}
-        <MapBackground communes={mapBgData} />
-        {/* Semi-transparent overlay so widgets are readable */}
-        <div className="absolute inset-0 z-[1]" style={{ background: 'linear-gradient(180deg, rgba(2,6,23,0.45) 0%, rgba(2,6,23,0.60) 50%, rgba(2,6,23,0.75) 100%)' }} />
 
-        <main className="relative z-10 p-4 lg:p-6 min-h-screen">
-        <div className="max-w-[1440px] mx-auto animate-fade-in">
+      {/* Zone principale = carte plein écran + widgets flottants */}
+      <div className="lg:ml-60 flex-1 relative h-screen overflow-hidden">
 
-          {/* ── HEADER ───────────────────────────────────── */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-            <div>
-              <h1 className="text-xl lg:text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-                Tableau de bord
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                  style={{ background: 'rgba(22,163,74,0.1)', color: '#34d399', border: '1px solid rgba(22,163,74,0.2)' }}>
-                  LIVE
-                </span>
-              </h1>
-              <p className="text-[11px] mt-0.5 font-medium" style={{ color: 'rgba(255,255,255,0.2)' }}>
-                MAJ {lastRefresh.toLocaleTimeString('fr-FR')} — 7 derniers jours
-              </p>
+        {/* ══ CARTE 3D PLEIN ÉCRAN ══ */}
+        <MapboxFullMap communes={mapBgData} onSelectCommune={setSelectedCommune} />
+
+        {/* ══ WIDGETS FLOTTANTS ══ */}
+        <div className="absolute inset-0 z-10 pointer-events-none">
+
+          {/* ── TOP BAR: Header + Actions ── */}
+          <div className="pointer-events-auto absolute top-3 left-3 right-3 flex items-center justify-between gap-3">
+            <div className={`${panelStyle} px-4 py-2.5 flex items-center gap-3`} style={panelBg}>
+              <h1 className="text-sm lg:text-base font-bold text-white tracking-tight">Veille Média 971</h1>
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold"
+                style={{ background: 'rgba(22,163,74,0.15)', color: '#34d399', border: '1px solid rgba(22,163,74,0.3)' }}>
+                LIVE
+              </span>
+              <span className="text-[10px] font-medium" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                {lastRefresh.toLocaleTimeString('fr-FR')}
+              </span>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <button onClick={loadData} className="btn-glass px-3 py-1.5 text-xs">
-                <span className="flex items-center gap-1.5">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                  Rafraîchir
-                </span>
+
+            <div className={`${panelStyle} px-3 py-2 flex items-center gap-2`} style={panelBg}>
+              <button onClick={loadData} className="btn-glass px-2.5 py-1 text-[10px]">
+                <svg className="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                MAJ
               </button>
-              <button onClick={handleScrape} disabled={scraping} className="btn-glass px-3 py-1.5 text-xs disabled:opacity-40"
-                style={scraping ? { background: 'rgba(37,99,235,0.12)', borderColor: 'rgba(37,99,235,0.25)' } : {}}>
-                {scraping ? '⟳ Scraping...' : 'Scraper'}
+              <button onClick={handleScrape} disabled={scraping} className="btn-glass px-2.5 py-1 text-[10px] disabled:opacity-40">
+                {scraping ? '⟳...' : 'Scraper'}
               </button>
-              <button onClick={handleBulkEnrich} disabled={bulkEnriching} className="btn-glass px-3 py-1.5 text-xs disabled:opacity-40"
-                style={bulkEnriching ? { background: 'rgba(234,179,8,0.12)', borderColor: 'rgba(234,179,8,0.25)' } : {}}>
-                {bulkEnriching ? '⟳ Enrichir...' : 'Enrichir'}
-              </button>
-              <button onClick={handleRunCycle} disabled={cycleRunning} className="btn-primary px-4 py-1.5 text-xs">
-                {cycleRunning ? '⟳ Cycle...' : '▶ Lancer le cycle'}
+              <button onClick={handleRunCycle} disabled={cycleRunning} className="btn-primary px-3 py-1 text-[10px]">
+                {cycleRunning ? '⟳...' : '▶ Cycle'}
               </button>
             </div>
-            {bulkMsg && <div className="text-xs mt-1 text-right" style={{ color: 'rgba(234,179,8,0.6)' }}>{bulkMsg}</div>}
           </div>
 
           {error && (
-            <div className="mb-5 px-4 py-3 rounded-xl text-sm" style={{
-              background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)', color: '#f87171'
+            <div className="pointer-events-auto absolute top-16 left-3 right-3 px-4 py-2 rounded-xl text-xs z-20" style={{
+              background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171',
+              backdropFilter: 'blur(12px)',
             }}>{error}</div>
           )}
 
-          {/* ── Alertes critiques ─────────────────────── */}
-          {criticals.length > 0 && (
-            <div className="mb-5">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" style={{ boxShadow: '0 0 8px rgba(239,68,68,0.5)' }} />
-                <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#f87171' }}>Alertes ({criticals.length})</h2>
-              </div>
-              <div className="space-y-1.5">
-                {criticals.slice(0, 3).map((a) => (
-                  <Link key={a._id} href={`/affairs/${a._id}`}>
-                    <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl cursor-pointer transition-all hover:translate-x-1"
-                      style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.12)' }}>
-                      <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" style={{ boxShadow: '0 0 8px rgba(239,68,68,0.4)' }} />
-                      <p className="text-sm font-medium text-white truncate flex-1">{a.title || a.primary_entity}</p>
-                      <span className="text-xs font-semibold flex-shrink-0" style={{ color: '#f87171' }}>BMG {Math.round((a.bmg || 0) * 100)}</span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* ══ LEFT PANEL: KPIs + Alertes + Affaires ══ */}
+          <div className="pointer-events-auto absolute top-16 left-3 bottom-3 w-[320px] lg:w-[340px] flex flex-col gap-2.5 overflow-y-auto overflow-x-hidden scrollbar-hide" style={{ maxHeight: 'calc(100vh - 80px)' }}>
 
-          {/* ═══ INSIGHT BANNER — phrase clé contextuelle ═══ */}
-          {(() => {
-            const insights: string[] = []
-            if ((priorityCounts.hot || 0) > 0) insights.push(`${priorityCounts.hot} affaire${(priorityCounts.hot || 0) > 1 ? 's' : ''} urgente${(priorityCounts.hot || 0) > 1 ? 's' : ''} en cours`)
-            if (trends && trends.articles_trend_pct > 20) insights.push(`activité en hausse de ${trends.articles_trend_pct}% cette semaine`)
-            if (trends && trends.articles_trend_pct < -20) insights.push(`activité en baisse de ${Math.abs(trends.articles_trend_pct)}%`)
-            if (orphans.length > 5) insights.push(`${orphans.length} articles en attente d'affiliation`)
-            const topTheme = Object.entries(themes).sort(([,a],[,b]) => b - a)[0]
-            if (topTheme) insights.push(`thème dominant : ${themeLabel(topTheme[0])}`)
-            const insight = insights.length > 0 ? insights[0] : 'Surveillance en cours'
-            return (
-              <div className="mb-5 px-4 py-3 rounded-2xl flex items-center gap-3"
-                style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(139,92,246,0.08) 100%)', border: '1px solid rgba(99,102,241,0.15)' }}>
-                <span className="text-lg">💡</span>
-                <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.75)' }}>
-                  {insight}
-                  {insights.length > 1 && <span style={{ color: 'rgba(255,255,255,0.35)' }}> · {insights[1]}</span>}
-                </p>
-              </div>
-            )
-          })()}
-
-          {/* ═══ ROW 1 : KPI Cards — colorées et vibrantes ═══════ */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5 stagger-fade">
-
-            {/* Affaires actives — fond bleu profond */}
-            <div className="card-blue p-4 kpi-card" style={{ '--kpi-color': '#60a5fa' } as React.CSSProperties}>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'rgba(147,197,253,0.7)' }}>Affaires suivies</p>
-                <span className="text-lg">📋</span>
-              </div>
-              <p className="text-3xl font-bold" style={{ color: '#93c5fd' }}>{stats?.affairs_active ?? 0}</p>
-              <div className="flex items-center gap-2 mt-2">
-                {(priorityCounts.hot || 0) > 0 && (
-                  <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'rgba(239,68,68,0.2)', color: '#fca5a5' }}>
-                    🔴 {priorityCounts.hot} urgentes
-                  </span>
-                )}
-                {(priorityCounts.watch || 0) > 0 && (
-                  <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'rgba(251,191,36,0.15)', color: '#fde68a' }}>
-                    {priorityCounts.watch} suivi
-                  </span>
-                )}
-              </div>
-              <p className="text-[10px] mt-1.5" style={{ color: 'rgba(147,197,253,0.4)' }}>
-                {stats?.affairs_stale ?? 0} en veille · {stats?.clusters_active ?? 0} clusters
-              </p>
-            </div>
-
-            {/* Articles — fond ambre/or */}
-            <div className="card-amber p-4 kpi-card" style={{ '--kpi-color': '#fbbf24' } as React.CSSProperties}>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'rgba(253,224,71,0.7)' }}>Articles cette semaine</p>
-                <span className="text-lg">📰</span>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <p className="text-3xl font-bold" style={{ color: '#fde68a' }}>{coverage?.total_articles_7d ?? 0}</p>
-                {trends && <TrendArrow pct={trends.articles_trend_pct} />}
-              </div>
-              <p className="text-[10px] mt-1.5" style={{ color: 'rgba(253,224,71,0.4)' }}>
-                {coverage?.enriched_articles_7d ?? 0} enrichis par IA ·{' '}
-                {trends ? (
-                  trends.articles_trend_pct > 0
-                    ? <span style={{ color: '#86efac' }}>+{trends.articles_trend_pct}% vs semaine préc.</span>
-                    : trends.articles_trend_pct < 0
-                    ? <span style={{ color: '#fca5a5' }}>{trends.articles_trend_pct}% vs semaine préc.</span>
-                    : 'stable'
-                ) : '—'}
-              </p>
-            </div>
-
-            {/* Climat — fond vert/émeraude ou rose selon sentiment */}
-            {(() => {
-              const pos = sentimentDist['positif'] || sentimentDist['positive'] || 0
-              const neg = sentimentDist['négatif'] || sentimentDist['negatif'] || sentimentDist['negative'] || 0
-              const total = Object.values(sentimentDist).reduce((s, v) => s + v, 0)
-              const pctPos = total > 0 ? Math.round(pos / total * 100) : 0
-              const pctNeg = total > 0 ? Math.round(neg / total * 100) : 0
-              const isNeg = pctNeg > pctPos
-              const dominant = isNeg ? 'Négatif' : pctPos > pctNeg ? 'Positif' : 'Neutre'
-              const color = isNeg ? '#fca5a5' : pctPos > pctNeg ? '#86efac' : '#93c5fd'
-              const labelColor = isNeg ? 'rgba(252,165,165,0.7)' : pctPos > pctNeg ? 'rgba(134,239,172,0.7)' : 'rgba(147,197,253,0.7)'
-              const subColor = isNeg ? 'rgba(252,165,165,0.4)' : pctPos > pctNeg ? 'rgba(134,239,172,0.4)' : 'rgba(147,197,253,0.4)'
-              const cardClass = isNeg ? 'card-rose' : pctPos > pctNeg ? 'card-emerald' : 'card-blue'
-              const kpiColor = isNeg ? '#f87171' : pctPos > pctNeg ? '#34d399' : '#60a5fa'
-              return (
-                <div className={`${cardClass} p-4 kpi-card`} style={{ '--kpi-color': kpiColor } as React.CSSProperties}>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: labelColor }}>Climat médias</p>
-                    <span className="text-lg">{isNeg ? (pctNeg > 40 ? '😡' : '😟') : pctPos > 40 ? '😊' : '😐'}</span>
+            {/* KPI Row */}
+            {!loading && stats && (
+              <div className="grid grid-cols-2 gap-2">
+                <div className={`${panelStyle} p-3`} style={panelBg}>
+                  <p className="text-[9px] uppercase tracking-wider font-semibold" style={{ color: 'rgba(147,197,253,0.7)' }}>Affaires</p>
+                  <p className="text-2xl font-bold" style={{ color: '#93c5fd' }}>{stats.affairs_active ?? 0}</p>
+                  <div className="flex gap-1 mt-1">
+                    {(priorityCounts.hot || 0) > 0 && <span className="text-[8px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'rgba(239,68,68,0.2)', color: '#fca5a5' }}>{priorityCounts.hot} urgentes</span>}
                   </div>
-                  <p className="text-2xl font-bold" style={{ color }}>{dominant}</p>
-                  <div className="flex-1 h-2 rounded-full overflow-hidden flex mt-2" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                    <div style={{ width: `${pctPos}%`, background: '#34d399' }} />
-                    <div style={{ width: `${100 - pctPos - pctNeg}%`, background: '#60a5fa' }} />
-                    <div style={{ width: `${pctNeg}%`, background: '#f87171' }} />
-                  </div>
-                  <p className="text-[10px] mt-1" style={{ color: subColor }}>
-                    {pctPos}% positif · {pctNeg}% négatif · {total} articles analysés
-                  </p>
                 </div>
-              )
-            })()}
-
-            {/* Couverture — fond violet/magenta */}
-            {(() => {
-              const rate = coverage?.affiliation_rate ?? 0
-              const cardClass = rate >= 60 ? 'card-emerald' : rate >= 30 ? 'card-yellow' : 'card-rose'
-              const kpiColor = rate >= 60 ? '#34d399' : rate >= 30 ? '#fbbf24' : '#f87171'
-              const labelColor = rate >= 60 ? 'rgba(134,239,172,0.7)' : rate >= 30 ? 'rgba(253,224,71,0.7)' : 'rgba(252,165,165,0.7)'
-              const valColor = rate >= 60 ? '#86efac' : rate >= 30 ? '#fde68a' : '#fca5a5'
-              const subColor = rate >= 60 ? 'rgba(134,239,172,0.4)' : rate >= 30 ? 'rgba(253,224,71,0.4)' : 'rgba(252,165,165,0.4)'
-              return (
-                <div className={`${cardClass} p-4 kpi-card`} style={{ '--kpi-color': kpiColor } as React.CSSProperties}>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: labelColor }}>Couverture</p>
-                    <span className="text-lg">📡</span>
+                <div className={`${panelStyle} p-3`} style={panelBg}>
+                  <p className="text-[9px] uppercase tracking-wider font-semibold" style={{ color: 'rgba(253,224,71,0.7)' }}>Articles 7j</p>
+                  <div className="flex items-baseline gap-1.5">
+                    <p className="text-2xl font-bold" style={{ color: '#fde68a' }}>{coverage?.total_articles_7d ?? 0}</p>
+                    {trends && <TrendArrow pct={trends.articles_trend_pct} />}
                   </div>
-                  <p className="text-3xl font-bold" style={{ color: valColor }}>{rate}%</p>
-                  <div className="h-2 rounded-full mt-2 overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                    <div className="h-full rounded-full transition-all duration-700" style={{
-                      width: `${Math.min(100, rate)}%`,
-                      background: kpiColor,
-                    }} />
-                  </div>
-                  <p className="text-[10px] mt-1.5" style={{ color: subColor }}>
-                    {coverage?.affiliated_articles_7d ?? 0}/{coverage?.total_articles_7d ?? 0} articles · {coverage?.total_transcriptions_7d ?? 0} radios
-                  </p>
+                  <p className="text-[9px] mt-0.5" style={{ color: 'rgba(253,224,71,0.4)' }}>{coverage?.enriched_articles_7d ?? 0} enrichis IA</p>
                 </div>
-              )
-            })()}
-          </div>
-
-          {/* ═══ ROW 2 : Sentiment + Top Personnalités + Trending ═══ */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5 stagger-fade">
-            {/* Sentiment Gauge — avec insight contextuel */}
-            <div className="glass-card-static p-5">
-              <div className="flex items-center justify-between mb-1">
-                <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                  Climat médiatique
-                </h2>
-                {(() => {
-                  const pos = sentimentDist['positif'] || sentimentDist['positive'] || 0
-                  const neg = sentimentDist['négatif'] || sentimentDist['negatif'] || sentimentDist['negative'] || 0
-                  return <span className="text-lg">{neg > pos ? '⚠️' : pos > neg ? '✅' : '➖'}</span>
-                })()}
+                <div className={`${panelStyle} p-3`} style={panelBg}>
+                  <p className="text-[9px] uppercase tracking-wider font-semibold" style={{ color: 'rgba(134,239,172,0.7)' }}>Climat</p>
+                  {(() => {
+                    const pos = sentimentDist['positif'] || sentimentDist['positive'] || 0
+                    const neg = sentimentDist['négatif'] || sentimentDist['negatif'] || sentimentDist['negative'] || 0
+                    const total = Object.values(sentimentDist).reduce((s, v) => s + v, 0)
+                    const pctNeg = total > 0 ? Math.round(neg / total * 100) : 0
+                    const isNeg = pctNeg > 30
+                    return <>
+                      <p className="text-lg font-bold" style={{ color: isNeg ? '#fca5a5' : '#86efac' }}>{isNeg ? 'Tendu' : 'Calme'}</p>
+                      <div className="h-1.5 rounded-full overflow-hidden flex mt-1" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                        <div style={{ width: `${total > 0 ? Math.round(pos/total*100) : 33}%`, background: '#34d399' }} />
+                        <div style={{ width: `${total > 0 ? Math.round((total-pos-neg)/total*100) : 34}%`, background: '#60a5fa' }} />
+                        <div style={{ width: `${pctNeg}%`, background: '#f87171' }} />
+                      </div>
+                    </>
+                  })()}
+                </div>
+                <div className={`${panelStyle} p-3`} style={panelBg}>
+                  <p className="text-[9px] uppercase tracking-wider font-semibold" style={{ color: 'rgba(167,139,250,0.7)' }}>Couverture</p>
+                  <p className="text-2xl font-bold" style={{ color: '#c4b5fd' }}>{coverage?.affiliation_rate ?? 0}%</p>
+                  <p className="text-[9px] mt-0.5" style={{ color: 'rgba(167,139,250,0.4)' }}>{coverage?.total_transcriptions_7d ?? 0} radios</p>
+                </div>
               </div>
-              {/* Insight phrase */}
-              {(() => {
-                const pos = sentimentDist['positif'] || sentimentDist['positive'] || 0
-                const neg = sentimentDist['négatif'] || sentimentDist['negatif'] || sentimentDist['negative'] || 0
-                const total = Object.values(sentimentDist).reduce((s, v) => s + v, 0)
-                const pctNeg = total > 0 ? Math.round(neg / total * 100) : 0
-                const pctPos = total > 0 ? Math.round(pos / total * 100) : 0
-                const phrase = pctNeg > 40 ? `Climat tendu : ${pctNeg}% de couverture négative`
-                  : pctPos > 50 ? `Climat favorable : ${pctPos}% de ton positif`
-                  : pctNeg > pctPos ? `Légère tension (${pctNeg}% négatif)`
-                  : 'Couverture équilibrée'
-                return (
-                  <p className="text-[10px] mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>{phrase}</p>
-                )
-              })()}
-              <SentimentGauge sentimentDist={sentimentDist} />
-            </div>
+            )}
 
-            {/* Top Personnalités — avec insight contextuel */}
-            <div className="glass-card-static p-5">
-              <div className="flex items-center justify-between mb-1">
-                <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                  Personnalités clés
-                </h2>
-                <span className="text-lg">👤</span>
+            {/* Alertes critiques */}
+            {criticals.length > 0 && (
+              <div className={`${panelStyle} p-3`} style={panelBg}>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" style={{ boxShadow: '0 0 8px rgba(239,68,68,0.5)' }} />
+                  <h2 className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#f87171' }}>Alertes</h2>
+                </div>
+                <div className="space-y-1">
+                  {criticals.slice(0, 3).map((a) => (
+                    <Link key={a._id} href={`/affairs/${a._id}`}>
+                      <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg cursor-pointer transition-all hover:translate-x-0.5"
+                        style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)' }}>
+                        <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                        <p className="text-[11px] font-medium text-white truncate flex-1">{a.title || a.primary_entity}</p>
+                        <span className="text-[10px] font-bold flex-shrink-0" style={{ color: '#f87171' }}>{Math.round((a.bmg || 0) * 100)}</span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
               </div>
-              {/* Insight phrase */}
-              {entities.length > 0 && (() => {
-                const top = entities[0]
-                const totalMentions = entities.reduce((s, e) => s + e.count, 0)
-                const topPct = totalMentions > 0 ? Math.round(top.count / totalMentions * 100) : 0
-                return (
-                  <p className="text-[10px] mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                    <span style={{ color: '#60a5fa' }}>{top.name}</span> domine avec {topPct}% des mentions ({top.count} cit.)
-                  </p>
-                )
-              })()}
-              <TopPersonalities entities={entities} />
-              {entities.length > 8 && (
-                <p className="text-[9px] mt-2 text-center" style={{ color: 'rgba(255,255,255,0.15)' }}>
-                  +{entities.length - 8} autres personnalités détectées
-                </p>
-              )}
-            </div>
+            )}
 
-            {/* Trending Topics — avec insight contextuel */}
-            <div className="glass-card-static p-5">
-              <div className="flex items-center justify-between mb-1">
-                <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                  Sujets tendance
-                </h2>
-                <span className="text-lg">📊</span>
+            {/* Top Affaires */}
+            {topAffairs.length > 0 && (
+              <div className={`${panelStyle} p-3`} style={panelBg}>
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>Affaires du moment</h2>
+                  <Link href="/affairs" className="text-[9px]" style={{ color: '#60a5fa' }}>Tout voir →</Link>
+                </div>
+                <div className="space-y-1">
+                  {topAffairs.slice(0, 8).map(affair => {
+                    const g = affair.gravity_score || 0
+                    const color = g >= 0.7 ? '#f87171' : g >= 0.5 ? '#fbbf24' : '#34d399'
+                    return (
+                      <Link key={affair._id} href={`/affairs/${affair._id}`}>
+                        <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all hover:bg-white/5 cursor-pointer">
+                          <div className="w-1 h-6 rounded-full flex-shrink-0" style={{ background: color }} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] font-medium text-white truncate">{affair.title || affair.primary_entity}</p>
+                            <div className="flex items-center gap-1.5">
+                              <ThemeBadge theme={affair.theme || 'general'} />
+                              <span className="text-[9px]" style={{ color: 'rgba(255,255,255,0.25)' }}>{affair.item_count || 0} items</span>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-bold flex-shrink-0" style={{ color }}>{Math.round((affair.bmg || 0) * 100)}</span>
+                        </div>
+                      </Link>
+                    )
+                  })}
+                </div>
               </div>
-              {/* Insight phrase */}
-              {(() => {
-                const sorted = Object.entries(themes).sort(([,a],[,b]) => b - a)
-                if (sorted.length >= 2) {
-                  const totalThemes = sorted.reduce((s, [, c]) => s + c, 0)
-                  const topPct = totalThemes > 0 ? Math.round(sorted[0][1] / totalThemes * 100) : 0
-                  return (
-                    <p className="text-[10px] mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                      <span style={{ color: themeColor(sorted[0][0]) }}>{themeLabel(sorted[0][0])}</span> concentre {topPct}% de l'actualité
-                      {sorted.length >= 3 && <>, suivi de {themeLabel(sorted[1][0])} et {themeLabel(sorted[2][0])}</>}
-                    </p>
-                  )
-                }
-                return <p className="text-[10px] mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>Répartition des thèmes</p>
-              })()}
+            )}
+
+            {/* Sujets tendance */}
+            <div className={`${panelStyle} p-3`} style={panelBg}>
+              <h2 className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.35)' }}>Sujets tendance</h2>
               <TrendingTopics themes={themes} />
             </div>
           </div>
 
-          {/* ═══ ROW 3 : Major Story + Activity Chart + Gravity ═══ */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
-            {/* Major Story — avec insight urgence */}
-            <div className="glass-card-static p-5">
-              <div className="flex items-center justify-between mb-1">
-                <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                  Affaire du moment
-                </h2>
-                <Link href="/affairs" className="text-[10px] font-medium transition-colors hover:text-blue-300" style={{ color: '#60a5fa' }}>
-                  Tout voir →
-                </Link>
-              </div>
-              {/* Insight phrase */}
-              {topAffairs.length > 0 && (() => {
-                const top = topAffairs[0]
-                const hotCount = topAffairs.filter(a => a.priority === 'hot').length
-                const phrase = hotCount > 1
-                  ? `🔴 ${hotCount} affaires urgentes nécessitent votre attention`
-                  : top.priority === 'hot'
-                  ? `🔴 ${top.title || top.primary_entity || 'Affaire urgente'} — BMG ${Math.round((top.bmg || 0) * 100)}`
-                  : `Focus : ${top.title || top.primary_entity || 'Affaire principale'}`
-                return <p className="text-[10px] mb-3 line-clamp-1" style={{ color: 'rgba(255,255,255,0.3)' }}>{phrase}</p>
-              })()}
-              <MajorStories affairs={topAffairs} />
-            </div>
+          {/* ══ RIGHT PANEL: Personnalités + Sentiment + Commune sélectionnée ══ */}
+          <div className="pointer-events-auto absolute top-16 right-3 bottom-3 w-[280px] lg:w-[300px] hidden lg:flex flex-col gap-2.5 overflow-y-auto overflow-x-hidden scrollbar-hide" style={{ maxHeight: 'calc(100vh - 80px)' }}>
 
-            {/* Activity Chart — avec insight pic d'activité */}
-            <div className="glass-card-static p-5">
-              <div className="flex items-center justify-between mb-1">
-                <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>Activité 7 jours</h2>
-                {trends && (
-                  <div className="flex items-center gap-1">
-                    <TrendArrow pct={trends.articles_trend_pct} />
-                    <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.15)' }}>vs sem.</span>
+            {/* Commune sélectionnée */}
+            {selectedCommune && mapBgData[selectedCommune] && (
+              <div className={`${panelStyle} p-3`} style={{ ...panelBg, borderColor: 'rgba(99,102,241,0.3)' }}>
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-xs font-bold text-white">{selectedCommune}</h2>
+                  <button onClick={() => setSelectedCommune(null)} className="text-[10px] px-1.5 py-0.5 rounded" style={{ color: 'rgba(255,255,255,0.4)' }}>✕</button>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div>
+                    <p className="text-lg font-bold" style={{ color: '#60a5fa' }}>{(mapBgData[selectedCommune] as any)?.stats?.article_count || 0}</p>
+                    <p className="text-[8px] uppercase" style={{ color: 'rgba(255,255,255,0.3)' }}>Articles</p>
                   </div>
-                )}
-              </div>
-              {/* Insight phrase */}
-              {(() => {
-                const totalWeek = activity.reduce((s, d) => s + d.articles, 0)
-                const peakDay = activity.length > 0 ? activity.reduce((best, d) => d.articles > best.articles ? d : best, activity[0]) : null
-                const todayCount = activity.length > 0 ? activity[activity.length - 1].articles : 0
-                const avgDaily = activity.length > 0 ? Math.round(totalWeek / activity.length) : 0
-                return (
-                  <p className="text-[10px] mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                    {totalWeek} articles cette semaine (moy. {avgDaily}/j)
-                    {peakDay && peakDay.articles > avgDaily * 1.5 && <> · pic {peakDay.label?.split(' ')[0]}</>}
-                    {todayCount > 0 && <span style={{ color: '#facc15' }}> · {todayCount} aujourd'hui</span>}
-                  </p>
-                )
-              })()}
-              {activity.length > 0 ? (
-                <ActivityMiniChart data={activity} />
-              ) : (
-                <p className="text-xs text-center py-8" style={{ color: 'rgba(255,255,255,0.2)' }}>Pas de données</p>
-              )}
-              <div className="flex items-center gap-4 mt-3 justify-center">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-sm" style={{ background: 'linear-gradient(135deg, #60a5fa, #1d4ed8)' }} />
-                  <span className="text-[9px]" style={{ color: 'rgba(255,255,255,0.2)' }}>Articles</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-sm" style={{ background: 'linear-gradient(135deg, #facc15, #f59e0b)' }} />
-                  <span className="text-[9px]" style={{ color: 'rgba(255,255,255,0.2)' }}>Aujourd'hui</span>
+                  <div>
+                    <p className="text-lg font-bold" style={{ color: '#a78bfa' }}>{(mapBgData[selectedCommune] as any)?.stats?.transcription_count || 0}</p>
+                    <p className="text-[8px] uppercase" style={{ color: 'rgba(255,255,255,0.3)' }}>Radios</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold" style={{ color: '#fbbf24' }}>{(mapBgData[selectedCommune] as any)?.stats?.affair_count || 0}</p>
+                    <p className="text-[8px] uppercase" style={{ color: 'rgba(255,255,255,0.3)' }}>Affaires</p>
+                  </div>
                 </div>
               </div>
+            )}
+
+            {/* Sentiment Gauge */}
+            <div className={`${panelStyle} p-3`} style={panelBg}>
+              <h2 className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.35)' }}>Climat médiatique</h2>
+              <SentimentGauge sentimentDist={sentimentDist} />
             </div>
 
-            {/* Gravity Distribution — avec insight risque */}
-            <div className="glass-card-static p-5">
-              <div className="flex items-center justify-between mb-1">
-                <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>Gravité des affaires</h2>
-                {gravityDist && (() => {
-                  const critPct = (gravityDist.critical + gravityDist.high) / Math.max(1, gravityDist.low + gravityDist.medium + gravityDist.high + gravityDist.critical) * 100
-                  return <span className="text-lg">{critPct > 30 ? '🚨' : critPct > 15 ? '⚡' : '🟢'}</span>
-                })()}
-              </div>
-              {/* Insight phrase */}
-              {gravityDist && (() => {
-                const total = gravityDist.low + gravityDist.medium + gravityDist.high + gravityDist.critical
-                const critCount = gravityDist.critical + gravityDist.high
-                const critPct = total > 0 ? Math.round(critCount / total * 100) : 0
-                const phrase = critPct > 30
-                  ? `${critCount} affaires à gravité élevée (${critPct}%) — vigilance requise`
-                  : critCount > 0
-                  ? `${critCount} affaire${critCount > 1 ? 's' : ''} sensible${critCount > 1 ? 's' : ''} sur ${total} suivies`
-                  : `Situation calme : ${total} affaires toutes faible gravité`
-                return <p className="text-[10px] mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>{phrase}</p>
-              })()}
-              {gravityDist ? (
+            {/* Personnalités */}
+            <div className={`${panelStyle} p-3`} style={panelBg}>
+              <h2 className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.35)' }}>Personnalités clés</h2>
+              <TopPersonalities entities={entities} />
+            </div>
+
+            {/* Gravité */}
+            {gravityDist && (
+              <div className={`${panelStyle} p-3`} style={panelBg}>
+                <h2 className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.35)' }}>Gravité des affaires</h2>
                 <GravityDonut distribution={gravityDist} />
-              ) : (
-                <p className="text-xs text-center py-8" style={{ color: 'rgba(255,255,255,0.2)' }}>Pas de données</p>
-              )}
-            </div>
-          </div>
-
-          {/* ═══ ROW 4 : Carte Guadeloupe + Sources ═══════ */}
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-5">
-            <div className="xl:col-span-2 glass-card-static p-5">
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                    Carte des affaires
-                  </h2>
-                  <span className="text-lg">🗺️</span>
-                </div>
-                {selectedCommune && (
-                  <button onClick={() => setSelectedCommune(null)}
-                    className="text-[10px] px-2 py-0.5 rounded-full transition-all hover:scale-105"
-                    style={{ background: 'rgba(37,99,235,0.12)', color: '#93c5fd', border: '1px solid rgba(37,99,235,0.25)' }}>
-                    ✕ {selectedCommune}
-                  </button>
-                )}
-              </div>
-              {/* Insight phrase */}
-              {(() => {
-                const communeCount = Object.keys(communeMapData).length
-                const topCommune = Object.entries(communeMapData).sort(([,a],[,b]) => b.count - a.count)[0]
-                return communeCount > 0 ? (
-                  <p className="text-[10px] mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                    {communeCount} commune{communeCount > 1 ? 's' : ''} concernée{communeCount > 1 ? 's' : ''}
-                    {topCommune && <> · <span style={{ color: '#60a5fa' }}>{topCommune[0]}</span> la plus active ({topCommune[1].count} affaires)</>}
-                  </p>
-                ) : null
-              })()}
-              <GuadeloupeMap
-                communeData={Object.fromEntries(
-                  Object.entries(communeMapData).map(([k, v]) => [k, { count: v.count, maxGravity: v.maxGravity }])
-                )}
-                onCommuneClick={(c) => setSelectedCommune(prev => prev === c ? null : c)}
-              />
-            </div>
-
-            <div className="glass-card-static p-5">
-              {selectedCommune ? (
-                <>
-                  <h2 className="text-xs font-semibold text-white mb-3 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-blue-500" style={{ boxShadow: '0 0 6px rgba(37,99,235,0.4)' }} />
-                    {selectedCommune}
-                  </h2>
-                  {(communeMapData[selectedCommune]?.affairs || []).length === 0 ? (
-                    <p className="text-xs py-6 text-center" style={{ color: 'rgba(255,255,255,0.2)' }}>Aucune affaire active</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {(communeMapData[selectedCommune]?.affairs || []).map((a) => (
-                        <Link key={a._id} href={`/affairs/${a._id}`}>
-                          <div className="flex items-center gap-2 p-2.5 rounded-lg hover:bg-white/[0.04] transition-all cursor-pointer group">
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
-                              a.gravity_score >= 0.7 ? 'bg-red-500/15 text-red-400'
-                              : a.gravity_score >= 0.5 ? 'bg-orange-500/15 text-orange-400'
-                              : 'bg-emerald-500/15 text-emerald-400'
-                            }`}>
-                              {Math.round(a.gravity_score * 100)}%
-                            </span>
-                            <span className="text-xs text-white/80 truncate flex-1 group-hover:text-white transition-colors">{a.title}</span>
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <>
-                  <div className="flex items-center gap-2 mb-1">
-                    <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                      Sources actives 7j
-                    </h2>
-                    <span className="text-lg">📡</span>
-                  </div>
-                  {sources.length > 0 && (
-                    <p className="text-[10px] mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                      {sources.length} sources · {sources.reduce((s, src) => s + src.count, 0)} articles collectés
-                      {sources[0] && <> · <span style={{ color: '#60a5fa' }}>{sources[0].name}</span> en tête</>}
-                    </p>
-                  )}
-                  {sources.length > 0 ? (
-                    <div className="space-y-2">
-                      {sources.map((s, i) => {
-                        const maxC = sources[0].count
-                        return (
-                          <div key={i}>
-                            <div className="flex items-center justify-between mb-0.5">
-                              <span className="text-[11px] truncate" style={{ color: 'rgba(255,255,255,0.45)' }}>{s.name}</span>
-                              <span className="text-[11px] font-semibold text-white/80">{s.count}</span>
-                            </div>
-                            <div className="h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                              <div className="h-full rounded-full" style={{
-                                width: `${(s.count / maxC) * 100}%`,
-                                background: 'linear-gradient(90deg, #1d4ed8, #60a5fa)',
-                                boxShadow: '0 0 4px rgba(37,99,235,0.2)',
-                              }} />
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-xs py-4" style={{ color: 'rgba(255,255,255,0.2)' }}>Aucune source</p>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* ═══ ROW 5 : Top Affaires Grid ════════════════ */}
-          <div className="mb-5">
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-semibold text-white">Affaires majeures</h2>
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{
-                  background: 'rgba(96,165,250,0.08)', color: '#60a5fa', border: '1px solid rgba(96,165,250,0.15)'
-                }}>{topAffairs.length}</span>
-              </div>
-              <Link href="/affairs" className="text-xs font-medium transition-colors hover:text-blue-300" style={{ color: '#60a5fa' }}>Voir tout →</Link>
-            </div>
-            {topAffairs.length > 0 && (
-              <p className="text-[10px] mb-3" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                BMG moyen : <span style={{ color: avgBmg >= 0.6 ? '#f87171' : avgBmg >= 0.3 ? '#fbbf24' : '#34d399' }}>
-                  {Math.round(avgBmg * 100)}/100
-                </span>
-                {' · '}Top thème : {(() => {
-                  const themeCounts: Record<string, number> = {}
-                  topAffairs.forEach(a => { themeCounts[a.theme] = (themeCounts[a.theme] || 0) + 1 })
-                  const top = Object.entries(themeCounts).sort(([,a],[,b]) => b - a)[0]
-                  return top ? <span style={{ color: themeColor(top[0]) }}>{themeLabel(top[0])}</span> : '—'
-                })()}
-              </p>
-            )}
-            {topAffairs.length === 0 ? (
-              <div className="glass-card-static p-10 text-center">
-                <p className="text-sm" style={{ color: 'rgba(255,255,255,0.3)' }}>Aucune affaire active</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 stagger-fade">
-                {topAffairs.slice(0, 8).map((affair) => {
-                  const priority = affair.priority || 'minor'
-                  const borderColor = priority === 'hot' ? '#f87171' : priority === 'watch' ? '#fbbf24' : '#34d399'
-                  return (
-                    <Link key={affair._id} href={`/affairs/${affair._id}`}>
-                      <div className="glass-card p-4 cursor-pointer h-full group" style={{ borderLeft: `2px solid ${borderColor}` }}>
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-sm font-semibold text-white truncate group-hover:text-blue-300 transition-colors">
-                              {affair.title || affair.primary_entity || 'Affaire'}
-                            </h3>
-                            {affair.primary_entity && affair.title !== affair.primary_entity && (
-                              <p className="text-[10px] truncate mt-0.5" style={{ color: 'rgba(255,255,255,0.25)' }}>{affair.primary_entity}</p>
-                            )}
-                          </div>
-                          <BmgGauge value={(affair.bmg || 0) * 100} size={44} />
-                        </div>
-                        <div className="flex flex-wrap gap-1 mb-2">
-                          <ThemeBadge theme={affair.theme} />
-                          <span className="text-[10px] px-2 py-0.5 rounded-full"
-                            style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.3)' }}>
-                            {affair.item_count || 0} sources
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between text-[10px]" style={{ color: 'rgba(255,255,255,0.2)' }}>
-                          <span>Gravité {Math.round((affair.gravity_score || 0) * 100)}%</span>
-                          <span>{timeAgo(affair.last_activity || affair.created_at)}</span>
-                        </div>
-                      </div>
-                    </Link>
-                  )
-                })}
               </div>
             )}
-          </div>
 
-          {/* ═══ ROW 5b : Chronologie des affaires ════════ */}
-          {topAffairs.length > 0 && (
-            <div className="glass-card-static p-5 mb-5">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                  Chronologie des affaires
-                </h2>
-                <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.2)' }}>
-                  Durée de vie & activité
-                </span>
-              </div>
-              <AffairTimeline affairs={topAffairs} />
-            </div>
-          )}
-
-          {/* ═══ ROW 6 : Orphelins + Timeline ════════════ */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
-            <div className="lg:col-span-2">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-sm font-semibold text-white">Articles non affiliés</h2>
-                    <span className="text-base">{orphans.length > 10 ? '🔴' : orphans.length > 3 ? '🟡' : '🟢'}</span>
-                  </div>
-                  <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.2)' }}>
-                    {orphans.length > 10
-                      ? `${orphans.length} articles en attente — ré-affiliation recommandée`
-                      : orphans.length > 0
-                      ? `${orphans.length} article${orphans.length > 1 ? 's' : ''} enrichi${orphans.length > 1 ? 's' : ''} sans affaire`
-                      : 'Tous les articles sont affiliés'}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {orphans.length > 0 && (
-                    <span className="text-xs px-2 py-1 rounded-full font-medium" style={{
-                      background: 'rgba(245,158,11,0.08)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.15)'
-                    }}>{orphans.length} orphelins</span>
-                  )}
-                  <button onClick={handleReaffiliate} disabled={reaffiliating} className="btn-glass text-xs px-3 py-1 disabled:opacity-40">
-                    {reaffiliating ? '⟳ En cours...' : 'Ré-affilier'}
-                  </button>
-                </div>
-              </div>
-              {orphans.length > 0 ? (
-                <div className="glass-card-static overflow-hidden">
-                  {orphans.slice(0, 10).map((art, idx) => (
-                    <div key={art._id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors"
-                      style={{ borderBottom: idx < Math.min(orphans.length, 10) - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none' }}>
-                      <ThemeBadge theme={art.theme} />
+            {/* Sources */}
+            {sources.length > 0 && (
+              <div className={`${panelStyle} p-3`} style={panelBg}>
+                <h2 className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.35)' }}>Top sources</h2>
+                <div className="space-y-1">
+                  {sources.slice(0, 5).map((s, i) => (
+                    <div key={s.source} className="flex items-center gap-2">
+                      <span className="text-[9px] font-bold w-4 text-right" style={{ color: 'rgba(255,255,255,0.25)' }}>#{i + 1}</span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs truncate" style={{ color: 'rgba(255,255,255,0.55)' }}>{art.title}</p>
-                        <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.2)' }}>{art.source} — {timeAgo(art.scraped_at)}</p>
+                        <p className="text-[10px] text-white truncate">{s.source}</p>
                       </div>
-                      <div className="flex-shrink-0 text-right">
-                        <p className="text-xs font-bold" style={{
-                          color: art.gravity_score >= 0.7 ? '#f87171' : art.gravity_score >= 0.4 ? '#fbbf24' : 'rgba(255,255,255,0.25)'
-                        }}>{Math.round(art.gravity_score * 100)}%</p>
-                      </div>
+                      <span className="text-[10px] font-semibold" style={{ color: '#60a5fa' }}>{s.count}</span>
                     </div>
                   ))}
                 </div>
-              ) : (
-                <div className="glass-card-static p-6 text-center">
-                  <p className="text-xs" style={{ color: 'rgba(255,255,255,0.2)' }}>Tous les articles sont affiliés</p>
-                </div>
-              )}
-            </div>
-
-            {/* Timeline */}
-            <div className="glass-card-static p-4">
-              <h3 className="text-[10px] uppercase tracking-wider mb-3 font-semibold" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                Activité récente
-              </h3>
-              {timeline.length > 0 ? (
-                <div className="relative">
-                  {/* Vertical line */}
-                  <div className="absolute left-[5px] top-2 bottom-2 w-px" style={{ background: 'rgba(255,255,255,0.05)' }} />
-                  <div className="space-y-1">
-                    {timeline.slice(0, 12).map((evt) => {
-                      const colorMap: Record<string, string> = {
-                        created: '#60a5fa', article_added: '#34d399', radio_topic_added: '#facc15',
-                        gravity_update: '#fbbf24', archived: '#64748b', expired: '#64748b', bmg_change: '#fb923c',
-                      }
-                      const evtColor = colorMap[evt.event] || '#64748b'
-                      return (
-                        <div key={evt._id} className="flex items-start gap-3 py-1.5 group relative pl-1">
-                          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-0.5 relative z-10" style={{
-                            background: evtColor,
-                            boxShadow: `0 0 6px ${evtColor}30`,
-                          }} />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[11px] truncate group-hover:text-white/70 transition-colors" style={{ color: 'rgba(255,255,255,0.45)' }}>
-                              {(evt.details as Record<string, string>)?.title ||
-                               (evt.details as Record<string, string>)?.reason ||
-                               evt.event}
-                            </p>
-                            <p className="text-[9px]" style={{ color: 'rgba(255,255,255,0.12)' }}>{timeAgo(evt.timestamp)}</p>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <p className="text-xs py-4 text-center" style={{ color: 'rgba(255,255,255,0.2)' }}>Aucune activité</p>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
-          {/* ═══ ROW 7 : Pipeline technique ═══════════════ */}
-          {stats && (
-            <div className="glass-card-static p-4">
-              <div className="flex items-center justify-between mb-1">
+          {/* ══ BOTTOM BAR: Mini stats + Activité ══ */}
+          <div className="pointer-events-auto absolute bottom-3 left-[340px] lg:left-[360px] right-[300px] lg:right-[320px] hidden lg:flex gap-2.5">
+            {/* Activité mini chart */}
+            {activity.length > 0 && (
+              <div className={`${panelStyle} p-3 flex-1`} style={panelBg}>
+                <h2 className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: 'rgba(255,255,255,0.35)' }}>Activité 7 jours</h2>
+                <ActivityMiniChart data={activity} />
+              </div>
+            )}
+
+            {/* Pipeline */}
+            {stats && (
+              <div className={`${panelStyle} p-3 flex-1`} style={panelBg}>
+                <h2 className="text-[10px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>Pipeline</h2>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'rgba(255,255,255,0.25)' }}>Pipeline technique</h2>
-                  <span className="text-sm">⚙️</span>
-                </div>
-                {stats.candidates_unclustered > 20 && (
-                  <span className="text-[9px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(239,68,68,0.08)', color: '#f87171', border: '1px solid rgba(239,68,68,0.12)' }}>
-                    {stats.candidates_unclustered} en attente
-                  </span>
-                )}
-              </div>
-              <p className="text-[10px] mb-3" style={{ color: 'rgba(255,255,255,0.2)' }}>
-                {stats.candidates_total} candidats → {stats.clusters_active} clusters → {stats.affairs_active} affaires promues
-              </p>
-              <div className="flex items-center gap-3 lg:gap-4 overflow-x-auto pb-1">
-                {[
-                  { label: 'Candidats', value: stats.candidates_total, sub: 'Ingestion', color: '#fbbf24', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.15)' },
-                  { label: 'Non classés', value: stats.candidates_unclustered, sub: 'En attente', color: '#f87171', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.15)' },
-                  { label: 'Clusters', value: stats.clusters_active, sub: 'Groupement', color: '#facc15', bg: 'rgba(22,163,74,0.08)', border: 'rgba(22,163,74,0.15)' },
-                  { label: 'Affaires', value: stats.affairs_active, sub: 'Promues', color: '#60a5fa', bg: 'rgba(37,99,235,0.08)', border: 'rgba(37,99,235,0.15)' },
-                  { label: 'En veille', value: stats.affairs_stale, sub: 'Archivage', color: 'rgba(255,255,255,0.35)', bg: 'rgba(255,255,255,0.03)', border: 'rgba(255,255,255,0.06)' },
-                ].map((step, i, arr) => (
-                  <div key={i} className="flex items-center gap-3 flex-shrink-0">
-                    <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: step.bg, border: `1px solid ${step.border}` }}>
-                      <span className="text-xs font-bold" style={{ color: step.color }}>{step.value ?? 0}</span>
+                  {[
+                    { label: 'Candidats', value: stats.candidates_total, color: '#fbbf24' },
+                    { label: 'Clusters', value: stats.clusters_active, color: '#facc15' },
+                    { label: 'Actives', value: stats.affairs_active, color: '#60a5fa' },
+                    { label: 'Veille', value: stats.affairs_stale, color: 'rgba(255,255,255,0.35)' },
+                  ].map((s, i, arr) => (
+                    <div key={i} className="flex items-center gap-1.5">
+                      <div className="text-center">
+                        <p className="text-sm font-bold" style={{ color: s.color }}>{s.value ?? 0}</p>
+                        <p className="text-[8px]" style={{ color: 'rgba(255,255,255,0.25)' }}>{s.label}</p>
+                      </div>
+                      {i < arr.length - 1 && <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.1)' }}>→</span>}
                     </div>
-                    <div>
-                      <p className="text-[10px] font-medium" style={{ color: 'rgba(255,255,255,0.45)' }}>{step.label}</p>
-                      <p className="text-[9px]" style={{ color: 'rgba(255,255,255,0.18)' }}>{step.sub}</p>
-                    </div>
-                    {i < arr.length - 1 && (
-                      <svg className="w-3.5 h-3.5" style={{ color: 'rgba(255,255,255,0.1)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ═══ ROW 8 : Stockage MongoDB ═══════════════ */}
-          {storageStats && (
-            <div className={`mt-5 p-4 kpi-card ${
-              storageStats.alert_level === 'critical' ? 'card-rose' :
-              storageStats.alert_level === 'high' ? 'card-amber' :
-              storageStats.alert_level === 'warning' ? 'card-yellow' :
-              'glass-card-static'
-            }`} style={{
-              '--kpi-color': storageStats.alert_level === 'critical' ? '#f87171' :
-                storageStats.alert_level === 'high' ? '#fb923c' :
-                storageStats.alert_level === 'warning' ? '#fbbf24' : '#34d399'
-            } as React.CSSProperties}>
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                    Stockage MongoDB Atlas
-                  </h2>
-                  <span className="text-sm">
-                    {storageStats.alert_level === 'critical' ? '🔴' :
-                     storageStats.alert_level === 'high' ? '🟠' :
-                     storageStats.alert_level === 'warning' ? '🟡' : '🟢'}
-                  </span>
+                  ))}
                 </div>
-                <span className="text-xs font-bold" style={{
-                  color: storageStats.alert_level === 'critical' ? '#f87171' :
-                    storageStats.alert_level === 'high' ? '#fb923c' :
-                    storageStats.alert_level === 'warning' ? '#fbbf24' : '#34d399'
-                }}>
-                  {storageStats.usage_pct}%
-                </span>
               </div>
+            )}
+          </div>
 
-              {/* Insight phrase */}
-              <p className="text-[10px] mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                {storageStats.alert_level === 'critical'
-                  ? `CRITIQUE : ${storageStats.total_used_mb} Mo / ${storageStats.limit_mb} Mo — nettoyage urgent requis`
-                  : storageStats.alert_level === 'high'
-                  ? `Espace limité : ${storageStats.total_used_mb} Mo / ${storageStats.limit_mb} Mo — pensez à nettoyer`
-                  : storageStats.alert_level === 'warning'
-                  ? `Attention : ${storageStats.total_used_mb} Mo / ${storageStats.limit_mb} Mo utilisés`
-                  : `${storageStats.total_used_mb} Mo / ${storageStats.limit_mb} Mo — espace suffisant`}
-              </p>
-
-              {/* Progress bar */}
-              <div className="h-3 rounded-full overflow-hidden mb-3" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                <div className="h-full rounded-full transition-all duration-700" style={{
-                  width: `${Math.min(100, storageStats.usage_pct)}%`,
-                  background: storageStats.usage_pct >= 95 ? '#ef4444'
-                    : storageStats.usage_pct >= 90 ? '#f97316'
-                    : storageStats.usage_pct >= 80 ? '#eab308'
-                    : storageStats.usage_pct >= 60 ? '#3b82f6'
-                    : '#10b981',
-                  boxShadow: storageStats.usage_pct >= 80
-                    ? `0 0 12px ${storageStats.usage_pct >= 95 ? 'rgba(239,68,68,0.4)' : 'rgba(234,179,8,0.3)'}`
-                    : 'none',
-                }} />
-              </div>
-
-              {/* Details */}
-              <div className="flex items-center gap-4 flex-wrap">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full" style={{ background: '#60a5fa' }} />
-                  <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                    Données <span className="font-semibold text-white/70">{storageStats.data_size_mb} Mo</span>
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full" style={{ background: '#a78bfa' }} />
-                  <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                    Index <span className="font-semibold text-white/70">{storageStats.index_size_mb} Mo</span>
-                  </span>
-                </div>
-                {storageStats.collections.slice(0, 4).map((c) => (
-                  <span key={c.name} className="text-[9px] px-2 py-0.5 rounded-full" style={{
-                    background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.35)'
-                  }}>
-                    {c.name.replace(/_/g, ' ')}: {c.size_mb} Mo
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-        </div>
-      </main>
-      </div>
+        </div>{/* fin pointer-events-none wrapper */}
+      </div>{/* fin zone carte */}
     </div>
   )
 }
