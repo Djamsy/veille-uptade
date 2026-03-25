@@ -55,6 +55,10 @@ body {
   overflow-x: hidden;
 }
 
+/* Dashboard map mode — body transparent pour laisser voir la carte */
+.map-dashboard-mode { background: transparent !important; }
+.map-dashboard-mode > * { background: transparent !important; }
+
 /* ── Ambient glow subtil ─────────────────────────────── */
 .ambient-bg {
   position: fixed;

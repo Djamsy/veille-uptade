@@ -809,6 +809,20 @@ export default function DashboardPage() {
     } finally { setLoading(false) }
   }, [])
 
+  // Rendre le body transparent pour que la carte Mapbox soit visible
+  useEffect(() => {
+    document.body.classList.add('map-dashboard-mode')
+    document.body.style.background = 'transparent'
+    // Aussi forcer le parent Next.js
+    const nextRoot = document.getElementById('__next')
+    if (nextRoot) nextRoot.style.background = 'transparent'
+    return () => {
+      document.body.classList.remove('map-dashboard-mode')
+      document.body.style.background = ''
+      if (nextRoot) nextRoot.style.background = ''
+    }
+  }, [])
+
   useEffect(() => {
     loadData()
     const interval = setInterval(loadData, 90_000)
