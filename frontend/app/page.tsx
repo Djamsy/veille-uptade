@@ -809,17 +809,23 @@ export default function DashboardPage() {
     } finally { setLoading(false) }
   }, [])
 
-  // Rendre le body transparent pour que la carte Mapbox soit visible
+  // Rendre le body + html transparent pour que la carte Mapbox soit visible
   useEffect(() => {
+    document.documentElement.style.background = 'transparent'
     document.body.classList.add('map-dashboard-mode')
     document.body.style.background = 'transparent'
     // Aussi forcer le parent Next.js
     const nextRoot = document.getElementById('__next')
     if (nextRoot) nextRoot.style.background = 'transparent'
+    // Forcer le wrapper z-10 du layout à être transparent
+    const zWrapper = document.querySelector('.relative.z-10') as HTMLElement
+    if (zWrapper) zWrapper.style.background = 'transparent'
     return () => {
+      document.documentElement.style.background = ''
       document.body.classList.remove('map-dashboard-mode')
       document.body.style.background = ''
       if (nextRoot) nextRoot.style.background = ''
+      if (zWrapper) zWrapper.style.background = ''
     }
   }, [])
 

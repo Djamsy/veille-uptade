@@ -58,6 +58,7 @@ body {
 /* Dashboard map mode — body transparent pour laisser voir la carte */
 .map-dashboard-mode { background: transparent !important; }
 .map-dashboard-mode > * { background: transparent !important; }
+.map-dashboard-mode .ambient-bg { display: none !important; }
 
 /* ── Ambient glow subtil ─────────────────────────────── */
 .ambient-bg {
