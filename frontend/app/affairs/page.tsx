@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import Sidebar from '../../components/Sidebar'
-import BmgGauge from '../../components/BmgGauge'
 import { fetchAffairs, type Affair } from '../../lib/api'
 
 // ── Helpers ──────────────────────────────────────────────
@@ -174,7 +173,10 @@ export default function AffairsPage() {
                 <p className="text-xs truncate mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>{affair.primary_entity}</p>
               )}
             </div>
-            <BmgGauge value={(affair.bmg || 0) * 100} size={60} />
+            <div className="flex-shrink-0 rounded-full border-2 border-cyan-500/40 flex items-center justify-center text-lg font-bold text-cyan-300"
+              style={{ width: '60px', height: '60px' }}>
+              {Math.round((affair.bmg || 0) * 100)}
+            </div>
           </div>
           {affair.description && <p className="text-xs line-clamp-2 mb-3" style={{ color: 'rgba(255,255,255,0.35)' }}>{affair.description}</p>}
           <div className="flex flex-wrap gap-1.5 mb-3">
@@ -229,7 +231,10 @@ export default function AffairsPage() {
     return (
       <Link key={affair._id} href={`/affairs/${affair._id}`}>
         <div className="flex items-center gap-4 p-4 glass-card cursor-pointer group" style={{ borderLeft: `2px solid ${pc.color}` }}>
-          <BmgGauge value={(affair.bmg || 0) * 100} size={48} />
+          <div className="flex-shrink-0 rounded-full border-2 border-cyan-500/40 flex items-center justify-center text-[10px] font-bold text-cyan-300"
+            style={{ width: '48px', height: '48px' }}>
+            {Math.round((affair.bmg || 0) * 100)}
+          </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <h3 className="text-sm font-semibold text-white truncate group-hover:text-white/95">{affair.title || affair.primary_entity || 'Affaire'}</h3>

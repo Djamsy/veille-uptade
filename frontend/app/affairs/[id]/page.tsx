@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Sidebar from '../../../components/Sidebar'
-import BmgGauge from '../../../components/BmgGauge'
 import { fetchAffairDetail, recalculateBmg, generateAffairContext, fetchAffairContext, type Affair, type AffairContext, type TimelineEvent, type BmgDetails, type LinkedArticle, type LinkedRadio, type LinkedSocial } from '../../../lib/api'
 
 // ── Helpers ──────────────────────────────────────────────
@@ -294,7 +293,16 @@ export default function AffairDetailPage() {
 
               {/* BMG Gauge large */}
               <div className="flex flex-col items-center gap-2">
-                <BmgGauge value={(affair.bmg || 0) * 100} size={120} label={bmg?.niveau_alerte} />
+                <div className="w-[120px] h-[120px] rounded-full flex items-center justify-center text-2xl font-bold"
+                  style={{
+                    background: `conic-gradient(#22d3ee ${(affair.bmg || 0) * 100}%, rgba(255,255,255,0.05) 0)`,
+                    color: '#22d3ee',
+                  }}>
+                  <div className="w-24 h-24 rounded-full flex flex-col items-center justify-center" style={{ background: 'var(--bg, #0a0f1a)' }}>
+                    <span>{Math.round((affair.bmg || 0) * 100)}</span>
+                    <span className="text-[9px] text-white/40 font-normal">{bmg?.niveau_alerte || 'BMG'}</span>
+                  </div>
+                </div>
                 <button
                   onClick={handleRecalculate}
                   disabled={recalculating}

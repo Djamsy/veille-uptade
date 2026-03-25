@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Sidebar from '../../components/Sidebar'
-import BmgGauge from '../../components/BmgGauge'
 import {
   fetchAffairSystemHealth,
   fetchReconciliationHealth,
@@ -311,7 +310,10 @@ export default function AnalyticsPage() {
                   <div>
                     <p className="text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>BMG moyen</p>
                     <div className="flex items-center gap-2">
-                      <BmgGauge value={avgBmg * 100} size={36} />
+                      <div className="flex-shrink-0 rounded-full border-2 border-cyan-500/40 flex items-center justify-center text-[10px] font-bold text-cyan-300"
+                        style={{ width: '36px', height: '36px' }}>
+                        {Math.round(avgBmg * 100)}
+                      </div>
                       <p className="text-lg font-bold text-white">{Math.round(avgBmg * 100)}</p>
                     </div>
                   </div>
