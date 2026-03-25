@@ -1189,10 +1189,17 @@ CRITÈRES POUR CONSIDÉRER COMME DOUBLON :
 - Même institution/personne + même action (ex: "Ary Chalus convoqué" et "Arichalus devant le parquet")
 - Même lieu + même type d'incident (ex: "Plongeur décédé à Sainte-Anne" et "Mort d'un touriste à Sainte-Anne")
 
-CE QUI N'EST PAS UN DOUBLON :
+CE QUI N'EST PAS UN DOUBLON (NE JAMAIS FUSIONNER) :
 - Même thème mais événements différents (ex: deux accidents différents, deux grèves différentes)
 - Même personne mais actions différentes (ex: "Chalus annonce" vs "Chalus critiqué pour corruption")
 - Même institution mais sujets différents
+- CATÉGORIES D'ÉVÉNEMENTS INCOMPATIBLES : un meurtre ≠ une noyade ≠ une élection ≠ un accident de la route ≠ un procès ≠ un trafic de drogue ≠ une grève ≠ une catastrophe naturelle. Même si la même personne ou le même lieu est cité, ces types d'événements sont TOUJOURS des affaires distinctes.
+
+EXEMPLES DE NON-DOUBLONS (NE PAS FUSIONNER) :
+- "X élu président de la Région" + "Meurtre aux Abymes" → JAMAIS un doublon
+- "Noyade à Sainte-Anne" + "X gagne les élections" → JAMAIS un doublon
+- "Accident mortel sur la RN1" + "Procès d'un trafiquant" → JAMAIS un doublon
+- "Grève des enseignants" + "Noyade d'un touriste" → JAMAIS un doublon
 
 Réponds UNIQUEMENT en JSON :
 {
@@ -1403,10 +1410,15 @@ EXEMPLES DE MATCH :
 - Veille: "Procès Chalus" ↔ Active: "Convocation Arichalus parquet" (même personne, même affaire judiciaire)
 - Veille: "Grève enseignants Guadeloupe" ↔ Active: "Mobilisation éducation nationale 971" (même mouvement)
 
-CE QUI N'EST PAS UN MATCH :
+CE QUI N'EST PAS UN MATCH (NE JAMAIS FUSIONNER) :
 - Même thème mais événements totalement différents
 - Même personne mais sujets sans rapport
 - Même lieu mais incidents distincts
+- CATÉGORIES INCOMPATIBLES : un meurtre ≠ une noyade ≠ une élection ≠ un accident ≠ un procès ≠ un trafic ≠ une grève ≠ une catastrophe naturelle. Ces types d'événements sont TOUJOURS des affaires distinctes, même avec les mêmes personnes ou lieux.
+
+EXEMPLES DE NON-MATCH :
+- Veille: "Victoire électorale de X" ↔ Active: "Noyade d'un touriste" → PAS un match
+- Veille: "Accident de la route mortel" ↔ Active: "Grève au CHU" → PAS un match
 
 Réponds UNIQUEMENT en JSON :
 {

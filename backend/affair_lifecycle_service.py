@@ -1711,6 +1711,16 @@ class AffairLifecycleService:
                     logger.info(f"      📊 Fallback score: {best_score} → fusion")
 
             if best_match:
+                # ── Filtre anti boule de neige ──
+                coherent, block_reason = self._titles_are_coherent(
+                    art.get("title", ""), best_match.get("title", ""),
+                    art.get("ai_summary", ""), best_match.get("description", ""),
+                )
+                if not coherent:
+                    logger.warning(f"      🚫 FUSION BLOQUÉE: {block_reason}")
+                    best_match = None
+
+            if best_match:
                 # Fusionner avec l'affaire existante
                 logger.info(f"      ✅ FUSION avec: '{best_match.get('title', '?')[:50]}'")
                 merged_gravity = max(gravity, best_match.get("gravity_score", 0))
@@ -1941,6 +1951,105 @@ class AffairLifecycleService:
         "vidéo", "après", "dans", "pour", "avec", "plus", "vers",
         "cette", "tout", "tous", "très", "fait", "être", "avoir",
     }
+
+    # ── CATÉGORIES D'ÉVÉNEMENTS INCOMPATIBLES (anti boule de neige) ──
+    # Deux affaires dans des catégories DIFFÉRENTES ne doivent JAMAIS être fusionnées,
+    # même si elles partagent des entités ou un thème. Chaque catégorie est un set
+    # de mots-clés présents dans le titre ou la description.
+    EVENT_CATEGORIES = {
+        "meurtre_violence": {
+            "meurtre", "meurt", "mort", "tué", "tuée", "assassiné", "assassinée",
+            "homicide", "crime", "coups de couteau", "coups de feu", "fusillade",
+            "balle", "poignardé", "poignardée", "cadavre", "corps retrouvé",
+            "féminicide", "tentative de meurtre", "violence conjugale",
+        },
+        "noyade_accident_mer": {
+            "noyade", "noyé", "noyée", "noyés", "plongeur décédé", "plongée",
+            "disparition en mer", "baignade", "accident maritime", "chavire",
+            "corps repêché", "recherches en mer", "sauvetage en mer",
+        },
+        "accident_route": {
+            "accident de la route", "collision", "accident mortel",
+            "renversé", "percuté", "véhicule", "chauffard", "excès de vitesse",
+            "motocycliste", "piéton fauché", "sortie de route",
+        },
+        "election_politique": {
+            "élection", "election", "élu", "élue", "candidat", "candidate",
+            "scrutin", "vote", "campagne électorale", "municipales",
+            "législatives", "sénatoriales", "résultats élections",
+            "gagné les élections", "victoire électorale", "second tour",
+        },
+        "catastrophe_naturelle": {
+            "cyclone", "ouragan", "tempête tropicale", "séisme", "tremblement",
+            "inondation", "glissement de terrain", "éruption", "tsunami",
+            "alerte météo", "vigilance rouge", "vigilance orange",
+        },
+        "greve_mouvement_social": {
+            "grève", "greve", "manifestation", "blocage", "barrage",
+            "mobilisation", "piquet", "mouvement social", "revendication",
+            "syndicat", "débrayage",
+        },
+        "sante_epidemie": {
+            "dengue", "épidémie", "pandémie", "covid", "virus",
+            "contamination", "cas positifs", "hospitalisés", "décès covid",
+            "chlordécone", "sargasses", "intoxication",
+        },
+        "justice_proces": {
+            "procès", "proces", "tribunal", "condamné", "condamnée",
+            "jugement", "audience", "garde à vue", "mis en examen",
+            "détention", "incarcéré", "incarcérée", "acquitté",
+            "réquisitions", "verdict", "assises",
+        },
+        "trafic_drogue": {
+            "trafic de drogue", "stupéfiants", "cocaïne", "cocaine",
+            "cannabis", "saisie de drogue", "trafiquant", "go fast",
+            "crack", "réseau de drogue", "deal", "dealer",
+        },
+    }
+
+    def _detect_event_category(self, text: str) -> Optional[str]:
+        """Détecte la catégorie d'événement à partir du titre/description.
+        Retourne le nom de la catégorie ou None si non classifiable."""
+        if not text:
+            return None
+        text_lower = text.lower()
+        best_cat = None
+        best_score = 0
+        for cat_name, keywords in self.EVENT_CATEGORIES.items():
+            score = sum(1 for kw in keywords if kw in text_lower)
+            if score > best_score:
+                best_score = score
+                best_cat = cat_name
+        return best_cat if best_score >= 1 else None
+
+    def _titles_are_coherent(self, title_a: str, title_b: str, desc_a: str = "", desc_b: str = "") -> tuple:
+        """Vérifie si deux affaires sont sémantiquement cohérentes pour une fusion.
+
+        Compare les catégories d'événements. Si les deux affaires sont dans des catégories
+        différentes et incompatibles, la fusion est bloquée.
+
+        Retourne (is_coherent: bool, reason: str).
+        """
+        text_a = f"{title_a} {desc_a}".strip()
+        text_b = f"{title_b} {desc_b}".strip()
+
+        cat_a = self._detect_event_category(text_a)
+        cat_b = self._detect_event_category(text_b)
+
+        # Si une des deux n'a pas de catégorie détectée, on laisse passer
+        if cat_a is None or cat_b is None:
+            return (True, "")
+
+        # Si même catégorie, cohérent
+        if cat_a == cat_b:
+            return (True, "")
+
+        # Catégories différentes → BLOQUER la fusion
+        return (
+            False,
+            f"catégories incompatibles: {cat_a} vs {cat_b} "
+            f"('{title_a[:40]}' ≠ '{title_b[:40]}')"
+        )
 
     # Lieux hors-Guadeloupe — si l'article mentionne ces lieux SANS mentionner
     # la Guadeloupe, on le considère comme hors périmètre.
@@ -2241,6 +2350,16 @@ class AffairLifecycleService:
                         except ImportError:
                             pass
 
+                # ── Filtre anti boule de neige ──
+                if should_merge:
+                    coherent, block_reason = self._titles_are_coherent(
+                        affair_a.get("title", ""), affair_b.get("title", ""),
+                        affair_a.get("description", ""), affair_b.get("description", ""),
+                    )
+                    if not coherent:
+                        logger.warning(f"🚫 FUSION inter-affaires BLOQUÉE: {block_reason}")
+                        should_merge = False
+
                 if should_merge:
                     # Garder l'affaire avec la plus haute gravité / plus d'items
                     keep, absorb = (affair_a, affair_b) if (
@@ -2382,6 +2501,28 @@ class AffairLifecycleService:
                 if not absorb_affair:
                     continue
 
+                # ── Filtre anti boule de neige : vérifier cohérence des titres ──
+                coherent, block_reason = self._titles_are_coherent(
+                    keep_affair.get("title", ""),
+                    absorb_affair.get("title", ""),
+                    keep_affair.get("description", ""),
+                    absorb_affair.get("description", ""),
+                )
+                if not coherent:
+                    logger.warning(
+                        f"🚫 FUSION IA BLOQUÉE: {block_reason}"
+                    )
+                    # Notification du blocage
+                    if _telegram_ok and _tg_merged:
+                        try:
+                            _tg_merged(
+                                keep_affair, absorb_affair, merge_type="ia",
+                                reason=f"⛔ BLOQUÉE — {block_reason}",
+                            )
+                        except Exception:
+                            pass
+                    continue
+
                 logger.info(
                     f"🤖 FUSION IA: '{keep_affair.get('title', '?')[:40]}' "
                     f"absorbe '{absorb_affair.get('title', '?')[:40]}' "
@@ -2506,6 +2647,15 @@ class AffairLifecycleService:
                         f"'{stale_affair.get('title', '?')[:40]}' ↔ '{active_affair.get('title', '?')[:40]}'"
                     )
                     continue
+
+            # ── Filtre anti boule de neige ──
+            coherent, block_reason = self._titles_are_coherent(
+                stale_affair.get("title", ""), active_affair.get("title", ""),
+                stale_affair.get("description", ""), active_affair.get("description", ""),
+            )
+            if not coherent:
+                logger.warning(f"🚫 FUSION stale→active BLOQUÉE: {block_reason}")
+                continue
 
             logger.info(
                 f"🔗 FUSION stale→active [{confidence}]: "
