@@ -263,12 +263,12 @@ def classify_article_commune(article: Dict[str, Any]) -> List[str]:
 # --- Clustering ---
 CLUSTER_WINDOW_HOURS = 72              # Fenêtre de clustering (3 jours)
 MIN_CLUSTER_ITEMS = 2                  # Minimum d'items pour former un cluster
-CLUSTER_SIMILARITY_THRESHOLD = 0.30    # Seuil de similarité contextuelle
-CLUSTER_SIMILARITY_BROAD_THEME = 0.45  # Seuil rehaussé pour thèmes larges (securite_justice, sante_social)
-CLUSTER_MERGE_THRESHOLD = 0.50         # Seuil pour fusionner deux clusters
+CLUSTER_SIMILARITY_THRESHOLD = 0.35    # Seuil de similarité contextuelle (relevé de 0.30)
+CLUSTER_SIMILARITY_BROAD_THEME = 0.50  # Seuil rehaussé pour thèmes larges (relevé de 0.45)
+CLUSTER_MERGE_THRESHOLD = 0.55         # Seuil pour fusionner deux clusters (relevé de 0.50)
 
 # Thèmes trop larges qui regroupent des événements sans lien
-BROAD_THEMES = {"securite_justice", "sante_social", "general"}
+BROAD_THEMES = {"securite_justice", "sante_social", "general", "culture_patrimoine", "environnement", "economie"}
 
 # --- Promotion en affaire ---
 PROMOTION_MIN_SOURCES = 1              # Au moins 1 source (assoupli, était 2)
@@ -1005,6 +1005,14 @@ class AffairLifecycleService:
 
                 sim = self._cluster_cluster_similarity(cl_a, cl_b)
                 if sim >= CLUSTER_MERGE_THRESHOLD:
+                    # Vérifier cohérence sémantique avant fusion
+                    coherent, block_reason = self._titles_are_coherent(
+                        cl_a.get("title", ""), cl_b.get("title", ""),
+                        cl_a.get("description", ""), cl_b.get("description", ""),
+                    )
+                    if not coherent:
+                        logger.warning(f"🚫 Fusion cluster↔cluster BLOQUÉE: {block_reason}")
+                        continue
                     self._do_merge(cl_a, cl_b)
                     merged_ids.add(str(cl_b["_id"]))
                     merged += 1
@@ -1256,7 +1264,15 @@ class AffairLifecycleService:
             # 1) Similarité titre (SequenceMatcher) — détecte les quasi-doublons
             title_sim = SequenceMatcher(None, cluster_title, aff_title).ratio()
             if title_sim >= 0.65:
-                # Titres quasi-identiques → c'est un doublon
+                # Vérifier cohérence sémantique avant de conclure doublon
+                coherent, block_reason = self._titles_are_coherent(
+                    cluster.get("title", ""), affair.get("title", ""),
+                    cluster.get("description", ""), affair.get("description", ""),
+                )
+                if not coherent:
+                    logger.warning(f"🚫 Doublon titre BLOQUÉ (cluster→affaire): {block_reason}")
+                    continue
+                # Titres quasi-identiques + cohérents → c'est un doublon
                 logger.info(f"   🔗 Doublon détecté par titre (sim={title_sim:.2f}): "
                            f"'{cluster_title[:40]}' ≈ '{aff_title[:40]}'")
                 return affair
@@ -1279,6 +1295,14 @@ class AffairLifecycleService:
 
             combined = entity_score * 0.5 + token_score * 0.3 + title_bonus
             if combined > best_score and combined >= 0.35:
+                # Vérifier cohérence sémantique
+                coherent, block_reason = self._titles_are_coherent(
+                    cluster.get("title", ""), affair.get("title", ""),
+                    cluster.get("description", ""), affair.get("description", ""),
+                )
+                if not coherent:
+                    logger.warning(f"🚫 Fusion cluster→affaire BLOQUÉE: {block_reason}")
+                    continue
                 best_score = combined
                 best = affair
 
@@ -2141,6 +2165,23 @@ class AffairLifecycleService:
             "cannabis", "saisie de drogue", "trafiquant", "go fast",
             "crack", "réseau de drogue", "deal", "dealer",
         },
+        "agriculture_economie": {
+            "campagne sucrière", "sucre", "sucrière", "sucriere", "canne",
+            "cannier", "récolte", "plantation", "agricole", "agriculture",
+            "banane", "bananier", "rhum", "distillerie", "usine",
+            "filière", "production", "exportation", "pêche", "pecheur",
+        },
+        "memoire_esclavage": {
+            "esclavage", "esclave", "esclaves", "abolition", "traite",
+            "négrière", "negriere", "commémoration", "mémorial", "memorial",
+            "22 mai", "27 mai", "10 mai", "marronnage", "marron",
+            "colonisation", "déportation", "mémoire", "ancêtres",
+        },
+        "commemoration_ceremonie": {
+            "commémoration", "cérémonie", "hommage", "anniversaire",
+            "souvenir", "recueillement", "gerbe", "monument", "mémorial",
+            "memorial", "dépôt de gerbe", "minute de silence",
+        },
     }
 
     def _detect_event_category(self, text: str) -> Optional[str]:
@@ -2208,12 +2249,30 @@ class AffairLifecycleService:
             f"('{title_a[:50]}' ≠ '{title_b[:50]}')"
         )
 
+    # Champs sémantiques mutuellement exclusifs : si A touche un champ et B un autre → BLOQUER
+    EXCLUSIVE_SEMANTIC_FIELDS = {
+        "agriculture": {"campagne sucrière", "sucrière", "sucriere", "canne", "récolte",
+                        "plantation", "agricole", "agriculture", "banane", "rhum",
+                        "distillerie", "usine sucrière", "filière canne"},
+        "esclavage_memoire": {"esclavage", "esclave", "abolition", "traite négrière",
+                              "négrière", "negriere", "marronnage", "marron",
+                              "crime contre l'humanité", "crime de l'esclavage",
+                              "déportation", "chaînes", "colonisation"},
+        "election": {"élection", "election", "candidat", "scrutin", "vote",
+                     "campagne électorale", "second tour", "résultat"},
+        "sport": {"match", "championnat", "tournoi", "compétition", "victoire sportive",
+                  "équipe", "joueur", "joueuse", "entraîneur", "stade"},
+        "meteo_cyclone": {"cyclone", "ouragan", "tempête", "alerte météo",
+                          "vigilance rouge", "vigilance orange", "inondation"},
+    }
+
     def _titles_are_coherent(self, title_a: str, title_b: str, desc_a: str = "", desc_b: str = "") -> tuple:
         """Vérifie si deux affaires sont sémantiquement cohérentes pour une fusion.
 
-        Vérifie 2 critères :
-        1. Catégories d'événements compatibles (meurtre ≠ élection)
-        2. Zones géographiques compatibles (Guadeloupe ≠ RDC)
+        Vérifie 3 critères :
+        1. Zones géographiques compatibles (Guadeloupe ≠ RDC)
+        2. Catégories d'événements compatibles (meurtre ≠ élection)
+        3. Champs sémantiques exclusifs (agriculture ≠ esclavage)
 
         Retourne (is_coherent: bool, reason: str).
         """
@@ -2229,20 +2288,35 @@ class AffairLifecycleService:
         cat_a = self._detect_event_category(text_a)
         cat_b = self._detect_event_category(text_b)
 
-        # Si une des deux n'a pas de catégorie détectée, on laisse passer
-        if cat_a is None or cat_b is None:
-            return (True, "")
+        # Si les deux ont une catégorie ET elles sont différentes → BLOQUER
+        if cat_a is not None and cat_b is not None and cat_a != cat_b:
+            return (
+                False,
+                f"catégories incompatibles: {cat_a} vs {cat_b} "
+                f"('{title_a[:40]}' ≠ '{title_b[:40]}')"
+            )
 
-        # Si même catégorie, cohérent
-        if cat_a == cat_b:
-            return (True, "")
+        # ── Check 3 : champs sémantiques exclusifs ──
+        text_a_lower = text_a.lower()
+        text_b_lower = text_b.lower()
 
-        # Catégories différentes → BLOQUER la fusion
-        return (
-            False,
-            f"catégories incompatibles: {cat_a} vs {cat_b} "
-            f"('{title_a[:40]}' ≠ '{title_b[:40]}')"
-        )
+        fields_a = set()
+        fields_b = set()
+        for field_name, keywords in self.EXCLUSIVE_SEMANTIC_FIELDS.items():
+            if any(kw in text_a_lower for kw in keywords):
+                fields_a.add(field_name)
+            if any(kw in text_b_lower for kw in keywords):
+                fields_b.add(field_name)
+
+        # Si A et B touchent des champs différents et non vides → BLOQUER
+        if fields_a and fields_b and not (fields_a & fields_b):
+            return (
+                False,
+                f"champs sémantiques exclusifs: {fields_a} vs {fields_b} "
+                f"('{title_a[:40]}' ≠ '{title_b[:40]}')"
+            )
+
+        return (True, "")
 
     # Lieux hors-Guadeloupe — si l'article mentionne ces lieux SANS mentionner
     # la Guadeloupe, on le considère comme hors périmètre.
@@ -4834,6 +4908,11 @@ class AffairLifecycleService:
             "article", "information", "infos", "selon", "aussi",
             "plus", "tous", "tout", "toute", "toutes", "tres",
             "cette", "dans", "avec", "pour", "depuis", "lors",
+            # Mots culturels/historiques trop génériques (présents dans beaucoup de sujets différents)
+            "histoire", "historique", "memoire", "patrimoine", "culture",
+            "culturel", "culturelle", "commemoration", "hommage", "tradition",
+            "traditionnel", "traditionnelle", "societe", "social", "sociale",
+            "communaute", "identite", "heritage", "local", "locale",
         }
         base_tokens -= noise_words
         base_tokens -= STOPWORDS
