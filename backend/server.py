@@ -555,7 +555,7 @@ if guadeloupe_scraper is None:
         
         def get_scraping_stats(self):
             try:
-                total = collections['articles_guadeloupe'].count_documents({})
+                total = collections['articles_guadeloupe'].estimated_document_count()
                 today = datetime.now().strftime('%Y-%m-%d')
                 today_count = collections['articles_guadeloupe'].count_documents({'date': today})
                 return {'total_articles': total, 'today_articles': today_count}
@@ -997,10 +997,10 @@ async def get_stats():
         return cached
     try:
         stats = {
-            "articles": collections['articles_guadeloupe'].count_documents({}) if collections.get('articles_guadeloupe') else 0,
-            "transcriptions": collections['radio_transcriptions'].count_documents({}) if collections.get('radio_transcriptions') else 0,
-            "affairs": collections['affairs'].count_documents({}) if collections.get('affairs') else 0,
-            "social_posts": collections['social_media_posts'].count_documents({}) if collections.get('social_media_posts') else 0,
+            "articles": collections['articles_guadeloupe'].estimated_document_count() if collections.get('articles_guadeloupe') else 0,
+            "transcriptions": collections['radio_transcriptions'].estimated_document_count() if collections.get('radio_transcriptions') else 0,
+            "affairs": collections['affairs'].estimated_document_count() if collections.get('affairs') else 0,
+            "social_posts": collections['social_media_posts'].estimated_document_count() if collections.get('social_media_posts') else 0,
             "today": datetime.now().strftime('%Y-%m-%d')
         }
 
@@ -1435,6 +1435,15 @@ if RUN_SCHEDULER:
             attach_scheduler(app)
             logger.info("✅ Scheduler APScheduler démarré")
 
+        @app.on_event("startup")
+        async def _create_api_indexes():
+            """Crée les index MongoDB au démarrage (idempotent)."""
+            try:
+                from backend.db import ensure_api_indexes
+                ensure_api_indexes()
+            except Exception as e:
+                logger.warning(f"⚠️ Index API: {e}")
+
         _scheduler_loaded = True
         logger.info("✅ Scheduler routes ajoutées")
     except Exception as e:
@@ -1605,7 +1614,7 @@ try:
     # sont conservées. Purge manuelle disponible via API si nécessaire.
     if db is not None:
         try:
-            total = db.affairs.count_documents({})
+            total = db.affairs.estimated_document_count()
             v2_count = db.affairs.count_documents({"promoted_at": {"$exists": True}})
             logger.info(f"📊 Affaires en base: {total} total, {v2_count} V2 (avec promoted_at)")
         except Exception as e:

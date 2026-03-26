@@ -1,12 +1,16 @@
 # backend/db.py
 import os
+import time
+import logging
 from functools import lru_cache
-from pymongo import MongoClient
+from pymongo import MongoClient, ASCENDING, DESCENDING, TEXT
 
 try:
     import certifi
 except ImportError:
     certifi = None
+
+logger = logging.getLogger(__name__)
 
 def _resolve_db_name(mongo_url: str, fallback: str = "veille_media") -> str:
     """Déduit le nom de la base depuis l'URL (après le dernier /), sinon fallback."""
@@ -50,3 +54,118 @@ def get_db():
     mongo_url = os.getenv("MONGO_URL", "mongodb://localhost:27017/veille_media")
     db_name = os.getenv("MONGO_DB_NAME") or _resolve_db_name(mongo_url)
     return _client()[db_name]
+
+
+# ── Index Setup (appelé une seule fois au démarrage) ──
+
+_indexes_created = False
+
+def ensure_api_indexes(db=None):
+    """Crée les index critiques pour les collections API.
+
+    Idempotent — ne s'exécute qu'une fois par process grâce au flag _indexes_created.
+    Inclut : text index pour la recherche full-text, compound indexes pour les
+    requêtes fréquentes (filtrées, triées, paginées).
+    """
+    global _indexes_created
+    if _indexes_created:
+        return
+    if db is None:
+        db = get_db()
+
+    try:
+        articles = db["articles_guadeloupe"]
+
+        # ── Text index pour la recherche full-text ──
+        # Remplace les $regex lents par $text (utilise un index inversé)
+        try:
+            articles.create_index(
+                [("title", TEXT), ("summary", TEXT), ("ai_summary", TEXT)],
+                default_language="french",
+                name="idx_articles_text_search",
+            )
+            logger.info("✅ Text index créé sur articles_guadeloupe")
+        except Exception as e:
+            # L'index existe peut-être déjà ou conflit avec un autre text index
+            if "already exists" not in str(e).lower() and "exists with different" not in str(e).lower():
+                logger.warning(f"⚠️ Text index articles: {e}")
+
+        # ── Compound indexes pour requêtes fréquentes ──
+        _safe_index(articles, [("date", DESCENDING), ("source", ASCENDING)], "idx_date_source")
+        _safe_index(articles, [("date", DESCENDING), ("scraped_at", DESCENDING)], "idx_date_scraped")
+        _safe_index(articles, [("source", ASCENDING), ("scraped_at", DESCENDING)], "idx_source_scraped")
+        _safe_index(articles, [("scraped_at", DESCENDING)], "idx_scraped_at")
+
+        # ── Radio transcriptions ──
+        radio = db["radio_transcriptions"]
+        _safe_index(radio, [("date", DESCENDING), ("captured_at", DESCENDING)], "idx_radio_date_captured")
+        _safe_index(radio, [("captured_at", DESCENDING)], "idx_radio_captured")
+
+        # ── Social media posts ──
+        social = db["social_media_posts"]
+        _safe_index(social, [("scraped_at", DESCENDING)], "idx_social_scraped")
+        try:
+            social.create_index(
+                [("content", TEXT)],
+                default_language="french",
+                name="idx_social_text_search",
+            )
+        except Exception:
+            pass  # text index peut déjà exister
+
+        # ── Comments ──
+        _safe_index(db["comments"], [("created_at", DESCENDING)], "idx_comments_created")
+
+        # ── Affairs ──
+        affairs = db["affairs"]
+        _safe_index(affairs, [("status", ASCENDING), ("created_at", DESCENDING)], "idx_affairs_status_created")
+        _safe_index(affairs, [("status", ASCENDING), ("gravity_score", DESCENDING)], "idx_affairs_status_gravity")
+        _safe_index(affairs, [("status", ASCENDING), ("updated_at", DESCENDING)], "idx_affairs_status_updated")
+
+        _indexes_created = True
+        logger.info("✅ Tous les index API créés avec succès")
+    except Exception as e:
+        logger.error(f"❌ Erreur création index API: {e}")
+
+
+def _safe_index(collection, keys, name):
+    """Crée un index en ignorant les erreurs (déjà existant, etc.)."""
+    try:
+        collection.create_index(keys, name=name, background=True)
+    except Exception:
+        pass  # index déjà existant ou en cours de construction
+
+
+# ── Cache en mémoire simple pour les stats dashboard ──
+
+_stats_cache: dict = {}
+_STATS_TTL = 60  # secondes
+
+def get_cached_stats(key: str, fetcher, ttl: int = _STATS_TTL):
+    """Cache en mémoire avec TTL pour les compteurs coûteux.
+
+    Args:
+        key: Clé de cache unique
+        fetcher: Callable qui retourne la valeur à mettre en cache
+        ttl: Durée de vie en secondes (défaut: 60s)
+
+    Returns:
+        La valeur depuis le cache ou fraîchement calculée.
+    """
+    now = time.time()
+    if key in _stats_cache:
+        val, ts = _stats_cache[key]
+        if now - ts < ttl:
+            return val
+    val = fetcher()
+    _stats_cache[key] = (val, now)
+    return val
+
+
+def invalidate_stats_cache(key: str = None):
+    """Invalide le cache stats. Sans argument, vide tout le cache."""
+    global _stats_cache
+    if key is None:
+        _stats_cache.clear()
+    elif key in _stats_cache:
+        del _stats_cache[key]

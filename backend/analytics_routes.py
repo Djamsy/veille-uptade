@@ -185,7 +185,7 @@ async def dashboard_stats(db: Database = Depends(get_database)):
         coll = get_articles_collection(db)
         
         # Métriques de base
-        total_articles = coll.count_documents({})
+        total_articles = coll.estimated_document_count()
         
         # Articles enrichis (avec thèmes)
         enriched_themes = coll.count_documents({"themes": {"$exists": True, "$ne": []}})
@@ -330,7 +330,7 @@ async def analytics_dashboard(
         since = now - timedelta(days=days)
         
         # Métriques de base
-        total_articles = coll.count_documents({})
+        total_articles = coll.estimated_document_count()
         
         # Articles enrichis (CORRECTION: avec thèmes ET/OU élus)
         enriched_count = coll.count_documents({

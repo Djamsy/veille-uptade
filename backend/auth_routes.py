@@ -378,11 +378,11 @@ def system_health(admin: dict = Depends(_require_admin_auth)):
     last_report_at = last_report.get("generated_at") if last_report else None
 
     # Compteurs
-    total_articles = db["articles_guadeloupe"].count_documents({})
+    total_articles = db["articles_guadeloupe"].estimated_document_count()
     total_affairs = db["affairs"].count_documents({"status": "active"})
-    total_radio = db["radio_transcriptions"].count_documents({})
-    total_social = db["social_media_posts"].count_documents({})
-    total_users = db["users"].count_documents({})
+    total_radio = db["radio_transcriptions"].estimated_document_count()
+    total_social = db["social_media_posts"].estimated_document_count()
+    total_users = db["users"].estimated_document_count()
 
     # Erreurs récentes (dernières 24h)
     from datetime import timedelta

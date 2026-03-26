@@ -164,7 +164,7 @@ async def job_enrich():
             articles_col = _db["articles_guadeloupe"]
 
             # Diagnostic : compter les articles par _analysis_method
-            total_col = articles_col.count_documents({})
+            total_col = articles_col.estimated_document_count()
             preliminary = articles_col.count_documents({"_analysis_method": "rules_preliminary"})
             ultra_strict = articles_col.count_documents({"_analysis_method": "rule_based_ultra_strict"})
             no_method = articles_col.count_documents({"_analysis_method": {"$exists": False}})
@@ -329,7 +329,7 @@ async def job_affair_cycle():
 
             # Pré-diagnostic
             affairs_count = _db["affairs"].count_documents({"status": "active"})
-            articles_total = _db["articles_guadeloupe"].count_documents({})
+            articles_total = _db["articles_guadeloupe"].estimated_document_count()
             not_processed = _db["articles_guadeloupe"].count_documents({
                 "$or": [
                     {"_affair_processed": {"$exists": False}},
@@ -933,7 +933,7 @@ async def scheduler_dashboard(user: dict = Depends(_sched_auth_any)):
     affairs_col = _db.get_collection("affairs")
 
     # Stats articles
-    total_articles = articles_col.count_documents({})
+    total_articles = articles_col.estimated_document_count()
     enriched_articles = articles_col.count_documents({"_analysis_method": {"$exists": True}})
 
     cutoff_24h_dt = datetime.now() - timedelta(hours=24)
@@ -944,7 +944,7 @@ async def scheduler_dashboard(user: dict = Depends(_sched_auth_any)):
     ]})
 
     # Stats affaires
-    total_affairs = affairs_col.count_documents({})
+    total_affairs = affairs_col.estimated_document_count()
     active_affairs = affairs_col.count_documents({"status": "active"})
 
     # Méthode d'enrichissement

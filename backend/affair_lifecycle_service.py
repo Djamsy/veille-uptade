@@ -375,19 +375,66 @@ class AffairLifecycleService:
             self.db = None
 
     def _ensure_indexes(self):
-        """Crée les index nécessaires."""
+        """Crée les index nécessaires (simples + compound pour les requêtes fréquentes)."""
         try:
-            self.candidates.create_index([("created_at", DESCENDING)])
-            self.candidates.create_index("cluster_id")
-            self.candidates.create_index("source_type")
-            self.clusters.create_index([("created_at", DESCENDING)])
-            self.clusters.create_index("status")
-            self.affairs.create_index([("created_at", DESCENDING)])
-            self.affairs.create_index("status")
-            self.affairs.create_index("priority")
-            self.affairs.create_index([("last_activity", DESCENDING)])
-            self.timeline.create_index("affair_id")
-            self.timeline.create_index([("timestamp", DESCENDING)])
+            # ── Candidates ──
+            self.candidates.create_index([("created_at", DESCENDING)], background=True)
+            self.candidates.create_index("cluster_id", background=True)
+            self.candidates.create_index("source_type", background=True)
+            self.candidates.create_index(
+                [("source_type", 1), ("created_at", DESCENDING)],
+                name="idx_cand_type_created", background=True,
+            )
+
+            # ── Clusters ──
+            self.clusters.create_index([("created_at", DESCENDING)], background=True)
+            self.clusters.create_index("status", background=True)
+            self.clusters.create_index(
+                [("status", 1), ("created_at", DESCENDING)],
+                name="idx_clust_status_created", background=True,
+            )
+
+            # ── Affairs (requêtes les plus fréquentes) ──
+            self.affairs.create_index([("created_at", DESCENDING)], background=True)
+            self.affairs.create_index("status", background=True)
+            self.affairs.create_index("priority", background=True)
+            self.affairs.create_index([("last_activity", DESCENDING)], background=True)
+            # Compound: status + tri (utilisé par le listing/filtrage front)
+            self.affairs.create_index(
+                [("status", 1), ("gravity_score", DESCENDING)],
+                name="idx_aff_status_gravity", background=True,
+            )
+            self.affairs.create_index(
+                [("status", 1), ("updated_at", DESCENDING)],
+                name="idx_aff_status_updated", background=True,
+            )
+            self.affairs.create_index(
+                [("status", 1), ("created_at", DESCENDING)],
+                name="idx_aff_status_created", background=True,
+            )
+
+            # ── Timeline ──
+            self.timeline.create_index("affair_id", background=True)
+            self.timeline.create_index([("timestamp", DESCENDING)], background=True)
+            self.timeline.create_index(
+                [("affair_id", 1), ("timestamp", DESCENDING)],
+                name="idx_tl_affair_ts", background=True,
+            )
+
+            # ── Articles (index compound pour les requêtes de recherche) ──
+            try:
+                self.articles.create_index(
+                    [("date", DESCENDING), ("scraped_at", DESCENDING)],
+                    name="idx_art_date_scraped", background=True,
+                )
+                self.articles.create_index(
+                    [("source", 1), ("scraped_at", DESCENDING)],
+                    name="idx_art_source_scraped", background=True,
+                )
+            except Exception:
+                pass  # articles peut être dans une autre collection
+
+            logger.info("✅ Index lifecycle créés avec succès")
         except Exception as e:
             logger.warning(f"⚠️ Index creation: {e}")
 
@@ -1649,10 +1696,10 @@ class AffairLifecycleService:
         }).sort("gravity_score", -1).limit(200))
 
         # ── DIAGNOSTIC : état de la base ──
-        total_articles = self.articles.count_documents({})
+        total_articles = self.articles.estimated_document_count()
         total_enriched = self.articles.count_documents({"_analysis_method": {"$exists": True}})
         total_processed = self.articles.count_documents({"_affair_processed": True})
-        total_affairs = self.affairs.count_documents({})
+        total_affairs = self.affairs.estimated_document_count()
         active_count = self.affairs.count_documents({"status": "active"})
         logger.info(f"📊 DB: {total_articles} articles total, {total_enriched} enrichis, "
                      f"{total_processed} déjà traités (affaires), "
@@ -4957,7 +5004,7 @@ class AffairLifecycleService:
         try:
             return {
                 "status": "operational",
-                "candidates_total": self.candidates.count_documents({}),
+                "candidates_total": self.candidates.estimated_document_count(),
                 "candidates_unclustered": self.candidates.count_documents({"cluster_id": None}),
                 "clusters_active": self.clusters.count_documents({"status": "active"}),
                 "affairs_active": self.affairs.count_documents({"status": "active"}),
