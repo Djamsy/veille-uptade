@@ -163,16 +163,9 @@ async def job_enrich():
         try:
             articles_col = _db["articles_guadeloupe"]
 
-            # Diagnostic : compter les articles par _analysis_method
+            # Diagnostic léger — un seul estimated_document_count au lieu de 3 count_documents
             total_col = articles_col.estimated_document_count()
-            preliminary = articles_col.count_documents({"_analysis_method": "rules_preliminary"})
-            ultra_strict = articles_col.count_documents({"_analysis_method": "rule_based_ultra_strict"})
-            no_method = articles_col.count_documents({"_analysis_method": {"$exists": False}})
-            logger.info(
-                f"📊 DB: {total_col} articles total, "
-                f"{preliminary} rules_preliminary, {ultra_strict} ultra_strict, "
-                f"{no_method} sans méthode"
-            )
+            logger.info(f"📊 DB: ~{total_col} articles total")
 
             # Articles à enrichir : soit jamais enrichis, soit seulement pré-enrichis
             # Fenêtre large (30j) pour rattraper le backlog, batch 200
@@ -349,17 +342,9 @@ async def job_affair_cycle():
 
             loop = asyncio.get_running_loop()
 
-            # Pré-diagnostic
-            affairs_count = _db["affairs"].count_documents({"status": "active"})
+            # Pré-diagnostic léger — évite les count_documents coûteux
             articles_total = _db["articles_guadeloupe"].estimated_document_count()
-            not_processed = _db["articles_guadeloupe"].count_documents({
-                "$or": [
-                    {"_affair_processed": {"$exists": False}},
-                    {"_affair_processed": False},
-                ]
-            })
-            logger.info(f"🔄 Lancement cycle affaires — {affairs_count} actives, "
-                        f"{articles_total} articles total, {not_processed} non traités")
+            logger.info(f"🔄 Lancement cycle affaires — ~{articles_total} articles total")
             result = await loop.run_in_executor(None, svc.run_simple_cycle)
 
             if result:
@@ -934,34 +919,29 @@ def _ensure_scheduler():
         job_defaults={"coalesce": True, "max_instances": 1}
     )
 
-    # Pipeline complet toutes les 5 min (scrape + enrich + affaires)
+    # Pipeline complet toutes les 15 min (scrape + enrich + affaires)
+    # ⚡ Réduit de 5 min → 15 min pour ÷3 les ops MongoDB Atlas Flex
     _scheduler.add_job(
         job_full_pipeline,
-        CronTrigger(minute="*/5", timezone=TZ),
+        CronTrigger(minute="*/15", timezone=TZ),
         id="full_pipeline",
-        name="Pipeline complet (scrape → enrich → affaires) 12x/h"
+        name="Pipeline complet (scrape → enrich → affaires) 4x/h"
     )
 
-    # Mise à jour des affaires toutes les 15 min
+    # Mise à jour des affaires toutes les 30 min (réduit de 15 min)
     _scheduler.add_job(
         job_update_affairs,
-        CronTrigger(minute="*/15", timezone=TZ),
+        CronTrigger(minute="10,40", timezone=TZ),
         id="update_affairs",
         name="MAJ affaires actives"
     )
 
-    # Enrichissement seul toutes les 30 min (rattrape les articles manqués)
-    _scheduler.add_job(
-        job_enrich,
-        CronTrigger(minute="15,45", timezone=TZ),
-        id="enrich_only",
-        name="Enrichissement articles non traités"
-    )
+    # Enrichissement standalone supprimé — déjà inclus dans full_pipeline
 
-    # 🎙️ Capture radio toutes les 5 min (le service vérifie si un flux est dû)
+    # 🎙️ Capture radio toutes les 10 min (réduit de 5 min pour ÷2 ops)
     _scheduler.add_job(
         job_radio_capture,
-        CronTrigger(minute="*/5", timezone=TZ),
+        CronTrigger(minute="*/10", timezone=TZ),
         id="radio_capture",
         name="Capture radio/TV (flux planifiés)"
     )

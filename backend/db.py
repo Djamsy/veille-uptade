@@ -36,7 +36,7 @@ def _client() -> MongoClient:
             socketTimeoutMS=20000,
             retryWrites=True,
             retryReads=True,
-            maxPoolSize=20,
+            maxPoolSize=10,
         )
     # Connexion locale / standard
     return MongoClient(
@@ -46,7 +46,7 @@ def _client() -> MongoClient:
         socketTimeoutMS=20000,
         retryWrites=True,
         retryReads=True,
-        maxPoolSize=20,
+        maxPoolSize=10,
     )
 
 def get_db():
@@ -112,6 +112,43 @@ def ensure_api_indexes(db=None):
             )
         except Exception:
             pass  # text index peut déjà exister
+
+        # TTL social posts : 90 jours (moins critique que les articles)
+        try:
+            social.create_index(
+                [("scraped_at", ASCENDING)],
+                name="idx_social_ttl_90d",
+                expireAfterSeconds=90 * 24 * 3600,
+            )
+        except Exception:
+            pass
+
+        # ── Radio transcriptions TTL : 90 jours ──
+        try:
+            radio.create_index(
+                [("captured_at", ASCENDING)],
+                name="idx_radio_ttl_90d",
+                expireAfterSeconds=90 * 24 * 3600,
+            )
+        except Exception:
+            pass
+
+        # ── Dedup indexes pour le scraper (évite 2× find_one par article) ──
+        _safe_index(articles, [("article_id", ASCENDING)], "idx_article_id_dedup")
+        _safe_index(articles, [("title_hash", ASCENDING)], "idx_title_hash_dedup")
+
+        # ── TTL : suppression automatique des vieux articles (120 jours) ──
+        # Réduit le stockage Atlas Flex qui grossit à l'infini
+        try:
+            articles.create_index(
+                [("scraped_at", ASCENDING)],
+                name="idx_articles_ttl_120d",
+                expireAfterSeconds=120 * 24 * 3600,  # 120 jours
+            )
+            logger.info("✅ TTL 120j créé sur articles_guadeloupe.scraped_at")
+        except Exception as e:
+            if "already exists" not in str(e).lower():
+                logger.warning(f"⚠️ TTL articles: {e}")
 
         # ── Comments ──
         _safe_index(db["comments"], [("created_at", DESCENDING)], "idx_comments_created")

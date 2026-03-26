@@ -319,8 +319,11 @@ class GuadeloupeScraper:
                     article_id = hashlib.md5(f"{href}:{title}".encode()).hexdigest()[:12]
                     # Aussi vérifier par titre seul (même article, URL différente)
                     title_hash = hashlib.md5(title.encode()).hexdigest()[:12]
-                    if (self.articles_collection.find_one({'article_id': article_id})
-                            or self.articles_collection.find_one({'title_hash': title_hash})):
+                    # ⚡ Un seul find_one avec $or au lieu de 2 requêtes séparées
+                    if self.articles_collection.find_one(
+                        {'$or': [{'article_id': article_id}, {'title_hash': title_hash}]},
+                        {'_id': 1}  # projection minimale
+                    ):
                         logger.info(f"   ⏭️  Article {i}/{len(links)}: Déjà en base")
                         continue
                     
@@ -395,28 +398,35 @@ class GuadeloupeScraper:
         }
         
         all_articles = []
-        
+
         for site_key, cfg in self.sites_config.items():
             try:
                 articles = self.scrape_site(site_key, cfg)
 
-                saved = 0
-
-                for article in articles:
+                # ⚡ Batch insert au lieu de N × insert_one (÷N ops MongoDB)
+                if articles:
                     try:
-                        # Sauvegarder l'article en base
-                        self.articles_collection.insert_one(article)
-                        saved += 1
-                        all_articles.append(article)
+                        insert_result = self.articles_collection.insert_many(
+                            articles, ordered=False  # continue même si un doublon
+                        )
+                        saved = len(insert_result.inserted_ids)
                     except Exception as e:
-                        logger.warning(f"   ⚠️ Erreur sauvegarde: {e}")
+                        # BulkWriteError si doublons — compter les succès
+                        if hasattr(e, 'details'):
+                            saved = e.details.get('nInserted', 0)
+                        else:
+                            saved = 0
+                            logger.warning(f"   ⚠️ Erreur batch insert: {e}")
+                    all_articles.extend(articles[:saved] if saved else [])
+                else:
+                    saved = 0
 
                 results["articles_by_site"][site_key] = saved
                 results["sites_scraped"] += 1
                 results["articles_saved"] += saved
                 results["articles_enriched"] += saved
 
-                logger.info(f"📈 {cfg['name']}: {saved} sauvegardés")
+                logger.info(f"📈 {cfg['name']}: {saved} sauvegardés (batch)")
 
                 time.sleep(1.0)  # Pause entre sites
 
