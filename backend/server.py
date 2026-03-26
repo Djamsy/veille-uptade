@@ -1660,6 +1660,16 @@ try:
 except Exception as e:
     logger.warning(f"⚠️ Routes Telegram non disponibles: {e}")
 
+# ============================================================
+# ROUTES VEILLE — Briefing, Trending, Coverage, Watchlist
+# ============================================================
+try:
+    from backend.veille_routes import router as veille_router
+    app.include_router(veille_router, prefix="/api/veille")
+    logger.info("✅ Routes Veille chargées (/api/veille/*)")
+except Exception as e:
+    logger.warning(f"⚠️ Routes Veille non disponibles: {e}")
+
 
 # ============================================================
 # RÉSUMÉ AUTOMATIQUE (journalier / hebdomadaire)

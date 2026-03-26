@@ -802,6 +802,103 @@ async def job_predictive_analysis():
 
 
 # ============================================================
+# BRIEFING MATINAL + WATCHLIST
+# ============================================================
+
+async def job_morning_briefing():
+    """Envoie le briefing matinal Telegram (7h15, après captures radio 7h)."""
+    if _db is None:
+        logger.warning("⚠️ Morning briefing: DB indisponible")
+        return {"status": "skip", "reason": "no_db"}
+
+    try:
+        try:
+            from backend.briefing_service import send_telegram_briefing
+        except ImportError:
+            from briefing_service import send_telegram_briefing
+
+        loop = asyncio.get_running_loop()
+        success = await loop.run_in_executor(None, send_telegram_briefing, _db, 24)
+
+        if success:
+            logger.info("☀️ Briefing matinal envoyé sur Telegram")
+        else:
+            logger.info("☀️ Briefing matinal: Telegram non configuré ou vide")
+
+        return {"status": "ok", "telegram_sent": success}
+
+    except Exception as e:
+        logger.error(f"❌ Morning briefing erreur: {e}")
+        return {"status": "error", "reason": str(e)}
+
+
+async def job_watchlist_check():
+    """Vérifie les mots-clés watchlist et envoie les alertes Telegram."""
+    if _db is None:
+        logger.warning("⚠️ Watchlist check: DB indisponible")
+        return {"status": "skip", "reason": "no_db"}
+
+    try:
+        try:
+            from backend.briefing_service import (
+                _check_watchlist, send_watchlist_alerts_telegram
+            )
+        except ImportError:
+            from briefing_service import (
+                _check_watchlist, send_watchlist_alerts_telegram
+            )
+
+        articles_col = _db["articles_guadeloupe"]
+        radio_col = _db["radio_transcriptions"]
+
+        # Articles de la dernière heure
+        cutoff = datetime.now() - timedelta(hours=1)
+        cutoff_iso = cutoff.isoformat()
+
+        recent_articles = list(
+            articles_col.find(
+                {"$or": [
+                    {"scraped_at": {"$gte": cutoff}},
+                    {"scraped_at": {"$gte": cutoff_iso}},
+                ]},
+                {"title": 1, "source": 1, "ai_summary": 1, "gravity_score": 1},
+            ).limit(100)
+        )
+
+        recent_radio = list(
+            radio_col.find(
+                {"$or": [
+                    {"captured_at": {"$gte": cutoff}},
+                    {"captured_at": {"$gte": cutoff_iso}},
+                ]},
+                {"stream_name": 1, "section": 1, "topic_title": 1,
+                 "ai_summary": 1, "gpt_analysis": 1, "topic_summary": 1},
+            ).limit(30)
+        )
+
+        if not recent_articles and not recent_radio:
+            return {"status": "ok", "reason": "no_recent_content"}
+
+        loop = asyncio.get_running_loop()
+        hits = await loop.run_in_executor(
+            None, _check_watchlist, _db, recent_articles, recent_radio
+        )
+
+        sent = 0
+        if hits:
+            sent = await loop.run_in_executor(
+                None, send_watchlist_alerts_telegram, _db, hits
+            )
+            logger.info(f"🔔 Watchlist: {len(hits)} alertes, {sent} envoyées Telegram")
+
+        return {"status": "ok", "hits": len(hits), "telegram_sent": sent}
+
+    except Exception as e:
+        logger.error(f"❌ Watchlist check erreur: {e}")
+        return {"status": "error", "reason": str(e)}
+
+
+# ============================================================
 # Scheduler APScheduler
 # ============================================================
 
@@ -877,6 +974,22 @@ def _ensure_scheduler():
         CronTrigger(hour=7, minute=0, timezone=TZ),
         id="daily_report",
         name="Bilan PDF quotidien (Telegram)"
+    )
+
+    # ☀️ Briefing matinal à 7h15 (après les captures radio de 7h)
+    _scheduler.add_job(
+        job_morning_briefing,
+        CronTrigger(hour=7, minute=15, timezone=TZ),
+        id="morning_briefing",
+        name="Briefing matinal Telegram (7h15)"
+    )
+
+    # 🔔 Check watchlist toutes les heures (minute 20)
+    _scheduler.add_job(
+        job_watchlist_check,
+        CronTrigger(minute="20", timezone=TZ),
+        id="watchlist_check",
+        name="Vérification watchlist (alertes)"
     )
 
     return _scheduler

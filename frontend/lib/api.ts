@@ -904,3 +904,145 @@ export const triggerRadioCapture = (section: string, duration = 20) =>
 
 export const fetchRadioToday = () =>
   apiFetch<{ cards: Array<Record<string, unknown>>; count: number }>('/api/radio/cards/today');
+
+// ============================================================
+// VEILLE — Briefing, Trending, Coverage, Watchlist
+// ============================================================
+
+export interface BriefingAffair {
+  _id: string;
+  title: string;
+  gravity_score: number;
+  theme: string;
+  status: string;
+  item_count: number;
+  sources: string[];
+  commune?: string;
+  priority?: string;
+  created_at?: string;
+  last_activity?: string;
+  bmg?: number;
+}
+
+export interface RadioHighlight {
+  stream: string;
+  summary: string;
+  topic: string;
+  gravity: number;
+  captured_at: string;
+}
+
+export interface TrendingAffair {
+  _id: string;
+  title: string;
+  gravity_score: number;
+  theme: string;
+  velocity: number;
+  source_spread: number;
+  trend_score: number;
+  is_new: boolean;
+  priority: string;
+}
+
+export interface WatchlistHit {
+  keyword: string;
+  category: string;
+  articles_matched: number;
+  radio_matched: number;
+  top_articles: Array<{ title: string; source: string; gravity: number }>;
+  top_radio: Array<{ stream: string; topic: string }>;
+}
+
+export interface CoverageGap {
+  affair_title: string;
+  gravity: number;
+  covered_by: string[];
+  missing_from: string[];
+}
+
+export interface BriefingResponse {
+  success: boolean;
+  briefing: {
+    generated_at: string;
+    period_hours: number;
+    top_affairs: BriefingAffair[];
+    new_affairs: BriefingAffair[];
+    radio_highlights: RadioHighlight[];
+    trending: TrendingAffair[];
+    coverage: {
+      sources_active: string[];
+      source_theme_matrix: Record<string, Record<string, number>>;
+      coverage_gaps: CoverageGap[];
+      total_sources: number;
+      total_articles: number;
+    };
+    watchlist_hits: WatchlistHit[];
+    stats: {
+      period_hours: number;
+      total_active_affairs: number;
+      new_affairs_count: number;
+      articles_count: number;
+      radio_captures_count: number;
+      sources_active: Record<string, number>;
+      themes_distribution: Record<string, number>;
+      sentiment_distribution: Record<string, number>;
+    };
+  };
+}
+
+export interface TrendingResponse {
+  success: boolean;
+  trending: TrendingAffair[];
+  period_hours: number;
+}
+
+export interface WatchlistItem {
+  _id: string;
+  keyword: string;
+  keyword_display: string;
+  category: string;
+  notify_telegram: boolean;
+  min_gravity: number;
+  hit_count: number;
+  last_hit: string | null;
+  created_at: string;
+}
+
+export interface QuickSummary {
+  success: boolean;
+  summary: {
+    active_affairs: number;
+    hot_affairs: number;
+    articles_today: number;
+    radio_today: number;
+    latest_affair: { title: string; gravity: number } | null;
+    timestamp: string;
+  };
+}
+
+export const fetchBriefing = (hours = 24) =>
+  apiFetch<BriefingResponse>(`/api/veille/briefing?hours=${hours}`);
+
+export const sendBriefingTelegram = (hours = 24) =>
+  apiFetch<{ success: boolean; message: string }>(`/api/veille/briefing/telegram?hours=${hours}`, { method: 'POST' });
+
+export const fetchTrending = (hours = 12) =>
+  apiFetch<TrendingResponse>(`/api/veille/trending?hours=${hours}`);
+
+export const fetchCoverage = (days = 1) =>
+  apiFetch<{ success: boolean; coverage: Record<string, unknown> }>(`/api/veille/coverage?days=${days}`);
+
+export const fetchWatchlist = () =>
+  apiFetch<{ success: boolean; watchlist: WatchlistItem[]; total: number }>('/api/veille/watchlist');
+
+export const addWatchlistKeyword = (keyword: string, category = 'general', notify = true, minGravity = 0) =>
+  apiFetch<{ success: boolean; item: WatchlistItem }>('/api/veille/watchlist', {
+    method: 'POST',
+    body: JSON.stringify({ keyword, category, notify_telegram: notify, min_gravity: minGravity }),
+  });
+
+export const removeWatchlistKeyword = (keyword: string) =>
+  apiFetch<{ success: boolean }>(`/api/veille/watchlist?keyword=${encodeURIComponent(keyword)}`, { method: 'DELETE' });
+
+export const fetchQuickSummary = () =>
+  apiFetch<QuickSummary>('/api/veille/quick-summary');
