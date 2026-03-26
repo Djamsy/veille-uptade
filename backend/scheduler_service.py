@@ -163,9 +163,16 @@ async def job_enrich():
         try:
             articles_col = _db["articles_guadeloupe"]
 
-            # Diagnostic léger — un seul estimated_document_count au lieu de 3 count_documents
+            # Diagnostic détaillé pour suivre l'état du pipeline
             total_col = articles_col.estimated_document_count()
-            logger.info(f"📊 DB: ~{total_col} articles total")
+            preliminary = articles_col.count_documents({"_analysis_method": "rules_preliminary"})
+            ultra_strict = articles_col.count_documents({"_analysis_method": "rule_based_ultra_strict"})
+            no_method = articles_col.count_documents({"_analysis_method": {"$exists": False}})
+            logger.info(
+                f"📊 DB: {total_col} articles total, "
+                f"{preliminary} rules_preliminary, {ultra_strict} ultra_strict, "
+                f"{no_method} sans méthode"
+            )
 
             # Articles à enrichir : soit jamais enrichis, soit seulement pré-enrichis
             # Fenêtre large (30j) pour rattraper le backlog, batch 200
@@ -342,9 +349,17 @@ async def job_affair_cycle():
 
             loop = asyncio.get_running_loop()
 
-            # Pré-diagnostic léger — évite les count_documents coûteux
+            # Pré-diagnostic détaillé
+            affairs_count = _db["affairs"].count_documents({"status": "active"})
             articles_total = _db["articles_guadeloupe"].estimated_document_count()
-            logger.info(f"🔄 Lancement cycle affaires — ~{articles_total} articles total")
+            not_processed = _db["articles_guadeloupe"].count_documents({
+                "$or": [
+                    {"_affair_processed": {"$exists": False}},
+                    {"_affair_processed": False},
+                ]
+            })
+            logger.info(f"🔄 Lancement cycle affaires — {affairs_count} actives, "
+                        f"{articles_total} articles total, {not_processed} non traités")
             result = await loop.run_in_executor(None, svc.run_simple_cycle)
 
             if result:
