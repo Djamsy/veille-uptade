@@ -84,6 +84,14 @@ export default function CartePage() {
   const [days, setDays] = useState(7);
   const [error, setError] = useState<string | null>(null);
 
+  // Mode jour/nuit automatique (6h-18h heure Guadeloupe = UTC-4)
+  const isDay = useMemo(() => {
+    const now = new Date();
+    // Heure Guadeloupe = UTC - 4
+    const gpeHour = (now.getUTCHours() - 4 + 24) % 24;
+    return gpeHour >= 6 && gpeHour < 18;
+  }, []);
+
   // Load map data
   useEffect(() => {
     setLoading(true);
@@ -131,9 +139,14 @@ export default function CartePage() {
 
     mapboxgl.accessToken = MAPBOX_TOKEN;
 
+    // Style jour/nuit automatique
+    const mapStyle = isDay
+      ? 'mapbox://styles/mapbox/outdoors-v12'
+      : 'mapbox://styles/mapbox/satellite-streets-v12';
+
     const map = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/satellite-streets-v12',
+      style: mapStyle,
       center: [-61.55, 16.20],
       zoom: 9.8,
       pitch: 55,
@@ -231,14 +244,28 @@ export default function CartePage() {
         });
       });
 
-      // Popup on hover
+      // Popup on hover — inclut les affaires de la commune
+      const affairsHtml = data.affairs.length > 0
+        ? `<div style="margin-top:6px;padding-top:5px;border-top:1px solid rgba(255,255,255,0.1);">
+            <div style="font-size:9px;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:3px;">Affaires</div>
+            ${data.affairs.slice(0, 3).map((aff: any) => {
+              const pColor = aff.priority === 'hot' ? '#ef4444' : aff.priority === 'watch' ? '#f59e0b' : '#6b7280';
+              return `<div style="font-size:10px;color:rgba(255,255,255,0.75);margin-bottom:2px;display:flex;align-items:center;gap:4px;">
+                <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${pColor};flex-shrink:0;"></span>
+                ${(aff.title || '').substring(0, 50)}${(aff.title || '').length > 50 ? '…' : ''}
+              </div>`;
+            }).join('')}
+            ${data.affairs.length > 3 ? `<div style="font-size:9px;color:rgba(255,255,255,0.3);margin-top:2px;">+${data.affairs.length - 3} autres</div>` : ''}
+          </div>`
+        : '';
+
       const popup = new mapboxgl.Popup({
         offset: [0, -size / 2 - 5],
         closeButton: false,
         closeOnClick: false,
         className: 'map-commune-popup',
       }).setHTML(`
-        <div style="background:rgba(15,23,42,0.95);border:1px solid ${gravityColor}44;border-radius:10px;padding:8px 12px;color:#fff;font-family:system-ui;min-width:140px;">
+        <div style="background:rgba(15,23,42,0.95);border:1px solid ${gravityColor}44;border-radius:10px;padding:8px 12px;color:#fff;font-family:system-ui;min-width:160px;max-width:250px;">
           <div style="font-weight:700;font-size:13px;margin-bottom:4px;color:${gravityColor}">${communeName}</div>
           <div style="font-size:10px;color:rgba(255,255,255,0.5);display:flex;gap:8px;">
             <span>${stats.article_count} art.</span>
@@ -248,6 +275,7 @@ export default function CartePage() {
           <div style="font-size:10px;margin-top:3px;color:${gravityColor}">
             Gravité max: ${Math.round(stats.max_gravity * 100)}%
           </div>
+          ${affairsHtml}
         </div>
       `);
 
@@ -305,19 +333,22 @@ export default function CartePage() {
   };
 
   return (
-    <main className="h-screen w-full relative overflow-hidden" style={{ background: '#060a13' }}>
+    <main className="h-screen w-full relative overflow-hidden" style={{ background: isDay ? '#e8edf5' : '#060a13' }}>
       {/* ═══ FULLSCREEN MAP ═══ */}
       <div ref={mapContainer} className="absolute inset-0 z-0" />
 
       {/* Overlay gradient top */}
       <div className="absolute top-0 left-0 right-0 h-24 z-10 pointer-events-none"
-        style={{ background: 'linear-gradient(to bottom, rgba(6,10,19,0.8) 0%, transparent 100%)' }} />
+        style={{ background: isDay
+          ? 'linear-gradient(to bottom, rgba(232,237,245,0.8) 0%, transparent 100%)'
+          : 'linear-gradient(to bottom, rgba(6,10,19,0.8) 0%, transparent 100%)'
+        }} />
 
       {/* ═══ FLOATING HEADER ═══ */}
       <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-lg font-bold text-white flex items-center gap-2"
-            style={{ textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>
+          <h1 className={`text-lg font-bold flex items-center gap-2 ${isDay ? 'text-slate-800' : 'text-white'}`}
+            style={{ textShadow: isDay ? '0 1px 3px rgba(255,255,255,0.5)' : '0 2px 8px rgba(0,0,0,0.8)' }}>
             <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
             </svg>
@@ -332,7 +363,9 @@ export default function CartePage() {
                 className={`px-2.5 py-1 text-[10px] rounded-full transition-all backdrop-blur-md ${
                   days === d
                     ? 'bg-indigo-500/40 text-white border border-indigo-400/40'
-                    : 'bg-black/30 text-white/60 border border-white/10 hover:bg-white/10'
+                    : isDay
+                      ? 'bg-white/60 text-slate-700 border border-slate-200 hover:bg-white/80'
+                      : 'bg-black/30 text-white/60 border border-white/10 hover:bg-white/10'
                 }`}
               >
                 {d}j
@@ -341,7 +374,11 @@ export default function CartePage() {
           </div>
         </div>
         <button onClick={handleResetView}
-          className="px-3 py-1.5 text-[10px] rounded-full bg-black/40 text-white/60 border border-white/10 hover:bg-white/10 backdrop-blur-md transition-all">
+          className={`px-3 py-1.5 text-[10px] rounded-full backdrop-blur-md transition-all ${
+            isDay
+              ? 'bg-white/60 text-slate-600 border border-slate-200 hover:bg-white/80'
+              : 'bg-black/40 text-white/60 border border-white/10 hover:bg-white/10'
+          }`}>
           Vue globale
         </button>
       </div>
@@ -357,11 +394,11 @@ export default function CartePage() {
           <div key={kpi.label}
             className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl backdrop-blur-md"
             style={{
-              background: 'rgba(6,10,19,0.75)',
+              background: isDay ? 'rgba(255,255,255,0.8)' : 'rgba(6,10,19,0.75)',
               border: `1px solid ${kpi.color}33`,
             }}>
             <div className="text-sm sm:text-lg font-bold" style={{ color: kpi.color }}>{kpi.value}</div>
-            <div className="text-[9px] text-white/40 uppercase tracking-wider">{kpi.label}</div>
+            <div className={`text-[9px] uppercase tracking-wider ${isDay ? 'text-slate-500' : 'text-white/40'}`}>{kpi.label}</div>
           </div>
         ))}
       </div>
@@ -369,8 +406,8 @@ export default function CartePage() {
       {/* ═══ FLOATING LEFT PANEL — Top communes ═══ */}
       <div className="absolute top-16 left-3 z-20 w-44 sm:w-52 hidden sm:block">
         <div className="rounded-xl backdrop-blur-md p-3"
-          style={{ background: 'rgba(6,10,19,0.8)', border: '1px solid rgba(99,102,241,0.15)' }}>
-          <h3 className="text-[10px] font-semibold text-white/50 uppercase tracking-wider mb-2">
+          style={{ background: isDay ? 'rgba(255,255,255,0.85)' : 'rgba(6,10,19,0.8)', border: '1px solid rgba(99,102,241,0.15)' }}>
+          <h3 className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${isDay ? 'text-slate-500' : 'text-white/50'}`}>
             Top communes
           </h3>
           <div className="space-y-1">
@@ -388,10 +425,10 @@ export default function CartePage() {
                     ? 'bg-indigo-500/25 border border-indigo-500/30'
                     : 'hover:bg-white/5 border border-transparent'
                 }`}>
-                <span className="text-[10px] font-mono text-white/25 w-3">{i + 1}</span>
+                <span className={`text-[10px] font-mono w-3 ${isDay ? 'text-slate-400' : 'text-white/25'}`}>{i + 1}</span>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[11px] font-medium text-white/80 truncate">{c.name}</div>
-                  <div className="text-[9px] text-white/30">
+                  <div className={`text-[11px] font-medium truncate ${isDay ? 'text-slate-700' : 'text-white/80'}`}>{c.name}</div>
+                  <div className={`text-[9px] ${isDay ? 'text-slate-400' : 'text-white/30'}`}>
                     {c.article_count} art · {c.transcription_count} radio
                   </div>
                 </div>
@@ -408,7 +445,7 @@ export default function CartePage() {
         <div className="absolute top-16 sm:top-16 bottom-16 sm:bottom-auto right-0 sm:right-3 left-0 sm:left-auto z-20 w-full sm:w-80 max-h-[50vh] sm:max-h-[calc(100vh-120px)] overflow-y-auto"
           style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
           <div className="rounded-xl backdrop-blur-md overflow-hidden"
-            style={{ background: 'rgba(6,10,19,0.85)', border: '1px solid rgba(99,102,241,0.15)' }}>
+            style={{ background: isDay ? 'rgba(255,255,255,0.9)' : 'rgba(6,10,19,0.85)', border: '1px solid rgba(99,102,241,0.15)' }}>
 
             {/* Header */}
             <div className="p-4" style={{
@@ -416,7 +453,7 @@ export default function CartePage() {
               borderBottom: `1px solid ${getGravityColor(selectedData.stats.max_gravity)}33`,
             }}>
               <div className="flex items-center justify-between">
-                <h2 className="text-base font-bold text-white">{selectedCommune}</h2>
+                <h2 className={`text-base font-bold ${isDay ? 'text-slate-800' : 'text-white'}`}>{selectedCommune}</h2>
                 <button onClick={() => { setSelectedCommune(null); handleResetView(); }}
                   className="text-white/30 hover:text-white/60 transition-colors p-1">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
