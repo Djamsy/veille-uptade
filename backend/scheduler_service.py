@@ -214,19 +214,21 @@ async def job_enrich():
             enriched_count = 0
             loop = asyncio.get_running_loop()
 
+            # ── Batch : collecter les updates puis bulk_write ──
+            from pymongo import UpdateOne
+            bulk_ops = []
+            telegram_queue = []
+
             for article in articles:
                 try:
-                    # Copier pour ne pas modifier l'original
                     article_data = {
                         "title": article.get("title", ""),
                         "content": article.get("content", "") or article.get("text", ""),
                     }
 
-                    # Exécuter l'enrichissement (peut être lent si Groq)
                     enriched = await loop.run_in_executor(None, enrich_fn, article_data)
 
                     if enriched:
-                        # Sauvegarder les champs enrichis
                         update_fields = {}
                         for key in ["theme", "elected", "institutions", "entities",
                                      "sentiment", "is_affair", "affair_type",
@@ -238,19 +240,18 @@ async def job_enrich():
 
                         if update_fields:
                             update_fields["enriched_at"] = datetime.now().isoformat()
-                            articles_col.update_one(
+                            # Ajouter au batch au lieu d'écrire un par un
+                            bulk_ops.append(UpdateOne(
                                 {"_id": article["_id"]},
                                 {"$set": update_fields}
-                            )
+                            ))
                             enriched_count += 1
 
-                            # 📢 Notification Telegram pour articles pertinents
-                            # (département, institutions, affaires, gravité >= 0.4)
+                            # Queue Telegram notifications
                             try:
                                 gravity = update_fields.get("gravity_score", 0) or 0
                                 institutions = update_fields.get("institutions", []) or []
                                 is_affair = update_fields.get("is_affair", False)
-                                theme = update_fields.get("theme", "")
 
                                 dept_keywords = ["département", "conseil départemental", "cd971",
                                                  "région", "conseil régional", "collectivité"]
@@ -259,19 +260,40 @@ async def job_enrich():
                                 has_institutions = len(institutions) > 0
 
                                 if gravity >= 0.4 and (is_dept or has_institutions or is_affair):
-                                    try:
-                                        from backend.telegram_service import notify_new_article
-                                    except ImportError:
-                                        from telegram_service import notify_new_article
-                                    merged_article = {**article, **update_fields}
-                                    merged_article["_id"] = str(merged_article.get("_id", ""))
-                                    notify_new_article(merged_article)
-                            except Exception as tg_err:
-                                logger.debug(f"Telegram notif article: {tg_err}")
+                                    telegram_queue.append({**article, **update_fields})
+                            except Exception:
+                                pass
 
                 except Exception as e:
                     logger.warning(f"⚠️ Erreur enrichissement article {article.get('_id')}: {e}")
                     continue
+
+            # ── Écriture batch (1 appel réseau au lieu de N) ──
+            if bulk_ops:
+                try:
+                    result = articles_col.bulk_write(bulk_ops, ordered=False)
+                    logger.info(f"✅ bulk_write: {result.modified_count} modifiés sur {len(bulk_ops)}")
+                except Exception as e:
+                    logger.warning(f"⚠️ bulk_write fallback: {e}")
+                    # Fallback : écriture individuelle
+                    for op in bulk_ops:
+                        try:
+                            articles_col.update_one(op._filter, op._doc)
+                        except Exception:
+                            pass
+
+            # ── Notifications Telegram (après le batch) ──
+            if telegram_queue:
+                try:
+                    try:
+                        from backend.telegram_service import notify_new_article
+                    except ImportError:
+                        from telegram_service import notify_new_article
+                    for merged_article in telegram_queue[:10]:  # Max 10 notifs par cycle
+                        merged_article["_id"] = str(merged_article.get("_id", ""))
+                        notify_new_article(merged_article)
+                except Exception as tg_err:
+                    logger.debug(f"Telegram notif article: {tg_err}")
 
             logger.info(f"✅ {enriched_count}/{len(articles)} articles enrichis ({method})")
 

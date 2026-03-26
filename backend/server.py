@@ -158,6 +158,10 @@ app = FastAPI(
     version=VERSION
 )
 
+# GZip compression (réduit la taille des réponses JSON de 60-80%)
+from starlette.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=500)
+
 # CORS
 ALLOWED_ORIGINS = os.environ.get("CORS_ORIGINS", "*").split(",")
 app.add_middleware(
@@ -168,18 +172,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ========== RATE LIMITING ==========
-from collections import defaultdict
+# ========== RATE LIMITING (optimisé avec deque) ==========
+from collections import defaultdict, deque
 import time as _time
 
-_rate_store: Dict[str, list] = defaultdict(list)
+_rate_store: Dict[str, deque] = defaultdict(deque)
 _RATE_WINDOW = 60       # secondes
-_RATE_LIMIT_DEFAULT = 60  # requêtes par fenêtre
-_RATE_LIMIT_POST = 15     # requêtes POST par fenêtre (GPT, pipeline, etc.)
+_RATE_LIMIT_DEFAULT = 120  # requêtes par fenêtre (augmenté pour SPA)
+_RATE_LIMIT_POST = 30     # requêtes POST par fenêtre
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
-    """Rate limiting simple basé sur l'IP client."""
+    """Rate limiting O(1) basé sur l'IP client (deque au lieu de list)."""
+    # Skip rate limiting pour les assets statiques et health checks
+    path = request.url.path
+    if path.startswith("/_next/") or path == "/health" or path == "/favicon.ico":
+        return await call_next(request)
+
     client_ip = request.client.host if request.client else "unknown"
     now = _time.time()
     method = request.method
@@ -187,17 +196,19 @@ async def rate_limit_middleware(request: Request, call_next):
     key = f"{client_ip}:{method}"
     limit = _RATE_LIMIT_POST if method == "POST" else _RATE_LIMIT_DEFAULT
 
-    # Nettoyer les entrées expirées
-    _rate_store[key] = [t for t in _rate_store[key] if now - t < _RATE_WINDOW]
+    # Nettoyer les entrées expirées (O(1) — on pop depuis la gauche du deque)
+    dq = _rate_store[key]
+    while dq and now - dq[0] >= _RATE_WINDOW:
+        dq.popleft()
 
-    if len(_rate_store[key]) >= limit:
+    if len(dq) >= limit:
         return JSONResponse(
             status_code=429,
             content={"detail": "Trop de requêtes. Réessayez dans une minute."},
             headers={"Retry-After": str(_RATE_WINDOW)},
         )
 
-    _rate_store[key].append(now)
+    dq.append(now)
     response = await call_next(request)
     return response
 

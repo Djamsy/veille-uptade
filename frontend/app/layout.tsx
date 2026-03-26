@@ -39,6 +39,22 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
+      <head>
+        {/* Preconnect Mapbox CDN — réduit la latence de 200-500ms */}
+        <link rel="preconnect" href="https://api.mapbox.com" />
+        <link rel="preconnect" href="https://events.mapbox.com" />
+        <link rel="dns-prefetch" href="https://api.mapbox.com" />
+        {/* Preload Mapbox CSS (critique pour le rendu de la carte) */}
+        <link
+          rel="preload"
+          href="https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.css"
+          as="style"
+        />
+        <link
+          rel="stylesheet"
+          href="https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.css"
+        />
+      </head>
       <body className={`${inter.className} antialiased`} style={{ background: 'var(--bg)' }}>
         <ServiceWorkerRegistration />
         {/* Ambient gradient background */}

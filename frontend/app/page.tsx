@@ -127,7 +127,7 @@ function MapboxFullMap({
     const loadAndInit = () => {
       if ((window as any).mapboxgl) { initMap(); return; }
 
-      // CSS
+      // CSS déjà preloadé dans layout.tsx — on vérifie juste
       if (!document.querySelector('link[href*="mapbox-gl"]')) {
         const css = document.createElement('link');
         css.rel = 'stylesheet';
@@ -135,18 +135,19 @@ function MapboxFullMap({
         document.head.appendChild(css);
       }
 
-      // JS
+      // JS — init immédiat dès le chargement (sans setTimeout)
       if (!document.querySelector('script[src*="mapbox-gl"]')) {
         const js = document.createElement('script');
         js.src = 'https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.js';
-        js.onload = () => { setTimeout(initMap, 100); };
+        js.async = true;
+        js.onload = () => { initMap(); };
         js.onerror = () => { setMapError('CDN Mapbox inaccessible'); };
         document.head.appendChild(js);
       } else {
         // Script déjà en cours de chargement, attendre
         const check = setInterval(() => {
           if ((window as any).mapboxgl) { clearInterval(check); initMap(); }
-        }, 200);
+        }, 100);
         setTimeout(() => clearInterval(check), 10000);
       }
     };
