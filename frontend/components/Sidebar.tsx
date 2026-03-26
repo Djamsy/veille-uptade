@@ -148,25 +148,26 @@ export default function Sidebar() {
           {/* Logo — butterfly/sun shape */}
           <div className="w-10 h-10 rounded-xl flex items-center justify-center relative"
             style={{
-              background: 'linear-gradient(135deg, #16a34a 0%, #2563eb 50%, #eab308 100%)',
-              boxShadow: '0 4px 20px rgba(37,99,235,0.3), 0 0 30px rgba(22,163,74,0.15)',
+              background: 'linear-gradient(135deg, var(--positive) 0%, var(--primary) 50%, var(--accent) 100%)',
+              boxShadow: '0 4px 20px rgba(124,131,219,0.2)',
             }}
           >
-            <span className="text-sm font-black text-white tracking-tighter" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>VM</span>
+            <span className="text-sm font-black text-white tracking-tighter" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>VM</span>
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-sm font-bold text-white leading-tight tracking-tight">Veille Média</h1>
+            <h1 className="text-sm font-bold leading-tight tracking-tight" style={{ color: 'var(--text)' }}>Veille Média</h1>
             <p className="text-[10px] font-bold tracking-[0.15em] uppercase"
-              style={{ background: 'linear-gradient(90deg, #16a34a, #eab308)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              style={{ background: 'linear-gradient(90deg, var(--positive), var(--accent))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
               Guadeloupe 971
             </p>
           </div>
           <button
             onClick={() => setMobileOpen(false)}
-            className="lg:hidden ml-auto p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+            className="lg:hidden ml-auto p-1.5 rounded-lg transition-colors"
+            style={{ color: 'var(--text-muted)' }}
             aria-label="Fermer le menu"
           >
-            <svg className="w-4 h-4 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -184,17 +185,16 @@ export default function Sidebar() {
           <Link
             key={item.href}
             href={item.href}
-            className={`sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all ${
-              isActive(item.href)
-                ? 'active text-white'
-                : 'text-white/30 hover:text-white/70 hover:bg-white/[0.03]'
-            }`}
+            className={`sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all`}
             style={isActive(item.href) ? {
-              background: 'rgba(37,99,235,0.1)',
-            } : undefined}
+              background: 'rgba(124,131,219,0.1)',
+              color: 'var(--text)',
+            } : {
+              color: 'var(--text-muted)',
+            }}
             aria-current={isActive(item.href) ? 'page' : undefined}
           >
-            <span className={`transition-colors ${isActive(item.href) ? 'text-blue-400' : ''}`}>
+            <span className="transition-colors" style={isActive(item.href) ? { color: 'var(--primary)' } : undefined}>
               {item.icon}
             </span>
             <span className="flex-1">{item.label}</span>
@@ -210,18 +210,19 @@ export default function Sidebar() {
       </nav>
 
       {/* ── Footer — User info + Logout ───── */}
-      <div className="px-4 py-4 space-y-3" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+      <div className="px-4 py-4 space-y-3" style={{ borderTop: '1px solid var(--border)' }}>
         {user && (
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-bold text-white relative"
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-bold relative"
               style={{
-                background: `linear-gradient(135deg, ${roleColor(user.role || 'user')}40, ${roleColor(user.role || 'user')}20)`,
-                border: `1px solid ${roleColor(user.role || 'user')}50`,
+                background: `linear-gradient(135deg, ${roleColor(user.role || 'user')}30, ${roleColor(user.role || 'user')}10)`,
+                border: `1px solid ${roleColor(user.role || 'user')}40`,
+                color: 'var(--text)',
               }}>
               {user.name?.charAt(0).toUpperCase() || 'U'}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[11px] text-white/70 truncate leading-tight font-medium">{user.name || user.email}</p>
+              <p className="text-[11px] truncate leading-tight font-medium" style={{ color: 'var(--text-secondary)' }}>{user.name || user.email}</p>
               <p className="text-[9px] uppercase tracking-wider font-bold" style={{ color: roleColor(user.role || 'user') }}>
                 {user.role === 'admin' ? 'Administrateur' : user.role === 'editor' ? 'Editeur' : user.role === 'viewer' ? 'Visualiseur' : 'Utilisateur'}
               </p>
@@ -229,15 +230,16 @@ export default function Sidebar() {
           </div>
         )}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-[11px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
+          <div className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>
             <div className="w-1.5 h-1.5 rounded-full pulse-ring"
-              style={{ background: '#16a34a', boxShadow: '0 0 8px rgba(22,163,74,0.5)', color: '#16a34a' }}
+              style={{ background: 'var(--positive)', boxShadow: '0 0 8px rgba(91,184,154,0.4)', color: 'var(--positive)' }}
             />
             En ligne
           </div>
           <button
             onClick={logout}
-            className="text-[10px] px-2.5 py-1.5 rounded-lg transition-all text-white/25 hover:text-red-400 hover:bg-red-500/10"
+            className="text-[10px] px-2.5 py-1.5 rounded-lg transition-all hover:bg-red-500/10"
+            style={{ color: 'var(--text-muted)' }}
             title="Se deconnecter"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -256,14 +258,15 @@ export default function Sidebar() {
         onClick={() => setMobileOpen(true)}
         className="lg:hidden fixed top-4 left-4 z-50 p-2.5 rounded-xl transition-all active:scale-95"
         style={{
-          background: 'rgba(6,10,19,0.85)',
+          background: 'var(--glass-bg)',
           backdropFilter: 'blur(16px)',
-          border: '1px solid rgba(37,99,235,0.15)',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.3), 0 0 20px rgba(37,99,235,0.05)',
+          WebkitBackdropFilter: 'blur(16px)',
+          border: '1px solid var(--border-accent)',
+          boxShadow: 'var(--glass-shadow)',
         }}
         aria-label="Ouvrir le menu"
       >
-        <svg className="w-5 h-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-5 h-5" style={{ color: 'var(--text-secondary)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
         </svg>
       </button>
@@ -279,10 +282,10 @@ export default function Sidebar() {
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex fixed left-0 top-0 h-screen w-60 flex-col z-40"
         style={{
-          background: 'rgba(6,10,19,0.92)',
+          background: 'var(--bg-sidebar)',
           backdropFilter: 'blur(24px) saturate(180%)',
           WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-          borderRight: '1px solid rgba(37,99,235,0.08)',
+          borderRight: '1px solid var(--border)',
         }}
       >
         {sidebarContent}
@@ -294,10 +297,10 @@ export default function Sidebar() {
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         style={{
-          background: 'rgba(6,10,19,0.98)',
+          background: 'var(--bg-sidebar)',
           backdropFilter: 'blur(24px) saturate(180%)',
           WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-          borderRight: '1px solid rgba(37,99,235,0.12)',
+          borderRight: '1px solid var(--border-accent)',
         }}
       >
         {sidebarContent}

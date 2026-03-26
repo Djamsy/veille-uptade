@@ -1027,9 +1027,9 @@ export default function DashboardPage() {
         <div className="absolute inset-0 z-10 pointer-events-none">
 
           {/* ── TOP BAR: Header + Actions ── */}
-          <div className="pointer-events-auto absolute top-3 left-3 right-3 flex items-center justify-between gap-3">
-            <div className={`${panelStyle} px-4 py-2.5 flex items-center gap-3`} style={panelBg}>
-              <h1 className="text-sm lg:text-base font-bold text-white tracking-tight">Veille Média 971</h1>
+          <div className="pointer-events-auto mobile-top-bar absolute top-3 left-3 right-3 flex items-center justify-between gap-2 sm:gap-3">
+            <div className={`${panelStyle} px-3 sm:px-4 py-2 sm:py-2.5 flex items-center gap-2 sm:gap-3`} style={panelBg}>
+              <h1 className="text-xs sm:text-sm lg:text-base font-bold text-white tracking-tight whitespace-nowrap">Veille 971</h1>
               <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold"
                 style={{ background: 'rgba(22,163,74,0.15)', color: '#34d399', border: '1px solid rgba(22,163,74,0.3)' }}>
                 LIVE
@@ -1040,7 +1040,7 @@ export default function DashboardPage() {
             </div>
 
             {/* ── Search Bar ── */}
-            <div className="relative flex-1 max-w-xs">
+            <div className="relative flex-1 max-w-[140px] sm:max-w-xs">
               <div className={`${panelStyle} flex items-center gap-2 px-3 py-1.5`} style={panelBg}>
                 <svg className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.4)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -1159,7 +1159,7 @@ export default function DashboardPage() {
           </div>
 
           {/* ══ LEFT PANEL: KPIs + Alertes + Affaires ══ */}
-          <div className="pointer-events-auto absolute top-16 left-3 bottom-3 w-[320px] lg:w-[340px] flex flex-col gap-2.5 overflow-y-auto overflow-x-hidden scrollbar-hide" style={{ maxHeight: 'calc(100vh - 80px)' }}>
+          <div className="pointer-events-auto dash-left-panel absolute top-16 left-3 bottom-3 w-[calc(100vw-1.5rem)] sm:w-[320px] lg:w-[340px] flex flex-col gap-2 sm:gap-2.5 overflow-y-auto overflow-x-hidden scrollbar-hide" style={{ maxHeight: 'calc(100vh - 80px)' }}>
 
             {/* KPI Row */}
             {!loading && stats && (
@@ -1336,7 +1336,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* ══ RIGHT PANEL: Personnalités + Sentiment + Commune sélectionnée ══ */}
+          {/* ══ RIGHT PANEL: Personnalités + Sentiment + Commune sélectionnée (desktop only) ══ */}
           <div className="pointer-events-auto absolute top-16 right-3 bottom-3 w-[280px] lg:w-[300px] hidden lg:flex flex-col gap-2.5 overflow-y-auto overflow-x-hidden scrollbar-hide" style={{ maxHeight: 'calc(100vh - 80px)' }}>
 
             {/* Commune sélectionnée */}

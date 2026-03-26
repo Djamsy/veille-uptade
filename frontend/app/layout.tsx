@@ -11,8 +11,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   themeColor: [
-    { media: '(prefers-color-scheme: dark)', color: '#060a13' },
-    { media: '(prefers-color-scheme: light)', color: '#2563eb' },
+    { media: '(prefers-color-scheme: dark)', color: '#13161c' },
+    { media: '(prefers-color-scheme: light)', color: '#f8f6f3' },
   ],
 }
 
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
-      <body className={`${inter.className} antialiased`} style={{ background: '#060a13' }}>
+      <body className={`${inter.className} antialiased`} style={{ background: 'var(--bg)' }}>
         <ServiceWorkerRegistration />
         {/* Ambient gradient background */}
         <div className="ambient-bg">

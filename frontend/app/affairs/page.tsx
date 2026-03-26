@@ -306,7 +306,7 @@ export default function AffairsPage() {
 
         {!isCollapsed && (
           viewMode === 'grid' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 stagger-fade">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 affair-grid stagger-fade">
               {items.map(renderGridCard)}
             </div>
           ) : (
@@ -334,17 +334,17 @@ export default function AffairsPage() {
   return (
     <div className="flex">
       <Sidebar />
-      <main className="lg:ml-60 flex-1 p-5 lg:p-8 min-h-screen">
+      <main className="lg:ml-60 flex-1 p-3 sm:p-5 lg:p-8 min-h-screen main-content">
         <div className="max-w-7xl mx-auto animate-fade-in">
 
           {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
             <div>
-              <h1 className="text-xl lg:text-2xl font-bold text-white tracking-tight">Affaires</h1>
-              <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>
+              <h1 className="text-lg sm:text-xl lg:text-2xl font-bold tracking-tight" style={{ color: 'var(--text)' }}>Affaires</h1>
+              <p className="text-xs sm:text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
                 {total} affaire{total > 1 ? 's' : ''} au total
                 {hotCount > 0 && (
-                  <span style={{ color: '#f87171' }}> — {hotCount} urgente{hotCount > 1 ? 's' : ''}</span>
+                  <span style={{ color: 'var(--negative)' }}> — {hotCount} urgente{hotCount > 1 ? 's' : ''}</span>
                 )}
               </p>
             </div>
@@ -359,13 +359,13 @@ export default function AffairsPage() {
           {/* Search bar */}
           <div className="mb-4">
             <div className="relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'rgba(255,255,255,0.25)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-muted)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
               <input
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Rechercher une affaire, entité, élu..."
-                className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/30 transition-all"
+                className="input-dark w-full pl-10 pr-4 py-2.5 text-sm"
               />
               {searchQuery && (
                 <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition">
@@ -396,43 +396,45 @@ export default function AffairsPage() {
           )}
 
           {/* Filters */}
-          <div className="flex flex-wrap items-center gap-3 mb-6 glass-card-static p-3 lg:p-4">
-            <div className="flex rounded-xl p-0.5" style={{ background: 'rgba(255,255,255,0.03)' }}>
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4 sm:mb-6 glass-card-static p-2.5 sm:p-3 lg:p-4">
+            <div className="flex rounded-xl p-0.5 overflow-x-auto scrollbar-hide" style={{ background: 'var(--bg-card)' }}>
               {(['all', 'active', 'stale', 'archived'] as StatusFilter[]).map((s) => (
                 <button key={s} onClick={() => setStatusFilter(s)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-                  style={statusFilter === s ? { background: 'rgba(37,99,235,0.15)', color: '#60a5fa' } : { color: 'rgba(255,255,255,0.3)' }}
+                  className="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap"
+                  style={statusFilter === s ? { background: 'rgba(124,131,219,0.15)', color: 'var(--primary)' } : { color: 'var(--text-muted)' }}
                 >
                   {s === 'all' ? 'Toutes' : s === 'active' ? 'Actives' : s === 'stale' ? 'En veille' : 'Archivées'}
                 </button>
               ))}
             </div>
-            <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.06)' }} />
-            <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortField)} className="input-dark px-3 py-1.5 text-xs">
-              <option value="bmg">Tri: BMG</option>
-              <option value="gravity">Tri: Gravité</option>
-              <option value="recent">Tri: Plus récent</option>
-              <option value="items">Tri: Nb items</option>
-            </select>
-            <select value={themeFilter} onChange={(e) => setThemeFilter(e.target.value)} className="input-dark px-3 py-1.5 text-xs">
-              <option value="all">Tous thèmes</option>
-              <option value="politique">Politique</option>
-              <option value="economie">Économie</option>
-              <option value="social">Social</option>
-              <option value="environnement">Environnement</option>
-              <option value="sante">Santé</option>
-              <option value="justice">Justice</option>
-              <option value="securite">Sécurité</option>
-              <option value="education">Éducation</option>
-              <option value="culture">Culture</option>
-              <option value="sport">Sport</option>
-              <option value="infrastructure">Infrastructure</option>
-              <option value="general">Général</option>
-            </select>
-            <div className="ml-auto flex rounded-xl p-0.5" style={{ background: 'rgba(255,255,255,0.03)' }}>
+            <div className="hidden sm:block" style={{ width: '1px', height: '20px', background: 'var(--border)' }} />
+            <div className="flex gap-2 w-full sm:w-auto">
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortField)} className="input-dark px-2.5 sm:px-3 py-1.5 text-xs flex-1 sm:flex-none">
+                <option value="bmg">BMG</option>
+                <option value="gravity">Gravité</option>
+                <option value="recent">Récent</option>
+                <option value="items">Items</option>
+              </select>
+              <select value={themeFilter} onChange={(e) => setThemeFilter(e.target.value)} className="input-dark px-2.5 sm:px-3 py-1.5 text-xs flex-1 sm:flex-none">
+                <option value="all">Tous thèmes</option>
+                <option value="politique">Politique</option>
+                <option value="economie">Économie</option>
+                <option value="social">Social</option>
+                <option value="environnement">Environnement</option>
+                <option value="sante">Santé</option>
+                <option value="justice">Justice</option>
+                <option value="securite">Sécurité</option>
+                <option value="education">Éducation</option>
+                <option value="culture">Culture</option>
+                <option value="sport">Sport</option>
+                <option value="infrastructure">Infrastructure</option>
+                <option value="general">Général</option>
+              </select>
+            </div>
+            <div className="ml-auto flex rounded-xl p-0.5" style={{ background: 'var(--bg-card)' }}>
               {(['grid', 'list'] as const).map((mode) => (
                 <button key={mode} onClick={() => setViewMode(mode)} className="p-1.5 rounded-lg transition-all"
-                  style={viewMode === mode ? { background: 'rgba(255,255,255,0.06)', color: 'white' } : { color: 'rgba(255,255,255,0.25)' }}
+                  style={viewMode === mode ? { background: 'var(--bg-card-hover)', color: 'var(--text)' } : { color: 'var(--text-muted)' }}
                 >
                   {mode === 'grid' ? (
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
@@ -449,7 +451,7 @@ export default function AffairsPage() {
           )}
 
           {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {[...Array(6)].map((_, i) => (
                 <div key={i} className="glass-card-static p-5"><div className="skeleton h-4 w-32 mb-3" /><div className="skeleton h-16 w-full mb-3" /><div className="skeleton h-3 w-24" /></div>
               ))}

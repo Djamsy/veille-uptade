@@ -526,16 +526,83 @@ body {
 [data-theme="dark"] .text-gradient-warm { background: linear-gradient(135deg, #fbbf24, #f97316); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 [data-theme="dark"] .flag-stripe { background: linear-gradient(90deg, #10b981 33%, #f59e0b 33% 66%, #ef4444 66%); }
 
-/* ── Mobile responsive ───────────────────────────────── */
+/* ══════════════════════════════════════════════════════
+   MOBILE RESPONSIVE — iPhone & Samsung optimisé
+   ══════════════════════════════════════════════════════ */
+
+/* ── Tablet & below (<1024px) ───────────────────────── */
 @media (max-width: 1023px) {
   .lg\:ml-60 { margin-left: 0 !important; }
-  main { padding: 0.75rem !important; }
+  main { padding: 0.5rem !important; }
   .glass-card, .glass-card-static { border-radius: var(--radius-sm); }
+  .main-content { padding-bottom: 5rem; }
+  table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
 
+/* ── Mobile standard (iPhone SE, Samsung Galaxy S) ──── */
 @media (max-width: 640px) {
-  h1 { font-size: 1.25rem !important; }
-  .kpi-card { padding: 0.75rem !important; }
+  h1 { font-size: 1.15rem !important; }
+  h2 { font-size: 0.95rem !important; }
+  h3 { font-size: 0.85rem !important; }
+  .kpi-card { padding: 0.625rem !important; }
+
+  /* Dashboard flottant : panneau gauche plein écran */
+  .dash-left-panel {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: auto !important;
+    bottom: 56px !important;
+    width: 100% !important;
+    max-height: 45vh !important;
+    border-radius: 16px 16px 0 0 !important;
+    padding: 0.5rem !important;
+  }
+
+  /* Badges plus compacts */
+  .badge { padding: 0.125rem 0.5rem; font-size: 0.625rem; }
+
+  /* Cartes d'affaires empilées */
+  .affair-grid { grid-template-columns: 1fr !important; gap: 0.5rem !important; }
+
+  /* Texte lisible sur petit écran */
+  body { font-size: 14px; }
+  p, span, li { line-height: 1.5; }
+
+  /* Boutons plus grands (zone tactile) */
+  .btn-primary, .btn-glass, .btn-gold, .btn-green {
+    min-height: 44px;
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+  }
+
+  /* Inputs adaptés mobile */
+  .input-dark {
+    min-height: 44px;
+    font-size: 16px !important; /* évite le zoom auto iOS */
+    padding: 0.625rem 0.875rem;
+  }
+}
+
+/* ── Petits mobiles (iPhone SE 1st gen, Galaxy A) ───── */
+@media (max-width: 375px) {
+  h1 { font-size: 1rem !important; }
+  body { font-size: 13px; }
+  .kpi-card { padding: 0.5rem !important; }
+  .glass-card { padding: 0.625rem; }
+  .badge { font-size: 0.6rem; }
+}
+
+/* ── Grands mobiles (iPhone Pro Max, Samsung Ultra) ─── */
+@media (min-width: 414px) and (max-width: 640px) {
+  .dash-left-panel { max-height: 50vh !important; }
+  .affair-grid { gap: 0.625rem !important; }
+}
+
+/* ── Paysage mobile (éviter les débordements) ───────── */
+@media (max-height: 500px) and (orientation: landscape) {
+  .dash-left-panel { max-height: 60vh !important; }
+  .main-content { padding-bottom: 3.5rem; }
 }
 
 /* ── PWA ─────────────────────────────────────────────── */
@@ -545,21 +612,31 @@ body {
     padding-bottom: env(safe-area-inset-bottom);
   }
   html { overscroll-behavior-y: contain; }
+  /* Notch iPhone : espace supplémentaire pour la barre de status */
+  .mobile-top-bar {
+    padding-top: max(0.75rem, env(safe-area-inset-top));
+  }
 }
 
 /* ── Touch ───────────────────────────────────────────── */
 @media (pointer: coarse) {
-  .sidebar-link { min-height: 44px; }
-  .btn-glass, .btn-primary { min-height: 40px; }
-  .glass-card:hover { transform: none; }
+  .sidebar-link { min-height: 48px; padding: 0.625rem 0.75rem; }
+  .btn-glass, .btn-primary, .btn-gold, .btn-green { min-height: 44px; }
+  .glass-card:hover { transform: none; box-shadow: none; }
+  /* Pas de hover effect sur mobile */
+  .glass-card:active { transform: scale(0.98); }
+  /* Zone tactile minimale pour les liens */
+  a, button { min-height: 44px; display: inline-flex; align-items: center; }
+  /* Sauf les éléments inline */
+  span a, p a, .badge, .text-link { min-height: auto; display: inline; }
 }
 
 /* ── Focus ───────────────────────────────────────────── */
 :focus-visible {
-  outline: 2px solid rgba(99,102,241,0.5);
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
-::selection { background: rgba(99,102,241,0.3); color: white; }
+::selection { background: rgba(124,131,219,0.3); color: white; }
 
 /* ── Reduced motion ──────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
@@ -569,10 +646,8 @@ body {
   }
 }
 
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
 .safe-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
 
-@media (max-width: 1023px) {
-  .main-content { padding-bottom: 5rem; }
-  table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-}
+/* ── Empêcher le zoom sur double-tap iOS ─────────────── */
+* { touch-action: manipulation; }
