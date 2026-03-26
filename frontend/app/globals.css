@@ -546,7 +546,7 @@ body {
   h3 { font-size: 0.85rem !important; }
   .kpi-card { padding: 0.625rem !important; }
 
-  /* Dashboard flottant : panneau gauche plein écran */
+  /* Dashboard flottant : panneau gauche en bottom sheet */
   .dash-left-panel {
     position: fixed !important;
     left: 0 !important;
@@ -557,6 +557,15 @@ body {
     max-height: 45vh !important;
     border-radius: 16px 16px 0 0 !important;
     padding: 0.5rem !important;
+    transition: transform 300ms ease, opacity 200ms ease !important;
+    z-index: 20 !important;
+  }
+
+  /* Panneau caché sur mobile (carte visible) */
+  .dash-left-panel.mobile-panel-hidden {
+    transform: translateY(100%) !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
   }
 
   /* Badges plus compacts */

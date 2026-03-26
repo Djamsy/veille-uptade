@@ -804,6 +804,9 @@ export default function DashboardPage() {
   const [searching, setSearching] = useState(false)
   const searchTimeout = useRef<NodeJS.Timeout | null>(null)
 
+  // ── Mobile panel toggle (carte vs panneau) ──
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
+
   // ── Theme mode ──
   const [themeMode, setThemeMode] = useState<'dark' | 'light'>('light')
 
@@ -1158,8 +1161,36 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {/* ══ BOUTON TOGGLE MOBILE (carte ↔ panneau) ══ */}
+          <button
+            className="pointer-events-auto sm:hidden fixed z-30 right-3 shadow-lg"
+            onClick={() => setMobilePanelOpen(!mobilePanelOpen)}
+            style={{
+              bottom: mobilePanelOpen ? 'calc(45vh + 60px)' : '68px',
+              background: 'var(--primary)',
+              color: '#fff',
+              borderRadius: '50%',
+              width: '44px',
+              height: '44px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'bottom 300ms ease',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+            }}
+            aria-label={mobilePanelOpen ? 'Voir la carte' : 'Voir les affaires'}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {mobilePanelOpen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              )}
+            </svg>
+          </button>
+
           {/* ══ LEFT PANEL: KPIs + Alertes + Affaires ══ */}
-          <div className="pointer-events-auto dash-left-panel absolute top-16 left-3 bottom-3 w-[calc(100vw-1.5rem)] sm:w-[320px] lg:w-[340px] flex flex-col gap-2 sm:gap-2.5 overflow-y-auto overflow-x-hidden scrollbar-hide" style={{ maxHeight: 'calc(100vh - 80px)' }}>
+          <div className={`pointer-events-auto dash-left-panel absolute top-16 left-3 bottom-3 w-[calc(100vw-1.5rem)] sm:w-[320px] lg:w-[340px] flex flex-col gap-2 sm:gap-2.5 overflow-y-auto overflow-x-hidden scrollbar-hide ${mobilePanelOpen ? '' : 'mobile-panel-hidden'}`} style={{ maxHeight: 'calc(100vh - 80px)' }}>
 
             {/* KPI Row */}
             {!loading && stats && (

@@ -347,7 +347,7 @@ export default function CartePage() {
       </div>
 
       {/* ═══ FLOATING KPI BAR (bottom left) ═══ */}
-      <div className="absolute bottom-4 left-3 z-20 flex gap-2">
+      <div className="absolute bottom-16 sm:bottom-4 left-3 z-20 flex gap-1.5 sm:gap-2 flex-wrap">
         {[
           { label: 'Communes', value: globalStats.communes, color: '#6366f1' },
           { label: 'Articles', value: globalStats.articles, color: '#f59e0b' },
@@ -355,19 +355,19 @@ export default function CartePage() {
           { label: 'Affaires', value: globalStats.affairs, color: '#8b5cf6' },
         ].map((kpi) => (
           <div key={kpi.label}
-            className="px-3 py-2 rounded-xl backdrop-blur-md"
+            className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl backdrop-blur-md"
             style={{
               background: 'rgba(6,10,19,0.75)',
               border: `1px solid ${kpi.color}33`,
             }}>
-            <div className="text-lg font-bold" style={{ color: kpi.color }}>{kpi.value}</div>
+            <div className="text-sm sm:text-lg font-bold" style={{ color: kpi.color }}>{kpi.value}</div>
             <div className="text-[9px] text-white/40 uppercase tracking-wider">{kpi.label}</div>
           </div>
         ))}
       </div>
 
       {/* ═══ FLOATING LEFT PANEL — Top communes ═══ */}
-      <div className="absolute top-16 left-3 z-20 w-52">
+      <div className="absolute top-16 left-3 z-20 w-44 sm:w-52 hidden sm:block">
         <div className="rounded-xl backdrop-blur-md p-3"
           style={{ background: 'rgba(6,10,19,0.8)', border: '1px solid rgba(99,102,241,0.15)' }}>
           <h3 className="text-[10px] font-semibold text-white/50 uppercase tracking-wider mb-2">
@@ -405,7 +405,7 @@ export default function CartePage() {
 
       {/* ═══ FLOATING RIGHT PANEL — Détail commune ═══ */}
       {selectedData && selectedCommune && (
-        <div className="absolute top-16 right-3 z-20 w-80 max-h-[calc(100vh-120px)] overflow-y-auto"
+        <div className="absolute top-16 sm:top-16 bottom-16 sm:bottom-auto right-0 sm:right-3 left-0 sm:left-auto z-20 w-full sm:w-80 max-h-[50vh] sm:max-h-[calc(100vh-120px)] overflow-y-auto"
           style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
           <div className="rounded-xl backdrop-blur-md overflow-hidden"
             style={{ background: 'rgba(6,10,19,0.85)', border: '1px solid rgba(99,102,241,0.15)' }}>
