@@ -474,24 +474,35 @@ export const fetchRadioHealthCheckLast = () =>
   );
 
 // --- Réseaux sociaux (Apify) ---
+export interface SocialComment {
+  author: string;
+  text: string;
+  likes: number;
+}
+
 export interface SocialPost {
   _id: string;
-  platform: 'facebook' | 'instagram' | 'twitter';
+  platform: 'facebook' | 'instagram' | 'twitter' | 'tiktok';
   author: string;
   text: string;
   url: string;
   posted_at: string;
   likes: number;
   comments?: number;
+  comments_count?: number;
+  comment_texts?: SocialComment[];
   shares?: number;
   retweets?: number;
   replies?: number;
+  views?: number;
   scraped_at: string;
   image_url?: string;
   media_type?: string;
   ai_enriched?: boolean;
   ai_relevant?: boolean;
   ai_summary?: string;
+  sentiment?: string;
+  opinion_commentaires?: string;
   theme?: string;
   gravity_score?: number;
   elected?: string[];

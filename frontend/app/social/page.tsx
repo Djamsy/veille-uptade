@@ -18,7 +18,15 @@ import {
 const PLAT: Record<string, { icon: string; label: string; color: string; bg: string; glow: string }> = {
   facebook: { icon: '📘', label: 'Facebook', color: '#1877f2', bg: 'rgba(24,119,242,0.1)', glow: 'rgba(24,119,242,0.15)' },
   instagram: { icon: '📸', label: 'Instagram', color: '#e4405f', bg: 'rgba(228,64,95,0.1)', glow: 'rgba(228,64,95,0.15)' },
-  twitter: { icon: '🐦', label: 'Twitter / X', color: '#1da1f2', bg: 'rgba(29,161,242,0.1)', glow: 'rgba(29,161,242,0.15)' },
+  tiktok: { icon: '🎵', label: 'TikTok', color: '#00f2ea', bg: 'rgba(0,242,234,0.1)', glow: 'rgba(0,242,234,0.15)' },
+}
+
+const SENTIMENT_STYLES: Record<string, { icon: string; color: string; bg: string }> = {
+  positif: { icon: '😊', color: '#22c55e', bg: 'rgba(34,197,94,0.1)' },
+  négatif: { icon: '😠', color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
+  neutre: { icon: '😐', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)' },
+  colère: { icon: '🔥', color: '#f97316', bg: 'rgba(249,115,22,0.1)' },
+  inquiétude: { icon: '😰', color: '#eab308', bg: 'rgba(234,179,8,0.1)' },
 }
 
 function timeAgo(dateStr: string): string {
@@ -107,13 +115,30 @@ function PostModal({ post, onClose }: { post: SocialPost; onClose: () => void })
           </p>
         </div>
 
+        {/* Sentiment badge */}
+        {d.sentiment && d.sentiment !== 'neutre' && (
+          <div className="mx-5 mb-3 flex items-center gap-3">
+            {(() => { const s = SENTIMENT_STYLES[d.sentiment] || SENTIMENT_STYLES.neutre; return (
+              <span className="text-xs px-3 py-1.5 rounded-full font-semibold flex items-center gap-1.5"
+                style={{ background: s.bg, color: s.color, border: `1px solid ${s.color}30` }}>
+                {s.icon} {d.sentiment.charAt(0).toUpperCase() + d.sentiment.slice(1)}
+              </span>
+            )})()}
+            {d.opinion_commentaires && (
+              <span className="text-[11px] italic" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                « {d.opinion_commentaires.slice(0, 120)}{d.opinion_commentaires.length > 120 ? '…' : ''} »
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Engagement */}
         <div className="mx-5 mb-4 grid grid-cols-4 gap-2">
           {[
             { label: 'Likes', value: d.likes || 0, icon: '❤️', color: '#ef4444' },
-            { label: 'Commentaires', value: d.comments || 0, icon: '💬', color: '#3b82f6' },
-            { label: d.platform === 'twitter' ? 'Retweets' : 'Partages', value: d.retweets || d.shares || 0, icon: d.platform === 'twitter' ? '🔁' : '🔄', color: '#22c55e' },
-            { label: 'Total', value: (d.likes || 0) + (d.comments || 0) + (d.shares || 0) + (d.retweets || 0), icon: '📊', color: '#eab308' },
+            { label: 'Commentaires', value: d.comments_count || d.comments || 0, icon: '💬', color: '#3b82f6' },
+            { label: d.platform === 'tiktok' ? 'Vues' : 'Partages', value: d.views || d.shares || d.retweets || 0, icon: d.platform === 'tiktok' ? '👁' : '🔄', color: '#22c55e' },
+            { label: 'Partages', value: d.shares || d.retweets || 0, icon: '🔄', color: '#eab308' },
           ].map((s, i) => (
             <div key={i} className="text-center p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
               <div className="text-lg mb-1">{s.icon}</div>
@@ -122,6 +147,38 @@ function PostModal({ post, onClose }: { post: SocialPost; onClose: () => void })
             </div>
           ))}
         </div>
+
+        {/* Commentaires */}
+        {d.comment_texts && d.comment_texts.length > 0 && (
+          <div className="mx-5 mb-4 p-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <h4 className="text-xs font-semibold mb-3 flex items-center gap-2" style={{ color: 'rgba(255,255,255,0.5)' }}>
+              💬 Top commentaires ({d.comment_texts.length})
+            </h4>
+            <div className="space-y-2.5">
+              {d.comment_texts.slice(0, 8).map((c, i) => (
+                <div key={i} className="flex items-start gap-2.5">
+                  <div className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold"
+                    style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)' }}>
+                    {(c.author || '?')[0].toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-[10px] font-semibold" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                        {c.author || 'Anonyme'}
+                      </span>
+                      {c.likes > 0 && (
+                        <span className="text-[9px]" style={{ color: 'rgba(255,255,255,0.2)' }}>❤️ {c.likes}</span>
+                      )}
+                    </div>
+                    <p className="text-[11px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                      {c.text}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* AI Analysis */}
         {(d.ai_enriched || d.ai_summary || d.theme) && (
@@ -274,8 +331,14 @@ function MiniCard({ post, onClick }: { post: SocialPost; onClick: () => void }) 
               🔥 {engagement.toLocaleString()}
             </span>
           )}
-          {(post.comments || 0) > 0 && (
-            <span className="flex items-center gap-0.5">💬 {post.comments}</span>
+          {(post.comments_count || post.comments || 0) > 0 && (
+            <span className="flex items-center gap-0.5">💬 {post.comments_count || post.comments}</span>
+          )}
+          {post.views && post.views > 0 && (
+            <span className="flex items-center gap-0.5">👁 {post.views.toLocaleString()}</span>
+          )}
+          {post.sentiment && post.sentiment !== 'neutre' && (
+            <span>{(SENTIMENT_STYLES[post.sentiment] || SENTIMENT_STYLES.neutre).icon}</span>
           )}
           <span className="ml-auto">{post.scraped_at ? timeAgo(post.scraped_at) : ''}</span>
         </div>
@@ -383,7 +446,7 @@ export default function SocialPage() {
                 )}
               </h1>
               <p className="text-[11px] mt-1 font-medium" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                Veille Facebook, Instagram & Twitter/X — {totalPosts} posts en base
+                Veille Facebook, Instagram & TikTok — {totalPosts} posts en base
               </p>
             </div>
             <div className="flex items-center gap-2 animate-slide-right">
@@ -617,9 +680,16 @@ export default function SocialPage() {
                         )}
                         <div className="flex items-center gap-3 text-[9px]" style={{ color: 'rgba(255,255,255,0.25)' }}>
                           {(post.likes || 0) > 0 && <span>❤️ {post.likes?.toLocaleString()}</span>}
-                          {(post.comments || 0) > 0 && <span>💬 {post.comments}</span>}
+                          {(post.comments_count || post.comments || 0) > 0 && <span>💬 {post.comments_count || post.comments}</span>}
                           {(post.shares || 0) > 0 && <span>🔄 {post.shares}</span>}
-                          {(post.retweets || 0) > 0 && <span>🔁 {post.retweets}</span>}
+                          {post.views && post.views > 0 && <span>👁 {post.views.toLocaleString()}</span>}
+                          {post.sentiment && post.sentiment !== 'neutre' && (() => {
+                            const s = SENTIMENT_STYLES[post.sentiment] || SENTIMENT_STYLES.neutre
+                            return <span style={{ color: s.color }}>{s.icon} {post.sentiment}</span>
+                          })()}
+                          {post.comment_texts && post.comment_texts.length > 0 && (
+                            <span className="text-blue-300">{post.comment_texts.length} com. scrapés</span>
+                          )}
                           <span className="ml-auto text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity font-medium">Détail →</span>
                         </div>
                       </div>
