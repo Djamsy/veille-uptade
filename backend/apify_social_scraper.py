@@ -1,10 +1,16 @@
 # backend/apify_social_scraper.py
 """
-Service de scraping réseaux sociaux via Apify — mode batché.
-- 1 run/heure par plateforme (Facebook, Instagram, Twitter/X)
-- Chaque run traite N comptes + N hashtags + N mots-clés en batch
-- Résultats stockés en MongoDB (collection social_posts)
-- Liaison automatique aux affaires existantes
+Service de scraping réseaux sociaux via Apify — optimisé coûts.
+Cibles : médias Guadeloupe (Département, Canal 10, Gpe 1ère, RCI, La Pause Sans Filtre)
+Plateformes : Facebook, Instagram, TikTok
+Budget : < 30€/mois sur Apify
+
+Optimisations coût :
+- 3 runs/jour (7h, 13h, 19h) au lieu de 24
+- Proxy datacenter par défaut (résidentiel seulement si bloqué)
+- resultsLimit réduit (5 posts/compte → seuls les récents)
+- Twitter/X supprimé (cher, peu pertinent Guadeloupe)
+- TikTok via clockworks/tiktok-scraper (PPE $0.004/item)
 """
 
 import os
@@ -15,8 +21,8 @@ from typing import Dict, Any, List, Optional
 from zoneinfo import ZoneInfo
 
 import requests
-from pymongo import MongoClient
-from pymongo.errors import DuplicateKeyError
+from pymongo import MongoClient, UpdateOne
+from pymongo.errors import DuplicateKeyError, BulkWriteError
 import certifi
 
 logger = logging.getLogger("apify_social")
@@ -32,80 +38,57 @@ APIFY_TOKEN = os.environ.get("APIFY_TOKEN", "").strip()
 MONGO_URL = (os.environ.get("MONGO_URL") or "mongodb://localhost:27017").strip()
 
 # =========================
-# Configuration des scrapers Apify (Actor IDs)
+# Actors Apify
 # =========================
 ACTORS = {
     "facebook": "apify/facebook-posts-scraper",
     "instagram": "apify/instagram-scraper",
-    "twitter": "apidojo/tweet-scraper",
+    "tiktok": "clockworks/tiktok-scraper",
 }
 
 # =========================
-# Cibles de veille Guadeloupe
+# Cibles de veille Guadeloupe — uniquement les comptes demandés
 # =========================
 FACEBOOK_PAGES = [
+    # Médias
     "https://www.facebook.com/RCIGUADELOUPE971",
-    "https://www.facebook.com/RCIMARTINIQUE972",
     "https://www.facebook.com/guadeloupe.la1ere",
-    "https://www.facebook.com/franceantilles.guadeloupe",
-    "https://www.facebook.com/kaaborguadeloupe",
-    "https://www.facebook.com/lInformGuadeloupe",
-    # Élus / Institutions
-    "https://www.facebook.com/RegionGuadeloupe",
+    "https://www.facebook.com/canal10guadeloupe",
+    "https://www.facebook.com/lapausesansfiltre",
+    # Institutions
     "https://www.facebook.com/DepartementGuadeloupe",
-    "https://www.facebook.com/VillePointeaPitre",
-    "https://www.facebook.com/VilleBasseterre",
-    "https://www.facebook.com/PrefetGuadeloupe",
 ]
 
 INSTAGRAM_ACCOUNTS = [
     "rci_guadeloupe",
     "guadeloupe.la1ere",
-    "franceantilles_guadeloupe",
-    "kaaborguadeloupe",
-    "region_guadeloupe",
-    "prefecture971",
+    "canal10guadeloupe",
+    "lapausesansfiltre",
+    "departaborguadeloupe",
 ]
 
-INSTAGRAM_HASHTAGS = [
+TIKTOK_ACCOUNTS = [
+    "rci_guadeloupe",
+    "guadeloupe1ere",
+    "canal10guadeloupe",
+    "lapausesansfiltre",
+    "departementguadeloupe",
+]
+
+# Hashtags TikTok pour capter le buzz local
+TIKTOK_HASHTAGS = [
     "guadeloupe",
-    "guadeloupe971",
-    "gwada",
     "971",
-    "pointeapitre",
-    "basseterre",
-    "saintfrancois",
-    "lesabymes",
+    "gwada",
 ]
 
-TWITTER_KEYWORDS = [
-    "Guadeloupe",
-    "SMGEAG",
-    "eau Guadeloupe",
-    "SDIS 971",
-    "Guy Losbar",
-    "Ary Chalus",
-    "Eric Jalton",
-    "CHU Guadeloupe",
-    "Préfet Guadeloupe",
-    "Région Guadeloupe",
-    "Département Guadeloupe",
-    "coupure eau 971",
-    "grève Guadeloupe",
-    "cyclone Guadeloupe",
-    "RCI Guadeloupe",
-    "Guadeloupe 1ère",
-    "France Antilles Guadeloupe",
-]
-
-TWITTER_ACCOUNTS = [
-    "Abororigines",
-    "RCI_GP",
-    "Gpe_1ere",
-    "FranceAntilles",
-    "Prefet971",
-    "RegionGpe",
-]
+# =========================
+# Proxy configs — optimisées coût
+# =========================
+# Facebook bloque les datacenter → proxy SHADER (moins cher que RESIDENTIAL)
+PROXY_FACEBOOK = {"useApifyProxy": True, "apifyProxyGroups": ["SHADER"]}
+# Instagram et TikTok fonctionnent souvent sans proxy résidentiel
+PROXY_LIGHT = {"useApifyProxy": True}
 
 
 # =========================
@@ -122,20 +105,18 @@ class ApifySocialScraper:
     def _connect_mongo(self):
         try:
             if MONGO_URL.startswith("mongodb+srv"):
-                client = MongoClient(MONGO_URL, tlsCAFile=certifi.where(), serverSelectionTimeoutMS=30000)
+                client = MongoClient(MONGO_URL, tlsCAFile=certifi.where(),
+                                     serverSelectionTimeoutMS=15000, maxPoolSize=5)
             else:
-                client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=30000)
+                client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=15000, maxPoolSize=5)
             client.admin.command("ping")
             try:
                 self.db = client.get_default_database()
             except Exception:
                 self.db = client["veille_media"]
-            # Même collection que affair_lifecycle_service.social
             self.collection = self.db["social_media_posts"]
             # Index unique pour éviter les doublons
             self.collection.create_index("post_hash", unique=True, sparse=True)
-            self.collection.create_index("platform")
-            self.collection.create_index("scraped_at")
             self.collection.create_index([("platform", 1), ("scraped_at", -1)])
             logger.info("🔗 Apify Social: Mongo connecté")
         except Exception as e:
@@ -150,7 +131,6 @@ class ApifySocialScraper:
 
     @staticmethod
     def _safe_int(val) -> int:
-        """Extrait un entier depuis un champ Apify qui peut être int, str, list, dict ou None."""
         if val is None:
             return 0
         if isinstance(val, (int, float)):
@@ -161,99 +141,104 @@ class ApifySocialScraper:
             except ValueError:
                 return 0
         if isinstance(val, list):
-            return len(val)  # liste de commentaires → compter
+            return len(val)
         if isinstance(val, dict):
-            # dict avec un champ 'count' ou 'summary'
-            return int(val.get("count") or val.get("total_count") or val.get("summary", {}).get("total_count", 0) or 0)
+            return int(val.get("count") or val.get("total_count")
+                       or val.get("summary", {}).get("total_count", 0) or 0)
         return 0
 
     # =========================
-    # Run un Actor Apify et récupère les résultats
+    # Run un Actor Apify
     # =========================
     def _run_actor(self, actor_id: str, run_input: dict, timeout_secs: int = 300) -> List[Dict]:
-        """Lance un Actor Apify en mode synchrone et retourne les résultats."""
         if not APIFY_TOKEN:
             logger.warning("⚠️ APIFY_TOKEN non configuré")
             return []
 
-        # Apify API exige ~ au lieu de / dans les actor IDs pour les chemins URL
         safe_actor_id = actor_id.replace("/", "~")
         url = f"{self.api_base}/acts/{safe_actor_id}/run-sync-get-dataset-items"
         params = {"token": APIFY_TOKEN, "timeout": timeout_secs}
         headers = {"Content-Type": "application/json"}
 
         try:
-            logger.info(f"🚀 Lancement Actor {actor_id} avec input: {list(run_input.keys())}")
-            logger.debug(f"   Input complet: {run_input}")
-            resp = requests.post(url, json=run_input, params=params, headers=headers, timeout=timeout_secs + 30)
-
-            logger.info(f"   {actor_id}: HTTP {resp.status_code} — Content-Length: {len(resp.content)}")
+            logger.info(f"🚀 Actor {actor_id}")
+            resp = requests.post(url, json=run_input, params=params,
+                                 headers=headers, timeout=timeout_secs + 30)
 
             if resp.status_code == 200:
                 try:
                     data = resp.json()
                 except Exception:
-                    logger.error(f"❌ {actor_id}: réponse non-JSON — {resp.text[:300]}")
+                    logger.error(f"❌ {actor_id}: réponse non-JSON")
                     return []
 
                 if isinstance(data, list):
                     logger.info(f"✅ {actor_id}: {len(data)} résultats")
                     return data
                 elif isinstance(data, dict):
-                    # Certains actors retournent un objet avec une clé 'items' ou 'data'
                     items = data.get("items") or data.get("data") or []
                     if items:
-                        logger.info(f"✅ {actor_id}: {len(items)} résultats (via clé items/data)")
+                        logger.info(f"✅ {actor_id}: {len(items)} résultats")
                         return items
-                    # Si c'est un objet d'erreur
                     if data.get("error") or data.get("status") == "FAILED":
-                        logger.error(f"❌ {actor_id}: Actor échoué — {data.get('error', data.get('statusMessage', str(data)[:300]))}")
-                        return []
-                    logger.warning(f"⚠️ {actor_id}: réponse dict inattendue — clés: {list(data.keys())[:10]}")
-                    return []
-                else:
-                    logger.warning(f"⚠️ {actor_id}: type réponse inattendu: {type(data)}")
-                    return []
+                        logger.error(f"❌ {actor_id}: échoué — {str(data)[:300]}")
+                return []
 
             elif resp.status_code == 402:
-                logger.error(f"❌ {actor_id}: crédits Apify insuffisants (402)")
-                return []
-            elif resp.status_code == 400:
-                logger.error(f"❌ {actor_id}: Bad Request (400) — input invalide? Réponse: {resp.text[:500]}")
-                return []
-            elif resp.status_code == 404:
-                logger.error(f"❌ {actor_id}: Actor introuvable (404) — vérifier l'ID")
-                return []
-            elif resp.status_code == 408:
-                logger.error(f"❌ {actor_id}: Timeout côté Apify (408)")
-                return []
+                logger.error(f"❌ {actor_id}: crédits insuffisants (402)")
+            elif resp.status_code in (400, 404, 408):
+                logger.error(f"❌ {actor_id}: HTTP {resp.status_code} — {resp.text[:300]}")
             else:
-                logger.error(f"❌ {actor_id}: HTTP {resp.status_code} — {resp.text[:500]}")
-                return []
+                logger.error(f"❌ {actor_id}: HTTP {resp.status_code}")
+            return []
 
         except requests.Timeout:
-            logger.error(f"⏰ {actor_id}: timeout après {timeout_secs}s")
+            logger.error(f"⏰ {actor_id}: timeout {timeout_secs}s")
             return []
         except Exception as e:
             logger.error(f"💥 {actor_id}: {e}")
             return []
 
     # =========================
+    # Batch upsert — remplace les N × update_one par un bulk_write
+    # =========================
+    def _bulk_upsert(self, docs: List[Dict]) -> tuple:
+        """Upsert en batch. Retourne (saved, updated)."""
+        if not docs:
+            return 0, 0
+        ops = []
+        for doc in docs:
+            ph = doc["post_hash"]
+            ops.append(UpdateOne(
+                {"post_hash": ph},
+                {"$set": doc, "$setOnInsert": {"first_seen": datetime.now(TZ)}},
+                upsert=True,
+            ))
+        try:
+            result = self.collection.bulk_write(ops, ordered=False)
+            return result.upserted_count, result.modified_count
+        except BulkWriteError as e:
+            details = e.details or {}
+            return details.get("nUpserted", 0), details.get("nModified", 0)
+        except Exception as e:
+            logger.warning(f"⚠️ Bulk upsert error: {e}")
+            return 0, 0
+
+    # =========================
     # Facebook
     # =========================
     def scrape_facebook(self) -> Dict[str, Any]:
-        """Scrape toutes les pages Facebook en un seul run batché."""
         run_input = {
             "startUrls": [{"url": u} for u in FACEBOOK_PAGES],
-            "resultsLimit": 10,  # 10 posts max par page
-            "onlyPostsNewerThan": "2 days",  # Limiter aux posts récents
-            # Facebook bloque les IPs datacenter → proxy résidentiel obligatoire
-            "proxyConfiguration": {"useApifyProxy": True, "apifyProxyGroups": ["RESIDENTIAL"]},
+            "resultsLimit": 5,
+            "onlyPostsNewerThan": "1 day",
+            "commentsMode": "RANKED_THREADED",  # Récupérer les top commentaires
+            "maxComments": 10,  # 10 commentaires max par post
+            "proxyConfiguration": PROXY_FACEBOOK,
         }
 
         items = self._run_actor(ACTORS["facebook"], run_input)
-        saved = 0
-        updated = 0
+        docs = []
 
         for item in items:
             try:
@@ -263,65 +248,64 @@ class ApifySocialScraper:
                 post_url = item.get("url") or item.get("postUrl") or ""
 
                 ph = self._post_hash("facebook", text, author, posted_at)
-                likes = self._safe_int(item.get("likesCount") or item.get("likes"))
-                comments = self._safe_int(item.get("commentsCount") or item.get("comments"))
-                shares = self._safe_int(item.get("sharesCount") or item.get("shares"))
-                # Images Facebook
                 image_url = (item.get("fullPicture") or item.get("imageUrl")
-                             or item.get("picture") or item.get("image") or "")
-                media_type = item.get("type") or ("video" if item.get("videoUrl") else "photo" if image_url else "text")
+                             or item.get("picture") or "")
+                media_type = item.get("type") or (
+                    "video" if item.get("videoUrl")
+                    else "photo" if image_url else "text"
+                )
 
-                doc = {
+                # Extraire les commentaires texte
+                raw_comments = item.get("topComments") or item.get("comments_full") or []
+                comment_texts = []
+                if isinstance(raw_comments, list):
+                    for c in raw_comments[:10]:
+                        ct = c.get("text") or c.get("comment_text") or c.get("message") or ""
+                        if ct.strip():
+                            comment_texts.append({
+                                "author": c.get("profileName") or c.get("author") or "?",
+                                "text": ct[:500],
+                                "likes": self._safe_int(c.get("likesCount") or c.get("likes")),
+                            })
+
+                docs.append({
                     "platform": "facebook",
                     "post_hash": ph,
                     "author": author,
                     "text": text,
                     "url": post_url,
                     "posted_at": posted_at,
-                    "likes": likes,
-                    "comments": comments,
-                    "shares": shares,
+                    "likes": self._safe_int(item.get("likesCount") or item.get("likes")),
+                    "comments_count": self._safe_int(item.get("commentsCount") or item.get("comments")),
+                    "shares": self._safe_int(item.get("sharesCount") or item.get("shares")),
+                    "comment_texts": comment_texts,
                     "image_url": image_url,
                     "media_type": media_type,
                     "scraped_at": datetime.now(TZ),
-                    "raw": item,
-                }
-                # Upsert: met à jour si déjà existant, insère sinon
-                result = self.collection.update_one(
-                    {"post_hash": ph},
-                    {"$set": doc, "$setOnInsert": {"first_seen": datetime.now(TZ)}},
-                    upsert=True,
-                )
-                if result.upserted_id:
-                    saved += 1
-                elif result.modified_count > 0:
-                    updated += 1
+                })
             except Exception as e:
-                logger.warning(f"⚠️ FB save error: {e}")
+                logger.warning(f"⚠️ FB parse: {e}")
 
-        logger.info(f"📘 Facebook: {saved} nouveaux + {updated} mis à jour / {len(items)} récupérés")
+        saved, updated = self._bulk_upsert(docs)
+        logger.info(f"📘 Facebook: {saved} nouveaux + {updated} MAJ / {len(items)} récupérés")
         return {"platform": "facebook", "fetched": len(items), "saved": saved, "updated": updated}
 
     # =========================
     # Instagram
     # =========================
     def scrape_instagram(self) -> Dict[str, Any]:
-        """Scrape comptes + hashtags Instagram en un seul run batché."""
         direct_urls = [f"https://www.instagram.com/{a}/" for a in INSTAGRAM_ACCOUNTS]
-        hashtag_urls = [f"https://www.instagram.com/explore/tags/{h}/" for h in INSTAGRAM_HASHTAGS]
 
         run_input = {
-            "directUrls": direct_urls + hashtag_urls,
-            "resultsLimit": 10,
+            "directUrls": direct_urls,
+            "resultsLimit": 5,
             "resultsType": "posts",
-            "searchType": "hashtag",
-            # Instagram bloque les IPs datacenter → proxy résidentiel obligatoire
-            "proxyConfiguration": {"useApifyProxy": True, "apifyProxyGroups": ["RESIDENTIAL"]},
+            "addParentData": True,  # Inclure les commentaires
+            "proxyConfiguration": PROXY_LIGHT,
         }
 
         items = self._run_actor(ACTORS["instagram"], run_input)
-        saved = 0
-        updated = 0
+        docs = []
 
         for item in items:
             try:
@@ -331,122 +315,145 @@ class ApifySocialScraper:
                 post_url = item.get("url") or item.get("displayUrl") or ""
 
                 ph = self._post_hash("instagram", text, author, str(posted_at))
-                likes = self._safe_int(item.get("likesCount") or item.get("likes"))
-                comments = self._safe_int(item.get("commentsCount") or item.get("comments"))
-                # Images Instagram
                 image_url = (item.get("displayUrl") or item.get("thumbnailUrl")
                              or item.get("imageUrl") or "")
-                media_type = item.get("type") or ("video" if item.get("videoUrl") else "photo" if image_url else "text")
+                media_type = item.get("type") or (
+                    "video" if item.get("videoUrl")
+                    else "photo" if image_url else "text"
+                )
 
-                doc = {
+                # Commentaires Instagram
+                raw_comments = item.get("latestComments") or item.get("comments") or []
+                comment_texts = []
+                if isinstance(raw_comments, list):
+                    for c in raw_comments[:10]:
+                        ct = c.get("text") or c.get("comment") or ""
+                        if ct.strip():
+                            comment_texts.append({
+                                "author": c.get("ownerUsername") or c.get("owner", {}).get("username", "?") if isinstance(c.get("owner"), dict) else "?",
+                                "text": ct[:500],
+                                "likes": self._safe_int(c.get("likesCount") or c.get("likes")),
+                            })
+
+                docs.append({
                     "platform": "instagram",
                     "post_hash": ph,
                     "author": author,
                     "text": text,
                     "url": post_url,
                     "posted_at": posted_at,
-                    "likes": likes,
-                    "comments": comments,
+                    "likes": self._safe_int(item.get("likesCount") or item.get("likes")),
+                    "comments_count": self._safe_int(item.get("commentsCount") or item.get("comments")),
+                    "comment_texts": comment_texts,
                     "image_url": image_url,
                     "media_type": media_type,
                     "scraped_at": datetime.now(TZ),
-                    "raw": item,
-                }
-                result = self.collection.update_one(
-                    {"post_hash": ph},
-                    {"$set": doc, "$setOnInsert": {"first_seen": datetime.now(TZ)}},
-                    upsert=True,
-                )
-                if result.upserted_id:
-                    saved += 1
-                elif result.modified_count > 0:
-                    updated += 1
+                })
             except Exception as e:
-                logger.warning(f"⚠️ IG save error: {e}")
+                logger.warning(f"⚠️ IG parse: {e}")
 
-        logger.info(f"📸 Instagram: {saved} nouveaux + {updated} mis à jour / {len(items)} récupérés")
+        saved, updated = self._bulk_upsert(docs)
+        logger.info(f"📸 Instagram: {saved} nouveaux + {updated} MAJ / {len(items)} récupérés")
         return {"platform": "instagram", "fetched": len(items), "saved": saved, "updated": updated}
 
     # =========================
-    # Twitter / X
+    # TikTok (nouveau)
     # =========================
-    def scrape_twitter(self) -> Dict[str, Any]:
-        """Scrape mots-clés + comptes Twitter/X en un seul run batché."""
+    def scrape_tiktok(self) -> Dict[str, Any]:
+        """Scrape comptes + hashtags TikTok via clockworks/tiktok-scraper (PPE)."""
+        # Profils
+        profile_urls = [f"https://www.tiktok.com/@{a}" for a in TIKTOK_ACCOUNTS]
+        # Hashtags
+        hashtag_urls = [f"https://www.tiktok.com/tag/{h}" for h in TIKTOK_HASHTAGS]
+
         run_input = {
-            "searchTerms": TWITTER_KEYWORDS,
-            "twitterHandles": TWITTER_ACCOUNTS,
-            "maxItems": 100,
-            "sort": "Latest",
-            # Proxy résidentiel pour fiabilité
-            "proxyConfiguration": {"useApifyProxy": True, "apifyProxyGroups": ["RESIDENTIAL"]},
+            "profiles": profile_urls,
+            "hashtags": hashtag_urls,
+            "resultsPerPage": 5,
+            "shouldDownloadVideos": False,
+            "shouldDownloadCovers": False,
+            "maxComments": 10,  # Top commentaires
+            "proxyConfiguration": PROXY_LIGHT,
         }
 
-        items = self._run_actor(ACTORS["twitter"], run_input, timeout_secs=300)
-        saved = 0
-        updated = 0
+        items = self._run_actor(ACTORS["tiktok"], run_input, timeout_secs=300)
+        docs = []
 
         for item in items:
             try:
-                # Tweet Scraper V2 peut retourner des formats variés
-                text = (item.get("full_text") or item.get("text")
-                        or item.get("tweet_text") or item.get("content") or "")
-                # Champ auteur selon version de l'actor
-                author = (item.get("author", {}).get("userName", "") if isinstance(item.get("author"), dict)
-                          else item.get("user", {}).get("screen_name", "") if isinstance(item.get("user"), dict)
-                          else item.get("author") or item.get("screen_name") or "unknown")
-                posted_at = item.get("created_at") or item.get("createdAt") or item.get("date") or ""
-                tweet_id = str(item.get("id_str") or item.get("id") or item.get("tweetId") or "")
-                post_url = item.get("url") or item.get("tweetUrl") or ""
-                if not post_url and tweet_id and author:
-                    post_url = f"https://x.com/{author}/status/{tweet_id}"
+                text = item.get("text") or item.get("desc") or item.get("description") or ""
+                author = (item.get("authorMeta", {}).get("name", "")
+                          or item.get("author", {}).get("uniqueId", "")
+                          or item.get("author") or "unknown")
+                if isinstance(author, dict):
+                    author = author.get("uniqueId") or author.get("nickname") or "unknown"
+                posted_at = item.get("createTime") or item.get("created_at") or ""
+                # Convertir timestamp Unix si nécessaire
+                if isinstance(posted_at, (int, float)) and posted_at > 1000000000:
+                    posted_at = datetime.fromtimestamp(posted_at, tz=TZ).isoformat()
 
-                ph = self._post_hash("twitter", text, author, str(posted_at))
-                likes = self._safe_int(item.get("likeCount") or item.get("favorite_count") or item.get("likes"))
-                retweets = self._safe_int(item.get("retweetCount") or item.get("retweet_count") or item.get("retweets"))
-                replies = self._safe_int(item.get("replyCount") or item.get("reply_count") or item.get("replies"))
-                # Images Twitter
-                media = item.get("media") or item.get("photos") or item.get("extendedEntities", {}).get("media") or []
-                image_url = ""
-                if isinstance(media, list) and media:
-                    first_media = media[0]
-                    image_url = first_media.get("media_url_https") or first_media.get("url") or first_media.get("media_url") or ""
-                elif isinstance(item.get("media_url"), str):
-                    image_url = item["media_url"]
-                media_type = "photo" if image_url else "text"
+                video_id = str(item.get("id") or item.get("videoId") or "")
+                post_url = item.get("webVideoUrl") or item.get("url") or ""
+                if not post_url and video_id and isinstance(author, str):
+                    post_url = f"https://www.tiktok.com/@{author}/video/{video_id}"
 
-                doc = {
-                    "platform": "twitter",
+                ph = self._post_hash("tiktok", text, str(author), str(posted_at))
+
+                # Engagement
+                stats = item.get("statsV2") or item.get("stats") or {}
+                likes = self._safe_int(stats.get("diggCount") or stats.get("heart")
+                                       or item.get("diggCount") or item.get("likes"))
+                comments = self._safe_int(stats.get("commentCount") or stats.get("comment")
+                                          or item.get("commentCount") or item.get("comments"))
+                shares = self._safe_int(stats.get("shareCount") or stats.get("share")
+                                        or item.get("shareCount") or item.get("shares"))
+                views = self._safe_int(stats.get("playCount") or stats.get("play")
+                                       or item.get("playCount") or item.get("views"))
+
+                # Thumbnail
+                image_url = (item.get("covers", {}).get("default", "")
+                             if isinstance(item.get("covers"), dict) else "")
+                if not image_url:
+                    image_url = item.get("video", {}).get("cover", "") if isinstance(item.get("video"), dict) else ""
+
+                # Commentaires TikTok
+                raw_comments = item.get("comments") or []
+                comment_texts = []
+                if isinstance(raw_comments, list):
+                    for c in raw_comments[:10]:
+                        ct = c.get("text") or c.get("comment") or ""
+                        if ct.strip():
+                            comment_texts.append({
+                                "author": c.get("uniqueId") or c.get("user", {}).get("uniqueId", "?") if isinstance(c.get("user"), dict) else "?",
+                                "text": ct[:500],
+                                "likes": self._safe_int(c.get("diggCount") or c.get("likes")),
+                            })
+
+                docs.append({
+                    "platform": "tiktok",
                     "post_hash": ph,
                     "author": author,
                     "text": text,
                     "url": post_url,
                     "posted_at": posted_at,
                     "likes": likes,
-                    "retweets": retweets,
-                    "replies": replies,
-                    "comments": replies,  # Twitter: replies = comments
+                    "comments_count": comments,
+                    "comment_texts": comment_texts,
+                    "shares": shares,
+                    "views": views,
                     "image_url": image_url,
-                    "media_type": media_type,
+                    "media_type": "video",
                     "scraped_at": datetime.now(TZ),
-                    "raw": item,
-                }
-                result = self.collection.update_one(
-                    {"post_hash": ph},
-                    {"$set": doc, "$setOnInsert": {"first_seen": datetime.now(TZ)}},
-                    upsert=True,
-                )
-                if result.upserted_id:
-                    saved += 1
-                elif result.modified_count > 0:
-                    updated += 1
+                })
             except Exception as e:
-                logger.warning(f"⚠️ TW save error: {e}")
+                logger.warning(f"⚠️ TikTok parse: {e}")
 
-        logger.info(f"🐦 Twitter: {saved} nouveaux + {updated} mis à jour / {len(items)} récupérés")
-        return {"platform": "twitter", "fetched": len(items), "saved": saved, "updated": updated}
+        saved, updated = self._bulk_upsert(docs)
+        logger.info(f"🎵 TikTok: {saved} nouveaux + {updated} MAJ / {len(items)} récupérés")
+        return {"platform": "tiktok", "fetched": len(items), "saved": saved, "updated": updated}
 
     # =========================
-    # Run all platforms (appelé par le scheduler)
+    # Run all platforms
     # =========================
     def scrape_all(self) -> Dict[str, Any]:
         """Lance le scraping batché sur les 3 plateformes."""
@@ -459,7 +466,7 @@ class ApifySocialScraper:
         for platform, method in [
             ("facebook", self.scrape_facebook),
             ("instagram", self.scrape_instagram),
-            ("twitter", self.scrape_twitter),
+            ("tiktok", self.scrape_tiktok),
         ]:
             try:
                 r = method()
@@ -474,14 +481,20 @@ class ApifySocialScraper:
         if total_saved > 0:
             enriched = self.enrich_new_posts()
 
-        logger.info(f"📊 Scraping social terminé: {total_saved} nouveaux posts, {enriched} enrichis par IA")
-        return {"success": True, "total_saved": total_saved, "enriched": enriched, "platforms": results, "timestamp": datetime.now(TZ).isoformat()}
+        logger.info(f"📊 Social terminé: {total_saved} nouveaux, {enriched} enrichis IA")
+        return {
+            "success": True,
+            "total_saved": total_saved,
+            "enriched": enriched,
+            "platforms": results,
+            "timestamp": datetime.now(TZ).isoformat(),
+        }
 
     # =========================
     # Enrichissement IA des posts
     # =========================
-    def enrich_new_posts(self, limit: int = 50) -> int:
-        """Enrichit les posts non encore analysés par IA (batch de 15)."""
+    def enrich_new_posts(self, limit: int = 30) -> int:
+        """Enrichit les posts par IA (sentiment, thème, gravité) puis ingère dans les affaires."""
         if self.collection is None:
             return 0
 
@@ -494,7 +507,6 @@ class ApifySocialScraper:
             logger.warning("⚠️ enrich_social_posts_batch non disponible")
             return 0
 
-        # Posts non enrichis
         unenriched = list(self.collection.find({
             "ai_enriched": {"$ne": True},
             "text": {"$exists": True, "$ne": ""},
@@ -504,40 +516,70 @@ class ApifySocialScraper:
             return 0
 
         enriched_total = 0
-        # Traiter par batch de 15
+        bulk_ops = []
+        relevant_posts = []  # Posts pertinents pour ingestion dans les affaires
+
         for i in range(0, len(unenriched), 15):
             batch = unenriched[i:i + 15]
             enriched = enrich_social_posts_batch(batch, batch_size=15)
 
             for post in enriched:
-                try:
-                    self.collection.update_one(
-                        {"_id": post["_id"]},
-                        {"$set": {
-                            "ai_enriched": post.get("ai_enriched", True),
-                            "ai_relevant": post.get("ai_relevant", False),
-                            "elected": post.get("elected", []),
-                            "institutions": post.get("institutions", []),
-                            "entities": post.get("entities", []),
-                            "theme": post.get("theme", "general"),
-                            "gravity_score": post.get("gravity_score", 0.1),
-                            "ai_summary": post.get("ai_summary", ""),
-                            "keywords_found": post.get("keywords_found", []),
-                            "_analysis_method": post.get("_analysis_method", ""),
-                        }}
-                    )
-                    enriched_total += 1
-                except Exception as e:
-                    logger.warning(f"⚠️ Update enriched post: {e}")
+                update_fields = {
+                    "ai_enriched": post.get("ai_enriched", True),
+                    "ai_relevant": post.get("ai_relevant", False),
+                    "elected": post.get("elected", []),
+                    "institutions": post.get("institutions", []),
+                    "entities": post.get("entities", []),
+                    "theme": post.get("theme", "general"),
+                    "gravity_score": post.get("gravity_score", 0.1),
+                    "sentiment": post.get("sentiment", "neutre"),
+                    "opinion_commentaires": post.get("opinion_commentaires", ""),
+                    "ai_summary": post.get("ai_summary", ""),
+                    "keywords_found": post.get("keywords_found", []),
+                    "_analysis_method": post.get("_analysis_method", ""),
+                }
+                bulk_ops.append(UpdateOne({"_id": post["_id"]}, {"$set": update_fields}))
 
-        logger.info(f"🧠 {enriched_total}/{len(unenriched)} posts enrichis par IA")
+                # Collecter les posts pertinents pour ingestion dans les affaires
+                if post.get("ai_relevant") and post.get("gravity_score", 0) >= 0.15:
+                    relevant_posts.append(post)
+
+        # ⚡ Un seul bulk_write
+        if bulk_ops:
+            try:
+                result = self.collection.bulk_write(bulk_ops, ordered=False)
+                enriched_total = result.modified_count + result.upserted_count
+            except BulkWriteError as e:
+                enriched_total = (e.details or {}).get("nModified", 0)
+
+        # 🔗 Ingérer les posts pertinents dans le pipeline affaires
+        ingested = 0
+        if relevant_posts:
+            try:
+                try:
+                    from backend.affair_lifecycle_service import get_affair_lifecycle_service
+                except ImportError:
+                    from affair_lifecycle_service import get_affair_lifecycle_service
+                svc = get_affair_lifecycle_service(db=self.db)
+                for post in relevant_posts:
+                    try:
+                        r = svc.ingest_item(post, source_type="social")
+                        if r.get("success") and r.get("action") != "already_exists":
+                            ingested += 1
+                    except Exception:
+                        pass
+                if ingested:
+                    logger.info(f"🔗 {ingested} posts RS ingérés dans les affaires")
+            except Exception as e:
+                logger.warning(f"⚠️ Ingestion affaires RS: {e}")
+
+        logger.info(f"🧠 {enriched_total}/{len(unenriched)} posts enrichis IA, {ingested} classés en affaires")
         return enriched_total
 
     # =========================
-    # Stats
+    # Stats (optimisées — un seul aggregate au lieu de 9 count_documents)
     # =========================
     def get_stats(self) -> Dict[str, Any]:
-        """Retourne les stats du scraping social."""
         if self.collection is None:
             return {"error": "Mongo indisponible"}
 
@@ -545,27 +587,39 @@ class ApifySocialScraper:
         last_24h = now - timedelta(hours=24)
         last_7d = now - timedelta(days=7)
 
-        stats = {}
-        for platform in ["facebook", "instagram", "twitter"]:
-            total = self.collection.count_documents({"platform": platform})
-            recent_24h = self.collection.count_documents({"platform": platform, "scraped_at": {"$gte": last_24h}})
-            recent_7d = self.collection.count_documents({"platform": platform, "scraped_at": {"$gte": last_7d}})
-
-            # Dernier scrape
-            last = self.collection.find_one({"platform": platform}, sort=[("scraped_at", -1)])
-            last_scraped = last["scraped_at"].isoformat() if last and "scraped_at" in last else None
-
-            stats[platform] = {
-                "total": total,
-                "last_24h": recent_24h,
-                "last_7d": recent_7d,
-                "last_scraped": last_scraped,
-            }
-
-        return {"stats": stats, "timestamp": now.isoformat()}
+        # ⚡ Un seul aggregate pour toutes les plateformes
+        pipeline = [
+            {"$facet": {
+                "by_platform": [
+                    {"$group": {
+                        "_id": "$platform",
+                        "total": {"$sum": 1},
+                        "recent_24h": {"$sum": {"$cond": [{"$gte": ["$scraped_at", last_24h]}, 1, 0]}},
+                        "recent_7d": {"$sum": {"$cond": [{"$gte": ["$scraped_at", last_7d]}, 1, 0]}},
+                        "last_scraped": {"$max": "$scraped_at"},
+                    }},
+                ],
+            }},
+        ]
+        try:
+            result = list(self.collection.aggregate(pipeline))
+            facets = result[0] if result else {}
+            stats = {}
+            for entry in facets.get("by_platform", []):
+                p = entry["_id"]
+                ls = entry.get("last_scraped")
+                stats[p] = {
+                    "total": entry["total"],
+                    "last_24h": entry["recent_24h"],
+                    "last_7d": entry["recent_7d"],
+                    "last_scraped": ls.isoformat() if hasattr(ls, "isoformat") else str(ls) if ls else None,
+                }
+            return {"stats": stats, "timestamp": now.isoformat()}
+        except Exception as e:
+            logger.warning(f"⚠️ Stats aggregate error: {e}")
+            return {"stats": {}, "timestamp": now.isoformat()}
 
     def get_recent_posts(self, platform: Optional[str] = None, limit: int = 50) -> List[Dict]:
-        """Retourne les posts récents."""
         if self.collection is None:
             return []
 

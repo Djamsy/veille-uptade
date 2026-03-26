@@ -954,12 +954,12 @@ def _ensure_scheduler():
         name="Health-check flux radio"
     )
 
-    # 📱 Scraping réseaux sociaux toutes les heures (minute 10)
+    # 📱 Scraping RS 3×/jour (7h10, 13h10, 19h10) — optimisé coûts Apify < 30€/mois
     _scheduler.add_job(
         job_social_scrape,
-        CronTrigger(minute="10", timezone=TZ),
+        CronTrigger(hour="7,13,19", minute="10", timezone=TZ),
         id="social_scrape",
-        name="Scraping réseaux sociaux (Apify)"
+        name="Scraping RS (FB + IG + TikTok) 3x/jour"
     )
 
     # 🔮 Analyse prédictive IA toutes les heures (minute 30)

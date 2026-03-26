@@ -982,7 +982,7 @@ def cluster_articles_with_ai(
 
 SOCIAL_POST_PROMPT = """Tu es un analyste média spécialisé dans l'actualité de la Guadeloupe et des Antilles françaises.
 
-On te donne un lot de posts de réseaux sociaux. Analyse CHAQUE post et retourne un JSON.
+On te donne un lot de posts de réseaux sociaux avec leurs commentaires. Analyse CHAQUE post et retourne un JSON.
 Les posts sont souvent courts, informels, parfois en créole guadeloupéen.
 
 Pour CHAQUE post, détermine :
@@ -990,6 +990,8 @@ Pour CHAQUE post, détermine :
 2. Les entités nommées (élus, institutions, lieux spécifiques)
 3. Le thème
 4. La gravité (impact sur la population)
+5. Le SENTIMENT global (post + commentaires) : "positif", "négatif", "neutre", "colère", "inquiétude"
+6. Un résumé de ce que disent les commentaires (opinion_commentaires)
 
 Réponds UNIQUEMENT en JSON :
 {
@@ -1001,7 +1003,9 @@ Réponds UNIQUEMENT en JSON :
       "institutions": ["SMGEAG"],
       "theme": "eau_env",
       "gravity": 0.45,
+      "sentiment": "colère",
       "summary": "Coupure d'eau à Petit-Pérou, habitants mécontents",
+      "opinion_commentaires": "Les commentaires expriment la colère des habitants, certains menacent de manifester",
       "keywords": ["eau", "coupure", "Petit-Pérou"],
       "event": {"subject": "SMGEAG", "action": "coupe l'eau", "object": "habitants de Petit-Pérou", "event_type": "incident", "location": "Petit-Pérou"}
     }
@@ -1009,6 +1013,7 @@ Réponds UNIQUEMENT en JSON :
 }
 
 Thèmes possibles : eau_env, energie_transports, sante_social, education, economie_emploi, culture_patrimoine, securite_justice, politique, sport, general
+Sentiments possibles : positif, négatif, neutre, colère, inquiétude
 
 RÈGLES :
 - Un post sur un match de foot local → relevant=true, theme=sport, gravity=0.05
@@ -1016,7 +1021,10 @@ RÈGLES :
 - Un post en créole sur une grève → relevant=true, traduis en français pour le summary
 - Même calibration gravity que pour les articles (60% < 0.25, 10% > 0.50)
 - Sois précis sur les noms : utilise prénom + nom pour les personnalités
-- Les institutions : CHU, SMGEAG, EDF, ARS, Préfecture, Région, Département, SDIS, CAF, IEDOM"""
+- Les institutions : CHU, SMGEAG, EDF, ARS, Préfecture, Région, Département, SDIS, CAF, IEDOM
+- Le sentiment doit refléter AUSSI les commentaires, pas seulement le post
+- Si beaucoup de commentaires négatifs sur un post neutre → sentiment = "négatif"
+- opinion_commentaires résume en 1 phrase ce que pensent les commentateurs"""
 
 
 def enrich_social_posts_batch(posts: List[Dict[str, Any]], batch_size: int = 15) -> List[Dict[str, Any]]:
@@ -1031,7 +1039,7 @@ def enrich_social_posts_batch(posts: List[Dict[str, Any]], batch_size: int = 15)
     if not posts:
         return []
 
-    # Construire le texte des posts
+    # Construire le texte des posts (avec commentaires si disponibles)
     lines = []
     for i, post in enumerate(posts[:batch_size], 1):
         platform = post.get("platform", "?")
@@ -1039,7 +1047,14 @@ def enrich_social_posts_batch(posts: List[Dict[str, Any]], batch_size: int = 15)
         text = (post.get("text") or "")[:300]
         if not text.strip():
             continue
-        lines.append(f"{i}. [{platform}] @{author}: {text}")
+        line = f"{i}. [{platform}] @{author}: {text}"
+        # Ajouter les commentaires pour l'analyse de sentiment
+        comment_texts = post.get("comment_texts") or []
+        if comment_texts:
+            top_comments = [c.get("text", "")[:100] for c in comment_texts[:5] if c.get("text")]
+            if top_comments:
+                line += f"\n   Commentaires: {' | '.join(top_comments)}"
+        lines.append(line)
 
     if not lines:
         return []
@@ -1088,6 +1103,8 @@ def enrich_social_posts_batch(posts: List[Dict[str, Any]], batch_size: int = 15)
                 original["entities"] = list(set(elected + institutions))
                 original["theme"] = ai_post.get("theme", "general")
                 original["gravity_score"] = float(ai_post.get("gravity", 0.1))
+                original["sentiment"] = ai_post.get("sentiment", "neutre")
+                original["opinion_commentaires"] = ai_post.get("opinion_commentaires", "")
                 original["ai_summary"] = ai_post.get("summary", "")
                 original["keywords_found"] = ai_post.get("keywords", [])
                 # Événement structuré
