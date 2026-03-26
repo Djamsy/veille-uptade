@@ -919,29 +919,29 @@ def _ensure_scheduler():
         job_defaults={"coalesce": True, "max_instances": 1}
     )
 
-    # Pipeline complet toutes les 15 min (scrape + enrich + affaires)
-    # ⚡ Réduit de 5 min → 15 min pour ÷3 les ops MongoDB Atlas Flex
+    # Pipeline complet toutes les 5 min — réactivité conservée
+    # ⚡ Coût réduit PAR CYCLE (insert_many, dedup $or, pas de count_documents)
     _scheduler.add_job(
         job_full_pipeline,
-        CronTrigger(minute="*/15", timezone=TZ),
+        CronTrigger(minute="*/5", timezone=TZ),
         id="full_pipeline",
-        name="Pipeline complet (scrape → enrich → affaires) 4x/h"
+        name="Pipeline complet (scrape → enrich → affaires) 12x/h"
     )
 
-    # Mise à jour des affaires toutes les 30 min (réduit de 15 min)
+    # Mise à jour des affaires toutes les 15 min
     _scheduler.add_job(
         job_update_affairs,
-        CronTrigger(minute="10,40", timezone=TZ),
+        CronTrigger(minute="*/15", timezone=TZ),
         id="update_affairs",
         name="MAJ affaires actives"
     )
 
     # Enrichissement standalone supprimé — déjà inclus dans full_pipeline
 
-    # 🎙️ Capture radio toutes les 10 min (réduit de 5 min pour ÷2 ops)
+    # 🎙️ Capture radio toutes les 5 min
     _scheduler.add_job(
         job_radio_capture,
-        CronTrigger(minute="*/10", timezone=TZ),
+        CronTrigger(minute="*/5", timezone=TZ),
         id="radio_capture",
         name="Capture radio/TV (flux planifiés)"
     )
