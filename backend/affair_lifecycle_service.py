@@ -286,8 +286,9 @@ SNOWBALL_MERGE_THRESHOLD = 5           # Nombre de fusions récentes (24h) décl
 SNOWBALL_MAX_ITEMS = 25                # Au-delà de ce nb d'items, l'affaire est signalée
 SNOWBALL_WINDOW_HOURS = 24             # Fenêtre de détection des fusions récentes
 
-# --- Anti-fusion : limite de tentatives par article ---
-MAX_MATCH_ATTEMPTS = 2                 # Nombre max de tentatives de matching IA par article
+# --- Anti-fusion : cooldown entre tentatives ---
+MAX_MATCH_ATTEMPTS = 4                 # Abandon définitif après 4 tentatives
+MATCH_COOLDOWN_CYCLES = 3              # Attendre 3 cycles (~1h30 à 30min/cycle) entre chaque retry
 
 # --- Priorité des affaires ---
 # 3 niveaux : hot (rouge), watch (jaune), minor (vert)
@@ -1727,7 +1728,8 @@ class AffairLifecycleService:
 
         # ── ÉTAPE 1 : Récupérer les articles enrichis non traités ──
         # IMPORTANT: scraped_at peut être datetime OU string ISO en base
-        # SÉCURITÉ: exclure les articles ayant atteint MAX_MATCH_ATTEMPTS
+        # SÉCURITÉ: exclure les articles en cooldown ou ayant atteint MAX_MATCH_ATTEMPTS
+        cooldown_before = (now - timedelta(minutes=30 * MATCH_COOLDOWN_CYCLES)).isoformat()
         unprocessed = list(self.articles.find({
             "$and": [
                 {"_analysis_method": {"$exists": True}},
@@ -1735,9 +1737,15 @@ class AffairLifecycleService:
                     {"_affair_processed": {"$exists": False}},
                     {"_affair_processed": False},
                 ]},
+                # Exclure les articles qui ont atteint le max de tentatives
                 {"$or": [
                     {"_match_attempts": {"$exists": False}},
                     {"_match_attempts": {"$lt": MAX_MATCH_ATTEMPTS}},
+                ]},
+                # Cooldown : ne pas reprendre un article tenté récemment
+                {"$or": [
+                    {"_match_last_attempt": {"$exists": False}},
+                    {"_match_last_attempt": {"$lte": cooldown_before}},
                 ]},
                 {"$or": [
                     {"scraped_at": {"$gte": cutoff_3d_dt}},
@@ -1809,10 +1817,10 @@ class AffairLifecycleService:
             art_id = str(art["_id"])
             gravity = art.get("gravity_score", 0)
 
-            # ── SÉCURITÉ ANTI-FUSION : max MAX_MATCH_ATTEMPTS tentatives ──
+            # ── SÉCURITÉ ANTI-FUSION : cooldown + max tentatives ──
             match_attempts = art.get("_match_attempts", 0)
             if match_attempts >= MAX_MATCH_ATTEMPTS:
-                logger.info(f"   🛑 Max tentatives ({MAX_MATCH_ATTEMPTS}) atteintes, abandon: {art.get('title', '?')[:60]}")
+                logger.info(f"   🛑 Max tentatives ({MAX_MATCH_ATTEMPTS}) atteintes, abandon définitif: {art.get('title', '?')[:60]}")
                 self.articles.update_one(
                     {"_id": art["_id"]},
                     {"$set": {"_affair_processed": True, "_affair_ignored": True,
@@ -1820,11 +1828,14 @@ class AffairLifecycleService:
                 )
                 stats["ignored"] = stats.get("ignored", 0) + 1
                 continue
-            # Incrémenter le compteur de tentatives
+            # Incrémenter le compteur + marquer le timestamp (cooldown entre tentatives)
             self.articles.update_one(
                 {"_id": art["_id"]},
-                {"$inc": {"_match_attempts": 1}}
+                {"$inc": {"_match_attempts": 1},
+                 "$set": {"_match_last_attempt": now.isoformat()}}
             )
+            if match_attempts > 0:
+                logger.info(f"   🔄 Tentative {match_attempts + 1}/{MAX_MATCH_ATTEMPTS}: {art.get('title', '?')[:60]}")
 
             # Ignorer les contenus sous le seuil d'affaire (gravity < 0.30)
             if gravity < 0.30:
