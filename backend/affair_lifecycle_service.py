@@ -277,14 +277,17 @@ PROMOTION_MIN_GRAVITY = 0.50           # Gravité minimum du cluster
 PROMOTION_MIN_ITEMS = 2                # Minimum d'items — 1 seul article ne fait pas une affaire
 
 # --- Cycle de vie ---
-AFFAIR_ACTIVE_DAYS = 7                 # Durée de vie active (1 semaine)
-AFFAIR_STALE_DAYS = 4                  # Jours sans activité → statut "stale"
+AFFAIR_ACTIVE_DAYS = 21                # Durée de vie active (3 semaines, était 7j)
+AFFAIR_STALE_DAYS = 10                 # Jours sans activité → statut "stale" (était 4j)
 MAX_ACTIVE_AFFAIRS = 100               # Maximum d'affaires actives — le frontend gère via priorités
 
 # --- Anti boule de neige ---
 SNOWBALL_MERGE_THRESHOLD = 5           # Nombre de fusions récentes (24h) déclenchant l'alerte
 SNOWBALL_MAX_ITEMS = 25                # Au-delà de ce nb d'items, l'affaire est signalée
 SNOWBALL_WINDOW_HOURS = 24             # Fenêtre de détection des fusions récentes
+
+# --- Anti-fusion : limite de tentatives par article ---
+MAX_MATCH_ATTEMPTS = 2                 # Nombre max de tentatives de matching IA par article
 
 # --- Priorité des affaires ---
 # 3 niveaux : hot (rouge), watch (jaune), minor (vert)
@@ -1605,7 +1608,26 @@ class AffairLifecycleService:
 
             days_inactive = (now - last_activity).days
 
-            if days_inactive >= AFFAIR_ACTIVE_DAYS:
+            # Bonus de durée selon l'importance de l'affaire :
+            # Plus une affaire a d'articles/gravité, plus elle reste active longtemps
+            item_count = affair.get("item_count", 1)
+            affair_gravity = affair.get("gravity_score", 0)
+            is_hot = affair.get("priority") == "hot"
+            # Bonus : +3j si >5 articles, +5j si >10, +7j si hot, +3j si gravité > 0.7
+            bonus_days = 0
+            if item_count >= 10:
+                bonus_days += 5
+            elif item_count >= 5:
+                bonus_days += 3
+            if is_hot:
+                bonus_days += 7
+            if affair_gravity >= 0.7:
+                bonus_days += 3
+
+            effective_stale_days = AFFAIR_STALE_DAYS + bonus_days
+            effective_active_days = AFFAIR_ACTIVE_DAYS + bonus_days
+
+            if days_inactive >= effective_active_days:
                 # Archiver
                 self.affairs.update_one(
                     {"_id": affair["_id"]},
@@ -1614,12 +1636,12 @@ class AffairLifecycleService:
                 self.timeline.insert_one({
                     "affair_id": affair_id,
                     "event": "archived",
-                    "details": {"days_inactive": days_inactive},
+                    "details": {"days_inactive": days_inactive, "effective_limit": effective_active_days},
                     "timestamp": now,
                 })
                 stats["archived"] += 1
 
-            elif days_inactive >= AFFAIR_STALE_DAYS:
+            elif days_inactive >= effective_stale_days:
                 # Stale
                 self.affairs.update_one(
                     {"_id": affair["_id"]},
@@ -1705,12 +1727,17 @@ class AffairLifecycleService:
 
         # ── ÉTAPE 1 : Récupérer les articles enrichis non traités ──
         # IMPORTANT: scraped_at peut être datetime OU string ISO en base
+        # SÉCURITÉ: exclure les articles ayant atteint MAX_MATCH_ATTEMPTS
         unprocessed = list(self.articles.find({
             "$and": [
                 {"_analysis_method": {"$exists": True}},
                 {"$or": [
                     {"_affair_processed": {"$exists": False}},
                     {"_affair_processed": False},
+                ]},
+                {"$or": [
+                    {"_match_attempts": {"$exists": False}},
+                    {"_match_attempts": {"$lt": MAX_MATCH_ATTEMPTS}},
                 ]},
                 {"$or": [
                     {"scraped_at": {"$gte": cutoff_3d_dt}},
@@ -1781,6 +1808,23 @@ class AffairLifecycleService:
         for art in unprocessed:
             art_id = str(art["_id"])
             gravity = art.get("gravity_score", 0)
+
+            # ── SÉCURITÉ ANTI-FUSION : max MAX_MATCH_ATTEMPTS tentatives ──
+            match_attempts = art.get("_match_attempts", 0)
+            if match_attempts >= MAX_MATCH_ATTEMPTS:
+                logger.info(f"   🛑 Max tentatives ({MAX_MATCH_ATTEMPTS}) atteintes, abandon: {art.get('title', '?')[:60]}")
+                self.articles.update_one(
+                    {"_id": art["_id"]},
+                    {"$set": {"_affair_processed": True, "_affair_ignored": True,
+                              "_ignore_reason": f"max_attempts_{MAX_MATCH_ATTEMPTS}"}}
+                )
+                stats["ignored"] = stats.get("ignored", 0) + 1
+                continue
+            # Incrémenter le compteur de tentatives
+            self.articles.update_one(
+                {"_id": art["_id"]},
+                {"$inc": {"_match_attempts": 1}}
+            )
 
             # Ignorer les contenus sous le seuil d'affaire (gravity < 0.30)
             if gravity < 0.30:
