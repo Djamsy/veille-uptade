@@ -121,7 +121,12 @@ class TelegramAlertsService:
         
         # Dernière vérification pour éviter les doublons
         self.last_check_time = datetime.now() - timedelta(minutes=30)
-        
+
+        # ── Cache anti-doublons : IDs déjà notifiés ──
+        # Empêche de re-notifier les mêmes articles/posts/transcriptions
+        self._notified_ids: set = set()
+        self._notified_ids_max = 2000  # Taille max du cache
+
         # Thread de surveillance actif
         self.monitoring_active = False
         self.monitoring_thread = None
@@ -307,16 +312,22 @@ class TelegramAlertsService:
             }))
             
             for article in articles_with_mentions:
+                # ── Anti-doublon : ignorer si déjà notifié ──
+                art_id = str(article.get('_id', ''))
+                if art_id in self._notified_ids:
+                    continue
+
                 # Identifier quels mots-clés ont été trouvés
                 title = article.get('title', '').lower()
                 content = article.get('content', '').lower()
                 full_text = f"{title} {content}"
-                
-                found_keywords = [keyword for keyword in self.monitored_keywords 
+
+                found_keywords = [keyword for keyword in self.monitored_keywords
                                 if keyword.lower() in full_text]
-                
+
                 new_mentions.append({
                     'type': 'article',
+                    '_id': art_id,
                     'source': article.get('source', ''),
                     'title': article.get('title', ''),
                     'url': article.get('url', ''),
@@ -333,16 +344,22 @@ class TelegramAlertsService:
             }))
             
             for post in social_with_mentions:
+                # ── Anti-doublon ──
+                post_id = str(post.get('_id', ''))
+                if post_id in self._notified_ids:
+                    continue
+
                 content = post.get('content', '').lower()
-                found_keywords = [keyword for keyword in self.monitored_keywords 
+                found_keywords = [keyword for keyword in self.monitored_keywords
                                 if keyword.lower() in content]
-                
+
                 truncated_content = post.get('content', '')
                 if len(truncated_content) > 200:
                     truncated_content = truncated_content[:200] + '...'
-                
+
                 new_mentions.append({
                     'type': 'social_post',
+                    '_id': post_id,
                     'platform': post.get('platform', 'social'),
                     'author': post.get('author', ''),
                     'content': truncated_content,
@@ -364,19 +381,25 @@ class TelegramAlertsService:
             }))
             
             for transcription in transcriptions_with_mentions:
+                # ── Anti-doublon ──
+                trans_id = str(transcription.get('_id', ''))
+                if trans_id in self._notified_ids:
+                    continue
+
                 transcription_text = transcription.get('transcription_text', '')
                 gpt_content = transcription.get('gpt_analysis', '') or transcription.get('ai_summary', '')
                 full_content = f"{transcription_text} {gpt_content}".lower()
-                
-                found_keywords = [keyword for keyword in self.monitored_keywords 
+
+                found_keywords = [keyword for keyword in self.monitored_keywords
                                 if keyword.lower() in full_content]
-                
+
                 display_content = gpt_content if gpt_content else transcription_text
                 if len(display_content) > 200:
                     display_content = display_content[:200] + '...'
-                
+
                 new_mentions.append({
                     'type': 'radio_transcription',
+                    '_id': trans_id,
                     'section': transcription.get('section', ''),
                     'stream_name': transcription.get('stream_name', ''),
                     'content': display_content,
@@ -640,7 +663,19 @@ class TelegramAlertsService:
                     alert_message = self.format_guy_losbar_alert(guy_losbar_mentions)
                     if alert_message:
                         # Utiliser HTTP directement depuis le thread (pas de conflit asyncio)
-                        self._send_via_http(alert_message)
+                        sent_ok = self._send_via_http(alert_message)
+                        if sent_ok:
+                            # Marquer les IDs comme notifiés pour éviter les doublons
+                            for mention in guy_losbar_mentions:
+                                mid = mention.get('_id', '')
+                                if mid:
+                                    self._notified_ids.add(mid)
+                            # Purger le cache si trop gros
+                            if len(self._notified_ids) > self._notified_ids_max:
+                                # Garder seulement les 1000 plus récents
+                                overflow = len(self._notified_ids) - (self._notified_ids_max // 2)
+                                for _ in range(overflow):
+                                    self._notified_ids.pop()
 
                 # Vérifier les changements de statut des tâches
                 task_changes = self.check_task_status_changes()

@@ -16,13 +16,46 @@ import logging
 import urllib.request
 import urllib.parse
 import json
+import hashlib
+import threading
 from datetime import datetime
 from typing import Optional, Dict, Any
+from collections import OrderedDict
 
 logger = logging.getLogger("veille.telegram")
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+
+# ── Cache anti-doublons ──────────────────────────────────
+# Garde en mémoire les hashes des notifications envoyées récemment.
+# Taille max : 500 entrées (les plus anciennes sont éjectées).
+_SENT_CACHE_MAX = 500
+_sent_cache: OrderedDict = OrderedDict()  # hash → timestamp
+_sent_lock = threading.Lock()
+
+
+def _make_alert_hash(alert_type: str, identifier: str) -> str:
+    """Crée un hash unique pour une notification (type + identifiant)."""
+    raw = f"{alert_type}::{identifier}"
+    return hashlib.md5(raw.encode("utf-8")).hexdigest()
+
+
+def _is_already_sent(alert_type: str, identifier: str) -> bool:
+    """Vérifie si cette notification a déjà été envoyée récemment."""
+    h = _make_alert_hash(alert_type, identifier)
+    with _sent_lock:
+        return h in _sent_cache
+
+
+def _mark_as_sent(alert_type: str, identifier: str):
+    """Marque une notification comme envoyée."""
+    h = _make_alert_hash(alert_type, identifier)
+    with _sent_lock:
+        _sent_cache[h] = datetime.utcnow()
+        # Éjecter les plus anciennes si le cache dépasse la taille max
+        while len(_sent_cache) > _SENT_CACHE_MAX:
+            _sent_cache.popitem(last=False)
 
 
 def is_configured() -> bool:
@@ -81,6 +114,12 @@ def _priority_label(gravity: float) -> str:
 
 def notify_new_affair(affair: Dict[str, Any], source_type: str = "article") -> bool:
     """Notifie la création d'une nouvelle affaire."""
+    # ── Anti-doublon : vérifier si déjà envoyé ──
+    affair_id = str(affair.get("_id", affair.get("title", "")))
+    if _is_already_sent("new_affair", affair_id):
+        logger.debug(f"🔇 Notification doublon ignorée: new_affair {affair_id[:20]}")
+        return False
+
     title = affair.get("title", "Sans titre")[:150]
     description = affair.get("description", "")[:200]
     gravity = affair.get("gravity_score", 0)
@@ -112,7 +151,10 @@ def notify_new_affair(affair: Dict[str, Any], source_type: str = "article") -> b
         f"👤 Entités : {entities_str}\n"
     )
 
-    return send_message(text)
+    result = send_message(text)
+    if result:
+        _mark_as_sent("new_affair", affair_id)
+    return result
 
 
 def notify_affair_escalation(affair: Dict[str, Any], old_gravity: float, new_gravity: float) -> bool:
@@ -204,6 +246,12 @@ def notify_new_article(article: Dict[str, Any]) -> bool:
     if not is_configured():
         return False
 
+    # ── Anti-doublon ──
+    article_id = str(article.get("_id", article.get("url", article.get("title", ""))))
+    if _is_already_sent("new_article", article_id):
+        logger.debug(f"🔇 Notification doublon ignorée: new_article {article_id[:30]}")
+        return False
+
     title = article.get("title", "Sans titre")[:150]
     source = article.get("source", "?")
     theme = article.get("theme", "")
@@ -234,7 +282,10 @@ def notify_new_article(article: Dict[str, Any]) -> bool:
     if url:
         text += f"\n🔗 <a href=\"{url}\">Lire l'article</a>"
 
-    return send_message(text)
+    result = send_message(text)
+    if result:
+        _mark_as_sent("new_article", article_id)
+    return result
 
 
 # ── Notification résumé radio ────────────────────────────
@@ -242,6 +293,12 @@ def notify_new_article(article: Dict[str, Any]) -> bool:
 def notify_radio_summary(transcription: Dict[str, Any]) -> bool:
     """Notifie un résumé de transcription radio."""
     if not is_configured():
+        return False
+
+    # ── Anti-doublon ──
+    radio_id = str(transcription.get("_id", transcription.get("captured_at", "")))
+    if _is_already_sent("radio", radio_id):
+        logger.debug(f"🔇 Notification doublon ignorée: radio {radio_id[:20]}")
         return False
 
     stream_name = transcription.get("stream_name", "") or transcription.get("section", "Radio")
@@ -279,7 +336,10 @@ def notify_radio_summary(transcription: Dict[str, Any]) -> bool:
         except Exception:
             pass
 
-    return send_message(text)
+    result = send_message(text)
+    if result:
+        _mark_as_sent("radio", radio_id)
+    return result
 
 
 # ── Endpoint de test ──────────────────────────────────────
@@ -307,6 +367,12 @@ def notify_affair_merged(
     merge_type: "auto" (système), "manual" (admin), "ia" (dédup IA), "stale" (stale→active)
     """
     if not is_configured():
+        return False
+
+    # ── Anti-doublon ──
+    merge_id = f"{keep_affair.get('_id', '')}_{absorbed_affair.get('_id', '')}"
+    if _is_already_sent("merged", merge_id):
+        logger.debug(f"🔇 Notification doublon ignorée: merged {merge_id[:30]}")
         return False
 
     keep_title = keep_affair.get("title", "Sans titre")[:120]
@@ -341,7 +407,10 @@ def notify_affair_merged(
     if by:
         text += f"👤 Par : {by}\n"
 
-    return send_message(text)
+    result = send_message(text)
+    if result:
+        _mark_as_sent("merged", merge_id)
+    return result
 
 
 def notify_affair_unlinked(

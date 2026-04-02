@@ -2172,11 +2172,23 @@ class AffairLifecycleService:
     # même si elles partagent des entités ou un thème. Chaque catégorie est un set
     # de mots-clés présents dans le titre ou la description.
     EVENT_CATEGORIES = {
-        "meurtre_violence": {
-            "meurtre", "meurt", "mort", "tué", "tuée", "assassiné", "assassinée",
-            "homicide", "crime", "coups de couteau", "coups de feu", "fusillade",
-            "balle", "poignardé", "poignardée", "cadavre", "corps retrouvé",
-            "féminicide", "tentative de meurtre", "violence conjugale",
+        "meurtre_arme": {
+            "meurtre", "tué", "tuée", "tué par balles", "tuée par balles",
+            "assassiné", "assassinée", "homicide", "coups de couteau",
+            "coups de feu", "fusillade", "balle", "balles",
+            "poignardé", "poignardée", "féminicide", "tentative de meurtre",
+            "arme", "arme à feu", "arme blanche", "tir", "tirs",
+        },
+        "deces_retrouve_sans_vie": {
+            "retrouvé sans vie", "retrouvée sans vie", "retrouvé mort",
+            "retrouvée morte", "corps retrouvé", "corps sans vie",
+            "décédé", "décédée", "décès", "mort suspecte",
+            "mort naturelle", "malaise", "malaise cardiaque",
+            "cadavre", "dépouille",
+        },
+        "violence_conjugale": {
+            "violence conjugale", "violences conjugales", "violences intrafamiliales",
+            "femme battue", "conjoint violent", "ex-compagnon",
         },
         "noyade_accident_mer": {
             "noyade", "noyé", "noyée", "noyés", "plongeur décédé", "plongée",
@@ -2319,6 +2331,12 @@ class AffairLifecycleService:
                   "équipe", "joueur", "joueuse", "entraîneur", "stade"},
         "meteo_cyclone": {"cyclone", "ouragan", "tempête", "alerte météo",
                           "vigilance rouge", "vigilance orange", "inondation"},
+        "meurtre_arme_feu": {"tué par balles", "tuée par balles", "fusillade",
+                              "coups de feu", "arme à feu", "arme blanche",
+                              "poignardé", "poignardée", "assassiné", "assassinée"},
+        "deces_naturel_suspect": {"retrouvé sans vie", "retrouvée sans vie",
+                                   "retrouvé mort", "retrouvée morte", "corps sans vie",
+                                   "mort suspecte", "malaise", "décédé"},
     }
 
     def _titles_are_coherent(self, title_a: str, title_b: str, desc_a: str = "", desc_b: str = "") -> tuple:
@@ -2372,6 +2390,51 @@ class AffairLifecycleService:
             )
 
         return (True, "")
+
+    # Communes de Guadeloupe pour extraction depuis les titres
+    COMMUNES_GUADELOUPE = {
+        "abymes", "les abymes", "anse-bertrand", "baie-mahault",
+        "basse-terre", "bouillante", "capesterre-belle-eau", "capesterre",
+        "deshaies", "gourbeyre", "goyave", "grand-bourg",
+        "lamentin", "le lamentin", "le gosier", "gosier",
+        "le moule", "moule", "morne-à-l'eau", "morne-a-l'eau",
+        "petit-bourg", "petit-canal", "pointe-à-pitre", "pointe-a-pitre",
+        "pointe-noire", "port-louis", "saint-claude",
+        "saint-françois", "saint-francois", "sainte-anne", "sainte-rose",
+        "terre-de-bas", "terre-de-haut", "trois-rivières", "trois-rivieres",
+        "vieux-fort", "vieux-habitants",
+        # Marie-Galante
+        "marie-galante", "capesterre-de-marie-galante", "grand-bourg marie-galante",
+        "saint-louis marie-galante",
+        # La Désirade
+        "la désirade", "la desirade", "désirade",
+        # Les Saintes
+        "les saintes",
+    }
+
+    def _titles_have_different_communes(self, title_a: str, title_b: str) -> Optional[str]:
+        """Extrait les communes mentionnées dans deux titres.
+        Si les deux titres mentionnent des communes DIFFÉRENTES, retourne la raison de blocage.
+        Retourne None si pas de conflit détecté.
+        """
+        title_a_lower = title_a.lower()
+        title_b_lower = title_b.lower()
+
+        communes_a = set()
+        communes_b = set()
+        for commune in self.COMMUNES_GUADELOUPE:
+            if commune in title_a_lower:
+                communes_a.add(commune)
+            if commune in title_b_lower:
+                communes_b.add(commune)
+
+        # Si les deux titres mentionnent des communes et elles sont différentes → conflit
+        if communes_a and communes_b and not (communes_a & communes_b):
+            return (
+                f"communes différentes dans les titres: {communes_a} vs {communes_b} "
+                f"('{title_a[:40]}' ≠ '{title_b[:40]}')"
+            )
+        return None
 
     # Lieux hors-Guadeloupe — si l'article mentionne ces lieux SANS mentionner
     # la Guadeloupe, on le considère comme hors périmètre.
@@ -2861,7 +2924,46 @@ class AffairLifecycleService:
                 if not absorb_affair:
                     continue
 
-                # ── Filtre anti boule de neige : vérifier cohérence des titres ──
+                # ── Filtre 1 : vérification stricte des communes ──
+                # Si les deux affaires ont des communes connues et DIFFÉRENTES → bloquer
+                communes_a = set(c.lower().strip() for c in (keep_affair.get("communes", []) or []) if c)
+                communes_b = set(c.lower().strip() for c in (absorb_affair.get("communes", []) or []) if c)
+                if communes_a and communes_b and not (communes_a & communes_b):
+                    block_reason = (
+                        f"communes différentes: {communes_a} vs {communes_b} "
+                        f"('{keep_affair.get('title', '?')[:40]}' ≠ '{absorb_affair.get('title', '?')[:40]}')"
+                    )
+                    logger.warning(f"🚫 FUSION IA BLOQUÉE: {block_reason}")
+                    if _telegram_ok and _tg_merged:
+                        try:
+                            _tg_merged(
+                                keep_affair, absorb_affair, merge_type="ia",
+                                reason=f"⛔ BLOQUÉE — {block_reason}",
+                            )
+                        except Exception:
+                            pass
+                    continue
+
+                # ── Filtre 2 : vérification des communes extraites du titre ──
+                # Fallback si communes[] est vide : chercher dans le titre
+                title_communes_conflict = self._titles_have_different_communes(
+                    keep_affair.get("title", ""),
+                    absorb_affair.get("title", ""),
+                )
+                if title_communes_conflict:
+                    block_reason = title_communes_conflict
+                    logger.warning(f"🚫 FUSION IA BLOQUÉE: {block_reason}")
+                    if _telegram_ok and _tg_merged:
+                        try:
+                            _tg_merged(
+                                keep_affair, absorb_affair, merge_type="ia",
+                                reason=f"⛔ BLOQUÉE — {block_reason}",
+                            )
+                        except Exception:
+                            pass
+                    continue
+
+                # ── Filtre 3 : cohérence sémantique des titres ──
                 coherent, block_reason = self._titles_are_coherent(
                     keep_affair.get("title", ""),
                     absorb_affair.get("title", ""),
@@ -2872,7 +2974,6 @@ class AffairLifecycleService:
                     logger.warning(
                         f"🚫 FUSION IA BLOQUÉE: {block_reason}"
                     )
-                    # Notification du blocage
                     if _telegram_ok and _tg_merged:
                         try:
                             _tg_merged(
@@ -2882,6 +2983,41 @@ class AffairLifecycleService:
                         except Exception:
                             pass
                     continue
+
+                # ── Filtre 4 : même catégorie de décès/violence → vérifier entités ──
+                # Deux décès/meurtres dans la même catégorie DOIVENT avoir une entité
+                # spécifique en commun pour être fusionnés (même victime, même suspect)
+                cat_a = self._detect_event_category(
+                    f"{keep_affair.get('title', '')} {keep_affair.get('description', '')}")
+                cat_b = self._detect_event_category(
+                    f"{absorb_affair.get('title', '')} {absorb_affair.get('description', '')}")
+                DEATH_CATEGORIES = {"meurtre_arme", "deces_retrouve_sans_vie", "violence_conjugale", "noyade_accident_mer", "accident_route"}
+                if (cat_a in DEATH_CATEGORIES and cat_b in DEATH_CATEGORIES):
+                    # Deux décès → exiger au moins une entité spécifique commune
+                    ent_a = set(e.lower() for e in (keep_affair.get("entities", []) or []) if e)
+                    ent_b = set(e.lower() for e in (absorb_affair.get("entities", []) or []) if e)
+                    el_a = set(e.lower() for e in (keep_affair.get("elected", []) or []) if e)
+                    el_b = set(e.lower() for e in (absorb_affair.get("elected", []) or []) if e)
+                    all_common = (ent_a & ent_b) | (el_a & el_b)
+                    # Retirer entités génériques
+                    all_common -= self.GENERIC_ELECTED
+                    all_common -= self.GENERIC_INSTITUTIONS
+                    if not all_common:
+                        block_reason = (
+                            f"deux décès/incidents sans entité commune spécifique: "
+                            f"cat={cat_a}/{cat_b}, "
+                            f"('{keep_affair.get('title', '?')[:40]}' ≠ '{absorb_affair.get('title', '?')[:40]}')"
+                        )
+                        logger.warning(f"🚫 FUSION IA BLOQUÉE: {block_reason}")
+                        if _telegram_ok and _tg_merged:
+                            try:
+                                _tg_merged(
+                                    keep_affair, absorb_affair, merge_type="ia",
+                                    reason=f"⛔ BLOQUÉE — {block_reason}",
+                                )
+                            except Exception:
+                                pass
+                        continue
 
                 logger.info(
                     f"🤖 FUSION IA: '{keep_affair.get('title', '?')[:40]}' "

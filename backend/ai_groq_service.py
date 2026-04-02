@@ -1193,38 +1193,41 @@ def smart_enrich_article(article: Dict[str, Any]) -> Dict[str, Any]:
 # Déduplication IA des affaires — GPT compare les affaires actives
 # ============================================================
 
-DEDUP_PROMPT = """Tu es un analyste média spécialisé Guadeloupe/Antilles. Tu es TRÈS STRICT sur les fusions.
+DEDUP_PROMPT = """Tu es un analyste média spécialisé Guadeloupe/Antilles. Tu es EXTRÊMEMENT STRICT sur les fusions.
 
-On te donne une liste d'AFFAIRES ACTIVES. Identifie UNIQUEMENT les affaires qui parlent du MÊME ÉVÉNEMENT PRÉCIS (pas du même type d'événement).
+On te donne une liste d'AFFAIRES ACTIVES avec leur commune et leurs entités. Identifie UNIQUEMENT les affaires qui parlent du MÊME ÉVÉNEMENT PRÉCIS (pas du même type d'événement).
 
-⚠️ RÈGLE D'OR : "même type d'événement" ≠ "même événement".
-Deux meurtres = deux affaires distinctes (sauf si c'est EXACTEMENT le même meurtre vu par des sources différentes).
-Deux noyades = deux affaires distinctes. Deux accidents = deux affaires distinctes.
+⚠️ RÈGLE D'OR ABSOLUE : "même type d'événement" ≠ "même événement".
+- Deux décès = TOUJOURS deux affaires distinctes, même s'ils sont le même jour.
+- Deux meurtres = deux affaires distinctes (sauf si EXACTEMENT la même victime).
+- Deux noyades = deux affaires distinctes. Deux accidents = deux affaires distinctes.
+- "Tuée par balles" ≠ "Retrouvé sans vie" : ce sont des circonstances COMPLÈTEMENT différentes.
 
-CRITÈRES STRICTS POUR FUSIONNER (TOUS doivent être remplis) :
+⚠️ RÈGLE STRICTE SUR LES LIEUX :
+- Abymes ≠ Saint-François ≠ Le Gosier ≠ Sainte-Anne → ce sont des COMMUNES DIFFÉRENTES.
+- Deux événements dans des communes différentes = JAMAIS le même événement.
+- "Guadeloupe" n'est PAS un lieu suffisant — il faut la MÊME COMMUNE.
+- Même commune ≠ même événement (il peut y avoir 2 incidents dans la même commune).
+
+CRITÈRES STRICTS POUR FUSIONNER (TOUS les 4 doivent être remplis) :
 1. MÊME ÉVÉNEMENT CONCRET : même incident précis, même fait divers, même décision
-2. MÊME LIEU ou zone très proche : vérifier la commune/quartier
+2. MÊME COMMUNE exacte : vérifier le champ "Commune" — si communes différentes → JAMAIS fusionner
 3. MÊME PÉRIODE : les dates doivent se chevaucher (même jour ou jours consécutifs)
-4. AU MOINS UNE PERSONNE/ENTITÉ SPÉCIFIQUE en commun (victime, élu, institution impliquée)
+4. AU MOINS UNE PERSONNE/ENTITÉ SPÉCIFIQUE en commun (même victime nommée, même élu, même institution)
 
 EXEMPLES DE VRAIS DOUBLONS :
-- "Pénurie d'eau à Petit-Pérou" + "Résidents sans eau aux Abymes" → même crise d'eau, même quartier ✅
-- "Ary Chalus convoqué par le parquet" + "Arichalus devant le tribunal" → même personne, même procédure ✅
+- "Pénurie d'eau à Petit-Pérou" (Abymes) + "Résidents sans eau aux Abymes" (Abymes) → même crise d'eau, même commune ✅
+- "Ary Chalus convoqué par le parquet" + "Chalus devant le tribunal" → même personne, même procédure ✅
 
 CE QUI N'EST PAS UN DOUBLON (NE JAMAIS FUSIONNER) :
-- Même type d'événement mais incidents différents (ex: deux meurtres distincts, deux accidents distincts)
-- Même lieu mais événements différents (ex: "Meurtre aux Abymes" + "Accident aux Abymes")
-- Même lieu + même type mais victimes/personnes différentes (ex: meurtre d'une femme aux Abymes ≠ meurtre d'un homme aux Abymes)
-- Même personne mais actions différentes (ex: "Chalus annonce" vs "Chalus critiqué")
-- Même institution mais sujets différents
-- Lieux dans des pays/régions différents (ex: Guadeloupe ≠ RDC ≠ Martinique ≠ Haïti)
-- CATÉGORIES INCOMPATIBLES : meurtre ≠ noyade ≠ élection ≠ accident ≠ procès ≠ trafic ≠ grève ≠ catastrophe
-
-EXEMPLES DE NON-DOUBLONS :
-- "Meurtre d'une femme aux Abymes" + "Homme tué par balles au Gosier" → DEUX meurtres différents ❌
-- "Meurtre aux Abymes" + "Humanitaire tuée en RDC" → pays différents ❌
-- "Noyade à Sainte-Anne mardi" + "Noyade à Sainte-Anne vendredi" → deux incidents distincts ❌
-- "Accident mortel RN1" + "Accident mortel RN2" → deux accidents différents ❌
+- Deux décès/meurtres/noyades/accidents DISTINCTS, même le même jour → ❌
+- Communes différentes, même si proches géographiquement → ❌
+- "Femme tuée par balles aux Abymes" + "Homme retrouvé sans vie à Saint-François" → victimes différentes, lieux différents, circonstances différentes → ❌❌❌
+- Même commune + même type mais victimes DIFFÉRENTES → ❌
+- "Meurtre d'une femme aux Abymes" + "Homme tué au Gosier" → ❌
+- "Noyade à Sainte-Anne mardi" + "Noyade à Sainte-Anne vendredi" → ❌
+- "Accident mortel RN1" + "Accident mortel RN2" → ❌
+- CATÉGORIES INCOMPATIBLES : meurtre ≠ noyade ≠ élection ≠ accident ≠ procès ≠ trafic
 
 Réponds UNIQUEMENT en JSON :
 {
@@ -1232,13 +1235,14 @@ Réponds UNIQUEMENT en JSON :
     {
       "keep_id": "ID de l'affaire à garder (la plus complète/haute gravité)",
       "merge_ids": ["ID1", "ID2"],
-      "reason": "explication courte du doublon"
+      "reason": "explication courte : QUEL événement précis est commun et QUELLE commune"
     }
   ]
 }
 
 Si aucun doublon → {"duplicates": []}
-Sois TRÈS CONSERVATEUR : en cas de doute, ne fusionne PAS. Il vaut mieux avoir 2 affaires séparées qu'une mauvaise fusion."""
+EN CAS DE DOUTE, NE FUSIONNE PAS. Il vaut TOUJOURS mieux avoir 2 affaires séparées qu'une mauvaise fusion.
+AVANT de fusionner, vérifie : les communes sont-elles IDENTIQUES ? Les victimes/personnes sont-elles les MÊMES ? Si non → {"duplicates": []}"""
 
 
 def detect_duplicate_affairs(affairs: List[Dict[str, Any]]) -> Optional[List[Dict[str, Any]]]:
@@ -1260,7 +1264,7 @@ def detect_duplicate_affairs(affairs: List[Dict[str, Any]]) -> Optional[List[Dic
     # Limiter à 40 affaires pour rester dans les limites de tokens
     affairs_to_check = affairs[:40]
 
-    # Construire la liste compacte
+    # Construire la liste compacte — AVEC commune et entités pour que l'IA puisse distinguer
     lines = ["=== AFFAIRES ACTIVES ==="]
     for aff in affairs_to_check:
         aff_id = str(aff.get("_id", "?"))
@@ -1270,6 +1274,19 @@ def detect_duplicate_affairs(affairs: List[Dict[str, Any]]) -> Optional[List[Dic
         institutions = ", ".join((aff.get("institutions", []) or [])[:5])
         items = aff.get("item_count", 0)
 
+        # Commune(s) — crucial pour la dédup
+        communes = aff.get("communes", []) or []
+        if not communes:
+            # Essayer de déduire la commune des entités ou du titre
+            communes = aff.get("locations", []) or []
+        commune_str = ", ".join(communes[:3]) if communes else "inconnue"
+
+        # Entités spécifiques (victimes, suspects, etc.)
+        entities = ", ".join((aff.get("entities", []) or [])[:5])
+
+        # Description courte
+        desc = (aff.get("description", "") or "")[:80]
+
         # Événement structuré si disponible
         event = aff.get("event_structured", {}) or {}
         action_str = ""
@@ -1278,11 +1295,15 @@ def detect_duplicate_affairs(affairs: List[Dict[str, Any]]) -> Optional[List[Dic
             if event.get("object"):
                 action_str += f" ({event['object']})"
 
-        line = f"[{aff_id}] gravity={gravity:.2f} items={items} | {title}"
+        line = f"[{aff_id}] gravity={gravity:.2f} items={items} | Commune: {commune_str} | {title}"
+        if desc:
+            line += f" | Desc: {desc}"
         if elected:
             line += f" | Élus: {elected}"
         if institutions:
             line += f" | Instit: {institutions}"
+        if entities:
+            line += f" | Entités: {entities}"
         if action_str:
             line += action_str
         lines.append(line)
