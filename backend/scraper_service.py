@@ -315,7 +315,7 @@ class GuadeloupeScraper:
                     # Nettoyer l'URL (supprimer utm_*, fbclid, etc.)
                     href = self._clean_url(href)
 
-                    # Vérifier si l'article existe déjà (URL nettoyée + titre)
+                    # Vérifier si l'article existe déjà (URL nettoyée + titre + contenu)
                     article_id = hashlib.md5(f"{href}:{title}".encode()).hexdigest()[:12]
                     # Aussi vérifier par titre seul (même article, URL différente)
                     title_hash = hashlib.md5(title.encode()).hexdigest()[:12]
@@ -337,9 +337,21 @@ class GuadeloupeScraper:
                         logger.info(f"   🌍 HORS-ZONE ignoré: {title[:60]}")
                         continue
 
+                    # Hash du contenu (premiers 500 chars) pour détecter les reprises
+                    content_normalized = (content or "")[:500].strip().lower()
+                    content_hash = hashlib.md5(content_normalized.encode()).hexdigest()[:12] if content_normalized else None
+
+                    # Vérifier doublon par contenu (même texte, URL/titre différent)
+                    if content_hash and self.articles_collection.find_one(
+                        {'content_hash': content_hash}, {'_id': 1}
+                    ):
+                        logger.info(f"   ⏭️  Article {i}/{len(links)}: Contenu dupliqué")
+                        continue
+
                     article = {
                         'article_id': article_id,
                         'title_hash': title_hash,
+                        'content_hash': content_hash,
                         'title': title,
                         'url': href,
                         'content': content,

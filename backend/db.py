@@ -133,9 +133,39 @@ def ensure_api_indexes(db=None):
         except Exception:
             pass
 
-        # ── Dedup indexes pour le scraper (évite 2× find_one par article) ──
-        _safe_index(articles, [("article_id", ASCENDING)], "idx_article_id_dedup")
-        _safe_index(articles, [("title_hash", ASCENDING)], "idx_title_hash_dedup")
+        # ── Dedup indexes UNIQUES pour bloquer les doublons à l'insert ──
+        # Supprimer les anciens index non-uniques s'ils existent
+        for old_name in ["idx_article_id_dedup", "idx_title_hash_dedup"]:
+            try:
+                articles.drop_index(old_name)
+                logger.info(f"🗑️ Ancien index {old_name} supprimé")
+            except Exception:
+                pass  # n'existait pas
+
+        try:
+            articles.create_index(
+                [("article_id", ASCENDING)],
+                unique=True,
+                sparse=True,  # ignore les docs sans article_id
+                name="idx_article_id_unique",
+            )
+            logger.info("✅ Index unique article_id créé")
+        except Exception as e:
+            if "already exists" not in str(e).lower():
+                logger.warning(f"⚠️ Index unique article_id: {e}")
+        try:
+            articles.create_index(
+                [("title_hash", ASCENDING)],
+                unique=True,
+                sparse=True,
+                name="idx_title_hash_unique",
+            )
+            logger.info("✅ Index unique title_hash créé")
+        except Exception as e:
+            if "already exists" not in str(e).lower():
+                logger.warning(f"⚠️ Index unique title_hash: {e}")
+        # Index content_hash (non-unique car optionnel, mais indexé pour les lookups rapides)
+        _safe_index(articles, [("content_hash", ASCENDING)], "idx_content_hash")
 
         # ── TTL : suppression automatique des vieux articles (120 jours) ──
         # Réduit le stockage Atlas Flex qui grossit à l'infini
