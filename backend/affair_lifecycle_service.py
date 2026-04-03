@@ -1810,6 +1810,20 @@ class AffairLifecycleService:
                 commune_stats["none"] += 1
         logger.info(f"📍 Communes: {commune_stats}")
 
+        # ── DIAGNOSTIC FUSION IA ──
+        _ai_available = False
+        try:
+            from backend.ai_groq_service import is_available as _ai_is_available
+            _ai_available = _ai_is_available()
+        except Exception:
+            pass
+        logger.info(f"🔧 DIAGNOSTIC FUSION: ai_match_ok={_ai_match_ok}, "
+                     f"ai_available={_ai_available}, "
+                     f"active_affairs={len(active_affairs)}, "
+                     f"articles_a_traiter={len(unprocessed)}")
+        if not _ai_available:
+            logger.warning("⚠️ IA NON DISPONIBLE — vérifiez OPENAI_API_KEY dans les variables d'environnement !")
+
         # ── ÉTAPE 2 : Pour chaque article → COMPARAISON IA INDIVIDUELLE ──
         # NOUVEAU FLOW : 1 article = 1 affaire d'abord, puis match IA contre existantes
         ignored_count = 0
@@ -1879,7 +1893,12 @@ class AffairLifecycleService:
             if _ai_match_ok and _ai_match_article and active_affairs:
                 try:
                     result = _ai_match_article(art, active_affairs)
-                    if result and result.get("match") != "no_match":
+                    if result is None:
+                        # IA indisponible (clé manquante, erreur API, etc.)
+                        # → laisser le fallback heuristique prendre le relais
+                        ai_match_used = False
+                        logger.warning(f"      ⚠️ IA retourne None → fallback heuristique")
+                    elif result.get("match") != "no_match":
                         match_id = result["match"]
                         confidence = result.get("confidence", "medium")
                         reason = result.get("reason", "")
@@ -1894,12 +1913,14 @@ class AffairLifecycleService:
                                 )
                                 break
                         if not best_match:
-                            logger.warning(f"      ⚠️ IA match ID introuvable: {match_id}")
+                            logger.warning(f"      ⚠️ IA match ID introuvable: {match_id} → fallback")
+                            ai_match_used = False
                     else:
+                        # IA dit explicitement "no_match" → on fait confiance
                         ai_match_used = True
                         logger.info(f"      🆕 IA: aucun match → nouvelle affaire")
                 except Exception as e:
-                    logger.warning(f"      ⚠️ IA match error: {e}")
+                    logger.warning(f"      ⚠️ IA match error: {e} → fallback heuristique")
                     ai_match_used = False
 
             # Fallback : si IA indisponible, utiliser le _match_score heuristique + GPT validation
