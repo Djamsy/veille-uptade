@@ -794,10 +794,10 @@ def setup_scheduler_jobs():
         max_instances=1
     )
 
-    # 12. Sync Facebook → Telegram — toutes les 15 minutes
+    # 12. Sync Facebook → Telegram — toutes les minutes
     scheduler.add_job(
         facebook_telegram_sync_job,
-        trigger=IntervalTrigger(minutes=15),
+        trigger=IntervalTrigger(minutes=1),
         id="facebook_telegram_sync",
         name="Sync Facebook → Telegram",
         replace_existing=True,
