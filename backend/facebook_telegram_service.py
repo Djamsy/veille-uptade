@@ -317,18 +317,17 @@ def _format_telegram_message(post: Dict[str, Any], page_name: str = "") -> str:
     if len(body) > 1500:
         body = body[:1497] + "..."
 
-    parts = [f"📘 <b>{_escape_html(title)}</b>"]
-
-    if page_name:
-        parts.append(f"📄 <i>{_escape_html(page_name)}</i>")
+    msg = f"📘 <b>{_escape_html(title)}</b>"
+    msg += "\n"
 
     if permalink:
-        parts.append(f"🔗 <a href=\"{permalink}\">Voir sur Facebook</a>")
+        msg += f"\n🔗 <a href=\"{permalink}\">Voir sur Facebook</a>"
+    msg += "\n"
 
     if body:
-        parts.append(f"\n{_escape_html(body)}")
+        msg += f"\n{_escape_html(body)}"
 
-    return "\n".join(parts)
+    return msg
 
 
 def sync_facebook_to_telegram(db=None) -> Dict[str, Any]:
