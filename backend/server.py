@@ -1952,8 +1952,8 @@ async def facebook_sync():
         if not fb_configured():
             return {
                 "ok": False,
-                "error": "Facebook non configuré. Définissez FACEBOOK_PAGE_ACCESS_TOKEN et FACEBOOK_PAGE_ID.",
-                "help": "https://developers.facebook.com — Créez une App, ajoutez Pages API, générez un Page Access Token."
+                "error": "FACEBOOK_PAGE_NAME non configuré sur Render.",
+                "help": "Ajoutez la variable FACEBOOK_PAGE_NAME (ex: CD971) dans les env vars Render."
             }
 
         result = sync_facebook_to_telegram(db=db)
@@ -1968,13 +1968,12 @@ async def facebook_sync():
 async def facebook_status():
     """Statut de la configuration Facebook → Telegram."""
     try:
-        from backend.facebook_telegram_service import is_configured as fb_configured, FB_PAGE_ID
+        from backend.facebook_telegram_service import is_configured as fb_configured, FB_PAGE_NAME
         from backend.telegram_service import is_configured as tg_configured
 
         fb_ok = fb_configured()
         tg_ok = tg_configured()
 
-        # Nombre de posts déjà synchronisés
         synced_count = 0
         if db is not None:
             try:
@@ -1985,7 +1984,7 @@ async def facebook_status():
         return {
             "facebook_configured": fb_ok,
             "telegram_configured": tg_ok,
-            "page_id": FB_PAGE_ID[:10] + "..." if FB_PAGE_ID and len(FB_PAGE_ID) > 10 else bool(FB_PAGE_ID),
+            "page_name": FB_PAGE_NAME or "(non configuré)",
             "ready": fb_ok and tg_ok,
             "synced_posts": synced_count,
         }
