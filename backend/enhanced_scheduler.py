@@ -554,6 +554,22 @@ async def classify_communes_job():
         raise
 
 
+async def facebook_telegram_sync_job():
+    """Tâche automatique : synchronisation Facebook → Telegram"""
+    logger.info("📘 Synchronisation Facebook → Telegram...")
+    try:
+        from backend.facebook_telegram_service import sync_facebook_to_telegram, is_configured as fb_configured
+        if not fb_configured():
+            logger.debug("Facebook non configuré — sync ignorée")
+            return
+        result = sync_facebook_to_telegram()
+        logger.info(f"📘 FB→TG: {result.get('sent', 0)} envoyés, {result.get('skipped', 0)} ignorés")
+        return result
+    except Exception as e:
+        logger.error(f"Erreur sync Facebook→Telegram: {e}")
+        raise
+
+
 async def storage_monitor_job():
     """Tâche automatique : vérification stockage MongoDB Atlas (512 Mo free tier)"""
     logger.info("💾 Vérification stockage MongoDB...")
@@ -774,6 +790,16 @@ def setup_scheduler_jobs():
         trigger=CronTrigger(minute=20, timezone=timezone),
         id="classify_communes",
         name="Classification articles par commune (regex+IA)",
+        replace_existing=True,
+        max_instances=1
+    )
+
+    # 12. Sync Facebook → Telegram — toutes les 15 minutes
+    scheduler.add_job(
+        facebook_telegram_sync_job,
+        trigger=IntervalTrigger(minutes=15),
+        id="facebook_telegram_sync",
+        name="Sync Facebook → Telegram",
         replace_existing=True,
         max_instances=1
     )

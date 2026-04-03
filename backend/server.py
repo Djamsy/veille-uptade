@@ -1939,6 +1939,61 @@ async def get_source_reliability():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ============================================================
+# FACEBOOK → TELEGRAM
+# ============================================================
+
+@app.post("/api/facebook/sync")
+async def facebook_sync():
+    """Synchronise manuellement les posts Facebook vers Telegram."""
+    try:
+        from backend.facebook_telegram_service import sync_facebook_to_telegram, is_configured as fb_configured
+
+        if not fb_configured():
+            return {
+                "ok": False,
+                "error": "Facebook non configuré. Définissez FACEBOOK_PAGE_ACCESS_TOKEN et FACEBOOK_PAGE_ID.",
+                "help": "https://developers.facebook.com — Créez une App, ajoutez Pages API, générez un Page Access Token."
+            }
+
+        result = sync_facebook_to_telegram(db=db)
+        return result
+
+    except Exception as e:
+        logger.error(f"Erreur sync Facebook→Telegram: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/facebook/status")
+async def facebook_status():
+    """Statut de la configuration Facebook → Telegram."""
+    try:
+        from backend.facebook_telegram_service import is_configured as fb_configured, FB_PAGE_ID
+        from backend.telegram_service import is_configured as tg_configured
+
+        fb_ok = fb_configured()
+        tg_ok = tg_configured()
+
+        # Nombre de posts déjà synchronisés
+        synced_count = 0
+        if db is not None:
+            try:
+                synced_count = db["facebook_posts"].count_documents({})
+            except Exception:
+                pass
+
+        return {
+            "facebook_configured": fb_ok,
+            "telegram_configured": tg_ok,
+            "page_id": FB_PAGE_ID[:10] + "..." if FB_PAGE_ID and len(FB_PAGE_ID) > 10 else bool(FB_PAGE_ID),
+            "ready": fb_ok and tg_ok,
+            "synced_posts": synced_count,
+        }
+
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 # ========== LANCEMENT ==========
 
 if __name__ == "__main__":
