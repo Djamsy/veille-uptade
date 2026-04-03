@@ -1193,56 +1193,25 @@ def smart_enrich_article(article: Dict[str, Any]) -> Dict[str, Any]:
 # Déduplication IA des affaires — GPT compare les affaires actives
 # ============================================================
 
-DEDUP_PROMPT = """Tu es un analyste média spécialisé Guadeloupe/Antilles. Tu es EXTRÊMEMENT STRICT sur les fusions.
+DEDUP_PROMPT = """Tu reçois une liste de TITRES d'affaires. Trouve les doublons : deux titres qui parlent du MÊME fait précis.
 
-On te donne une liste d'AFFAIRES ACTIVES avec leur commune et leurs entités. Identifie UNIQUEMENT les affaires qui parlent du MÊME ÉVÉNEMENT PRÉCIS (pas du même type d'événement).
+RÈGLE : compare UNIQUEMENT les titres. Fusionne seulement si les titres décrivent clairement le même événement.
 
-⚠️ RÈGLE D'OR ABSOLUE : "même type d'événement" ≠ "même événement".
-- Deux décès = TOUJOURS deux affaires distinctes, même s'ils sont le même jour.
-- Deux meurtres = deux affaires distinctes (sauf si EXACTEMENT la même victime).
-- Deux noyades = deux affaires distinctes. Deux accidents = deux affaires distinctes.
-- "Tuée par balles" ≠ "Retrouvé sans vie" : ce sont des circonstances COMPLÈTEMENT différentes.
+DOUBLONS ✅ :
+- "Pénurie d'eau à Petit-Pérou" + "Résidents sans eau aux Abymes : 3e jour" → même crise d'eau
+- "Ary Chalus convoqué par le parquet" + "Chalus devant le tribunal" → même procédure judiciaire
 
-⚠️ RÈGLE STRICTE SUR LES LIEUX :
-- Abymes ≠ Saint-François ≠ Le Gosier ≠ Sainte-Anne → ce sont des COMMUNES DIFFÉRENTES.
-- Deux événements dans des communes différentes = JAMAIS le même événement.
-- "Guadeloupe" n'est PAS un lieu suffisant — il faut la MÊME COMMUNE.
-- Même commune ≠ même événement (il peut y avoir 2 incidents dans la même commune).
+PAS DOUBLONS ❌ :
+- "Meurtre d'une femme aux Abymes" + "Homme tué au Gosier" → victimes et lieux différents
+- "Noyade à Sainte-Anne" + "Noyade au Gosier" → lieux différents
+- "Grève des bus" + "Grève des enseignants" → secteurs différents
+- Deux titres sur le même THÈME mais des faits DIFFÉRENTS → ❌
 
-CRITÈRES STRICTS POUR FUSIONNER (TOUS les 4 doivent être remplis) :
-1. MÊME ÉVÉNEMENT CONCRET : même incident précis, même fait divers, même décision
-2. MÊME COMMUNE exacte : vérifier le champ "Commune" — si communes différentes → JAMAIS fusionner
-3. MÊME PÉRIODE : les dates doivent se chevaucher (même jour ou jours consécutifs)
-4. AU MOINS UNE PERSONNE/ENTITÉ SPÉCIFIQUE en commun (même victime nommée, même élu, même institution)
+EN CAS DE DOUTE → ne fusionne PAS. Mieux vaut 2 affaires de trop qu'une mauvaise fusion.
 
-EXEMPLES DE VRAIS DOUBLONS :
-- "Pénurie d'eau à Petit-Pérou" (Abymes) + "Résidents sans eau aux Abymes" (Abymes) → même crise d'eau, même commune ✅
-- "Ary Chalus convoqué par le parquet" + "Chalus devant le tribunal" → même personne, même procédure ✅
-
-CE QUI N'EST PAS UN DOUBLON (NE JAMAIS FUSIONNER) :
-- Deux décès/meurtres/noyades/accidents DISTINCTS, même le même jour → ❌
-- Communes différentes, même si proches géographiquement → ❌
-- "Femme tuée par balles aux Abymes" + "Homme retrouvé sans vie à Saint-François" → victimes différentes, lieux différents, circonstances différentes → ❌❌❌
-- Même commune + même type mais victimes DIFFÉRENTES → ❌
-- "Meurtre d'une femme aux Abymes" + "Homme tué au Gosier" → ❌
-- "Noyade à Sainte-Anne mardi" + "Noyade à Sainte-Anne vendredi" → ❌
-- "Accident mortel RN1" + "Accident mortel RN2" → ❌
-- CATÉGORIES INCOMPATIBLES : meurtre ≠ noyade ≠ élection ≠ accident ≠ procès ≠ trafic
-
-Réponds UNIQUEMENT en JSON :
-{
-  "duplicates": [
-    {
-      "keep_id": "ID de l'affaire à garder (la plus complète/haute gravité)",
-      "merge_ids": ["ID1", "ID2"],
-      "reason": "explication courte : QUEL événement précis est commun et QUELLE commune"
-    }
-  ]
-}
-
-Si aucun doublon → {"duplicates": []}
-EN CAS DE DOUTE, NE FUSIONNE PAS. Il vaut TOUJOURS mieux avoir 2 affaires séparées qu'une mauvaise fusion.
-AVANT de fusionner, vérifie : les communes sont-elles IDENTIQUES ? Les victimes/personnes sont-elles les MÊMES ? Si non → {"duplicates": []}"""
+JSON uniquement :
+{"duplicates": [{"keep_id": "ID", "merge_ids": ["ID2"], "reason": "max 15 mots"}]}
+Si aucun doublon → {"duplicates": []}"""
 
 
 def detect_duplicate_affairs(affairs: List[Dict[str, Any]]) -> Optional[List[Dict[str, Any]]]:
@@ -1264,49 +1233,12 @@ def detect_duplicate_affairs(affairs: List[Dict[str, Any]]) -> Optional[List[Dic
     # Limiter à 40 affaires pour rester dans les limites de tokens
     affairs_to_check = affairs[:40]
 
-    # Construire la liste compacte — AVEC commune et entités pour que l'IA puisse distinguer
-    lines = ["=== AFFAIRES ACTIVES ==="]
+    # Construire la liste — TITRES UNIQUEMENT pour éviter les hallucinations
+    lines = []
     for aff in affairs_to_check:
         aff_id = str(aff.get("_id", "?"))
         title = (aff.get("title", "") or "")[:120]
-        gravity = aff.get("gravity_score", 0)
-        elected = ", ".join((aff.get("elected", []) or [])[:5])
-        institutions = ", ".join((aff.get("institutions", []) or [])[:5])
-        items = aff.get("item_count", 0)
-
-        # Commune(s) — crucial pour la dédup
-        communes = aff.get("communes", []) or []
-        if not communes:
-            # Essayer de déduire la commune des entités ou du titre
-            communes = aff.get("locations", []) or []
-        commune_str = ", ".join(communes[:3]) if communes else "inconnue"
-
-        # Entités spécifiques (victimes, suspects, etc.)
-        entities = ", ".join((aff.get("entities", []) or [])[:5])
-
-        # Description courte
-        desc = (aff.get("description", "") or "")[:80]
-
-        # Événement structuré si disponible
-        event = aff.get("event_structured", {}) or {}
-        action_str = ""
-        if event.get("subject") and event.get("action"):
-            action_str = f" | Action: {event['subject']} → {event['action']}"
-            if event.get("object"):
-                action_str += f" ({event['object']})"
-
-        line = f"[{aff_id}] gravity={gravity:.2f} items={items} | Commune: {commune_str} | {title}"
-        if desc:
-            line += f" | Desc: {desc}"
-        if elected:
-            line += f" | Élus: {elected}"
-        if institutions:
-            line += f" | Instit: {institutions}"
-        if entities:
-            line += f" | Entités: {entities}"
-        if action_str:
-            line += action_str
-        lines.append(line)
+        lines.append(f"[{aff_id}] {title}")
 
     user_content = "\n".join(lines)
 
@@ -2086,45 +2018,26 @@ Retourne un JSON:
 # COMPARAISON IA INDIVIDUELLE — 1 ARTICLE vs TOUTES LES AFFAIRES
 # ============================================================
 
-INDIVIDUAL_MATCH_PROMPT = """Tu es un analyste média expert en Guadeloupe/Antilles. Tu es TRÈS STRICT.
+INDIVIDUAL_MATCH_PROMPT = """Tu es un analyste média. Tu compares le TITRE d'un article au TITRE de chaque affaire.
 
-On te donne :
-1. UN ARTICLE avec son titre et résumé
-2. La liste des AFFAIRES EXISTANTES (ID + titre + description courte)
+RÈGLE : tu ne matches QUE si les deux TITRES parlent CLAIREMENT du même fait précis.
+Compare UNIQUEMENT les titres entre eux. Ignore les thèmes, catégories, et contextes généraux.
 
-Ta mission : déterminer si cet article parle du MÊME ÉVÉNEMENT PRÉCIS qu'une affaire existante.
+MATCH ✅ = les titres décrivent le MÊME événement spécifique :
+- "Vaccin chikungunya : 21 cas graves" ↔ "Chikungunya : le vaccin sous surveillance" → MATCH (même sujet vaccin chikungunya)
+- "Jalton réélu maire de PAP" ↔ "Élections municipales Pointe-à-Pitre : Jalton en tête" → MATCH (même élection, même personne)
+- "Pénurie d'eau au Gosier : 3e jour" ↔ "Coupure d'eau au Gosier depuis lundi" → MATCH (même coupure d'eau, même lieu)
 
-⚠️ RÈGLE D'OR : "même type d'événement" ≠ "même événement".
-Un article sur un meurtre ne matche PAS avec une affaire sur un AUTRE meurtre, même au même endroit.
+NO MATCH ❌ = titres différents même si même thème :
+- "Meurtre d'un homme aux Abymes" ↔ "Femme tuée par balles aux Abymes" → NO (victimes différentes)
+- "Noyade à Sainte-Anne" ↔ "Noyade au Gosier" → NO (lieux différents)
+- "Grève des bus à PAP" ↔ "Grève des enseignants en Guadeloupe" → NO (secteurs différents)
+- "Accident RN1 Baie-Mahault" ↔ "Accident mortel RN2 Gosier" → NO (lieux et routes différents)
 
-CRITÈRES STRICTS POUR MATCHER :
-1. L'article doit parler du MÊME INCIDENT/FAIT PRÉCIS que l'affaire
-2. MÊME ZONE GÉOGRAPHIQUE (commune, quartier, ou pays)
-3. AU MOINS UNE PERSONNE, VICTIME ou ENTITÉ SPÉCIFIQUE en commun
-4. MÊME PÉRIODE TEMPORELLE (dates cohérentes)
-
-CE QUI NE SUFFIT PAS POUR MATCHER :
-- Même thème/catégorie seul (deux articles "sécurité" ≠ même affaire)
-- Même lieu seul (deux événements aux Abymes ≠ même affaire)
-- Même type d'incident seul (deux meurtres ≠ même meurtre)
-- Même personne si le sujet est différent
-
-EXEMPLES DE MATCH :
-- Article "Vaccin chikungunya : 21 cas graves" + Affaire "Vaccin chikungunya sous surveillance" → MATCH ✅
-- Article "Éric Jalton réélu" + Affaire "Élections municipales Pointe-à-Pitre" → MATCH ✅
-
-EXEMPLES DE NON-MATCH :
-- Article "Meurtre d'un homme aux Abymes" + Affaire "Femme tuée par balles aux Abymes" → NO MATCH ❌ (deux victimes différentes)
-- Article "Noyade à Sainte-Anne" + Affaire "Noyade au Gosier" → NO MATCH ❌ (deux lieux, deux incidents)
-- Article "Accident sur la RN1 Baie-Mahault" + Affaire "Accident mortel RN2 Gosier" → NO MATCH ❌
-- En cas de doute → "no_match" (mieux vaut créer une affaire de trop que mal fusionner)
+EN CAS DE DOUTE → "no_match". Mieux vaut créer une affaire de trop que fusionner à tort.
 
 Réponds UNIQUEMENT en JSON :
-{
-  "match": "affair_id" ou "no_match",
-  "confidence": "high" ou "medium",
-  "reason": "explication courte (max 20 mots)"
-}"""
+{"match": "affair_id" ou "no_match", "confidence": "high" ou "medium", "reason": "max 15 mots"}"""
 
 
 def match_article_to_affairs(
@@ -2148,25 +2061,16 @@ def match_article_to_affairs(
     art_source = article.get("source", "")
 
     lines = [
-        f"=== ARTICLE ===",
-        f"Titre: {art_title}",
-        f"Résumé: {art_summary}",
-        f"Thème: {art_theme}",
-        f"Source: {art_source}",
+        f"ARTICLE: {art_title}",
         f"",
-        f"=== AFFAIRES EXISTANTES ({len(affairs)}) ===",
+        f"AFFAIRES ({len(affairs)}):",
     ]
 
-    # Limiter à 40 affaires max pour rester dans les tokens
+    # Limiter à 40 affaires max — TITRES UNIQUEMENT (pas de description)
     for aff in affairs[:40]:
         aff_id = str(aff.get("_id", "?"))
         title = (aff.get("title") or "")[:120]
-        desc = (aff.get("description") or "")[:100]
-        theme = aff.get("theme", "")
-        items = aff.get("item_count", 0)
-        lines.append(f"[{aff_id}] ({theme}, {items} items) {title}")
-        if desc:
-            lines.append(f"   → {desc}")
+        lines.append(f"[{aff_id}] {title}")
 
     user_content = "\n".join(lines)
 

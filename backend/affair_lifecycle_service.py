@@ -1923,27 +1923,25 @@ class AffairLifecycleService:
                     logger.warning(f"      ⚠️ IA match error: {e} → fallback heuristique")
                     ai_match_used = False
 
-            # Fallback : si IA indisponible, utiliser le _match_score heuristique + GPT validation
+            # Fallback : si IA indisponible, matching STRICT par titre uniquement
+            # On compare le titre de l'article au titre de chaque affaire active.
+            # Seuls les titres très similaires (SequenceMatcher >= 0.65) sont fusionnés.
             if not ai_match_used and active_affairs:
                 art_title_norm = self._normalize_title(art.get("title", ""))
-                art_title_words = set(w for w in art_title_norm.split() if len(w) >= 4)
-                art_embedding = art.get("embedding")
-                best_score = 0
+                best_ratio = 0.0
                 for affair in active_affairs:
-                    score = self._match_score(
-                        art_elected, art_institutions, art_entities,
-                        art_theme, art_title_words, affair,
-                        art_embedding=art_embedding,
-                    )
-                    if score > best_score:
-                        best_score = score
+                    aff_title_norm = self._normalize_title(affair.get("title", ""))
+                    if not aff_title_norm or not art_title_norm:
+                        continue
+                    ratio = SequenceMatcher(None, art_title_norm, aff_title_norm).ratio()
+                    if ratio > best_ratio:
+                        best_ratio = ratio
                         best_match = affair
-                # Seuil strict en fallback : 12 (relevé de 10)
-                # Exige plusieurs signaux convergents (entités + titre + contexte)
-                if best_match and best_score < 12:
+                # Seuil strict : 0.65 = titres très proches (même événement formulé différemment)
+                if best_match and best_ratio < 0.65:
                     best_match = None
                 if best_match:
-                    logger.info(f"      📊 Fallback score: {best_score} → fusion")
+                    logger.info(f"      📊 Fallback TITRE: ratio={best_ratio:.2f} → fusion avec '{best_match.get('title', '?')[:50]}'")
 
             if best_match:
                 # ── Filtre anti boule de neige ──
@@ -2730,69 +2728,15 @@ class AffairLifecycleService:
                 title_b = self._normalize_title(affair_b.get("title", ""))
                 seq_ratio = SequenceMatcher(None, title_a, title_b).ratio()
 
-                # Comparer les entités (fuzzy)
-                elected_a = set(e.lower().strip() for e in (affair_a.get("elected", []) or []) if e)
-                elected_b = set(e.lower().strip() for e in (affair_b.get("elected", []) or []) if e)
-                instit_a = set(e.lower().strip() for e in (affair_a.get("institutions", []) or []) if e) - self.GENERIC_INSTITUTIONS
-                instit_b = set(e.lower().strip() for e in (affair_b.get("institutions", []) or []) if e) - self.GENERIC_INSTITUTIONS
-
-                fuzzy_e = self._fuzzy_entity_match(elected_a, elected_b)
-                fuzzy_i = self._fuzzy_entity_match(instit_a, instit_b)
-
-                # Titre mots overlap
-                words_a = set(w for w in title_a.split() if len(w) >= 4 and w not in self.GENERIC_TITLE_WORDS)
-                words_b = set(w for w in title_b.split() if len(w) >= 4 and w not in self.GENERIC_TITLE_WORDS)
-                common_words = words_a & words_b
-                word_overlap = len(common_words) / max(min(len(words_a), len(words_b)), 1) if words_a and words_b else 0
-
-                # Critères de fusion inter-affaires v2 (STRICTS — même événement, pas même type)
-                # PRINCIPE : titre similaire seul = INSUFFISANT.
-                # Il faut TOUJOURS titre similaire + au moins 1 entité spécifique en commun.
+                # FUSION INTER-AFFAIRES v3 : TITRE UNIQUEMENT
+                # On fusionne seulement si les titres sont très similaires (>=0.70)
+                # Plus de matching par entités/embeddings/thème (trop de faux positifs)
                 should_merge = False
                 reason = ""
 
-                if seq_ratio >= 0.90:
-                    # Titres quasi-identiques (ponctuation/tirets) → merge SEULEMENT avec entité
-                    if fuzzy_e >= 1 or fuzzy_i >= 1:
-                        should_merge = True
-                        reason = f"titre_sim={seq_ratio:.2f}+entités"
-                    elif word_overlap >= 0.80:
-                        should_merge = True
-                        reason = f"titre_sim={seq_ratio:.2f}+word_overlap={word_overlap:.2f}"
-                elif seq_ratio >= 0.70 and (fuzzy_e >= 1 or fuzzy_i >= 1):
-                    # Titre similaire + entité commune → même événement probable
+                if seq_ratio >= 0.70:
                     should_merge = True
-                    reason = f"titre_sim={seq_ratio:.2f}+entités"
-                elif word_overlap >= 0.70 and fuzzy_e >= 1 and fuzzy_i >= 1:
-                    # Fort overlap de mots + élu ET institution en commun → convergence forte
-                    should_merge = True
-                    reason = f"word_overlap={word_overlap:.2f}+élu+instit"
-                elif fuzzy_e >= 2:
-                    # 2+ élus en commun (non-génériques) ET titre assez proche
-                    non_generic = elected_a - self.GENERIC_ELECTED
-                    if non_generic & elected_b and seq_ratio >= 0.50:
-                        should_merge = True
-                        reason = f"2+élus_communs+titre_sim={seq_ratio:.2f}"
-
-                # Embedding check — STRICT: ne suffit JAMAIS seul pour fusionner.
-                # Deux meurtres différents ont un embedding très proche → dangereux.
-                # L'embedding est utilisé uniquement comme confirmation supplémentaire.
-                if not should_merge:
-                    emb_a = affair_a.get("embedding")
-                    emb_b = affair_b.get("embedding")
-                    if emb_a and emb_b:
-                        try:
-                            from backend.embedding_service import cosine_similarity
-                            sim = cosine_similarity(emb_a, emb_b)
-                            # Embedding très fort + titre raisonnablement proche → merge
-                            if sim >= 0.92 and seq_ratio >= 0.60:
-                                should_merge = True
-                                reason = f"embedding={sim:.2f}+titre={seq_ratio:.2f}"
-                            elif sim >= 0.92 and (fuzzy_e >= 1 or fuzzy_i >= 1):
-                                should_merge = True
-                                reason = f"embedding={sim:.2f}+entités"
-                        except ImportError:
-                            pass
+                    reason = f"titres_similaires={seq_ratio:.2f}"
 
                 # ── Filtre anti boule de neige ──
                 if should_merge:
