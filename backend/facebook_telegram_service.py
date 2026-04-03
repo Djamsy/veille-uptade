@@ -20,6 +20,7 @@ import urllib.parse
 import hashlib
 import re
 import time
+import random
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from html.parser import HTMLParser
@@ -34,13 +35,24 @@ FB_SCRAPE_DELAY = 3  # secondes entre chaque requête (politesse)
 
 MBASIC_BASE = "https://mbasic.facebook.com"
 
-# Headers pour simuler un navigateur mobile basique
-_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 "
-                  "(KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.5",
-}
+# Rotation de User-Agents pour limiter le risque de ban
+_USER_AGENTS = [
+    "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.144 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 12; SM-S908B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.5993.65 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 11; SM-A525F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.5790.166 Mobile Safari/537.36",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (Linux; Android 14; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.6167.101 Mobile Safari/537.36",
+]
+
+
+def _get_headers() -> Dict[str, str]:
+    """Retourne des headers avec un User-Agent aléatoire."""
+    return {
+        "User-Agent": random.choice(_USER_AGENTS),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.5",
+    }
 
 
 def is_configured() -> bool:
@@ -132,7 +144,7 @@ def _fetch_page_html(page_name: str) -> Optional[str]:
     url = f"{MBASIC_BASE}/{urllib.parse.quote(page_name)}"
 
     try:
-        req = urllib.request.Request(url, headers=_HEADERS)
+        req = urllib.request.Request(url, headers=_get_headers())
         with urllib.request.urlopen(req, timeout=20) as resp:
             return resp.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as e:
