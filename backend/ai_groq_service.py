@@ -2018,26 +2018,46 @@ Retourne un JSON:
 # COMPARAISON IA INDIVIDUELLE — 1 ARTICLE vs TOUTES LES AFFAIRES
 # ============================================================
 
-INDIVIDUAL_MATCH_PROMPT = """Tu es un analyste média. Tu compares le TITRE d'un article au TITRE de chaque affaire.
+INDIVIDUAL_MATCH_PROMPT = """Tu es un analyste média. Tu compares le CONTENU d'un nouvel article au CONTENU DE RÉFÉRENCE (le premier article qui a créé l'affaire) de chaque affaire existante.
 
-RÈGLE : tu ne matches QUE si les deux TITRES parlent CLAIREMENT du même fait précis.
-Compare UNIQUEMENT les titres entre eux. Ignore les thèmes, catégories, et contextes généraux.
+OBJECTIF : déterminer si le nouvel article parle EXACTEMENT du même fait concret (même événement, même victimes, même lieu précis, même période) qu'une affaire existante.
 
-MATCH ✅ = les titres décrivent le MÊME événement spécifique :
-- "Vaccin chikungunya : 21 cas graves" ↔ "Chikungunya : le vaccin sous surveillance" → MATCH (même sujet vaccin chikungunya)
-- "Jalton réélu maire de PAP" ↔ "Élections municipales Pointe-à-Pitre : Jalton en tête" → MATCH (même élection, même personne)
-- "Pénurie d'eau au Gosier : 3e jour" ↔ "Coupure d'eau au Gosier depuis lundi" → MATCH (même coupure d'eau, même lieu)
+RÈGLE FONDAMENTALE : tu compares les FAITS DÉCRITS, pas juste les mots-clés ou les thèmes.
+- Même THÈME ≠ même AFFAIRE (deux meurtres sont deux affaires différentes sauf preuve du contraire)
+- Même COMMUNE + même THÈME ≠ même affaire (deux noyades au Gosier la même semaine sont deux affaires différentes)
+- Le texte de référence raconte UN fait précis → le nouvel article doit raconter LE MÊME fait précis
 
-NO MATCH ❌ = titres différents même si même thème :
-- "Meurtre d'un homme aux Abymes" ↔ "Femme tuée par balles aux Abymes" → NO (victimes différentes)
-- "Noyade à Sainte-Anne" ↔ "Noyade au Gosier" → NO (lieux différents)
-- "Grève des bus à PAP" ↔ "Grève des enseignants en Guadeloupe" → NO (secteurs différents)
-- "Accident RN1 Baie-Mahault" ↔ "Accident mortel RN2 Gosier" → NO (lieux et routes différents)
+MATCH ✅ = le nouvel article est :
+1. Le MÊME événement vu d'un autre angle ou par une autre source
+2. Un SUIVI / une suite directe (développement d'une enquête, nouvelle info sur les mêmes victimes, même procès)
+3. Une mise à jour (bilan, identifications, interpellations liées au fait initial)
 
-EN CAS DE DOUTE → "no_match". Mieux vaut créer une affaire de trop que fusionner à tort.
+Critères cumulatifs obligatoires pour MATCH :
+- Même(s) victime(s) / protagoniste(s) nommé(s) OU mêmes faits uniques identifiables
+- Même commune OU lieu précis cohérent (pas juste "Guadeloupe")
+- Période cohérente (quelques jours/semaines d'écart maximum)
+- Aucune contradiction factuelle (âge, sexe, type de mort, etc.)
+
+NO MATCH ❌ (exemples concrets) :
+- Référence "Femme 22 ans tuée par balles aux Abymes" + nouvel article "Homme 53 ans retrouvé sans vie à Saint-François" → NO (victimes/communes/morts différentes)
+- Référence "Noyade à Sainte-Anne d'un touriste" + nouvel article "Noyade au Gosier d'un pêcheur" → NO (lieux et victimes différents)
+- Référence "Campagne sucrière 2026 en Grande-Terre" + nouvel article "Commémoration de l'esclavage à Basse-Terre" → NO (sujets radicalement différents)
+- Référence "Accident RN1 Baie-Mahault 2 blessés" + nouvel article "Accident mortel RN2 Gosier 1 mort" → NO
+- Référence "Grève bus Pointe-à-Pitre" + nouvel article "Grève enseignants Guadeloupe" → NO
+
+RÈGLES STRICTES :
+1. Ne JAMAIS fusionner deux morts/meurtres/accidents/noyades différents, même en même commune, sauf si victimes identiques explicitement.
+2. "Même lieu et période" NE suffit PAS. Il faut des FAITS identiques.
+3. Les commémorations, cérémonies, hommages, célébrations sont des affaires distinctes des événements qu'elles commémorent.
+4. Si une DATE, un NOM, un LIEU PRÉCIS ou un BILAN CHIFFRÉ du texte de référence est absent ou contredit dans le nouvel article → NO MATCH.
+5. EN CAS DE DOUTE → "no_match". Mieux vaut une affaire de trop qu'une fusion erronée.
+
+Tu reçois :
+- L'ARTICLE (titre + début du contenu)
+- La liste des AFFAIRES avec leur TEXTE DE RÉFÉRENCE (premier article)
 
 Réponds UNIQUEMENT en JSON :
-{"match": "affair_id" ou "no_match", "confidence": "high" ou "medium", "reason": "max 15 mots"}"""
+{"match": "affair_id" ou "no_match", "confidence": "high" ou "medium", "reason": "max 20 mots, justifie factuellement"}"""
 
 
 def match_article_to_affairs(
@@ -2054,25 +2074,45 @@ def match_article_to_affairs(
     if not affairs:
         return {"match": "no_match", "confidence": "high", "reason": "aucune affaire existante"}
 
-    # Construire le contexte
+    # Construire le contexte — COMPARAISON DE CONTENU (pas juste les titres)
     art_title = (article.get("title") or "")[:200]
-    art_summary = (article.get("ai_summary") or article.get("summary") or "")[:300]
-    art_theme = article.get("theme", "")
+    art_summary = (article.get("ai_summary") or article.get("summary") or "")[:400]
+    art_content = (article.get("content") or article.get("full_text") or "")[:800]
+    art_communes = ", ".join(article.get("communes", []) or []) or "non précisé"
     art_source = article.get("source", "")
 
-    lines = [
-        f"ARTICLE: {art_title}",
-        f"",
-        f"AFFAIRES ({len(affairs)}):",
+    # Bloc article : titre + résumé + début du contenu
+    art_block = [
+        f"=== NOUVEL ARTICLE ===",
+        f"Titre: {art_title}",
+        f"Commune(s): {art_communes}",
+        f"Source: {art_source}",
     ]
+    if art_summary:
+        art_block.append(f"Résumé: {art_summary}")
+    if art_content:
+        art_block.append(f"Contenu (extrait): {art_content}")
 
-    # Limiter à 40 affaires max — TITRES UNIQUEMENT (pas de description)
-    for aff in affairs[:40]:
+    # Bloc affaires : TEXTE DE RÉFÉRENCE de chaque affaire
+    # Limiter à 25 affaires max pour tenir dans le budget tokens
+    affairs_block = [f"", f"=== AFFAIRES EXISTANTES ({min(len(affairs), 25)}) ==="]
+    for aff in affairs[:25]:
         aff_id = str(aff.get("_id", "?"))
-        title = (aff.get("title") or "")[:120]
-        lines.append(f"[{aff_id}] {title}")
+        aff_title = (aff.get("title") or "")[:150]
+        # reference_text = contenu du 1er article qui a créé l'affaire (nouveau champ)
+        ref_text = (aff.get("reference_text") or "")[:700]
+        # Fallback sur description si reference_text absent (vieilles affaires)
+        if not ref_text:
+            ref_text = (aff.get("description") or "")[:400]
+        aff_communes = ", ".join(aff.get("communes", []) or []) or "non précisé"
 
-    user_content = "\n".join(lines)
+        affairs_block.append(f"")
+        affairs_block.append(f"[{aff_id}] {aff_title}")
+        affairs_block.append(f"  Commune(s): {aff_communes}")
+        if ref_text:
+            affairs_block.append(f"  Référence: {ref_text}")
+
+    user_content = "\n".join(art_block + affairs_block)
 
     try:
         raw = _call_ai(
@@ -2081,7 +2121,7 @@ def match_article_to_affairs(
                 {"role": "user", "content": user_content},
             ],
             temperature=0.0,
-            max_tokens=200,
+            max_tokens=300,
             json_mode=True,
         )
         if raw is None:

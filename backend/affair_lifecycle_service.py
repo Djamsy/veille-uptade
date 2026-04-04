@@ -2008,9 +2008,25 @@ class AffairLifecycleService:
                 if gravity >= 0.35 or (gravity >= 0.30 and has_key_entity):
                     title = art.get("title", "Nouvelle affaire")[:200]
                     art_sentiment = art.get("sentiment", "neutre")
+                    # ── Texte de référence : contenu du 1er article fondateur ──
+                    # Utilisé par l'IA pour comparer les prochains articles au CONTENU réel
+                    # de l'affaire et non seulement à son titre (évite les fusions erronées).
+                    ref_summary = (art.get("ai_summary", "") or "").strip()
+                    ref_content = (art.get("content", "") or art.get("full_text", "") or "").strip()
+                    reference_text = f"{title}. {ref_summary}"
+                    if ref_content:
+                        # Limiter à ~1500 chars pour contenir les tokens
+                        reference_text = f"{reference_text} {ref_content}"[:1800]
+                    else:
+                        reference_text = reference_text[:1800]
                     new_affair = {
                         "title": title,
                         "description": (art.get("ai_summary", "") or "")[:300],
+                        "reference_text": reference_text,
+                        "reference_title": title,
+                        "reference_source": art.get("source", ""),
+                        "reference_article_id": art_id,
+                        "reference_created_at": now,
                         "primary_entity": list(art_elected)[0] if art_elected else None,
                         "entities": list(art_entities)[:20],
                         "elected": list(art_elected)[:10],
@@ -3879,9 +3895,16 @@ class AffairLifecycleService:
                     "entities": list(topic_entities)[:10],
                     "theme": theme,
                 }
+                # Texte de référence construit depuis le topic radio fondateur
+                radio_ref_text = f"{title}. {description}"[:1800]
                 new_affair = {
                     "title": title,
                     "description": description,
+                    "reference_text": radio_ref_text,
+                    "reference_title": title,
+                    "reference_source": radio_source,
+                    "reference_article_id": trans_id,
+                    "reference_created_at": now,
                     "primary_entity": list(topic_elected)[0] if topic_elected else None,
                     "entities": list(topic_entities)[:20],
                     "elected": list(topic_elected)[:10],
@@ -4384,9 +4407,22 @@ class AffairLifecycleService:
                 new_title = assignment.get("new_affair_title", item.get("title", "Nouvelle affaire"))
                 new_gravity = float(assignment.get("gravity", item.get("gravity_score", 0.5)))
 
+                # Texte de référence construit depuis l'item fondateur
+                _item_summary = (item.get("ai_summary", "") or item.get("summary", "") or "").strip()
+                _item_content = (item.get("content", "") or item.get("full_text", "") or "").strip()
+                _item_ref_text = f"{new_title[:200]}. {_item_summary}"
+                if _item_content:
+                    _item_ref_text = f"{_item_ref_text} {_item_content}"[:1800]
+                else:
+                    _item_ref_text = _item_ref_text[:1800]
                 new_affair = {
                     "title": new_title[:200],
                     "description": f"Affaire créée par IA: {assignment.get('reason', '')}",
+                    "reference_text": _item_ref_text,
+                    "reference_title": new_title[:200],
+                    "reference_source": item.get("source", ""),
+                    "reference_article_id": item_id,
+                    "reference_created_at": now,
                     "primary_entity": (item.get("elected", [None]) or [None])[0],
                     "entities": item.get("entities", []) or [],
                     "elected": item.get("elected", []) or [],
@@ -4951,9 +4987,21 @@ class AffairLifecycleService:
             else:
                 # Créer une nouvelle affaire
                 title = art.get("title", "Nouvelle affaire")[:200]
+                _legacy_summary = (art.get("ai_summary", "") or "").strip()
+                _legacy_content = (art.get("content", "") or "").strip()
+                _legacy_ref = f"{title}. {_legacy_summary}"
+                if _legacy_content:
+                    _legacy_ref = f"{_legacy_ref} {_legacy_content}"[:1800]
+                else:
+                    _legacy_ref = _legacy_ref[:1800]
                 new_affair = {
                     "title": title,
                     "description": art.get("ai_summary", "")[:300] or f"Affaire créée automatiquement depuis: {title}",
+                    "reference_text": _legacy_ref,
+                    "reference_title": title,
+                    "reference_source": art.get("source", ""),
+                    "reference_article_id": art_id,
+                    "reference_created_at": now,
                     "primary_entity": (list(art_elected) or [None])[0] if art_elected else None,
                     "entities": list(art_entities)[:20],
                     "elected": list(art_elected)[:10],
