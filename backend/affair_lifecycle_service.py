@@ -290,6 +290,16 @@ SNOWBALL_WINDOW_HOURS = 24             # Fenêtre de détection des fusions réc
 MAX_MATCH_ATTEMPTS = 4                 # Abandon définitif après 4 tentatives
 MATCH_COOLDOWN_CYCLES = 3              # Attendre 3 cycles (~1h30 à 30min/cycle) entre chaque retry
 
+# --- Fenêtre temporelle de fusion ---
+# Un article n'est comparé qu'aux affaires créées dans une plage de ±N jours
+# autour de sa propre date. Empêche les fusions absurdes entre événements
+# temporellement éloignés (ex : article d'avril 2026 vs affaire de février 2026).
+# Ajustable via env var FUSION_TIME_WINDOW_DAYS.
+try:
+    FUSION_TIME_WINDOW_DAYS = int(os.environ.get("FUSION_TIME_WINDOW_DAYS", "3"))
+except (ValueError, TypeError):
+    FUSION_TIME_WINDOW_DAYS = 3
+
 # --- Priorité des affaires ---
 # 3 niveaux : hot (rouge), watch (jaune), minor (vert)
 # IMPORTANT : avec la calibration IA stricte, gravity 0.70+ = vraiment grave
@@ -1252,9 +1262,22 @@ class AffairLifecycleService:
         cluster_tokens = set(cluster.get("all_tokens", []))
         cluster_title = cluster.get("title", "").lower().strip()
 
+        # Fenêtre temporelle : ne considérer que les affaires dans ±FUSION_TIME_WINDOW_DAYS
+        # autour de la date du cluster (fallback sur la fenêtre active standard si absente).
+        cluster_date = (
+            self._parse_dt(cluster.get("created_at"))
+            or self._parse_dt(cluster.get("last_activity"))
+            or datetime.utcnow()
+        )
+        window_lower = cluster_date - timedelta(days=FUSION_TIME_WINDOW_DAYS)
+        window_upper = cluster_date + timedelta(days=FUSION_TIME_WINDOW_DAYS)
+        # Borne max : ne jamais remonter plus loin que AFFAIR_ACTIVE_DAYS (sécurité)
+        active_floor = datetime.utcnow() - timedelta(days=AFFAIR_ACTIVE_DAYS)
+        effective_lower = max(window_lower, active_floor)
+
         recent_affairs = self.affairs.find({
             "status": "active",
-            "created_at": {"$gte": datetime.utcnow() - timedelta(days=AFFAIR_ACTIVE_DAYS)},
+            "created_at": {"$gte": effective_lower, "$lte": window_upper},
         })
 
         best = None
@@ -1890,9 +1913,28 @@ class AffairLifecycleService:
             best_match = None
             ai_match_used = False
 
-            if _ai_match_ok and _ai_match_article and active_affairs:
+            # ── FENÊTRE TEMPORELLE : ne comparer qu'aux affaires récentes ──
+            # Réduit le bruit, accélère l'appel IA et évite les fusions
+            # temporellement absurdes (article d'avril vs affaire de février).
+            art_date = (
+                self._parse_dt(art.get("published_at"))
+                or self._parse_dt(art.get("date"))
+                or self._parse_dt(art.get("scraped_at"))
+                or self._parse_dt(art.get("created_at"))
+                or now
+            )
+            candidate_affairs = self._filter_affairs_by_time_window(
+                active_affairs, art_date
+            )
+            if len(candidate_affairs) != len(active_affairs):
+                logger.info(
+                    f"      🕒 Fenêtre temporelle ±{FUSION_TIME_WINDOW_DAYS}j : "
+                    f"{len(candidate_affairs)}/{len(active_affairs)} affaires candidates"
+                )
+
+            if _ai_match_ok and _ai_match_article and candidate_affairs:
                 try:
-                    result = _ai_match_article(art, active_affairs)
+                    result = _ai_match_article(art, candidate_affairs)
                     if result is None:
                         # IA indisponible (clé manquante, erreur API, etc.)
                         # → laisser le fallback heuristique prendre le relais
@@ -1903,7 +1945,7 @@ class AffairLifecycleService:
                         confidence = result.get("confidence", "medium")
                         reason = result.get("reason", "")
                         # Trouver l'affaire correspondante
-                        for aff in active_affairs:
+                        for aff in candidate_affairs:
                             if str(aff.get("_id", "")) == match_id:
                                 best_match = aff
                                 ai_match_used = True
@@ -1926,10 +1968,11 @@ class AffairLifecycleService:
             # Fallback : si IA indisponible, matching STRICT par titre uniquement
             # On compare le titre de l'article au titre de chaque affaire active.
             # Seuls les titres très similaires (SequenceMatcher >= 0.65) sont fusionnés.
-            if not ai_match_used and active_affairs:
+            # (La fenêtre temporelle s'applique aussi ici.)
+            if not ai_match_used and candidate_affairs:
                 art_title_norm = self._normalize_title(art.get("title", ""))
                 best_ratio = 0.0
-                for affair in active_affairs:
+                for affair in candidate_affairs:
                     aff_title_norm = self._normalize_title(affair.get("title", ""))
                     if not aff_title_norm or not art_title_norm:
                         continue
@@ -2374,6 +2417,69 @@ class AffairLifecycleService:
                                    "mort suspecte", "malaise", "décédé"},
     }
 
+    # ============================================================
+    # Filtre temporel de fusion
+    # ============================================================
+    @staticmethod
+    def _parse_dt(value) -> Optional[datetime]:
+        """Parse un champ date/datetime Mongo (datetime, str ISO, ou None)."""
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            try:
+                # Gérer "Z" suffix et formats ISO variés
+                v = value.replace("Z", "+00:00") if value.endswith("Z") else value
+                dt = datetime.fromisoformat(v)
+                # Normaliser en naive UTC pour comparaison homogène
+                if dt.tzinfo is not None:
+                    dt = dt.replace(tzinfo=None)
+                return dt
+            except (ValueError, TypeError):
+                return None
+        return None
+
+    def _filter_affairs_by_time_window(
+        self,
+        affairs: List[Dict],
+        reference_date: Optional[datetime],
+        window_days: Optional[int] = None,
+    ) -> List[Dict]:
+        """Filtre les affaires candidates pour la fusion selon une fenêtre temporelle.
+
+        Ne garde que les affaires dont `created_at` ou `last_activity` est dans
+        une plage ±window_days autour de `reference_date`.
+
+        Si `reference_date` est None → retourne toutes les affaires (pas de filtre).
+        Si `window_days` est None → utilise FUSION_TIME_WINDOW_DAYS.
+        Les affaires sans date sont CONSERVÉES (prudence — on ne veut pas exclure
+        par erreur des affaires anciennes légitimement sans `created_at`).
+        """
+        if reference_date is None:
+            return affairs
+        wd = window_days if window_days is not None else FUSION_TIME_WINDOW_DAYS
+        if wd <= 0:
+            return affairs
+        delta = timedelta(days=wd)
+        lower = reference_date - delta
+        upper = reference_date + delta
+
+        filtered = []
+        for aff in affairs:
+            aff_dt = self._parse_dt(
+                aff.get("created_at")
+                or aff.get("last_activity")
+                or aff.get("promoted_at")
+            )
+            if aff_dt is None:
+                # Pas de date exploitable → on garde (fail-safe)
+                filtered.append(aff)
+                continue
+            if lower <= aff_dt <= upper:
+                filtered.append(aff)
+        return filtered
+
     def _titles_are_coherent(self, title_a: str, title_b: str, desc_a: str = "", desc_b: str = "") -> tuple:
         """Vérifie si deux affaires sont sémantiquement cohérentes pour une fusion.
 
@@ -2731,12 +2837,24 @@ class AffairLifecycleService:
         merged_count = 0
         merged_ids = set()  # IDs déjà absorbées
 
+        window_delta = timedelta(days=FUSION_TIME_WINDOW_DAYS)
+
         for i, affair_a in enumerate(active_affairs):
             if str(affair_a["_id"]) in merged_ids:
                 continue
+            date_a = self._parse_dt(
+                affair_a.get("created_at") or affair_a.get("last_activity")
+            )
             for j in range(i + 1, len(active_affairs)):
                 affair_b = active_affairs[j]
                 if str(affair_b["_id"]) in merged_ids:
+                    continue
+
+                # ── Fenêtre temporelle : skip si les affaires sont trop éloignées ──
+                date_b = self._parse_dt(
+                    affair_b.get("created_at") or affair_b.get("last_activity")
+                )
+                if date_a and date_b and abs(date_a - date_b) > window_delta:
                     continue
 
                 # Comparer les titres normalisés
@@ -2877,6 +2995,10 @@ class AffairLifecycleService:
         if not duplicates:
             return 0
 
+        # Fenêtre temporelle : pour chaque paire de dédup, on exige que les deux
+        # affaires aient été créées dans une plage ±FUSION_TIME_WINDOW_DAYS.
+        window_delta = timedelta(days=FUSION_TIME_WINDOW_DAYS)
+
         merged_count = 0
         for dup_group in duplicates:
             keep_id = dup_group.get("keep_id")
@@ -2903,6 +3025,23 @@ class AffairLifecycleService:
                         absorb_affair = a
                         break
                 if not absorb_affair:
+                    continue
+
+                # ── Filtre 0 : fenêtre temporelle ──
+                # Les deux affaires doivent avoir été créées à ±FUSION_TIME_WINDOW_DAYS.
+                date_keep = self._parse_dt(
+                    keep_affair.get("created_at") or keep_affair.get("last_activity")
+                )
+                date_absorb = self._parse_dt(
+                    absorb_affair.get("created_at") or absorb_affair.get("last_activity")
+                )
+                if date_keep and date_absorb and abs(date_keep - date_absorb) > window_delta:
+                    logger.warning(
+                        f"🚫 Dédup IA BLOQUÉ (fenêtre temporelle): "
+                        f"'{keep_affair.get('title','?')[:40]}' ({date_keep.date()}) "
+                        f"vs '{absorb_affair.get('title','?')[:40]}' ({date_absorb.date()}) "
+                        f"> ±{FUSION_TIME_WINDOW_DAYS}j"
+                    )
                     continue
 
                 # ── Filtre 1 : vérification stricte des communes ──
