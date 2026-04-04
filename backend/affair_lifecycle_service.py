@@ -1262,23 +1262,27 @@ class AffairLifecycleService:
         cluster_tokens = set(cluster.get("all_tokens", []))
         cluster_title = cluster.get("title", "").lower().strip()
 
-        # Fenêtre temporelle : ne considérer que les affaires dans ±FUSION_TIME_WINDOW_DAYS
-        # autour de la date du cluster (fallback sur la fenêtre active standard si absente).
+        # Fenêtre temporelle : ne considérer que les affaires dont la plage
+        # [created_at → last_activity] est à ±FUSION_TIME_WINDOW_DAYS de la
+        # date du cluster. On charge d'abord les affaires actives standard
+        # puis on applique le filtre span-based en Python (plus précis qu'un
+        # filtre Mongo simple sur created_at).
         cluster_date = (
             self._parse_dt(cluster.get("created_at"))
             or self._parse_dt(cluster.get("last_activity"))
             or datetime.utcnow()
         )
-        window_lower = cluster_date - timedelta(days=FUSION_TIME_WINDOW_DAYS)
-        window_upper = cluster_date + timedelta(days=FUSION_TIME_WINDOW_DAYS)
-        # Borne max : ne jamais remonter plus loin que AFFAIR_ACTIVE_DAYS (sécurité)
         active_floor = datetime.utcnow() - timedelta(days=AFFAIR_ACTIVE_DAYS)
-        effective_lower = max(window_lower, active_floor)
-
-        recent_affairs = self.affairs.find({
+        all_active = self.affairs.find({
             "status": "active",
-            "created_at": {"$gte": effective_lower, "$lte": window_upper},
+            "$or": [
+                {"last_activity": {"$gte": active_floor}},
+                {"created_at": {"$gte": active_floor}},
+            ],
         })
+        recent_affairs = self._filter_affairs_by_time_window(
+            list(all_active), cluster_date
+        )
 
         best = None
         best_score = 0
@@ -2440,6 +2444,30 @@ class AffairLifecycleService:
                 return None
         return None
 
+    def _affair_time_span(self, affair: Dict) -> Optional[Tuple[datetime, datetime]]:
+        """Retourne la plage temporelle (début, fin) d'une affaire.
+
+        Utilise (created_at, last_activity) comme bornes — chaque fois qu'un
+        nouvel article est fusionné dans une affaire, `last_activity` est mis
+        à jour, donc cette plage couvre effectivement [premier article → dernier
+        article] de l'affaire.
+
+        Retourne None si aucune date exploitable.
+        """
+        start = self._parse_dt(affair.get("created_at") or affair.get("promoted_at"))
+        end = self._parse_dt(affair.get("last_activity")) or start
+        if start is None and end is None:
+            return None
+        # Si une seule borne est dispo, l'utiliser pour les deux
+        if start is None:
+            start = end
+        if end is None:
+            end = start
+        # Garantir start <= end
+        if start > end:
+            start, end = end, start
+        return (start, end)
+
     def _filter_affairs_by_time_window(
         self,
         affairs: List[Dict],
@@ -2448,13 +2476,20 @@ class AffairLifecycleService:
     ) -> List[Dict]:
         """Filtre les affaires candidates pour la fusion selon une fenêtre temporelle.
 
-        Ne garde que les affaires dont `created_at` ou `last_activity` est dans
-        une plage ±window_days autour de `reference_date`.
+        Une affaire est GARDÉE si la `reference_date` (typiquement la date d'un
+        nouvel article) est à moins de `window_days` jours de la plage temporelle
+        complète de l'affaire [created_at → last_activity]. Autrement dit : il
+        suffit qu'un article de l'affaire soit dans ±window_days de la nouvelle
+        date pour que la fusion soit envisagée.
+
+        Exemple avec window_days=3 :
+          - Affaire : articles du 1er au 3 avril (span = [1er avril, 3 avril])
+          - Nouvel article du 6 avril → distance = 3j → GARDÉE
+          - Nouvel article du 7 avril → distance = 4j → FILTRÉE
 
         Si `reference_date` est None → retourne toutes les affaires (pas de filtre).
         Si `window_days` est None → utilise FUSION_TIME_WINDOW_DAYS.
-        Les affaires sans date sont CONSERVÉES (prudence — on ne veut pas exclure
-        par erreur des affaires anciennes légitimement sans `created_at`).
+        Les affaires sans date sont CONSERVÉES (prudence — fail-safe).
         """
         if reference_date is None:
             return affairs
@@ -2462,21 +2497,26 @@ class AffairLifecycleService:
         if wd <= 0:
             return affairs
         delta = timedelta(days=wd)
-        lower = reference_date - delta
-        upper = reference_date + delta
 
         filtered = []
         for aff in affairs:
-            aff_dt = self._parse_dt(
-                aff.get("created_at")
-                or aff.get("last_activity")
-                or aff.get("promoted_at")
-            )
-            if aff_dt is None:
+            span = self._affair_time_span(aff)
+            if span is None:
                 # Pas de date exploitable → on garde (fail-safe)
                 filtered.append(aff)
                 continue
-            if lower <= aff_dt <= upper:
+            start, end = span
+            # Distance entre reference_date et la plage [start, end] :
+            # - 0 si reference_date est dans la plage
+            # - start - reference_date si avant
+            # - reference_date - end si après
+            if reference_date < start:
+                gap = start - reference_date
+            elif reference_date > end:
+                gap = reference_date - end
+            else:
+                gap = timedelta(0)
+            if gap <= delta:
                 filtered.append(aff)
         return filtered
 
@@ -2842,20 +2882,27 @@ class AffairLifecycleService:
         for i, affair_a in enumerate(active_affairs):
             if str(affair_a["_id"]) in merged_ids:
                 continue
-            date_a = self._parse_dt(
-                affair_a.get("created_at") or affair_a.get("last_activity")
-            )
+            span_a = self._affair_time_span(affair_a)
             for j in range(i + 1, len(active_affairs)):
                 affair_b = active_affairs[j]
                 if str(affair_b["_id"]) in merged_ids:
                     continue
 
-                # ── Fenêtre temporelle : skip si les affaires sont trop éloignées ──
-                date_b = self._parse_dt(
-                    affair_b.get("created_at") or affair_b.get("last_activity")
-                )
-                if date_a and date_b and abs(date_a - date_b) > window_delta:
-                    continue
+                # ── Fenêtre temporelle : distance entre les deux plages ──
+                # Deux affaires sont mergeables si leurs plages [start, end]
+                # sont distantes de <= FUSION_TIME_WINDOW_DAYS (ou se chevauchent).
+                span_b = self._affair_time_span(affair_b)
+                if span_a and span_b:
+                    s_a, e_a = span_a
+                    s_b, e_b = span_b
+                    if e_a < s_b:
+                        gap = s_b - e_a
+                    elif e_b < s_a:
+                        gap = s_a - e_b
+                    else:
+                        gap = timedelta(0)  # chevauchement
+                    if gap > window_delta:
+                        continue
 
                 # Comparer les titres normalisés
                 title_a = self._normalize_title(affair_a.get("title", ""))
@@ -3028,21 +3075,28 @@ class AffairLifecycleService:
                     continue
 
                 # ── Filtre 0 : fenêtre temporelle ──
-                # Les deux affaires doivent avoir été créées à ±FUSION_TIME_WINDOW_DAYS.
-                date_keep = self._parse_dt(
-                    keep_affair.get("created_at") or keep_affair.get("last_activity")
-                )
-                date_absorb = self._parse_dt(
-                    absorb_affair.get("created_at") or absorb_affair.get("last_activity")
-                )
-                if date_keep and date_absorb and abs(date_keep - date_absorb) > window_delta:
-                    logger.warning(
-                        f"🚫 Dédup IA BLOQUÉ (fenêtre temporelle): "
-                        f"'{keep_affair.get('title','?')[:40]}' ({date_keep.date()}) "
-                        f"vs '{absorb_affair.get('title','?')[:40]}' ({date_absorb.date()}) "
-                        f"> ±{FUSION_TIME_WINDOW_DAYS}j"
-                    )
-                    continue
+                # Distance entre les plages temporelles [created_at → last_activity]
+                # des deux affaires. Si un article de l'une est à ≤N jours d'un
+                # article de l'autre, la fusion est envisageable.
+                span_keep = self._affair_time_span(keep_affair)
+                span_absorb = self._affair_time_span(absorb_affair)
+                if span_keep and span_absorb:
+                    sk, ek = span_keep
+                    sa, ea = span_absorb
+                    if ek < sa:
+                        gap = sa - ek
+                    elif ea < sk:
+                        gap = sk - ea
+                    else:
+                        gap = timedelta(0)
+                    if gap > window_delta:
+                        logger.warning(
+                            f"🚫 Dédup IA BLOQUÉ (fenêtre temporelle): "
+                            f"'{keep_affair.get('title','?')[:40]}' [{sk.date()}→{ek.date()}] "
+                            f"vs '{absorb_affair.get('title','?')[:40]}' [{sa.date()}→{ea.date()}] "
+                            f"gap={gap.days}j > ±{FUSION_TIME_WINDOW_DAYS}j"
+                        )
+                        continue
 
                 # ── Filtre 1 : vérification stricte des communes ──
                 # Si les deux affaires ont des communes connues et DIFFÉRENTES → bloquer
