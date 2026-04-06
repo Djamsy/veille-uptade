@@ -1940,6 +1940,64 @@ async def get_source_reliability():
 
 
 # ============================================================
+# NOTIFICATIONS PUSH (Web Push)
+# ============================================================
+
+@app.get("/api/push/vapid-key")
+async def get_vapid_key():
+    """Retourne la clé publique VAPID pour l'inscription push côté client."""
+    try:
+        from backend.push_service import get_public_key, is_configured as push_configured
+        if not push_configured():
+            return {"ok": False, "error": "Push non configuré"}
+        return {"ok": True, "publicKey": get_public_key()}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@app.post("/api/push/subscribe")
+async def push_subscribe(request: Request):
+    """Enregistre un abonnement push."""
+    try:
+        from backend.push_service import save_subscription
+        body = await request.json()
+        success = save_subscription(body, db=db)
+        return {"ok": success}
+    except Exception as e:
+        logger.error(f"Erreur push subscribe: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/push/unsubscribe")
+async def push_unsubscribe(request: Request):
+    """Supprime un abonnement push."""
+    try:
+        from backend.push_service import remove_subscription
+        body = await request.json()
+        success = remove_subscription(body.get("endpoint", ""), db=db)
+        return {"ok": success}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/push/test")
+async def push_test():
+    """Envoie une notification test à tous les abonnés."""
+    try:
+        from backend.push_service import notify_new_affair
+        test_affair = {
+            "title": "Test notification — Veille Média 971",
+            "gravity_score": 0.5,
+            "theme": "test",
+            "communes": ["Pointe-à-Pitre"],
+        }
+        sent = notify_new_affair(test_affair, db=db)
+        return {"ok": True, "sent": sent}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
 # FACEBOOK → TELEGRAM
 # ============================================================
 

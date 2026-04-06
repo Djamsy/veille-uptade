@@ -63,6 +63,18 @@ except ImportError:
         _tg_merged = None
         _tg_unlinked = None
         _tg_snowball = None
+# Notifications Push (optionnel)
+try:
+    from backend.push_service import notify_new_affair as _push_notify
+    _push_ok = True
+except ImportError:
+    try:
+        from push_service import notify_new_affair as _push_notify
+        _push_ok = True
+    except ImportError:
+        _push_ok = False
+        _push_notify = None
+
 from bson import ObjectId
 
 # Dédup IA (optionnel)
@@ -291,14 +303,53 @@ MAX_MATCH_ATTEMPTS = 4                 # Abandon définitif après 4 tentatives
 MATCH_COOLDOWN_CYCLES = 3              # Attendre 3 cycles (~1h30 à 30min/cycle) entre chaque retry
 
 # --- Fenêtre temporelle de fusion ---
-# Un article n'est comparé qu'aux affaires créées dans une plage de ±N jours
-# autour de sa propre date. Empêche les fusions absurdes entre événements
-# temporellement éloignés (ex : article d'avril 2026 vs affaire de février 2026).
-# Ajustable via env var FUSION_TIME_WINDOW_DAYS.
+# Un article n'est comparé qu'aux affaires dont la plage temporelle
+# [premier article → dernier article] est à ±N jours de sa propre date.
+# Empêche les fusions absurdes entre événements temporellement éloignés.
+#
+# La fenêtre est DÉPENDANTE DE LA CATÉGORIE D'ÉVÉNEMENT :
+#   - Faits divers (meurtre, accident, noyade)  → cycle court (~3 jours)
+#   - Sociétal (violences, grèves, épidémies)   → cycle moyen (~7 jours)
+#   - Judiciaire / politique                    → cycle long (~14 jours)
+#   - Mémoriel / économique                     → cycle très long (~10 jours)
+#
+# La valeur par défaut FUSION_TIME_WINDOW_DAYS est utilisée quand aucune
+# catégorie n'est détectée. Ajustable via env var FUSION_TIME_WINDOW_DAYS.
 try:
-    FUSION_TIME_WINDOW_DAYS = int(os.environ.get("FUSION_TIME_WINDOW_DAYS", "3"))
+    FUSION_TIME_WINDOW_DAYS = int(os.environ.get("FUSION_TIME_WINDOW_DAYS", "5"))
 except (ValueError, TypeError):
-    FUSION_TIME_WINDOW_DAYS = 3
+    FUSION_TIME_WINDOW_DAYS = 5
+
+# Fenêtres spécifiques par catégorie d'événement (en jours).
+# Ces valeurs ont été calibrées à partir de l'analyse des cycles d'actualité
+# typiques en presse locale : les faits divers chauds durent 2-3 jours,
+# les affaires judiciaires s'étalent sur 1-2 semaines (mise en examen →
+# procès → verdict), les événements politiques suivent des cycles longs
+# (élection → résultats → installation). Utilisez scripts/analyze_affair_spans.py
+# sur la base réelle pour affiner ces valeurs si besoin.
+FUSION_WINDOW_BY_CATEGORY = {
+    # Faits divers à burst court : couverture intense 1-3 jours puis oubli
+    "meurtre_arme": 3,
+    "deces_retrouve_sans_vie": 3,
+    "noyade_accident_mer": 3,
+    "accident_route": 3,
+
+    # Sociétal : cycle d'une semaine (développements, réactions, suites)
+    "violence_conjugale": 7,
+    "greve_mouvement_social": 7,
+    "sante_epidemie": 7,
+    "catastrophe_naturelle": 7,
+    "trafic_drogue": 7,
+
+    # Cycles longs : enquêtes, procès, campagnes
+    "justice_proces": 14,
+    "election_politique": 14,
+
+    # Cycles récurrents / mémoriels / économiques
+    "agriculture_economie": 10,
+    "memoire_esclavage": 10,
+    "commemoration_ceremonie": 10,
+}
 
 # --- Priorité des affaires ---
 # 3 niveaux : hot (rouge), watch (jaune), minor (vert)
@@ -1239,6 +1290,14 @@ class AffairLifecycleService:
                 f"(BMG={bmg_result['bmg']:.2f}, {affair['item_count']} items, "
                 f"sources={affair['sources']})"
             )
+
+            # 🔔 Notification push
+            if _push_ok and _push_notify:
+                try:
+                    _push_notify(affair)
+                except Exception as push_err:
+                    logger.debug(f"Push notification: {push_err}")
+
             # Auto-génération du contexte IA
             try:
                 self.generate_affair_context(affair_id)
@@ -2131,6 +2190,12 @@ class AffairLifecycleService:
                             _tg_notify(new_affair, source_type="article")
                         except Exception as tg_err:
                             logger.debug(f"Telegram notify: {tg_err}")
+                    # 🔔 Notification push
+                    if _push_ok and _push_notify:
+                        try:
+                            _push_notify(new_affair)
+                        except Exception as push_err:
+                            logger.debug(f"Push notification: {push_err}")
                     # Auto-génération du contexte IA
                     try:
                         self.generate_affair_context(new_id)
@@ -2444,6 +2509,19 @@ class AffairLifecycleService:
                 return None
         return None
 
+    def _window_days_for_affair(self, affair: Dict) -> int:
+        """Retourne la fenêtre temporelle en jours adaptée à la catégorie de l'affaire.
+
+        Détecte la catégorie via le titre + description et retourne la valeur
+        de FUSION_WINDOW_BY_CATEGORY, ou FUSION_TIME_WINDOW_DAYS (défaut) si
+        aucune catégorie n'est détectée.
+        """
+        text = f"{affair.get('title', '')} {affair.get('description', '')}"
+        cat = self._detect_event_category(text)
+        if cat and cat in FUSION_WINDOW_BY_CATEGORY:
+            return FUSION_WINDOW_BY_CATEGORY[cat]
+        return FUSION_TIME_WINDOW_DAYS
+
     def _affair_time_span(self, affair: Dict) -> Optional[Tuple[datetime, datetime]]:
         """Retourne la plage temporelle (début, fin) d'une affaire.
 
@@ -2493,10 +2571,12 @@ class AffairLifecycleService:
         """
         if reference_date is None:
             return affairs
-        wd = window_days if window_days is not None else FUSION_TIME_WINDOW_DAYS
-        if wd <= 0:
+        # Si window_days est fourni → fenêtre uniforme.
+        # Sinon → on calcule une fenêtre par affaire selon sa catégorie
+        # (cf. FUSION_WINDOW_BY_CATEGORY : meurtre=3j, grève=7j, procès=14j…).
+        uniform_wd = window_days
+        if uniform_wd is not None and uniform_wd <= 0:
             return affairs
-        delta = timedelta(days=wd)
 
         filtered = []
         for aff in affairs:
@@ -2505,6 +2585,11 @@ class AffairLifecycleService:
                 # Pas de date exploitable → on garde (fail-safe)
                 filtered.append(aff)
                 continue
+            wd = uniform_wd if uniform_wd is not None else self._window_days_for_affair(aff)
+            if wd <= 0:
+                filtered.append(aff)
+                continue
+            delta = timedelta(days=wd)
             start, end = span
             # Distance entre reference_date et la plage [start, end] :
             # - 0 si reference_date est dans la plage
@@ -2877,12 +2962,11 @@ class AffairLifecycleService:
         merged_count = 0
         merged_ids = set()  # IDs déjà absorbées
 
-        window_delta = timedelta(days=FUSION_TIME_WINDOW_DAYS)
-
         for i, affair_a in enumerate(active_affairs):
             if str(affair_a["_id"]) in merged_ids:
                 continue
             span_a = self._affair_time_span(affair_a)
+            wd_a = self._window_days_for_affair(affair_a)
             for j in range(i + 1, len(active_affairs)):
                 affair_b = active_affairs[j]
                 if str(affair_b["_id"]) in merged_ids:
@@ -2890,7 +2974,8 @@ class AffairLifecycleService:
 
                 # ── Fenêtre temporelle : distance entre les deux plages ──
                 # Deux affaires sont mergeables si leurs plages [start, end]
-                # sont distantes de <= FUSION_TIME_WINDOW_DAYS (ou se chevauchent).
+                # sont distantes de <= max(window_a, window_b) (fenêtre adaptée
+                # à la catégorie d'événement — cf. FUSION_WINDOW_BY_CATEGORY).
                 span_b = self._affair_time_span(affair_b)
                 if span_a and span_b:
                     s_a, e_a = span_a
@@ -2901,7 +2986,9 @@ class AffairLifecycleService:
                         gap = s_a - e_b
                     else:
                         gap = timedelta(0)  # chevauchement
-                    if gap > window_delta:
+                    wd_b = self._window_days_for_affair(affair_b)
+                    pair_delta = timedelta(days=max(wd_a, wd_b))
+                    if gap > pair_delta:
                         continue
 
                 # Comparer les titres normalisés
@@ -3042,9 +3129,10 @@ class AffairLifecycleService:
         if not duplicates:
             return 0
 
-        # Fenêtre temporelle : pour chaque paire de dédup, on exige que les deux
-        # affaires aient été créées dans une plage ±FUSION_TIME_WINDOW_DAYS.
-        window_delta = timedelta(days=FUSION_TIME_WINDOW_DAYS)
+        # Fenêtre temporelle : pour chaque paire de dédup, on exige que les
+        # plages temporelles des deux affaires soient à moins de
+        # max(window_keep, window_absorb) jours (fenêtre adaptée à la
+        # catégorie d'événement — cf. FUSION_WINDOW_BY_CATEGORY).
 
         merged_count = 0
         for dup_group in duplicates:
@@ -3076,8 +3164,7 @@ class AffairLifecycleService:
 
                 # ── Filtre 0 : fenêtre temporelle ──
                 # Distance entre les plages temporelles [created_at → last_activity]
-                # des deux affaires. Si un article de l'une est à ≤N jours d'un
-                # article de l'autre, la fusion est envisageable.
+                # des deux affaires. Budget = max des deux fenêtres catégorielles.
                 span_keep = self._affair_time_span(keep_affair)
                 span_absorb = self._affair_time_span(absorb_affair)
                 if span_keep and span_absorb:
@@ -3089,12 +3176,15 @@ class AffairLifecycleService:
                         gap = sk - ea
                     else:
                         gap = timedelta(0)
-                    if gap > window_delta:
+                    wd_keep = self._window_days_for_affair(keep_affair)
+                    wd_absorb = self._window_days_for_affair(absorb_affair)
+                    pair_delta = timedelta(days=max(wd_keep, wd_absorb))
+                    if gap > pair_delta:
                         logger.warning(
                             f"🚫 Dédup IA BLOQUÉ (fenêtre temporelle): "
                             f"'{keep_affair.get('title','?')[:40]}' [{sk.date()}→{ek.date()}] "
                             f"vs '{absorb_affair.get('title','?')[:40]}' [{sa.date()}→{ea.date()}] "
-                            f"gap={gap.days}j > ±{FUSION_TIME_WINDOW_DAYS}j"
+                            f"gap={gap.days}j > ±{max(wd_keep, wd_absorb)}j"
                         )
                         continue
 

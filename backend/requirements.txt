@@ -62,6 +62,10 @@ pillow==10.1.0
 # --- Telegram (léger) ---
 python-telegram-bot==20.7
 
+# --- Web Push notifications ---
+pywebpush==2.0.0
+py-vapid==1.9.1
+
 # --- Prod (optionnel) ---
 gunicorn==21.2.0
 
