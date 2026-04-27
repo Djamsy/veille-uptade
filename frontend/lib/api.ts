@@ -1120,3 +1120,17 @@ export const compareCampaigns = (a: string, b: string) =>
 
 export const fetchCampaignPosts = (campaignId: string, limit = 50) =>
   apiFetch<{ posts: CampaignPost[]; total: number }>(`/api/campaigns/${campaignId}/posts?limit=${limit}`);
+
+export const publishPost = async (data: { text: string; campaign_id?: string; media?: File }) => {
+  const formData = new FormData();
+  formData.append('text', data.text);
+  if (data.campaign_id) formData.append('campaign_id', data.campaign_id);
+  if (data.media) formData.append('media', data.media);
+
+  const res = await fetch(`${API_BASE}/api/publish`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) throw new Error(`Erreur publication: ${res.status}`);
+  return res.json() as Promise<{ ok: boolean; post_id: string; campaign: string; platforms: number; media_uploaded: boolean }>;
+};

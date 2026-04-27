@@ -2040,6 +2040,119 @@ async def list_campaign_posts(campaign_id: str, limit: int = Query(50, ge=1, le=
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ── Publication Web (formulaire dashboard) ──
+@app.post("/api/publish")
+async def publish_from_web(request: Request):
+    """Publie un post depuis le dashboard web (formulaire).
+
+    Attend un multipart/form-data avec :
+      - text: texte complet du post
+      - campaign_id: (optionnel) ID de la campagne
+      - media: (optionnel) fichier image ou vidéo
+    """
+    try:
+        from backend.campaign_service import (
+            detect_campaign, save_post, upload_to_cloudinary, publish_to_buffer,
+            get_campaign
+        )
+
+        form = await request.form()
+        text = form.get("text", "")
+        campaign_id = form.get("campaign_id", "")
+        media_file = form.get("media")
+
+        if not text:
+            raise HTTPException(status_code=400, detail="Le texte est requis")
+
+        # Parser le texte
+        import re
+        title = ""
+        body = str(text).strip()
+        bold_match = re.match(r'^\*(.+?)\*\s*\n?', body)
+        if bold_match:
+            title = bold_match.group(1).strip()
+            body_text = body[bold_match.end():].strip()
+        else:
+            lines = body.split('\n')
+            title = lines[0].strip() if lines else ""
+            body_text = '\n'.join(lines[1:]).strip() if len(lines) > 1 else ""
+
+        hashtags = re.findall(r'#(\w+)', str(text))
+
+        # Campagne
+        if campaign_id:
+            campaign = get_campaign(str(campaign_id), db=db)
+            campaign_name = campaign.get("name", "Institutionnel") if campaign else "Institutionnel"
+        else:
+            campaign = detect_campaign(str(text))
+            campaign_name = campaign.get("name", "Institutionnel") if campaign else "Institutionnel"
+            campaign_id = str(campaign.get("_id", "")) if campaign else ""
+
+        # Upload média si fourni
+        cloudinary_url = ""
+        media_type = "text"
+        media_urls = []
+
+        if media_file and hasattr(media_file, 'read'):
+            import tempfile
+            content = await media_file.read()
+            content_type = getattr(media_file, 'content_type', '') or ''
+            media_type = "video" if "video" in content_type else "photo"
+
+            # Sauvegarder temporairement
+            suffix = ".mp4" if media_type == "video" else ".jpg"
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                tmp.write(content)
+                tmp_path = tmp.name
+
+            # Upload sur Cloudinary depuis le fichier local
+            resource_type = "video" if media_type == "video" else "image"
+            cloudinary_url = upload_to_cloudinary(f"file://{tmp_path}", resource_type)
+
+            # Nettoyer
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+
+            if cloudinary_url:
+                media_urls = [cloudinary_url]
+
+        # Publier via Buffer
+        buffer_result = publish_to_buffer(
+            text=str(text),
+            media_urls=media_urls,
+        )
+
+        # Sauvegarder le post
+        post = save_post({
+            "title": title,
+            "body": body_text,
+            "hashtags": hashtags,
+            "media_url": cloudinary_url,
+            "media_type": media_type,
+            "campaign_id": str(campaign_id),
+            "campaign_name": campaign_name,
+            "buffer_ids": buffer_result.get("buffer_ids", []),
+            "telegram_user": "",
+            "source": "web_dashboard",
+        })
+
+        return {
+            "ok": buffer_result.get("ok", False),
+            "post_id": str(post.get("_id", "")),
+            "campaign": campaign_name,
+            "platforms": buffer_result.get("profiles_count", 0),
+            "media_uploaded": bool(cloudinary_url),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur publication web: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ── Bot Publication Webhook ──
 @app.post("/api/publication-bot/webhook")
 async def publication_bot_webhook(request: Request):

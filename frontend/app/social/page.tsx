@@ -8,6 +8,7 @@ import {
   fetchCampaignDetail,
   analyzeCampaign,
   compareCampaigns,
+  publishPost,
   Campaign,
   CampaignPost,
 } from '../../lib/api'
@@ -172,6 +173,132 @@ function NewCampaignModal({ onClose, onCreated }: { onClose: () => void; onCreat
   )
 }
 
+// ── New Post Modal (publication web) ──
+function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
+  campaigns: Campaign[];
+  selectedCampaignId?: string;
+  onClose: () => void;
+  onPublished: () => void;
+}) {
+  const [text, setText] = useState('')
+  const [campaignId, setCampaignId] = useState(selectedCampaignId || '')
+  const [media, setMedia] = useState<File | null>(null)
+  const [mediaPreview, setMediaPreview] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<{ ok: boolean; campaign?: string; platforms?: number } | null>(null)
+
+  const handleMedia = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setMedia(file)
+    if (file.type.startsWith('image/')) {
+      setMediaPreview(URL.createObjectURL(file))
+    } else {
+      setMediaPreview('')
+    }
+  }
+
+  const handleSubmit = async () => {
+    if (!text.trim()) return
+    setLoading(true)
+    setResult(null)
+    try {
+      const res = await publishPost({
+        text: text.trim(),
+        campaign_id: campaignId || undefined,
+        media: media || undefined,
+      })
+      setResult(res)
+      if (res.ok) {
+        setTimeout(() => {
+          onPublished()
+          onClose()
+        }, 2000)
+      }
+    } catch (e: any) {
+      setResult({ ok: false })
+      console.error(e)
+    }
+    setLoading(false)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}
+      onClick={onClose}>
+      <div className="glass-card p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}
+        style={{ background: 'var(--card-bg)' }}>
+        <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--text)' }}>Nouveau post</h2>
+
+        {/* Campagne */}
+        <label className="block text-sm mb-1 opacity-70">Campagne</label>
+        <select className="input-dark w-full mb-3" value={campaignId} onChange={e => setCampaignId(e.target.value)}>
+          <option value="">Détection automatique</option>
+          {campaigns.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+        </select>
+
+        {/* Texte */}
+        <label className="block text-sm mb-1 opacity-70">
+          Texte du post <span className="opacity-40">(pas de limite de caractères)</span>
+        </label>
+        <textarea
+          className="input-dark w-full mb-1 resize-none"
+          style={{ minHeight: '180px' }}
+          placeholder={"*Titre en gras*\n\nCorps du texte...\nÉcrivez autant que nécessaire, sans limite !\n\n#hashtag1 #hashtag2"}
+          value={text}
+          onChange={e => setText(e.target.value)}
+        />
+        <p className="text-xs opacity-40 mb-3 text-right">{text.length} caractères</p>
+
+        {/* Média */}
+        <label className="block text-sm mb-1 opacity-70">Média (photo ou vidéo)</label>
+        <div className="mb-4">
+          <label className="btn-glass px-4 py-2 text-sm cursor-pointer inline-block"
+            style={{ background: 'rgba(59,130,246,0.15)' }}>
+            {media ? `📎 ${media.name}` : '📷 Choisir un fichier'}
+            <input type="file" accept="image/*,video/*" className="hidden" onChange={handleMedia} />
+          </label>
+          {media && (
+            <button className="ml-2 text-xs opacity-50 hover:opacity-80" onClick={() => { setMedia(null); setMediaPreview('') }}>
+              ✕ Supprimer
+            </button>
+          )}
+          {mediaPreview && (
+            <div className="mt-2 rounded-lg overflow-hidden" style={{ maxHeight: '200px', maxWidth: '300px' }}>
+              <img src={mediaPreview} alt="preview" className="w-full h-full object-cover" />
+            </div>
+          )}
+        </div>
+
+        {/* Résultat */}
+        {result && (
+          <div className="mb-4 p-3 rounded-lg text-sm" style={{
+            background: result.ok ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+            color: result.ok ? '#22c55e' : '#ef4444',
+          }}>
+            {result.ok
+              ? `✅ Publié sur ${result.platforms} plateforme(s) ! Campagne : ${result.campaign}`
+              : '❌ Erreur lors de la publication. Vérifiez la configuration Buffer/Cloudinary.'
+            }
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-3 justify-end">
+          <button className="btn-glass px-4 py-2" onClick={onClose}>Annuler</button>
+          <button
+            className="btn-glass px-6 py-2 font-semibold"
+            onClick={handleSubmit}
+            disabled={loading || !text.trim()}
+            style={{ background: 'rgba(34,197,94,0.3)' }}>
+            {loading ? '⏳ Publication...' : '🚀 Publier'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
 // ══════════════════════════════════════════════════════
 // PAGE PRINCIPALE
 // ══════════════════════════════════════════════════════
@@ -189,6 +316,7 @@ export default function SocialPage() {
   const [compareB, setCompareB] = useState('')
   const [comparison, setComparison] = useState<Record<string, unknown> | null>(null)
   const [comparingLoad, setComparingLoad] = useState(false)
+  const [showNewPost, setShowNewPost] = useState(false)
 
   const loadCampaigns = useCallback(async () => {
     try {
@@ -253,10 +381,16 @@ export default function SocialPage() {
             <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Campagnes RS</h1>
             <p className="text-sm opacity-60">Conseil Départemental de Guadeloupe</p>
           </div>
-          <button className="btn-glass px-4 py-2 font-medium" onClick={() => setShowNewCampaign(true)}
-            style={{ background: 'rgba(59,130,246,0.2)' }}>
-            + Nouvelle campagne
-          </button>
+          <div className="flex gap-2">
+            <button className="btn-glass px-4 py-2 font-medium" onClick={() => setShowNewPost(true)}
+              style={{ background: 'rgba(34,197,94,0.2)' }}>
+              🚀 Nouveau post
+            </button>
+            <button className="btn-glass px-4 py-2 font-medium" onClick={() => setShowNewCampaign(true)}
+              style={{ background: 'rgba(59,130,246,0.2)' }}>
+              + Nouvelle campagne
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -530,6 +664,17 @@ export default function SocialPage() {
 
         {showNewCampaign && (
           <NewCampaignModal onClose={() => setShowNewCampaign(false)} onCreated={loadCampaigns} />
+        )}
+        {showNewPost && (
+          <NewPostModal
+            campaigns={campaigns}
+            selectedCampaignId={selectedCampaign?._id}
+            onClose={() => setShowNewPost(false)}
+            onPublished={() => {
+              if (selectedCampaign) selectCampaign(selectedCampaign)
+              loadCampaigns()
+            }}
+          />
         )}
       </main>
     </div>

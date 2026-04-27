@@ -2,24 +2,23 @@
 """
 Bot Telegram de publication automatique sur les réseaux sociaux.
 
-Flow :
+Flow classique (légende courte) :
   1. L'utilisateur envoie une photo/vidéo avec une légende sur Telegram
   2. Le bot parse la légende (titre en gras, corps, hashtags)
   3. Le média est uploadé sur Cloudinary (temporaire 24h)
   4. Le post est publié sur tous les réseaux via Buffer
   5. Le post est sauvegardé dans MongoDB avec la campagne détectée
 
+Flow 2 messages (texte long) :
+  1. L'utilisateur envoie un média SANS légende (ou légende courte = titre)
+  2. Le bot répond "📝 Envoyez le texte complet maintenant"
+  3. L'utilisateur envoie le texte complet dans un second message
+  4. Le bot combine média + texte et publie
+
 Configuration requise (variables d'environnement) :
   PUBLICATION_BOT_TOKEN — token du bot Telegram (@BotFather)
   BUFFER_ACCESS_TOKEN   — token Buffer API
   CLOUDINARY_*          — config Cloudinary (voir campaign_service.py)
-
-Format de la légende :
-  *Titre du post*
-
-  Corps du texte...
-
-  #hashtag1 #hashtag2
 """
 
 import os
@@ -27,8 +26,8 @@ import logging
 import json
 import re
 import urllib.request
-import threading
-from typing import Dict, Any, Optional, List, Tuple
+import time as _time
+from typing import Dict, Any, Optional, List
 
 logger = logging.getLogger("veille.publication_bot")
 
@@ -38,6 +37,12 @@ AUTHORIZED_USERS = [int(x) for x in os.getenv("PUBLICATION_BOT_AUTHORIZED", "").
 
 TELEGRAM_API = f"https://api.telegram.org/bot{PUBLICATION_BOT_TOKEN}"
 
+# Sessions en attente de texte (user_id → {file_id, media_type, caption, chat_id, timestamp})
+_pending_sessions: Dict[int, Dict[str, Any]] = {}
+
+# Durée max d'une session en attente (5 minutes)
+SESSION_TIMEOUT = 300
+
 
 def is_configured() -> bool:
     return bool(PUBLICATION_BOT_TOKEN)
@@ -45,18 +50,11 @@ def is_configured() -> bool:
 
 # ── Parsing de la légende ──────────────────────────────
 
-def parse_caption(text: str) -> Dict[str, str]:
-    """Parse la légende Telegram en titre, corps et hashtags.
-
-    Format attendu :
-      *Titre en gras*
-      Corps du texte...
-      #hashtag1 #hashtag2
-    """
+def parse_caption(text: str) -> Dict[str, Any]:
+    """Parse la légende Telegram en titre, corps et hashtags."""
     if not text:
         return {"title": "", "body": "", "hashtags": [], "full_text": ""}
 
-    # Extraire le titre (entre * ... * ou première ligne)
     title = ""
     body = text.strip()
 
@@ -66,19 +64,13 @@ def parse_caption(text: str) -> Dict[str, str]:
         title = bold_match.group(1).strip()
         body = text[bold_match.end():].strip()
     else:
-        # Première ligne comme titre
         lines = text.strip().split('\n')
         if lines:
             title = lines[0].strip()
             body = '\n'.join(lines[1:]).strip()
 
-    # Extraire les hashtags
     hashtags = re.findall(r'#(\w+)', body)
-
-    # Corps sans les hashtags
     body_clean = re.sub(r'#\w+\s*', '', body).strip()
-
-    # Texte complet pour Buffer (titre + corps + hashtags)
     full_text = text.strip()
 
     return {
@@ -92,7 +84,6 @@ def parse_caption(text: str) -> Dict[str, str]:
 # ── Telegram API helpers ──────────────────────────────
 
 def _tg_api(method: str, data: Dict = None) -> Optional[Dict]:
-    """Appel à l'API Telegram."""
     url = f"{TELEGRAM_API}/{method}"
     try:
         payload = json.dumps(data or {}).encode()
@@ -107,7 +98,6 @@ def _tg_api(method: str, data: Dict = None) -> Optional[Dict]:
 
 
 def _tg_send(chat_id: int, text: str, parse_mode: str = "HTML"):
-    """Envoie un message Telegram."""
     return _tg_api("sendMessage", {
         "chat_id": chat_id,
         "text": text,
@@ -116,7 +106,6 @@ def _tg_send(chat_id: int, text: str, parse_mode: str = "HTML"):
 
 
 def _tg_get_file_url(file_id: str) -> Optional[str]:
-    """Récupère l'URL de téléchargement d'un fichier Telegram."""
     result = _tg_api("getFile", {"file_id": file_id})
     if result and result.get("ok"):
         file_path = result["result"]["file_path"]
@@ -124,57 +113,19 @@ def _tg_get_file_url(file_id: str) -> Optional[str]:
     return None
 
 
-# ── Traitement d'un message ──────────────────────────
+# ── Publication commune ──────────────────────────────
 
-def process_message(message: Dict) -> Dict[str, Any]:
-    """Traite un message Telegram entrant (photo/vidéo + légende).
-
-    Returns:
-        Dict avec le résultat de la publication.
-    """
+def _publish(chat_id: int, username: str, file_id: str, media_type: str, text: str) -> Dict[str, Any]:
+    """Publie un média + texte sur tous les RS via Buffer."""
     from backend.campaign_service import (
         detect_campaign, save_post, upload_to_cloudinary, publish_to_buffer
     )
 
-    chat_id = message.get("chat", {}).get("id", 0)
-    user_id = message.get("from", {}).get("id", 0)
-    username = message.get("from", {}).get("username", "inconnu")
-
-    # Vérification d'autorisation
-    if AUTHORIZED_USERS and user_id not in AUTHORIZED_USERS:
-        _tg_send(chat_id, "⛔ Vous n'êtes pas autorisé à publier.")
-        return {"ok": False, "error": "unauthorized"}
-
-    # Déterminer le type de média
-    media_type = "photo"
-    file_id = None
-
-    if "photo" in message:
-        # Prendre la plus grande résolution
-        photos = message["photo"]
-        file_id = photos[-1]["file_id"]
-        media_type = "photo"
-    elif "video" in message:
-        file_id = message["video"]["file_id"]
-        media_type = "video"
-    elif "document" in message:
-        mime = message["document"].get("mime_type", "")
-        file_id = message["document"]["file_id"]
-        media_type = "video" if "video" in mime else "photo"
-    else:
-        _tg_send(chat_id, "📎 Envoyez une photo ou vidéo avec une légende pour publier.")
-        return {"ok": False, "error": "no_media"}
-
-    caption = message.get("caption", "")
-    if not caption:
-        _tg_send(chat_id, "✏️ Ajoutez une légende à votre média pour publier.\n\nFormat :\n<code>*Titre*\nTexte du post\n#hashtag</code>")
-        return {"ok": False, "error": "no_caption"}
-
     # Accusé de réception
     _tg_send(chat_id, f"⏳ Publication en cours...\n📄 {media_type.upper()} détecté")
 
-    # 1. Parser la légende
-    parsed = parse_caption(caption)
+    # 1. Parser le texte
+    parsed = parse_caption(text)
     logger.info(f"📝 Post de @{username}: '{parsed['title'][:50]}' ({media_type})")
 
     # 2. Détecter la campagne
@@ -201,10 +152,8 @@ def process_message(message: Dict) -> Dict[str, Any]:
     )
 
     if not buffer_result.get("ok"):
-        # Retry 1 fois
-        logger.warning(f"⚠️ Buffer 1ère tentative échouée, retry...")
-        import time
-        time.sleep(2)
+        logger.warning("⚠️ Buffer 1ère tentative échouée, retry...")
+        _time.sleep(2)
         buffer_result = publish_to_buffer(
             text=parsed["full_text"],
             media_urls=[cloudinary_url],
@@ -250,6 +199,138 @@ def process_message(message: Dict) -> Dict[str, Any]:
     }
 
 
+# ── Traitement d'un message ──────────────────────────
+
+def _cleanup_expired_sessions():
+    """Supprime les sessions expirées."""
+    now = _time.time()
+    expired = [uid for uid, s in _pending_sessions.items() if now - s["timestamp"] > SESSION_TIMEOUT]
+    for uid in expired:
+        session = _pending_sessions.pop(uid)
+        _tg_send(session["chat_id"], "⏰ Session expirée. Renvoyez votre média pour recommencer.")
+
+
+def _extract_media(message: Dict) -> tuple:
+    """Extrait le file_id et media_type d'un message. Retourne (file_id, media_type) ou (None, None)."""
+    if "photo" in message:
+        return message["photo"][-1]["file_id"], "photo"
+    if "video" in message:
+        return message["video"]["file_id"], "video"
+    if "document" in message:
+        mime = message["document"].get("mime_type", "")
+        return message["document"]["file_id"], "video" if "video" in mime else "photo"
+    return None, None
+
+
+def process_message(message: Dict) -> Dict[str, Any]:
+    """Traite un message Telegram entrant.
+
+    Gère deux flows :
+      A) Média + légende complète → publie directement
+      B) Média sans/courte légende → attend le texte dans un 2e message
+      C) Texte seul (après un média) → combine avec le média en attente
+    """
+    _cleanup_expired_sessions()
+
+    chat_id = message.get("chat", {}).get("id", 0)
+    user_id = message.get("from", {}).get("id", 0)
+    username = message.get("from", {}).get("username", "inconnu")
+
+    # Vérification d'autorisation
+    if AUTHORIZED_USERS and user_id not in AUTHORIZED_USERS:
+        _tg_send(chat_id, "⛔ Vous n'êtes pas autorisé à publier.")
+        return {"ok": False, "error": "unauthorized"}
+
+    # Commande /cancel
+    text_msg = message.get("text", "")
+    if text_msg.strip().lower() in ("/cancel", "/annuler"):
+        if user_id in _pending_sessions:
+            del _pending_sessions[user_id]
+            _tg_send(chat_id, "❌ Publication annulée.")
+            return {"ok": True, "action": "cancelled"}
+        _tg_send(chat_id, "Rien à annuler.")
+        return {"ok": True, "action": "nothing_to_cancel"}
+
+    # Commande /help
+    if text_msg.strip().lower() in ("/help", "/start", "/aide"):
+        _tg_send(chat_id,
+            "📢 <b>Bot Publication RS</b>\n\n"
+            "<b>Option 1 — Tout en un :</b>\n"
+            "Envoyez un média avec une légende complète :\n"
+            "<code>*Titre*\nTexte du post\n#hashtag</code>\n\n"
+            "<b>Option 2 — Texte long :</b>\n"
+            "1️⃣ Envoyez le média (avec un titre court en légende ou sans légende)\n"
+            "2️⃣ Envoyez le texte complet dans le message suivant\n\n"
+            "<b>Commandes :</b>\n"
+            "/cancel — Annuler la publication en cours\n"
+            "/help — Afficher cette aide"
+        )
+        return {"ok": True, "action": "help"}
+
+    file_id, media_type = _extract_media(message)
+    caption = message.get("caption", "")
+
+    # ── CAS A : Média avec légende longue (> 50 chars) → publication directe
+    if file_id and caption and len(caption) > 50:
+        return _publish(chat_id, username, file_id, media_type, caption)
+
+    # ── CAS B : Média sans légende ou légende courte → stocker et attendre le texte
+    if file_id:
+        _pending_sessions[user_id] = {
+            "file_id": file_id,
+            "media_type": media_type,
+            "caption": caption,  # Titre court éventuel
+            "chat_id": chat_id,
+            "username": username,
+            "timestamp": _time.time(),
+        }
+
+        if caption:
+            _tg_send(chat_id,
+                f"📷 Média reçu ! Titre détecté : <b>{caption[:80]}</b>\n\n"
+                f"📝 Envoyez maintenant le <b>texte complet</b> du post.\n"
+                f"(ou /cancel pour annuler)"
+            )
+        else:
+            _tg_send(chat_id,
+                "📷 Média reçu !\n\n"
+                "📝 Envoyez maintenant le <b>texte complet</b> du post.\n"
+                "Format :\n<code>*Titre*\nTexte du post\n#hashtag</code>\n\n"
+                "(ou /cancel pour annuler)"
+            )
+        return {"ok": True, "action": "waiting_for_text"}
+
+    # ── CAS C : Texte seul → vérifier s'il y a une session en attente
+    if text_msg and user_id in _pending_sessions:
+        session = _pending_sessions.pop(user_id)
+
+        # Si le média avait une légende courte (= titre), la combiner avec le texte
+        if session["caption"]:
+            # La légende courte = titre, le texte = corps
+            full_text = f"*{session['caption']}*\n\n{text_msg}"
+        else:
+            full_text = text_msg
+
+        return _publish(
+            chat_id,
+            session["username"],
+            session["file_id"],
+            session["media_type"],
+            full_text,
+        )
+
+    # ── Ni média ni texte en attente
+    if text_msg and user_id not in _pending_sessions:
+        _tg_send(chat_id,
+            "📎 Envoyez d'abord une <b>photo ou vidéo</b>, puis le texte.\n\n"
+            "Tapez /help pour voir les formats acceptés."
+        )
+        return {"ok": False, "error": "no_media"}
+
+    _tg_send(chat_id, "📎 Envoyez une photo ou vidéo pour publier. Tapez /help pour l'aide.")
+    return {"ok": False, "error": "no_media"}
+
+
 # ── Webhook handler (appelé par FastAPI) ──────────────
 
 def handle_webhook(update: Dict) -> Dict:
@@ -286,5 +367,4 @@ def start_polling():
 
         except Exception as e:
             logger.error(f"Polling error: {e}")
-            import time
-            time.sleep(5)
+            _time.sleep(5)
