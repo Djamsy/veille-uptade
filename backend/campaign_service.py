@@ -1,0 +1,532 @@
+# backend/campaign_service.py
+"""
+Service de gestion des campagnes RS et publications.
+
+Gère :
+- CRUD des campagnes (événements)
+- Stockage des posts publiés
+- Récupération des stats via Buffer API
+- Analyse IA des performances (Mistral)
+
+Configuration requise (variables d'environnement) :
+  BUFFER_ACCESS_TOKEN   — token d'accès Buffer API
+  CLOUDINARY_CLOUD_NAME — nom du cloud Cloudinary
+  CLOUDINARY_API_KEY    — clé API Cloudinary
+  CLOUDINARY_API_SECRET — secret API Cloudinary
+  MISTRAL_API_KEY       — clé API Mistral pour l'analyse IA
+"""
+
+import os
+import logging
+import json
+import urllib.request
+import urllib.parse
+import hashlib
+import re
+from datetime import datetime, timezone, timedelta
+from typing import Optional, Dict, Any, List
+
+logger = logging.getLogger("veille.campaigns")
+
+# ── Configuration ──────────────────────────────────────────
+BUFFER_ACCESS_TOKEN = os.getenv("BUFFER_ACCESS_TOKEN", "")
+CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME", "")
+CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY", "")
+CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET", "")
+MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")
+
+# ── Collections MongoDB ──────────────────────────────────
+def _get_db():
+    from backend.db import get_db
+    return get_db()
+
+
+# ============================================================
+# CAMPAGNES
+# ============================================================
+
+def create_campaign(name: str, description: str = "", keywords: List[str] = None,
+                    start_date: str = None, end_date: str = None, db=None) -> Dict:
+    """Crée une nouvelle campagne."""
+    if db is None:
+        db = _get_db()
+
+    campaign = {
+        "name": name,
+        "slug": re.sub(r'[^a-z0-9]+', '-', name.lower().strip()).strip('-'),
+        "description": description,
+        "keywords": keywords or [name.lower()],
+        "start_date": start_date or datetime.now(timezone.utc).isoformat(),
+        "end_date": end_date,
+        "status": "active",  # active, ended, draft
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "post_count": 0,
+        "total_views": 0,
+        "total_likes": 0,
+        "total_comments": 0,
+        "total_clicks": 0,
+        "total_reach": 0,
+    }
+
+    result = db["campaigns"].insert_one(campaign)
+    campaign["_id"] = str(result.inserted_id)
+    logger.info(f"📢 Campagne créée: {name} (keywords: {campaign['keywords']})")
+    return campaign
+
+
+def get_campaigns(status: str = None, db=None) -> List[Dict]:
+    """Liste les campagnes."""
+    if db is None:
+        db = _get_db()
+    query = {}
+    if status:
+        query["status"] = status
+    campaigns = list(db["campaigns"].find(query).sort("created_at", -1))
+    for c in campaigns:
+        c["_id"] = str(c["_id"])
+    return campaigns
+
+
+def get_campaign(campaign_id: str, db=None) -> Optional[Dict]:
+    """Récupère une campagne par ID."""
+    if db is None:
+        db = _get_db()
+    from bson import ObjectId
+    try:
+        campaign = db["campaigns"].find_one({"_id": ObjectId(campaign_id)})
+        if campaign:
+            campaign["_id"] = str(campaign["_id"])
+        return campaign
+    except Exception:
+        return None
+
+
+def detect_campaign(text: str, db=None) -> Optional[Dict]:
+    """Détecte automatiquement la campagne à partir du texte d'un post.
+
+    Cherche les mots-clés de chaque campagne active dans le texte.
+    Si aucun match → retourne la campagne "Institutionnel" (ou la crée).
+    """
+    if db is None:
+        db = _get_db()
+
+    text_lower = text.lower()
+    campaigns = list(db["campaigns"].find({"status": "active"}))
+
+    for campaign in campaigns:
+        keywords = campaign.get("keywords", [])
+        for kw in keywords:
+            if kw.lower() in text_lower:
+                campaign["_id"] = str(campaign["_id"])
+                return campaign
+
+    # Fallback : campagne "Institutionnel"
+    instit = db["campaigns"].find_one({"slug": "institutionnel"})
+    if not instit:
+        instit = create_campaign("Institutionnel", "Posts généraux sans campagne spécifique", db=db)
+    else:
+        instit["_id"] = str(instit["_id"])
+    return instit
+
+
+def update_campaign(campaign_id: str, updates: Dict, db=None) -> bool:
+    """Met à jour une campagne."""
+    if db is None:
+        db = _get_db()
+    from bson import ObjectId
+    try:
+        result = db["campaigns"].update_one(
+            {"_id": ObjectId(campaign_id)},
+            {"$set": updates}
+        )
+        return result.modified_count > 0
+    except Exception as e:
+        logger.error(f"Erreur update campaign: {e}")
+        return False
+
+
+# ============================================================
+# POSTS
+# ============================================================
+
+def save_post(post_data: Dict, db=None) -> Dict:
+    """Sauvegarde un post publié."""
+    if db is None:
+        db = _get_db()
+
+    post = {
+        "title": post_data.get("title", ""),
+        "body": post_data.get("body", ""),
+        "hashtags": post_data.get("hashtags", []),
+        "media_url": post_data.get("media_url", ""),
+        "media_type": post_data.get("media_type", "photo"),  # photo, video, carousel
+        "campaign_id": post_data.get("campaign_id", ""),
+        "campaign_name": post_data.get("campaign_name", ""),
+        "platforms": post_data.get("platforms", {}),  # {instagram: {id, status}, facebook: {...}}
+        "buffer_ids": post_data.get("buffer_ids", []),
+        "published_at": post_data.get("published_at", datetime.now(timezone.utc).isoformat()),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        # Stats (mises à jour par le scheduler)
+        "stats": {
+            "views": 0,
+            "likes": 0,
+            "comments": 0,
+            "clicks": 0,
+            "reach": 0,
+        },
+        "platform_stats": {},  # {instagram: {views, likes...}, facebook: {...}}
+        "comments_scraped": [],  # commentaires récupérés par Apify
+        "sentiment": None,  # analyse sentiment IA
+        "ai_analysis": None,  # analyse IA complète
+    }
+
+    result = db["campaign_posts"].insert_one(post)
+    post["_id"] = str(result.inserted_id)
+
+    # Incrémenter le compteur de la campagne
+    if post["campaign_id"]:
+        from bson import ObjectId
+        try:
+            db["campaigns"].update_one(
+                {"_id": ObjectId(post["campaign_id"])},
+                {"$inc": {"post_count": 1}}
+            )
+        except Exception:
+            pass
+
+    logger.info(f"📝 Post sauvegardé: '{post['title'][:50]}' → campagne {post['campaign_name']}")
+    return post
+
+
+def get_campaign_posts(campaign_id: str = None, limit: int = 50, db=None) -> List[Dict]:
+    """Récupère les posts d'une campagne."""
+    if db is None:
+        db = _get_db()
+    query = {}
+    if campaign_id:
+        query["campaign_id"] = campaign_id
+    posts = list(db["campaign_posts"].find(query).sort("published_at", -1).limit(limit))
+    for p in posts:
+        p["_id"] = str(p["_id"])
+    return posts
+
+
+# ============================================================
+# BUFFER API
+# ============================================================
+
+def _buffer_api(endpoint: str, method: str = "GET", data: Dict = None) -> Optional[Dict]:
+    """Appel à l'API Buffer."""
+    if not BUFFER_ACCESS_TOKEN:
+        logger.warning("Buffer non configuré")
+        return None
+
+    url = f"https://api.bufferapp.com/1/{endpoint}.json?access_token={BUFFER_ACCESS_TOKEN}"
+
+    try:
+        if method == "POST" and data:
+            payload = urllib.parse.urlencode(data, doseq=True).encode()
+            req = urllib.request.Request(url, data=payload, method="POST")
+        else:
+            req = urllib.request.Request(url)
+
+        req.add_header("Content-Type", "application/x-www-form-urlencoded")
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read())
+    except Exception as e:
+        logger.error(f"Buffer API error: {e}")
+        return None
+
+
+def get_buffer_profiles() -> List[Dict]:
+    """Liste les profils Buffer connectés."""
+    result = _buffer_api("profiles")
+    if not result:
+        return []
+    return result if isinstance(result, list) else []
+
+
+def publish_to_buffer(text: str, media_urls: List[str] = None,
+                      profile_ids: List[str] = None) -> Dict:
+    """Publie un post via Buffer sur toutes les plateformes.
+
+    Args:
+        text: Texte du post
+        media_urls: URLs des médias (Cloudinary)
+        profile_ids: IDs des profils Buffer (tous si None)
+
+    Returns:
+        Dict avec les résultats par profil
+    """
+    if not BUFFER_ACCESS_TOKEN:
+        return {"ok": False, "error": "Buffer non configuré"}
+
+    # Si pas de profils spécifiés, utiliser tous les profils
+    if not profile_ids:
+        profiles = get_buffer_profiles()
+        profile_ids = [p["id"] for p in profiles]
+
+    if not profile_ids:
+        return {"ok": False, "error": "Aucun profil Buffer trouvé"}
+
+    data = {
+        "text": text,
+        "profile_ids[]": profile_ids,
+        "now": "true",  # Publier immédiatement
+    }
+
+    if media_urls:
+        for i, url in enumerate(media_urls[:4]):
+            data[f"media[photo]"] = url  # Buffer accepte photo pour images
+            # Pour les vidéos, Buffer utilise media[video]
+
+    result = _buffer_api("updates/create", method="POST", data=data)
+
+    if result and result.get("success"):
+        return {
+            "ok": True,
+            "buffer_ids": [u.get("id") for u in result.get("updates", [])],
+            "profiles_count": len(profile_ids),
+        }
+    else:
+        return {"ok": False, "error": str(result)}
+
+
+def fetch_buffer_stats(buffer_update_id: str) -> Optional[Dict]:
+    """Récupère les stats d'un post Buffer."""
+    result = _buffer_api(f"updates/{buffer_update_id}/interactions")
+    if not result:
+        return None
+    return {
+        "views": result.get("views", 0),
+        "likes": result.get("likes", 0),
+        "comments": result.get("comments", 0),
+        "clicks": result.get("clicks", 0),
+        "reach": result.get("reach", 0),
+        "shares": result.get("shares", 0),
+    }
+
+
+# ============================================================
+# CLOUDINARY
+# ============================================================
+
+def upload_to_cloudinary(file_url: str, resource_type: str = "image") -> Optional[str]:
+    """Upload un fichier sur Cloudinary depuis une URL.
+
+    Args:
+        file_url: URL du fichier (ex: URL Telegram)
+        resource_type: "image" ou "video"
+
+    Returns:
+        URL publique Cloudinary ou None si échec.
+    """
+    if not all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
+        logger.warning("Cloudinary non configuré")
+        return None
+
+    import time
+    timestamp = str(int(time.time()))
+
+    # Signature Cloudinary
+    params = f"timestamp={timestamp}{CLOUDINARY_API_SECRET}"
+    signature = hashlib.sha1(params.encode()).hexdigest()
+
+    url = f"https://api.cloudinary.com/v1_1/{CLOUDINARY_CLOUD_NAME}/{resource_type}/upload"
+
+    data = urllib.parse.urlencode({
+        "file": file_url,
+        "api_key": CLOUDINARY_API_KEY,
+        "timestamp": timestamp,
+        "signature": signature,
+    }).encode()
+
+    try:
+        req = urllib.request.Request(url, data=data, method="POST")
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            result = json.loads(resp.read())
+            public_url = result.get("secure_url", "")
+            logger.info(f"☁️ Upload Cloudinary OK: {public_url[:60]}")
+            return public_url
+    except Exception as e:
+        logger.error(f"Cloudinary upload error: {e}")
+        return None
+
+
+# ============================================================
+# ANALYSE IA (MISTRAL)
+# ============================================================
+
+CAMPAIGN_ANALYSIS_PROMPT = """Tu es un expert en marketing digital et communication institutionnelle.
+Analyse les performances de cette campagne de communication du Conseil Départemental de Guadeloupe.
+
+Données de la campagne :
+{campaign_data}
+
+Posts et leurs stats :
+{posts_data}
+
+Commentaires récupérés :
+{comments_data}
+
+Produis une analyse structurée en JSON :
+{{
+  "sentiment": {{
+    "global": "positif|négatif|neutre|mitigé",
+    "score": 0.0-1.0,
+    "themes": ["thème récurrent 1", "thème 2"],
+    "positive_highlights": ["ce qui a bien marché"],
+    "negative_highlights": ["ce qui a mal marché"]
+  }},
+  "performance": {{
+    "best_format": "photo|video|carrousel",
+    "best_platform": "instagram|facebook|linkedin|twitter",
+    "best_time": "HH:MM",
+    "best_day": "lundi|mardi|...",
+    "engagement_rate": 0.0,
+    "top_post": "titre du post le plus performant"
+  }},
+  "recommendations": [
+    "recommandation concrète 1",
+    "recommandation concrète 2",
+    "recommandation concrète 3"
+  ],
+  "summary": "Résumé en 2-3 phrases de la performance globale"
+}}"""
+
+
+def analyze_campaign(campaign_id: str, db=None) -> Optional[Dict]:
+    """Analyse IA complète d'une campagne."""
+    if not MISTRAL_API_KEY:
+        logger.warning("Mistral non configuré — analyse impossible")
+        return None
+
+    if db is None:
+        db = _get_db()
+
+    campaign = get_campaign(campaign_id, db)
+    if not campaign:
+        return None
+
+    posts = get_campaign_posts(campaign_id, limit=100, db=db)
+    if not posts:
+        return {"error": "Aucun post dans cette campagne"}
+
+    # Préparer les données pour l'IA
+    campaign_data = json.dumps({
+        "name": campaign["name"],
+        "description": campaign.get("description", ""),
+        "start_date": campaign.get("start_date", ""),
+        "end_date": campaign.get("end_date", ""),
+        "post_count": len(posts),
+    }, ensure_ascii=False)
+
+    posts_data = json.dumps([{
+        "title": p.get("title", ""),
+        "media_type": p.get("media_type", ""),
+        "published_at": p.get("published_at", ""),
+        "stats": p.get("stats", {}),
+        "platform_stats": p.get("platform_stats", {}),
+    } for p in posts], ensure_ascii=False)
+
+    all_comments = []
+    for p in posts:
+        all_comments.extend(p.get("comments_scraped", [])[:10])
+    comments_data = json.dumps(all_comments[:50], ensure_ascii=False)
+
+    prompt = CAMPAIGN_ANALYSIS_PROMPT.format(
+        campaign_data=campaign_data,
+        posts_data=posts_data,
+        comments_data=comments_data,
+    )
+
+    try:
+        url = "https://api.mistral.ai/v1/chat/completions"
+        payload = json.dumps({
+            "model": "mistral-small-latest",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.3,
+            "max_tokens": 2000,
+            "response_format": {"type": "json_object"},
+        }).encode()
+
+        req = urllib.request.Request(url, data=payload, headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {MISTRAL_API_KEY}",
+        })
+
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            result = json.loads(resp.read())
+            content = result["choices"][0]["message"]["content"]
+            analysis = json.loads(content)
+
+            # Sauvegarder l'analyse sur la campagne
+            from bson import ObjectId
+            db["campaigns"].update_one(
+                {"_id": ObjectId(campaign_id)},
+                {"$set": {
+                    "ai_analysis": analysis,
+                    "analyzed_at": datetime.now(timezone.utc).isoformat(),
+                }}
+            )
+
+            logger.info(f"🧠 Analyse campagne '{campaign['name']}': {analysis.get('sentiment', {}).get('global', '?')}")
+            return analysis
+
+    except Exception as e:
+        logger.error(f"Erreur analyse Mistral: {e}")
+        return None
+
+
+def compare_campaigns(campaign_id_a: str, campaign_id_b: str, db=None) -> Optional[Dict]:
+    """Compare deux campagnes côte à côte."""
+    if not MISTRAL_API_KEY:
+        return None
+
+    if db is None:
+        db = _get_db()
+
+    camp_a = get_campaign(campaign_id_a, db)
+    camp_b = get_campaign(campaign_id_b, db)
+    if not camp_a or not camp_b:
+        return None
+
+    posts_a = get_campaign_posts(campaign_id_a, limit=100, db=db)
+    posts_b = get_campaign_posts(campaign_id_b, limit=100, db=db)
+
+    prompt = f"""Compare ces deux campagnes du Conseil Départemental de Guadeloupe :
+
+CAMPAGNE A : {camp_a['name']}
+- Posts: {len(posts_a)}
+- Stats totales: {json.dumps(camp_a.get('total_views', 0))} vues, {camp_a.get('total_likes', 0)} likes
+- Analyse: {json.dumps(camp_a.get('ai_analysis', {}), ensure_ascii=False)[:500]}
+
+CAMPAGNE B : {camp_b['name']}
+- Posts: {len(posts_b)}
+- Stats totales: {json.dumps(camp_b.get('total_views', 0))} vues, {camp_b.get('total_likes', 0)} likes
+- Analyse: {json.dumps(camp_b.get('ai_analysis', {}), ensure_ascii=False)[:500]}
+
+Produis un JSON :
+{{"comparison": "résumé comparatif en 3-5 phrases", "winner": "A ou B ou égalité", "improvements": ["ce qui a progressé"], "regressions": ["ce qui a regressé"], "tips": ["conseil pour la prochaine édition"]}}"""
+
+    try:
+        url = "https://api.mistral.ai/v1/chat/completions"
+        payload = json.dumps({
+            "model": "mistral-small-latest",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.3,
+            "max_tokens": 1000,
+            "response_format": {"type": "json_object"},
+        }).encode()
+
+        req = urllib.request.Request(url, data=payload, headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {MISTRAL_API_KEY}",
+        })
+
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            result = json.loads(resp.read())
+            return json.loads(result["choices"][0]["message"]["content"])
+    except Exception as e:
+        logger.error(f"Erreur comparaison Mistral: {e}")
+        return None

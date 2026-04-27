@@ -1057,3 +1057,66 @@ export const removeWatchlistKeyword = (keyword: string) =>
 
 export const fetchQuickSummary = () =>
   apiFetch<QuickSummary>('/api/veille/quick-summary');
+
+// ============================================================
+// CAMPAGNES RS
+// ============================================================
+
+export interface Campaign {
+  _id: string;
+  name: string;
+  slug: string;
+  description: string;
+  keywords: string[];
+  start_date: string;
+  end_date: string | null;
+  status: string;
+  created_at: string;
+  post_count: number;
+  total_views: number;
+  total_likes: number;
+  total_comments: number;
+  total_clicks: number;
+  total_reach: number;
+  ai_analysis?: Record<string, unknown>;
+  analyzed_at?: string;
+}
+
+export interface CampaignPost {
+  _id: string;
+  title: string;
+  body: string;
+  hashtags: string[];
+  media_url: string;
+  media_type: string;
+  campaign_id: string;
+  campaign_name: string;
+  published_at: string;
+  stats: { views: number; likes: number; comments: number; clicks: number; reach: number };
+  platform_stats: Record<string, { views: number; likes: number; comments: number; clicks: number; reach: number }>;
+  sentiment?: { global: string; score: number } | null;
+  ai_analysis?: Record<string, unknown> | null;
+}
+
+export const fetchCampaigns = (status?: string) =>
+  apiFetch<{ campaigns: Campaign[]; total: number }>(`/api/campaigns${status ? `?status=${status}` : ''}`);
+
+export const createCampaign = (data: { name: string; description?: string; keywords?: string[]; start_date?: string; end_date?: string }) =>
+  apiFetch<{ ok: boolean; campaign: Campaign }>('/api/campaigns', { method: 'POST', body: JSON.stringify(data) });
+
+export const fetchCampaignDetail = (id: string) =>
+  apiFetch<{ campaign: Campaign; posts: CampaignPost[] }>(`/api/campaigns/${id}`);
+
+export const updateCampaign = (id: string, data: Record<string, unknown>) =>
+  apiFetch<{ ok: boolean }>(`/api/campaigns/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+
+export const analyzeCampaign = (id: string) =>
+  apiFetch<{ ok: boolean; analysis: Record<string, unknown> }>(`/api/campaigns/${id}/analyze`, { method: 'POST' });
+
+export const compareCampaigns = (a: string, b: string) =>
+  apiFetch<{ ok: boolean; comparison: Record<string, unknown> }>('/api/campaigns/compare', {
+    method: 'POST', body: JSON.stringify({ campaign_a: a, campaign_b: b }),
+  });
+
+export const fetchCampaignPosts = (campaignId: string, limit = 50) =>
+  apiFetch<{ posts: CampaignPost[]; total: number }>(`/api/campaigns/${campaignId}/posts?limit=${limit}`);

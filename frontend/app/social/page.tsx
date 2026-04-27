@@ -3,708 +3,535 @@
 import { useState, useEffect, useCallback } from 'react'
 import Sidebar from '../../components/Sidebar'
 import {
-  fetchSocialStats,
-  fetchSocialPosts,
-  fetchSocialScrapeAll,
-  fetchSocialScrapeSingle,
-  fetchSocialConfig,
-  fetchSocialSentiment,
-  fetchSocialPostDetail,
-  SocialPost,
-  SocialStats,
-  SocialSentiment,
+  fetchCampaigns,
+  createCampaign,
+  fetchCampaignDetail,
+  analyzeCampaign,
+  compareCampaigns,
+  Campaign,
+  CampaignPost,
 } from '../../lib/api'
 
-const PLAT: Record<string, { icon: string; label: string; color: string; bg: string; glow: string }> = {
-  facebook: { icon: '📘', label: 'Facebook', color: '#1877f2', bg: 'rgba(24,119,242,0.1)', glow: 'rgba(24,119,242,0.15)' },
-  instagram: { icon: '📸', label: 'Instagram', color: '#e4405f', bg: 'rgba(228,64,95,0.1)', glow: 'rgba(228,64,95,0.15)' },
-  tiktok: { icon: '🎵', label: 'TikTok', color: '#00f2ea', bg: 'rgba(0,242,234,0.1)', glow: 'rgba(0,242,234,0.15)' },
+// ── Couleurs plateformes ──
+const PLAT_COLORS: Record<string, { icon: string; color: string }> = {
+  instagram: { icon: '📸', color: '#e4405f' },
+  facebook: { icon: '📘', color: '#1877f2' },
+  linkedin: { icon: '💼', color: '#0a66c2' },
+  twitter: { icon: '🐦', color: '#1da1f2' },
+  youtube: { icon: '▶️', color: '#ff0000' },
 }
 
-const SENTIMENT_STYLES: Record<string, { icon: string; color: string; bg: string }> = {
-  positif: { icon: '😊', color: '#22c55e', bg: 'rgba(34,197,94,0.1)' },
-  négatif: { icon: '😠', color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
-  neutre: { icon: '😐', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)' },
-  colère: { icon: '🔥', color: '#f97316', bg: 'rgba(249,115,22,0.1)' },
-  inquiétude: { icon: '😰', color: '#eab308', bg: 'rgba(234,179,8,0.1)' },
+const SENTIMENT_COLORS: Record<string, { icon: string; color: string; bg: string }> = {
+  positif: { icon: '😊', color: '#22c55e', bg: 'rgba(34,197,94,0.15)' },
+  négatif: { icon: '😠', color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
+  neutre: { icon: '😐', color: '#94a3b8', bg: 'rgba(148,163,184,0.15)' },
+  mitigé: { icon: '🤔', color: '#eab308', bg: 'rgba(234,179,8,0.15)' },
 }
 
-function timeAgo(dateStr: string): string {
-  if (!dateStr) return ''
-  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
-  if (diff < 60) return "à l'instant"
+function formatNumber(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
+  return String(n)
+}
+
+function timeAgo(d: string): string {
+  if (!d) return ''
+  const diff = Math.floor((Date.now() - new Date(d).getTime()) / 1000)
   if (diff < 3600) return `il y a ${Math.floor(diff / 60)}min`
   if (diff < 86400) return `il y a ${Math.floor(diff / 3600)}h`
   return `il y a ${Math.floor(diff / 86400)}j`
 }
 
-function gravityColor(g: number): string {
-  if (g >= 0.7) return '#ef4444'
-  if (g >= 0.4) return '#f59e0b'
-  return '#22c55e'
+// ── Post Card ──
+function PostCard({ post, onHover }: { post: CampaignPost; onHover: (p: CampaignPost | null) => void }) {
+  const s = post.stats || { views: 0, likes: 0, comments: 0, clicks: 0, reach: 0 }
+  return (
+    <div
+      className="glass-card p-0 overflow-hidden cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg"
+      onMouseEnter={() => onHover(post)}
+      onMouseLeave={() => onHover(null)}
+    >
+      {/* Media preview */}
+      <div className="relative h-40 bg-white/5 flex items-center justify-center overflow-hidden">
+        {post.media_url ? (
+          post.media_type === 'video' ? (
+            <div className="text-4xl">🎬</div>
+          ) : (
+            <img src={post.media_url} alt="" className="w-full h-full object-cover" />
+          )
+        ) : (
+          <div className="text-4xl opacity-30">📄</div>
+        )}
+        <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-xs font-medium"
+          style={{ background: 'rgba(0,0,0,0.6)', color: '#fff' }}>
+          {post.media_type === 'video' ? '🎬 Vidéo' : post.media_type === 'carousel' ? '📸 Carrousel' : '📷 Photo'}
+        </span>
+      </div>
+      {/* Content */}
+      <div className="p-3">
+        <h3 className="font-semibold text-sm mb-1 line-clamp-2" style={{ color: 'var(--text)' }}>
+          {post.title || 'Sans titre'}
+        </h3>
+        <p className="text-xs opacity-60 mb-2">{timeAgo(post.published_at)}</p>
+        <div className="flex gap-3 text-xs opacity-70">
+          <span>👁 {formatNumber(s.views)}</span>
+          <span>❤️ {formatNumber(s.likes)}</span>
+          <span>💬 {s.comments}</span>
+          <span>🔗 {s.clicks}</span>
+        </div>
+      </div>
+    </div>
+  )
 }
 
-function gravityLabel(g: number): string {
-  if (g >= 0.7) return 'Critique'
-  if (g >= 0.4) return 'Modérée'
-  return 'Faible'
+// ── Stat Detail Tooltip ──
+function StatTooltip({ post }: { post: CampaignPost }) {
+  const ps = post.platform_stats || {}
+  return (
+    <div className="glass-card p-4 min-w-[280px]" style={{ background: 'var(--card-bg)' }}>
+      <h4 className="font-semibold mb-3" style={{ color: 'var(--text)' }}>{post.title || 'Sans titre'}</h4>
+      {Object.entries(ps).length > 0 ? (
+        Object.entries(ps).map(([platform, stats]) => {
+          const cfg = PLAT_COLORS[platform] || { icon: '🌐', color: '#888' }
+          const st = stats as { views: number; likes: number; comments: number; clicks: number; reach: number }
+          return (
+            <div key={platform} className="mb-2 p-2 rounded-lg" style={{ background: 'rgba(255,255,255,0.05)' }}>
+              <div className="flex items-center gap-2 mb-1">
+                <span>{cfg.icon}</span>
+                <span className="font-medium text-sm" style={{ color: cfg.color }}>
+                  {platform.charAt(0).toUpperCase() + platform.slice(1)}
+                </span>
+              </div>
+              <div className="grid grid-cols-5 gap-1 text-xs opacity-70">
+                <span>👁 {formatNumber(st.views)}</span>
+                <span>❤️ {formatNumber(st.likes)}</span>
+                <span>💬 {st.comments}</span>
+                <span>🔗 {st.clicks}</span>
+                <span>📊 {formatNumber(st.reach)}</span>
+              </div>
+            </div>
+          )
+        })
+      ) : (
+        <p className="text-xs opacity-50">Stats par plateforme non encore disponibles</p>
+      )}
+    </div>
+  )
 }
 
-/* ══════════════════════════════════════════════════════
-   POST DETAIL MODAL (popup au clic)
-   ══════════════════════════════════════════════════════ */
-function PostModal({ post, onClose }: { post: SocialPost; onClose: () => void }) {
-  const [detail, setDetail] = useState<(SocialPost & { raw?: Record<string, unknown> }) | null>(null)
-  const [loading, setLoading] = useState(true)
-  const cfg = PLAT[post.platform] || PLAT.twitter
+// ── New Campaign Modal ──
+function NewCampaignModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [keywords, setKeywords] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
+  const handleSubmit = async () => {
+    if (!name.trim()) return
     setLoading(true)
-    fetchSocialPostDetail(post._id)
-      .then(r => setDetail(r.post))
-      .catch(() => setDetail(null))
-      .finally(() => setLoading(false))
-  }, [post._id])
-
-  // Fermer avec Escape
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
-  const d = detail || post
-  const gravity = d.gravity_score || 0
+    try {
+      await createCampaign({
+        name: name.trim(),
+        description: description.trim(),
+        keywords: keywords.split(',').map(k => k.trim().toLowerCase()).filter(Boolean),
+      })
+      onCreated()
+      onClose()
+    } catch (e) { console.error(e) }
+    setLoading(false)
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-fade-in" />
-      <div
-        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl animate-pop"
-        style={{ background: 'rgba(10,16,30,0.97)', border: '1px solid rgba(255,255,255,0.08)' }}
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Top accent */}
-        <div className="h-1 rounded-t-2xl" style={{ background: `linear-gradient(90deg, ${cfg.color}, ${cfg.color}80, transparent)` }} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}
+      onClick={onClose}>
+      <div className="glass-card p-6 w-full max-w-lg" onClick={e => e.stopPropagation()}
+        style={{ background: 'var(--card-bg)' }}>
+        <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--text)' }}>Nouvelle campagne</h2>
 
+        <label className="block text-sm mb-1 opacity-70">Nom de la campagne</label>
+        <input className="input-dark w-full mb-3" placeholder="ex: Caribulles 2026"
+          value={name} onChange={e => setName(e.target.value)} />
+
+        <label className="block text-sm mb-1 opacity-70">Description</label>
+        <textarea className="input-dark w-full mb-3 h-20 resize-none" placeholder="Objectif de la campagne..."
+          value={description} onChange={e => setDescription(e.target.value)} />
+
+        <label className="block text-sm mb-1 opacity-70">Mots-clés de détection (séparés par des virgules)</label>
+        <input className="input-dark w-full mb-4" placeholder="caribulles, caribulle"
+          value={keywords} onChange={e => setKeywords(e.target.value)} />
+
+        <div className="flex gap-3 justify-end">
+          <button className="btn-glass px-4 py-2" onClick={onClose}>Annuler</button>
+          <button className="btn-glass px-4 py-2 font-semibold" onClick={handleSubmit} disabled={loading || !name.trim()}
+            style={{ background: 'rgba(59,130,246,0.3)' }}>
+            {loading ? '...' : 'Créer'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════
+// PAGE PRINCIPALE
+// ══════════════════════════════════════════════════════
+export default function SocialPage() {
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null)
+  const [posts, setPosts] = useState<CampaignPost[]>([])
+  const [hoveredPost, setHoveredPost] = useState<CampaignPost | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [showNewCampaign, setShowNewCampaign] = useState(false)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [analysis, setAnalysis] = useState<Record<string, unknown> | null>(null)
+  const [view, setView] = useState<'campagne' | 'analyse' | 'comparaison'>('campagne')
+  const [compareA, setCompareA] = useState('')
+  const [compareB, setCompareB] = useState('')
+  const [comparison, setComparison] = useState<Record<string, unknown> | null>(null)
+  const [comparingLoad, setComparingLoad] = useState(false)
+
+  const loadCampaigns = useCallback(async () => {
+    try {
+      const data = await fetchCampaigns()
+      setCampaigns(data.campaigns || [])
+    } catch (e) { console.error(e) }
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { loadCampaigns() }, [loadCampaigns])
+
+  const selectCampaign = async (campaign: Campaign) => {
+    setSelectedCampaign(campaign)
+    setAnalysis(campaign.ai_analysis || null)
+    try {
+      const data = await fetchCampaignDetail(campaign._id)
+      setPosts(data.posts || [])
+    } catch (e) { console.error(e) }
+  }
+
+  const runAnalysis = async () => {
+    if (!selectedCampaign) return
+    setAnalyzing(true)
+    try {
+      const data = await analyzeCampaign(selectedCampaign._id)
+      if (data.ok) setAnalysis(data.analysis)
+    } catch (e) { console.error(e) }
+    setAnalyzing(false)
+  }
+
+  const runComparison = async () => {
+    if (!compareA || !compareB) return
+    setComparingLoad(true)
+    try {
+      const data = await compareCampaigns(compareA, compareB)
+      if (data.ok) setComparison(data.comparison)
+    } catch (e) { console.error(e) }
+    setComparingLoad(false)
+  }
+
+  // Stats globales de la campagne sélectionnée
+  const totalStats = selectedCampaign ? {
+    views: selectedCampaign.total_views,
+    likes: selectedCampaign.total_likes,
+    comments: selectedCampaign.total_comments,
+    clicks: selectedCampaign.total_clicks,
+    reach: selectedCampaign.total_reach,
+    posts: selectedCampaign.post_count,
+  } : null
+
+  const sentimentData = analysis?.sentiment as { global?: string; score?: number; themes?: string[]; positive_highlights?: string[]; negative_highlights?: string[] } | undefined
+  const perfData = analysis?.performance as { best_format?: string; best_platform?: string; best_time?: string; best_day?: string; top_post?: string } | undefined
+  const recommendations = (analysis?.recommendations || []) as string[]
+
+  return (
+    <div className="flex min-h-screen" style={{ background: 'var(--bg)' }}>
+      <Sidebar />
+      <main className="flex-1 p-6 ml-16 md:ml-56">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 pb-3">
-          <div className="flex items-center gap-3">
-            <span className="text-[11px] px-2.5 py-1 rounded-full font-semibold"
-              style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.color}40` }}>
-              {cfg.icon} {cfg.label}
-            </span>
-            <span className="text-base font-bold text-white">@{d.author}</span>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Campagnes RS</h1>
+            <p className="text-sm opacity-60">Conseil Départemental de Guadeloupe</p>
           </div>
-          <button onClick={onClose} className="text-white/30 hover:text-white/70 transition-colors text-xl leading-none p-1">✕</button>
+          <button className="btn-glass px-4 py-2 font-medium" onClick={() => setShowNewCampaign(true)}
+            style={{ background: 'rgba(59,130,246,0.2)' }}>
+            + Nouvelle campagne
+          </button>
         </div>
 
-        {/* Image */}
-        {d.image_url && (
-          <div className="px-5 mb-3">
-            <img src={d.image_url} alt="Publication" className="w-full max-h-96 object-cover rounded-xl"
-              style={{ border: '1px solid rgba(255,255,255,0.06)' }}
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
-          </div>
-        )}
-
-        {/* Full text */}
-        <div className="px-5 mb-4">
-          <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.7)' }}>
-            {d.text || 'Aucun texte disponible'}
-          </p>
-        </div>
-
-        {/* Sentiment badge */}
-        {d.sentiment && d.sentiment !== 'neutre' && (
-          <div className="mx-5 mb-3 flex items-center gap-3">
-            {(() => { const s = SENTIMENT_STYLES[d.sentiment] || SENTIMENT_STYLES.neutre; return (
-              <span className="text-xs px-3 py-1.5 rounded-full font-semibold flex items-center gap-1.5"
-                style={{ background: s.bg, color: s.color, border: `1px solid ${s.color}30` }}>
-                {s.icon} {d.sentiment.charAt(0).toUpperCase() + d.sentiment.slice(1)}
-              </span>
-            )})()}
-            {d.opinion_commentaires && (
-              <span className="text-[11px] italic" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                « {d.opinion_commentaires.slice(0, 120)}{d.opinion_commentaires.length > 120 ? '…' : ''} »
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Engagement */}
-        <div className="mx-5 mb-4 grid grid-cols-4 gap-2">
-          {[
-            { label: 'Likes', value: d.likes || 0, icon: '❤️', color: '#ef4444' },
-            { label: 'Commentaires', value: d.comments_count || d.comments || 0, icon: '💬', color: '#3b82f6' },
-            { label: d.platform === 'tiktok' ? 'Vues' : 'Partages', value: d.views || d.shares || d.retweets || 0, icon: d.platform === 'tiktok' ? '👁' : '🔄', color: '#22c55e' },
-            { label: 'Partages', value: d.shares || d.retweets || 0, icon: '🔄', color: '#eab308' },
-          ].map((s, i) => (
-            <div key={i} className="text-center p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-              <div className="text-lg mb-1">{s.icon}</div>
-              <div className="text-lg font-bold text-white">{s.value.toLocaleString()}</div>
-              <div className="text-[9px]" style={{ color: 'rgba(255,255,255,0.3)' }}>{s.label}</div>
-            </div>
+        {/* Tabs */}
+        <div className="flex gap-2 mb-6">
+          {(['campagne', 'analyse', 'comparaison'] as const).map(tab => (
+            <button key={tab} className="btn-glass px-4 py-2 text-sm font-medium capitalize"
+              style={{ background: view === tab ? 'rgba(59,130,246,0.25)' : 'transparent' }}
+              onClick={() => setView(tab)}>
+              {tab === 'campagne' ? '📋 Campagne' : tab === 'analyse' ? '📊 Analyse' : '⚖️ Comparaison'}
+            </button>
           ))}
         </div>
 
-        {/* Commentaires */}
-        {d.comment_texts && d.comment_texts.length > 0 && (
-          <div className="mx-5 mb-4 p-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <h4 className="text-xs font-semibold mb-3 flex items-center gap-2" style={{ color: 'rgba(255,255,255,0.5)' }}>
-              💬 Top commentaires ({d.comment_texts.length})
-            </h4>
-            <div className="space-y-2.5">
-              {d.comment_texts.slice(0, 8).map((c, i) => (
-                <div key={i} className="flex items-start gap-2.5">
-                  <div className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold"
-                    style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)' }}>
-                    {(c.author || '?')[0].toUpperCase()}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-[10px] font-semibold" style={{ color: 'rgba(255,255,255,0.6)' }}>
-                        {c.author || 'Anonyme'}
-                      </span>
-                      {c.likes > 0 && (
-                        <span className="text-[9px]" style={{ color: 'rgba(255,255,255,0.2)' }}>❤️ {c.likes}</span>
-                      )}
+        <div className="flex gap-6">
+          {/* Sidebar campagnes */}
+          <div className="w-64 shrink-0">
+            <h3 className="text-sm font-semibold mb-3 opacity-70">Campagnes</h3>
+            {loading ? (
+              <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="skeleton h-12 rounded-lg" />)}</div>
+            ) : campaigns.length === 0 ? (
+              <p className="text-sm opacity-50">Aucune campagne. Créez-en une !</p>
+            ) : (
+              <div className="space-y-1">
+                {campaigns.map(c => (
+                  <button key={c._id} className="w-full text-left p-3 rounded-lg transition-all"
+                    style={{
+                      background: selectedCampaign?._id === c._id ? 'rgba(59,130,246,0.15)' : 'transparent',
+                      color: 'var(--text)',
+                    }}
+                    onClick={() => selectCampaign(c)}>
+                    <div className="font-medium text-sm">{c.name}</div>
+                    <div className="text-xs opacity-50 mt-0.5">
+                      {c.post_count} posts · {c.status === 'active' ? '🟢' : '⚪'} {c.status}
                     </div>
-                    <p className="text-[11px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>
-                      {c.text}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* AI Analysis */}
-        {(d.ai_enriched || d.ai_summary || d.theme) && (
-          <div className="mx-5 mb-4 p-4 rounded-xl" style={{ background: 'rgba(37,99,235,0.05)', border: '1px solid rgba(37,99,235,0.1)' }}>
-            <h4 className="text-xs font-semibold text-blue-400 mb-3">🧠 Analyse IA</h4>
-            {gravity > 0 && (
-              <div className="flex items-center gap-3 mb-3">
-                <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.4)' }}>Gravité</span>
-                <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
-                  <div className="h-full rounded-full transition-all duration-700"
-                    style={{ width: `${gravity * 100}%`, background: gravityColor(gravity) }} />
-                </div>
-                <span className="text-xs font-bold" style={{ color: gravityColor(gravity) }}>
-                  {(gravity * 10).toFixed(1)}/10 — {gravityLabel(gravity)}
-                </span>
-              </div>
-            )}
-            {d.ai_summary && (
-              <p className="text-[12px] leading-relaxed mb-3" style={{ color: 'rgba(255,255,255,0.55)' }}>{d.ai_summary}</p>
-            )}
-            <div className="flex flex-wrap gap-1.5">
-              {d.theme && d.theme !== 'general' && (
-                <span className="text-[9px] px-2 py-0.5 rounded-full"
-                  style={{ background: 'rgba(234,179,8,0.1)', color: '#facc15', border: '1px solid rgba(234,179,8,0.2)' }}>🏷️ {d.theme}</span>
-              )}
-              {d.elected?.map((el, i) => (
-                <span key={i} className="text-[9px] px-2 py-0.5 rounded-full"
-                  style={{ background: 'rgba(22,163,74,0.1)', color: '#4ade80', border: '1px solid rgba(22,163,74,0.2)' }}>👤 {el}</span>
-              ))}
-              {d.institutions?.map((inst, i) => (
-                <span key={i} className="text-[9px] px-2 py-0.5 rounded-full"
-                  style={{ background: 'rgba(37,99,235,0.1)', color: '#60a5fa', border: '1px solid rgba(37,99,235,0.2)' }}>🏛️ {inst}</span>
-              ))}
-              {d.keywords_found?.slice(0, 5).map((kw, i) => (
-                <span key={i} className="text-[9px] px-2 py-0.5 rounded-full"
-                  style={{ background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.35)', border: '1px solid rgba(255,255,255,0.06)' }}>{kw}</span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Meta footer */}
-        <div className="px-5 pb-5 flex items-center justify-between text-[10px]" style={{ color: 'rgba(255,255,255,0.2)' }}>
-          <div className="flex items-center gap-3">
-            <span>Scrapé: {d.scraped_at ? timeAgo(d.scraped_at) : '?'}</span>
-            {d.posted_at && <span>Publié: {new Date(d.posted_at).toLocaleDateString('fr-FR')}</span>}
-            {d.ai_enriched && <span className="text-blue-400">✓ Enrichi IA</span>}
-          </div>
-          {d.url && (
-            <a href={d.url} target="_blank" rel="noopener noreferrer"
-              className="text-blue-400 hover:text-blue-300 font-medium">Voir l&apos;original ↗</a>
-          )}
-        </div>
-
-        {loading && (
-          <div className="absolute inset-0 flex items-center justify-center rounded-2xl" style={{ background: 'rgba(10,16,30,0.7)' }}>
-            <div className="typing-dots"><span /><span /><span /></div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-/* ══════════════════════════════════════════════════════
-   MINI CARD (grille)
-   ══════════════════════════════════════════════════════ */
-function MiniCard({ post, onClick }: { post: SocialPost; onClick: () => void }) {
-  const cfg = PLAT[post.platform] || PLAT.twitter
-  const gravity = post.gravity_score || 0
-  const hasImage = !!post.image_url
-  const engagement = (post.likes || 0) + (post.comments || 0) + (post.shares || 0) + (post.retweets || 0)
-
-  return (
-    <div
-      className="relative aspect-square rounded-xl overflow-hidden cursor-pointer group transition-all duration-300 hover:scale-[1.03] hover:z-10"
-      style={{
-        background: hasImage ? 'transparent' : 'rgba(12,18,32,0.8)',
-        border: '1px solid rgba(255,255,255,0.06)',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-      }}
-      onClick={onClick}
-    >
-      {/* Background image ou fallback */}
-      {hasImage ? (
-        <img
-          src={post.image_url}
-          alt=""
-          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-        />
-      ) : (
-        <div className="absolute inset-0 flex items-center justify-center p-3">
-          <p className="text-[10px] leading-snug text-center line-clamp-5"
-            style={{ color: 'rgba(255,255,255,0.45)' }}>
-            {post.text?.slice(0, 120) || 'Aucun texte'}
-          </p>
-        </div>
-      )}
-
-      {/* Overlay gradient (toujours) */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-80 group-hover:opacity-90 transition-opacity" />
-
-      {/* Platform badge — top left */}
-      <div className="absolute top-2 left-2">
-        <span className="text-[9px] px-1.5 py-0.5 rounded-md font-bold backdrop-blur-sm"
-          style={{ background: `${cfg.color}cc`, color: '#fff' }}>
-          {cfg.icon}
-        </span>
-      </div>
-
-      {/* Gravity indicator — top right */}
-      {gravity > 0.3 && (
-        <div className="absolute top-2 right-2">
-          <span className="text-[8px] px-1.5 py-0.5 rounded-md font-bold backdrop-blur-sm"
-            style={{ background: `${gravityColor(gravity)}cc`, color: '#fff' }}>
-            ⚡{(gravity * 10).toFixed(0)}
-          </span>
-        </div>
-      )}
-
-      {/* AI badge */}
-      {post.ai_enriched && (
-        <div className="absolute top-2 right-2" style={{ right: gravity > 0.3 ? '2.5rem' : '0.5rem' }}>
-          <span className="text-[8px] px-1 py-0.5 rounded-md font-bold backdrop-blur-sm"
-            style={{ background: 'rgba(37,99,235,0.8)', color: '#fff' }}>🧠</span>
-        </div>
-      )}
-
-      {/* Video icon */}
-      {post.media_type === 'video' && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="text-3xl opacity-70 group-hover:opacity-100 transition-opacity">▶️</span>
-        </div>
-      )}
-
-      {/* Bottom info */}
-      <div className="absolute bottom-0 inset-x-0 p-2.5">
-        <div className="text-[10px] font-semibold text-white truncate mb-0.5">
-          @{post.author}
-        </div>
-        {post.text && (
-          <p className="text-[9px] leading-tight text-white/50 line-clamp-2 mb-1.5">
-            {post.text.slice(0, 80)}
-          </p>
-        )}
-        <div className="flex items-center gap-2 text-[9px] text-white/40">
-          {engagement > 0 && (
-            <span className="flex items-center gap-0.5">
-              🔥 {engagement.toLocaleString()}
-            </span>
-          )}
-          {(post.comments_count || post.comments || 0) > 0 && (
-            <span className="flex items-center gap-0.5">💬 {post.comments_count || post.comments}</span>
-          )}
-          {post.views && post.views > 0 && (
-            <span className="flex items-center gap-0.5">👁 {post.views.toLocaleString()}</span>
-          )}
-          {post.sentiment && post.sentiment !== 'neutre' && (
-            <span>{(SENTIMENT_STYLES[post.sentiment] || SENTIMENT_STYLES.neutre).icon}</span>
-          )}
-          <span className="ml-auto">{post.scraped_at ? timeAgo(post.scraped_at) : ''}</span>
-        </div>
-
-        {/* Theme tag */}
-        {post.theme && post.theme !== 'general' && (
-          <div className="mt-1">
-            <span className="text-[8px] px-1.5 py-0.5 rounded-full backdrop-blur-sm"
-              style={{ background: 'rgba(234,179,8,0.3)', color: '#facc15' }}>
-              {post.theme}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Hover overlay */}
-      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center"
-        style={{ background: `${cfg.color}15` }}>
-        <span className="text-xs font-semibold text-white bg-black/40 px-3 py-1.5 rounded-lg backdrop-blur-sm">
-          Voir détail
-        </span>
-      </div>
-    </div>
-  )
-}
-
-/* ══════════════════════════════════════════════════════
-   MAIN PAGE
-   ══════════════════════════════════════════════════════ */
-export default function SocialPage() {
-  const [stats, setStats] = useState<SocialStats | null>(null)
-  const [posts, setPosts] = useState<SocialPost[]>([])
-  const [config, setConfig] = useState<Record<string, unknown> | null>(null)
-  const [sentiment, setSentiment] = useState<SocialSentiment | null>(null)
-  const [activePlatform, setActivePlatform] = useState<string | undefined>(undefined)
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
-  const [loading, setLoading] = useState(true)
-  const [scraping, setScraping] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [scrapeResult, setScrapeResult] = useState<{ msg: string; type: 'success' | 'warning' | 'error' } | null>(null)
-  const [selectedPost, setSelectedPost] = useState<SocialPost | null>(null)
-
-  const loadData = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      const results = await Promise.allSettled([
-        fetchSocialStats(),
-        fetchSocialPosts(activePlatform, 80),
-        fetchSocialConfig(),
-        fetchSocialSentiment(),
-      ])
-      if (results[0].status === 'fulfilled') setStats(results[0].value)
-      if (results[1].status === 'fulfilled') setPosts(results[1].value?.posts || [])
-      if (results[2].status === 'fulfilled') setConfig(results[2].value)
-      if (results[3].status === 'fulfilled') setSentiment(results[3].value)
-      if (results.every(r => r.status === 'rejected')) setError('Impossible de contacter le backend')
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Erreur de chargement')
-    } finally {
-      setLoading(false)
-    }
-  }, [activePlatform])
-
-  useEffect(() => { loadData() }, [loadData])
-
-  const handleScrape = async (platform?: string) => {
-    setScraping(true); setError(null); setScrapeResult(null)
-    try {
-      const result = platform ? await fetchSocialScrapeSingle(platform) : await fetchSocialScrapeAll()
-      const r = result as Record<string, unknown>
-      const total = (r?.total_saved as number) || (r?.saved as number) || 0
-      const fetched = (r?.fetched as number) || (r?.total_saved as number) || 0
-      const enriched = (r?.enriched as number) || 0
-      if (total > 0) setScrapeResult({ msg: `${total} posts sauvegardés, ${enriched} enrichis IA`, type: 'success' })
-      else if (fetched > 0) setScrapeResult({ msg: `${fetched} posts récupérés — tous déjà en base`, type: 'warning' })
-      else setScrapeResult({ msg: '0 posts — vérifiez plan Apify (proxy résidentiel requis)', type: 'warning' })
-      await loadData()
-    } catch (e: unknown) {
-      setScrapeResult({ msg: e instanceof Error ? e.message : 'Erreur scraping', type: 'error' })
-    } finally { setScraping(false) }
-  }
-
-  const apifyConfigured = config ? !!(config as Record<string, unknown>).apify_configured : null
-  const totalPosts = stats ? Object.values(stats.stats || {}).reduce((sum, p) => sum + (p?.total || 0), 0) : 0
-  const total24h = stats ? Object.values(stats.stats || {}).reduce((sum, p) => sum + (p?.last_24h || 0), 0) : 0
-
-  return (
-    <div className="flex">
-      <Sidebar />
-      <main className="lg:ml-60 flex-1 p-5 lg:p-6 min-h-screen">
-        <div className="max-w-[1400px] mx-auto animate-slide-up">
-
-          {/* ── Header ──────────────────────────────── */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
-            <div className="animate-slide-left">
-              <h1 className="text-xl lg:text-2xl font-bold text-white tracking-tight flex items-center gap-3">
-                <span className="text-2xl">📡</span>
-                Réseaux Sociaux
-                {total24h > 0 && (
-                  <span className="animate-number-pop text-xs px-2 py-0.5 rounded-full font-semibold"
-                    style={{ background: 'rgba(22,163,74,0.12)', color: '#4ade80', border: '1px solid rgba(22,163,74,0.25)' }}>
-                    +{total24h} / 24h
-                  </span>
-                )}
-              </h1>
-              <p className="text-[11px] mt-1 font-medium" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                Veille Facebook, Instagram & TikTok — {totalPosts} posts en base
-              </p>
-            </div>
-            <div className="flex items-center gap-2 animate-slide-right">
-              {/* View toggle */}
-              <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
-                <button onClick={() => setViewMode('grid')}
-                  className="px-2.5 py-1.5 text-xs transition-all"
-                  style={{ background: viewMode === 'grid' ? 'rgba(37,99,235,0.2)' : 'transparent', color: viewMode === 'grid' ? '#60a5fa' : 'rgba(255,255,255,0.3)' }}>
-                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
-                </button>
-                <button onClick={() => setViewMode('list')}
-                  className="px-2.5 py-1.5 text-xs transition-all"
-                  style={{ background: viewMode === 'list' ? 'rgba(37,99,235,0.2)' : 'transparent', color: viewMode === 'list' ? '#60a5fa' : 'rgba(255,255,255,0.3)' }}>
-                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16"><rect x="1" y="1" width="14" height="3" rx="1"/><rect x="1" y="6" width="14" height="3" rx="1"/><rect x="1" y="11" width="14" height="3" rx="1"/></svg>
-                </button>
-              </div>
-              <button onClick={loadData} disabled={loading} className="btn-glass px-3 py-1.5 text-xs disabled:opacity-40">
-                <span className="flex items-center gap-1.5">
-                  <svg className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  Rafraîchir
-                </span>
-              </button>
-              <button onClick={() => handleScrape()} disabled={scraping || apifyConfigured === false}
-                className={`btn-primary px-4 py-1.5 text-xs disabled:opacity-40 ${scraping ? 'scraping' : ''}`}>
-                {scraping ? (
-                  <span className="flex items-center gap-1.5">
-                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                    </svg>
-                    Scraping...
-                  </span>
-                ) : '🚀 Scraper'}
-              </button>
-            </div>
-          </div>
-          <div className="flag-stripe-animated mb-6" />
-
-          {/* ── Alerts ──────────────────────────────── */}
-          {apifyConfigured === false && (
-            <div className="mb-5 px-4 py-3 rounded-xl text-sm flex items-center gap-3 animate-notif"
-              style={{ background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.2)', color: '#facc15' }}>
-              ⚠️ <strong>APIFY_TOKEN non configuré.</strong>
-            </div>
-          )}
-          {scrapeResult && (
-            <div className="mb-5 px-4 py-3 rounded-xl text-sm flex items-center gap-3 animate-notif" style={{
-              background: scrapeResult.type === 'success' ? 'rgba(22,163,74,0.08)' : scrapeResult.type === 'error' ? 'rgba(220,38,38,0.08)' : 'rgba(234,179,8,0.08)',
-              border: `1px solid ${scrapeResult.type === 'success' ? 'rgba(22,163,74,0.2)' : scrapeResult.type === 'error' ? 'rgba(220,38,38,0.2)' : 'rgba(234,179,8,0.2)'}`,
-              color: scrapeResult.type === 'success' ? '#4ade80' : scrapeResult.type === 'error' ? '#f87171' : '#facc15',
-            }}>
-              {scrapeResult.type === 'success' ? '✅' : scrapeResult.type === 'error' ? '❌' : '⚠️'} {scrapeResult.msg}
-            </div>
-          )}
-          {error && (
-            <div className="mb-5 px-4 py-3 rounded-xl text-sm flex items-center gap-3 animate-notif" style={{
-              background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.15)', color: '#f87171'
-            }}>❌ {error}</div>
-          )}
-
-          {/* ── Sentiment global 7j ─────────────────── */}
-          {sentiment && sentiment.global.total_posts > 0 && (
-            <div className="mb-6 animate-fade-in">
-              <h2 className="text-sm font-semibold text-white/60 mb-3">📊 Vue d&apos;ensemble (7 jours)</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4 stagger-cards">
-                {[
-                  { label: 'Posts', value: sentiment.global.total_posts, icon: '📝', color: '#60a5fa' },
-                  { label: 'Engagement', value: sentiment.global.total_engagement, icon: '🔥', color: '#f59e0b' },
-                  { label: 'Commentaires', value: sentiment.global.total_comments, icon: '💬', color: '#22c55e' },
-                  { label: 'Gravité moy.', value: `${(sentiment.global.avg_gravity * 10).toFixed(1)}/10`, icon: '⚡', color: gravityColor(sentiment.global.avg_gravity) },
-                ].map((kpi, i) => (
-                  <div key={i} className="glass-card-static p-4 text-center">
-                    <div className="text-xl mb-1">{kpi.icon}</div>
-                    <div className="text-xl font-bold animate-number-pop" style={{ color: kpi.color }}>
-                      {typeof kpi.value === 'number' ? kpi.value.toLocaleString() : kpi.value}
-                    </div>
-                    <div className="text-[10px] mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>{kpi.label}</div>
-                  </div>
+                  </button>
                 ))}
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {sentiment.top_themes.length > 0 && (
-                  <div className="glass-card-static p-4">
-                    <h3 className="text-[11px] font-semibold text-white/40 mb-2">🏷️ Thèmes dominants</h3>
-                    <div className="flex flex-wrap gap-1.5">
-                      {sentiment.top_themes.map((t, i) => (
-                        <span key={i} className="text-[10px] px-2.5 py-1 rounded-full font-medium"
-                          style={{ background: 'rgba(234,179,8,0.08)', color: '#facc15', border: '1px solid rgba(234,179,8,0.15)' }}>
-                          {t.theme} ({t.count})
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {sentiment.top_elected.length > 0 && (
-                  <div className="glass-card-static p-4">
-                    <h3 className="text-[11px] font-semibold text-white/40 mb-2">👤 Élus mentionnés</h3>
-                    <div className="flex flex-wrap gap-1.5">
-                      {sentiment.top_elected.map((el, i) => (
-                        <span key={i} className="text-[10px] px-2.5 py-1 rounded-full font-medium"
-                          style={{ background: 'rgba(22,163,74,0.08)', color: '#4ade80', border: '1px solid rgba(22,163,74,0.15)' }}>
-                          {el.name} ({el.count})
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+            )}
+          </div>
 
-          {/* ── Platform cards ──────────────────────── */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 stagger-cards">
-            {Object.entries(PLAT).map(([key, cfg]) => {
-              const ps = stats?.stats?.[key]
-              const isSelected = activePlatform === key
-              return (
-                <button key={key} onClick={() => setActivePlatform(activePlatform === key ? undefined : key)}
-                  className={`glass-card-static p-4 text-left transition-all duration-300 hover:scale-[1.02] ${isSelected ? 'animate-border-glow' : ''}`}
-                  style={{ borderColor: isSelected ? cfg.color : undefined, boxShadow: isSelected ? `0 0 30px ${cfg.glow}` : undefined }}>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2"><span className="text-xl">{cfg.icon}</span><h3 className="text-sm font-semibold text-white">{cfg.label}</h3></div>
-                    {(ps?.last_24h || 0) > 0 && (
-                      <span className="animate-number-pop text-[10px] px-2 py-0.5 rounded-full font-semibold"
-                        style={{ background: 'rgba(22,163,74,0.12)', color: '#4ade80', border: '1px solid rgba(22,163,74,0.25)' }}>+{ps?.last_24h}</span>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 mb-2">
-                    {[{ v: ps?.last_24h || 0, l: '24h' }, { v: ps?.last_7d || 0, l: '7j' }, { v: ps?.total || 0, l: 'Total' }].map((s, i) => (
-                      <div key={i} className="text-center px-2 py-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.02)' }}>
-                        <div className="text-sm font-bold text-white">{s.v}</div>
-                        <div className="text-[8px]" style={{ color: 'rgba(255,255,255,0.25)' }}>{s.l}</div>
+          {/* Contenu principal */}
+          <div className="flex-1">
+            {!selectedCampaign ? (
+              <div className="glass-card p-12 text-center">
+                <div className="text-5xl mb-4 opacity-30">📢</div>
+                <p className="text-lg opacity-50">Sélectionnez une campagne</p>
+              </div>
+            ) : view === 'campagne' ? (
+              <>
+                {/* Stats globales */}
+                {totalStats && (
+                  <div className="grid grid-cols-6 gap-3 mb-6">
+                    {[
+                      { label: 'Posts', value: totalStats.posts, icon: '📝' },
+                      { label: 'Vues', value: totalStats.views, icon: '👁' },
+                      { label: 'Likes', value: totalStats.likes, icon: '❤️' },
+                      { label: 'Commentaires', value: totalStats.comments, icon: '💬' },
+                      { label: 'Clics', value: totalStats.clicks, icon: '🔗' },
+                      { label: 'Reach', value: totalStats.reach, icon: '📊' },
+                    ].map(s => (
+                      <div key={s.label} className="glass-card p-3 text-center">
+                        <div className="text-lg">{s.icon}</div>
+                        <div className="text-xl font-bold" style={{ color: 'var(--text)' }}>
+                          {formatNumber(s.value)}
+                        </div>
+                        <div className="text-xs opacity-50">{s.label}</div>
                       </div>
                     ))}
                   </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-[9px]" style={{ color: 'rgba(255,255,255,0.2)' }}>{ps?.last_scraped ? timeAgo(ps.last_scraped) : 'Jamais scrapé'}</p>
-                    <button onClick={(e) => { e.stopPropagation(); handleScrape(key) }} disabled={scraping}
-                      className="text-[9px] px-2 py-0.5 rounded-md font-medium transition-all hover:brightness-125 disabled:opacity-30"
-                      style={{ background: `${cfg.color}20`, color: cfg.color, border: `1px solid ${cfg.color}30` }}>Scraper</button>
+                )}
+
+                {/* Grille de posts */}
+                <div className="relative">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {posts.map(post => (
+                      <PostCard key={post._id} post={post} onHover={setHoveredPost} />
+                    ))}
                   </div>
-                </button>
-              )
-            })}
-          </div>
+                  {posts.length === 0 && (
+                    <div className="glass-card p-8 text-center">
+                      <p className="opacity-50">Aucun post dans cette campagne.</p>
+                      <p className="text-sm opacity-30 mt-1">Publiez depuis le bot Telegram pour commencer.</p>
+                    </div>
+                  )}
 
-          {/* ── Filters + view ──────────────────────── */}
-          <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
-            <div className="flex gap-2 flex-wrap">
-              <button onClick={() => setActivePlatform(undefined)}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-                style={{ background: !activePlatform ? '#2563eb' : 'rgba(37,99,235,0.06)', color: !activePlatform ? '#fff' : 'rgba(255,255,255,0.4)', border: `1px solid ${!activePlatform ? '#2563eb' : 'rgba(37,99,235,0.1)'}` }}>
-                Tous ({posts.length})
-              </button>
-              {Object.entries(PLAT).map(([key, cfg]) => (
-                <button key={key} onClick={() => setActivePlatform(activePlatform === key ? undefined : key)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-                  style={{ background: activePlatform === key ? cfg.color : 'rgba(255,255,255,0.03)', color: activePlatform === key ? '#fff' : 'rgba(255,255,255,0.4)', border: `1px solid ${activePlatform === key ? cfg.color : 'rgba(255,255,255,0.06)'}` }}>
-                  {cfg.icon} {cfg.label}
-                </button>
-              ))}
-            </div>
-          </div>
+                  {/* Tooltip stats au survol */}
+                  {hoveredPost && (
+                    <div className="fixed right-8 top-1/3 z-40">
+                      <StatTooltip post={hoveredPost} />
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : view === 'analyse' ? (
+              <div>
+                <div className="flex items-center gap-4 mb-6">
+                  <h2 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>
+                    Analyse : {selectedCampaign.name}
+                  </h2>
+                  <button className="btn-glass px-3 py-1.5 text-sm" onClick={runAnalysis} disabled={analyzing}
+                    style={{ background: 'rgba(139,92,246,0.2)' }}>
+                    {analyzing ? '🔄 Analyse en cours...' : '🧠 Lancer l\'analyse IA'}
+                  </button>
+                </div>
 
-          {/* ══════════════════════════════════════════
-              POSTS — GRID ou LIST
-              ══════════════════════════════════════════ */}
-          {loading ? (
-            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3">
-              {Array.from({ length: 15 }).map((_, i) => (
-                <div key={i} className="aspect-square rounded-xl skeleton animate-shimmer" style={{ animationDelay: `${i * 0.05}s` }} />
-              ))}
-            </div>
-          ) : posts.length === 0 ? (
-            <div className="glass-card-static p-12 text-center animate-pop">
-              <div className="text-5xl mb-4">📱</div>
-              <p className="text-sm font-semibold text-white/60 mb-2">Aucun post récupéré</p>
-              <p className="text-xs mb-5" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                {apifyConfigured !== false ? 'Lancez un scraping pour commencer.' : 'Configurez APIFY_TOKEN dans Render.'}
-              </p>
-              {apifyConfigured !== false && (
-                <button onClick={() => handleScrape()} disabled={scraping} className="btn-primary px-5 py-2 text-sm">
-                  {scraping ? 'Scraping...' : '🚀 Premier scraping'}
-                </button>
-              )}
-            </div>
-          ) : viewMode === 'grid' ? (
-            /* ── GRID VIEW — mini carrés ──────────── */
-            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 stagger-cards">
-              {posts.map(post => (
-                <MiniCard key={post._id} post={post} onClick={() => setSelectedPost(post)} />
-              ))}
-            </div>
-          ) : (
-            /* ── LIST VIEW — cards horizontales ───── */
-            <div className="space-y-3 stagger-posts">
-              {posts.map(post => {
-                const cfg = PLAT[post.platform] || PLAT.twitter
-                const gravity = post.gravity_score || 0
-                return (
-                  <div key={post._id} className="glass-card p-0 overflow-hidden group cursor-pointer" onClick={() => setSelectedPost(post)}>
-                    <div className="flex">
-                      {post.image_url && (
-                        <div className="w-28 sm:w-36 flex-shrink-0 relative overflow-hidden">
-                          <img src={post.image_url} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" style={{ minHeight: '100px' }}
-                            onError={(e) => { (e.target as HTMLImageElement).parentElement!.style.display = 'none' }} />
-                          {post.media_type === 'video' && <div className="absolute inset-0 flex items-center justify-center bg-black/30"><span className="text-2xl">▶️</span></div>}
-                        </div>
-                      )}
-                      <div className="flex-1 p-3.5 min-w-0">
-                        <div className="flex items-start justify-between gap-2 mb-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="text-[9px] px-2 py-0.5 rounded-full font-semibold flex-shrink-0"
-                              style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.color}30` }}>{cfg.icon}</span>
-                            <span className="text-sm font-semibold text-white truncate">@{post.author}</span>
-                            {gravity > 0.3 && (
-                              <span className="text-[8px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0"
-                                style={{ background: `${gravityColor(gravity)}15`, color: gravityColor(gravity) }}>⚡{(gravity * 10).toFixed(0)}</span>
-                            )}
+                {analysis ? (
+                  <div className="space-y-4">
+                    {/* Sentiment */}
+                    {sentimentData && (
+                      <div className="glass-card p-5">
+                        <h3 className="font-semibold mb-3" style={{ color: 'var(--text)' }}>Sentiment</h3>
+                        <div className="flex items-center gap-4 mb-3">
+                          <span className="text-3xl">
+                            {SENTIMENT_COLORS[sentimentData.global || 'neutre']?.icon || '😐'}
+                          </span>
+                          <div>
+                            <div className="font-bold capitalize text-lg"
+                              style={{ color: SENTIMENT_COLORS[sentimentData.global || 'neutre']?.color }}>
+                              {sentimentData.global}
+                            </div>
+                            <div className="text-sm opacity-60">Score: {((sentimentData.score || 0) * 100).toFixed(0)}%</div>
                           </div>
-                          <span className="text-[10px] flex-shrink-0" style={{ color: 'rgba(255,255,255,0.2)' }}>{post.scraped_at ? timeAgo(post.scraped_at) : ''}</span>
                         </div>
-                        <p className="text-[11px] leading-relaxed mb-1.5 line-clamp-2" style={{ color: 'rgba(255,255,255,0.5)' }}>{post.text?.slice(0, 200)}</p>
-                        {post.ai_summary && (
-                          <div className="mb-1.5 text-[9px] px-2 py-1 rounded-lg truncate"
-                            style={{ background: 'rgba(37,99,235,0.05)', border: '1px solid rgba(37,99,235,0.08)', color: 'rgba(255,255,255,0.35)' }}>
-                            🧠 {post.ai_summary.slice(0, 100)}
+                        {sentimentData.themes && sentimentData.themes.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mb-2">
+                            {sentimentData.themes.map((t, i) => (
+                              <span key={i} className="px-2 py-1 rounded-full text-xs"
+                                style={{ background: 'rgba(59,130,246,0.15)', color: 'var(--text)' }}>{t}</span>
+                            ))}
                           </div>
                         )}
-                        <div className="flex items-center gap-3 text-[9px]" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                          {(post.likes || 0) > 0 && <span>❤️ {post.likes?.toLocaleString()}</span>}
-                          {(post.comments_count || post.comments || 0) > 0 && <span>💬 {post.comments_count || post.comments}</span>}
-                          {(post.shares || 0) > 0 && <span>🔄 {post.shares}</span>}
-                          {post.views && post.views > 0 && <span>👁 {post.views.toLocaleString()}</span>}
-                          {post.sentiment && post.sentiment !== 'neutre' && (() => {
-                            const s = SENTIMENT_STYLES[post.sentiment] || SENTIMENT_STYLES.neutre
-                            return <span style={{ color: s.color }}>{s.icon} {post.sentiment}</span>
-                          })()}
-                          {post.comment_texts && post.comment_texts.length > 0 && (
-                            <span className="text-blue-300">{post.comment_texts.length} com. scrapés</span>
-                          )}
-                          <span className="ml-auto text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity font-medium">Détail →</span>
+                        {sentimentData.positive_highlights && (
+                          <div className="mt-2">
+                            <p className="text-xs font-medium opacity-70 mb-1">Points positifs</p>
+                            {sentimentData.positive_highlights.map((h, i) => (
+                              <p key={i} className="text-sm opacity-80 pl-3" style={{ color: '#22c55e' }}>+ {h}</p>
+                            ))}
+                          </div>
+                        )}
+                        {sentimentData.negative_highlights && (
+                          <div className="mt-2">
+                            <p className="text-xs font-medium opacity-70 mb-1">Points négatifs</p>
+                            {sentimentData.negative_highlights.map((h, i) => (
+                              <p key={i} className="text-sm opacity-80 pl-3" style={{ color: '#ef4444' }}>- {h}</p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Performances */}
+                    {perfData && (
+                      <div className="glass-card p-5">
+                        <h3 className="font-semibold mb-3" style={{ color: 'var(--text)' }}>Performances</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          {[
+                            { label: 'Meilleur format', value: perfData.best_format, icon: '🎨' },
+                            { label: 'Meilleure plateforme', value: perfData.best_platform, icon: '🌐' },
+                            { label: 'Meilleure heure', value: perfData.best_time, icon: '🕐' },
+                            { label: 'Meilleur jour', value: perfData.best_day, icon: '📅' },
+                          ].map(p => (
+                            <div key={p.label} className="p-3 rounded-lg text-center"
+                              style={{ background: 'rgba(255,255,255,0.05)' }}>
+                              <div className="text-xl mb-1">{p.icon}</div>
+                              <div className="font-semibold text-sm capitalize" style={{ color: 'var(--text)' }}>
+                                {p.value || '—'}
+                              </div>
+                              <div className="text-xs opacity-50">{p.label}</div>
+                            </div>
+                          ))}
+                        </div>
+                        {perfData.top_post && (
+                          <p className="mt-3 text-sm opacity-70">🏆 Top post : <b>{perfData.top_post}</b></p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Recommandations */}
+                    {recommendations.length > 0 && (
+                      <div className="glass-card p-5">
+                        <h3 className="font-semibold mb-3" style={{ color: 'var(--text)' }}>Recommandations IA</h3>
+                        <div className="space-y-2">
+                          {recommendations.map((r, i) => (
+                            <div key={i} className="flex gap-2 text-sm">
+                              <span className="opacity-50">{i + 1}.</span>
+                              <span style={{ color: 'var(--text)' }}>{r}</span>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    </div>
+                    )}
+
+                    {/* Résumé */}
+                    {analysis.summary && (
+                      <div className="glass-card p-5">
+                        <h3 className="font-semibold mb-2" style={{ color: 'var(--text)' }}>Résumé</h3>
+                        <p className="text-sm leading-relaxed" style={{ color: 'var(--text)', opacity: 0.8 }}>
+                          {String(analysis.summary)}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                )
-              })}
-            </div>
-          )}
+                ) : (
+                  <div className="glass-card p-8 text-center">
+                    <div className="text-4xl mb-3 opacity-30">🧠</div>
+                    <p className="opacity-50">Lancez l'analyse IA pour obtenir les insights</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Vue Comparaison */
+              <div>
+                <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--text)' }}>Comparaison de campagnes</h2>
+                <div className="flex gap-4 mb-6">
+                  <select className="input-dark flex-1" value={compareA} onChange={e => setCompareA(e.target.value)}>
+                    <option value="">Campagne A</option>
+                    {campaigns.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+                  </select>
+                  <span className="flex items-center text-xl opacity-30">⚡</span>
+                  <select className="input-dark flex-1" value={compareB} onChange={e => setCompareB(e.target.value)}>
+                    <option value="">Campagne B</option>
+                    {campaigns.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+                  </select>
+                  <button className="btn-glass px-4 py-2 text-sm" onClick={runComparison}
+                    disabled={!compareA || !compareB || comparingLoad}
+                    style={{ background: 'rgba(139,92,246,0.2)' }}>
+                    {comparingLoad ? '...' : 'Comparer'}
+                  </button>
+                </div>
 
-          <div className="h-8" />
+                {comparison ? (
+                  <div className="glass-card p-5 space-y-4">
+                    <p className="leading-relaxed" style={{ color: 'var(--text)' }}>
+                      {String((comparison as any).comparison || '')}
+                    </p>
+                    {(comparison as any).improvements?.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold opacity-70 mb-1">Progressions</h4>
+                        {((comparison as any).improvements as string[]).map((t, i) => (
+                          <p key={i} className="text-sm pl-3" style={{ color: '#22c55e' }}>+ {t}</p>
+                        ))}
+                      </div>
+                    )}
+                    {(comparison as any).regressions?.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold opacity-70 mb-1">Régressions</h4>
+                        {((comparison as any).regressions as string[]).map((t, i) => (
+                          <p key={i} className="text-sm pl-3" style={{ color: '#ef4444' }}>- {t}</p>
+                        ))}
+                      </div>
+                    )}
+                    {(comparison as any).tips?.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold opacity-70 mb-1">Conseils</h4>
+                        {((comparison as any).tips as string[]).map((t, i) => (
+                          <p key={i} className="text-sm pl-3 opacity-80">💡 {t}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="glass-card p-8 text-center">
+                    <div className="text-4xl mb-3 opacity-30">⚖️</div>
+                    <p className="opacity-50">Sélectionnez deux campagnes et comparez</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-      </main>
 
-      {selectedPost && <PostModal post={selectedPost} onClose={() => setSelectedPost(null)} />}
+        {showNewCampaign && (
+          <NewCampaignModal onClose={() => setShowNewCampaign(false)} onCreated={loadCampaigns} />
+        )}
+      </main>
     </div>
   )
 }

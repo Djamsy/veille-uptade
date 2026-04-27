@@ -1940,6 +1940,139 @@ async def get_source_reliability():
 
 
 # ============================================================
+# CAMPAGNES RS & BOT PUBLICATION
+# ============================================================
+
+@app.get("/api/campaigns")
+async def list_campaigns(status: str = Query(None)):
+    """Liste les campagnes."""
+    try:
+        from backend.campaign_service import get_campaigns
+        campaigns = get_campaigns(status=status, db=db)
+        return {"campaigns": campaigns, "total": len(campaigns)}
+    except Exception as e:
+        logger.error(f"Erreur list campaigns: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/campaigns")
+async def create_campaign_endpoint(request: Request):
+    """Crée une nouvelle campagne."""
+    try:
+        from backend.campaign_service import create_campaign
+        body = await request.json()
+        campaign = create_campaign(
+            name=body.get("name", ""),
+            description=body.get("description", ""),
+            keywords=body.get("keywords", []),
+            start_date=body.get("start_date"),
+            end_date=body.get("end_date"),
+            db=db,
+        )
+        return {"ok": True, "campaign": campaign}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/campaigns/{campaign_id}")
+async def get_campaign_detail(campaign_id: str):
+    """Détail d'une campagne avec ses posts."""
+    try:
+        from backend.campaign_service import get_campaign, get_campaign_posts
+        campaign = get_campaign(campaign_id, db=db)
+        if not campaign:
+            raise HTTPException(status_code=404, detail="Campagne introuvable")
+        posts = get_campaign_posts(campaign_id, db=db)
+        return {"campaign": campaign, "posts": posts}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/campaigns/{campaign_id}")
+async def update_campaign_endpoint(campaign_id: str, request: Request):
+    """Met à jour une campagne."""
+    try:
+        from backend.campaign_service import update_campaign
+        body = await request.json()
+        success = update_campaign(campaign_id, body, db=db)
+        return {"ok": success}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/campaigns/{campaign_id}/analyze")
+async def analyze_campaign_endpoint(campaign_id: str):
+    """Lance l'analyse IA d'une campagne."""
+    try:
+        from backend.campaign_service import analyze_campaign
+        analysis = analyze_campaign(campaign_id, db=db)
+        if analysis is None:
+            return {"ok": False, "error": "Mistral non configuré ou analyse impossible"}
+        return {"ok": True, "analysis": analysis}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/campaigns/compare")
+async def compare_campaigns_endpoint(request: Request):
+    """Compare deux campagnes."""
+    try:
+        from backend.campaign_service import compare_campaigns
+        body = await request.json()
+        result = compare_campaigns(body.get("campaign_a"), body.get("campaign_b"), db=db)
+        if result is None:
+            return {"ok": False, "error": "Comparaison impossible"}
+        return {"ok": True, "comparison": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/campaigns/{campaign_id}/posts")
+async def list_campaign_posts(campaign_id: str, limit: int = Query(50, ge=1, le=200)):
+    """Liste les posts d'une campagne."""
+    try:
+        from backend.campaign_service import get_campaign_posts
+        posts = get_campaign_posts(campaign_id, limit=limit, db=db)
+        return {"posts": posts, "total": len(posts)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Bot Publication Webhook ──
+@app.post("/api/publication-bot/webhook")
+async def publication_bot_webhook(request: Request):
+    """Webhook Telegram pour le bot de publication."""
+    try:
+        from backend.publication_bot import handle_webhook
+        update = await request.json()
+        result = handle_webhook(update)
+        return result
+    except Exception as e:
+        logger.error(f"Webhook bot publication: {e}")
+        return {"ok": False}
+
+
+@app.get("/api/publication-bot/status")
+async def publication_bot_status():
+    """Statut du bot de publication."""
+    try:
+        from backend.publication_bot import is_configured as bot_configured
+        from backend.campaign_service import (
+            BUFFER_ACCESS_TOKEN, CLOUDINARY_CLOUD_NAME, MISTRAL_API_KEY
+        )
+        return {
+            "bot_configured": bot_configured(),
+            "buffer_configured": bool(BUFFER_ACCESS_TOKEN),
+            "cloudinary_configured": bool(CLOUDINARY_CLOUD_NAME),
+            "mistral_configured": bool(MISTRAL_API_KEY),
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+# ============================================================
 # NOTIFICATIONS PUSH (Web Push)
 # ============================================================
 
