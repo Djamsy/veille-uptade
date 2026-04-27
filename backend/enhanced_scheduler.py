@@ -554,6 +554,21 @@ async def classify_communes_job():
         raise
 
 
+async def social_stats_scrape_job():
+    """Tâche automatique : scraping stats RS propres via Apify (toutes les 48h)"""
+    logger.info("📊 Scraping stats RS propres (Apify)...")
+    try:
+        from backend.social_stats_scraper import scrape_own_social_stats, is_configured as ss_configured
+        if not ss_configured():
+            logger.debug("Social stats scraper non configuré — ignoré")
+            return
+        result = scrape_own_social_stats()
+        logger.info(f"📊 Stats RS: {result.get('updated', 0)} MAJ, {result.get('created', 0)} créés")
+        return result
+    except Exception as e:
+        logger.error(f"Erreur scraping stats RS: {e}")
+
+
 async def facebook_telegram_sync_job():
     """Tâche automatique : synchronisation Facebook → Telegram"""
     logger.info("📘 Synchronisation Facebook → Telegram...")
@@ -800,6 +815,16 @@ def setup_scheduler_jobs():
         trigger=IntervalTrigger(minutes=1),
         id="facebook_telegram_sync",
         name="Sync Facebook → Telegram",
+        replace_existing=True,
+        max_instances=1
+    )
+
+    # 13. Scraping stats RS propres via Apify — toutes les 48h
+    scheduler.add_job(
+        social_stats_scrape_job,
+        trigger=IntervalTrigger(hours=48),
+        id="social_stats_scrape",
+        name="Scraping stats RS (Apify)",
         replace_existing=True,
         max_instances=1
     )

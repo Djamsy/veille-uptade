@@ -2184,6 +2184,36 @@ async def facebook_status():
         return {"ok": False, "error": str(e)}
 
 
+# ========== SCRAPING STATS RS PROPRES ==========
+
+@app.post("/api/social-stats/scrape")
+async def trigger_social_stats_scrape():
+    """Déclenche manuellement le scraping des stats RS propres."""
+    try:
+        from backend.social_stats_scraper import scrape_own_social_stats, is_configured as ss_configured
+        if not ss_configured():
+            return {"ok": False, "error": "Non configuré (APIFY_TOKEN + CD971_*_URL)"}
+        result = scrape_own_social_stats()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/social-stats/status")
+async def social_stats_status():
+    """Statut du scraping stats RS propres."""
+    try:
+        from backend.social_stats_scraper import is_configured as ss_configured, OWN_PROFILES
+        configured_platforms = [p for p, url in OWN_PROFILES.items() if url]
+        return {
+            "configured": ss_configured(),
+            "platforms": configured_platforms,
+            "frequency": "48h",
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 # ========== LANCEMENT ==========
 
 if __name__ == "__main__":
