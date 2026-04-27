@@ -1619,9 +1619,9 @@ export default function DashboardPage() {
               </span>
               {(() => {
                 const activity = data.daily_activity.slice(-30)
-                const maxCount = Math.max(...activity.map((d: DailyActivity) => d.count), 1)
+                const maxCount = Math.max(...activity.map((d: DailyActivity) => d.articles), 1)
                 return activity.map((d: DailyActivity, i: number) => {
-                  const height = Math.max(4, (d.count / maxCount) * 32)
+                  const height = Math.max(4, (d.articles / maxCount) * 32)
                   const isToday = i === activity.length - 1
                   return (
                     <div key={i} className="group relative flex-1 flex flex-col items-center">
@@ -1631,7 +1631,7 @@ export default function DashboardPage() {
                             ? { background: '#1e293b', color: '#f1f5f9' }
                             : { background: 'rgba(0,0,0,0.9)', color: '#f1f5f9' }
                           }>
-                          {new Date(d.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} — {d.count} articles
+                          {new Date(d.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} — {d.articles} articles
                         </div>
                       </div>
                       <div
@@ -1641,9 +1641,9 @@ export default function DashboardPage() {
                           minWidth: '3px',
                           background: isToday
                             ? '#6366f1'
-                            : d.count > maxCount * 0.7
+                            : d.articles > maxCount * 0.7
                               ? (themeMode === 'light' ? '#f59e0b' : '#fbbf24')
-                              : d.count > maxCount * 0.3
+                              : d.articles > maxCount * 0.3
                                 ? (themeMode === 'light' ? '#6366f1' : '#818cf8')
                                 : (themeMode === 'light' ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.15)'),
                           opacity: isToday ? 1 : 0.7,
