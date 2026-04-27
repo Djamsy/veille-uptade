@@ -926,8 +926,8 @@ export default function DashboardPage() {
 
       // Check for new hot affairs
       if (data && result) {
-        const oldHot = data.affairs?.filter((a: any) => a.priority === 'hot').length || 0
-        const newHot = result.affairs?.filter((a: any) => a.priority === 'hot').length || 0
+        const oldHot = data.top_affairs?.filter((a: any) => a.priority === 'hot').length || 0
+        const newHot = result.top_affairs?.filter((a: any) => a.priority === 'hot').length || 0
         if (newHot > oldHot) {
           addNotification(`${newHot - oldHot} nouvelle(s) affaire(s) urgente(s) détectée(s)`, 'hot')
         }
