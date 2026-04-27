@@ -34,6 +34,7 @@ CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME", "")
 CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY", "")
 CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET", "")
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 # ── Collections MongoDB ──────────────────────────────────
 def _get_db():
@@ -354,7 +355,60 @@ def upload_to_cloudinary(file_url: str, resource_type: str = "image") -> Optiona
 
 
 # ============================================================
-# ANALYSE IA (MISTRAL)
+# ── Appel IA générique (Mistral → OpenAI fallback) ────────
+
+def _call_ai(prompt: str, max_tokens: int = 2000, temperature: float = 0.3) -> Optional[str]:
+    """Appelle Mistral, fallback sur OpenAI si indisponible."""
+    providers = []
+    if MISTRAL_API_KEY:
+        providers.append({
+            "name": "Mistral",
+            "url": "https://api.mistral.ai/v1/chat/completions",
+            "key": MISTRAL_API_KEY,
+            "model": "mistral-small-latest",
+        })
+    if OPENAI_API_KEY:
+        providers.append({
+            "name": "OpenAI",
+            "url": "https://api.openai.com/v1/chat/completions",
+            "key": OPENAI_API_KEY,
+            "model": "gpt-4o-mini",
+        })
+
+    if not providers:
+        logger.warning("Aucune clé IA configurée (MISTRAL_API_KEY / OPENAI_API_KEY)")
+        return None
+
+    for provider in providers:
+        try:
+            payload = json.dumps({
+                "model": provider["model"],
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "response_format": {"type": "json_object"},
+            }).encode()
+
+            req = urllib.request.Request(provider["url"], data=payload, headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {provider['key']}",
+            })
+
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                result = json.loads(resp.read())
+                content = result["choices"][0]["message"]["content"]
+                logger.info(f"🧠 Analyse IA via {provider['name']}")
+                return content
+
+        except Exception as e:
+            logger.warning(f"⚠️ {provider['name']} échoué: {e}")
+            continue
+
+    logger.error("Tous les providers IA ont échoué")
+    return None
+
+
+# ANALYSE IA (MISTRAL / OPENAI)
 # ============================================================
 
 CAMPAIGN_ANALYSIS_PROMPT = """Tu es un expert en marketing digital et communication institutionnelle.
@@ -396,9 +450,9 @@ Produis une analyse structurée en JSON :
 
 
 def analyze_campaign(campaign_id: str, db=None) -> Optional[Dict]:
-    """Analyse IA complète d'une campagne."""
-    if not MISTRAL_API_KEY:
-        logger.warning("Mistral non configuré — analyse impossible")
+    """Analyse IA complète d'une campagne (Mistral → OpenAI fallback)."""
+    if not MISTRAL_API_KEY and not OPENAI_API_KEY:
+        logger.warning("Aucune clé IA configurée — analyse impossible")
         return None
 
     if db is None:
@@ -440,47 +494,34 @@ def analyze_campaign(campaign_id: str, db=None) -> Optional[Dict]:
         comments_data=comments_data,
     )
 
+    content = _call_ai(prompt, max_tokens=2000)
+    if not content:
+        return None
+
     try:
-        url = "https://api.mistral.ai/v1/chat/completions"
-        payload = json.dumps({
-            "model": "mistral-small-latest",
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.3,
-            "max_tokens": 2000,
-            "response_format": {"type": "json_object"},
-        }).encode()
+        analysis = json.loads(content)
 
-        req = urllib.request.Request(url, data=payload, headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {MISTRAL_API_KEY}",
-        })
+        # Sauvegarder l'analyse sur la campagne
+        from bson import ObjectId
+        db["campaigns"].update_one(
+            {"_id": ObjectId(campaign_id)},
+            {"$set": {
+                "ai_analysis": analysis,
+                "analyzed_at": datetime.now(timezone.utc).isoformat(),
+            }}
+        )
 
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            result = json.loads(resp.read())
-            content = result["choices"][0]["message"]["content"]
-            analysis = json.loads(content)
+        logger.info(f"🧠 Analyse campagne '{campaign['name']}': {analysis.get('sentiment', {}).get('global', '?')}")
+        return analysis
 
-            # Sauvegarder l'analyse sur la campagne
-            from bson import ObjectId
-            db["campaigns"].update_one(
-                {"_id": ObjectId(campaign_id)},
-                {"$set": {
-                    "ai_analysis": analysis,
-                    "analyzed_at": datetime.now(timezone.utc).isoformat(),
-                }}
-            )
-
-            logger.info(f"🧠 Analyse campagne '{campaign['name']}': {analysis.get('sentiment', {}).get('global', '?')}")
-            return analysis
-
-    except Exception as e:
-        logger.error(f"Erreur analyse Mistral: {e}")
+    except json.JSONDecodeError as e:
+        logger.error(f"Erreur parsing JSON analyse: {e}")
         return None
 
 
 def compare_campaigns(campaign_id_a: str, campaign_id_b: str, db=None) -> Optional[Dict]:
-    """Compare deux campagnes côte à côte."""
-    if not MISTRAL_API_KEY:
+    """Compare deux campagnes côte à côte (Mistral → OpenAI fallback)."""
+    if not MISTRAL_API_KEY and not OPENAI_API_KEY:
         return None
 
     if db is None:
@@ -509,24 +550,12 @@ CAMPAGNE B : {camp_b['name']}
 Produis un JSON :
 {{"comparison": "résumé comparatif en 3-5 phrases", "winner": "A ou B ou égalité", "improvements": ["ce qui a progressé"], "regressions": ["ce qui a regressé"], "tips": ["conseil pour la prochaine édition"]}}"""
 
+    content = _call_ai(prompt, max_tokens=1000)
+    if not content:
+        return None
+
     try:
-        url = "https://api.mistral.ai/v1/chat/completions"
-        payload = json.dumps({
-            "model": "mistral-small-latest",
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.3,
-            "max_tokens": 1000,
-            "response_format": {"type": "json_object"},
-        }).encode()
-
-        req = urllib.request.Request(url, data=payload, headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {MISTRAL_API_KEY}",
-        })
-
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            result = json.loads(resp.read())
-            return json.loads(result["choices"][0]["message"]["content"])
-    except Exception as e:
-        logger.error(f"Erreur comparaison Mistral: {e}")
+        return json.loads(content)
+    except json.JSONDecodeError as e:
+        logger.error(f"Erreur parsing JSON comparaison: {e}")
         return None
