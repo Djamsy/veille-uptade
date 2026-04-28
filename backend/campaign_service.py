@@ -338,16 +338,15 @@ def publish_to_buffer(text: str, media_urls: List[str] = None,
     errors = []
 
     for ch_id in channel_ids:
-        # Échapper le texte pour l'inline GraphQL
-        escaped_text = text.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
-
-        # Construire les médias inline si présents
-        media_part = ""
+        # Ajouter les URLs médias dans le texte (Buffer ne supporte pas
+        # le champ "media" dans CreatePostInput — les liens Cloudinary
+        # sont auto-détectés comme médias par les plateformes)
+        full_text = text
         if media_urls:
-            media_items = ", ".join([
-                f'{{ url: "{url}", alt: "" }}' for url in media_urls[:4]
-            ])
-            media_part = f", media: [{media_items}]"
+            full_text = text.rstrip() + "\n\n" + "\n".join(media_urls)
+
+        # Échapper le texte pour l'inline GraphQL
+        escaped_text = full_text.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
 
         mutation = f'''
         mutation {{
@@ -356,7 +355,6 @@ def publish_to_buffer(text: str, media_urls: List[str] = None,
             channelId: "{ch_id}",
             schedulingType: automatic,
             mode: addToQueue
-            {media_part}
           }}) {{
             ... on PostActionSuccess {{
               post {{
