@@ -213,16 +213,20 @@ def get_campaign_posts(campaign_id: str = None, limit: int = 50, db=None) -> Lis
 
 
 # ============================================================
-# BUFFER API (GraphQL — nouvelle API)
+# BUFFER API (GraphQL — nouvelle API officielle)
+# Docs: https://developers.buffer.com/guides/getting-started.html
+# Endpoint unique: https://api.buffer.com
+# Auth: Bearer token
 # ============================================================
 
-BUFFER_GRAPHQL_URL = "https://graph.buffer.com/graphql"
+BUFFER_GRAPHQL_URL = "https://api.buffer.com"
+BUFFER_ORG_ID = os.getenv("BUFFER_ORG_ID", "")
 
 
 def _buffer_graphql(query: str, variables: Dict = None) -> Optional[Dict]:
-    """Appel GraphQL à Buffer."""
+    """Appel GraphQL à Buffer (endpoint officiel api.buffer.com)."""
     if not BUFFER_ACCESS_TOKEN:
-        logger.warning("Buffer non configuré")
+        logger.warning("Buffer non configuré (BUFFER_ACCESS_TOKEN manquant)")
         return None
 
     payload = json.dumps({
@@ -238,196 +242,98 @@ def _buffer_graphql(query: str, variables: Dict = None) -> Optional[Dict]:
         with urllib.request.urlopen(req, timeout=20) as resp:
             raw = resp.read()
             result = json.loads(raw)
-            logger.info(f"📡 Buffer GraphQL response: {str(raw[:500])}")
+            logger.info(f"📡 Buffer GraphQL OK: {str(raw[:500])}")
             if result.get("errors"):
                 logger.error(f"Buffer GraphQL errors: {result['errors']}")
+                return None
             return result.get("data")
+    except urllib.error.HTTPError as e:
+        body = e.read().decode() if hasattr(e, "read") else ""
+        logger.error(f"Buffer GraphQL HTTP {e.code}: {body[:300]}")
+        return None
     except Exception as e:
         logger.error(f"Buffer GraphQL error: {e}")
         return None
 
 
-def get_buffer_channels() -> List[Dict]:
-    """Liste les channels (profils) Buffer connectés."""
-    # Essayer plusieurs structures de query (l'API Buffer change souvent)
-    queries = [
-        # Query 1: organizations → channels
-        """query { organizations { id channels { id name service } } }""",
-        # Query 2: account → channels
-        """query { account { id organizations { id channels { id name service } } } }""",
-        # Query 3: introspection pour debug
-        """query { __schema { queryType { fields { name } } } }""",
-    ]
-
-    for i, query in enumerate(queries):
-        data = _buffer_graphql(query)
-        if not data:
-            continue
-
-        # Essayer d'extraire les channels de la réponse
-        channels = []
-        orgs = data.get("organizations") or []
-
-        # Si c'est dans account.organizations
-        if not orgs and data.get("account"):
-            orgs = data["account"].get("organizations") or []
-
-        for org in orgs:
-            for ch in (org.get("channels") or []):
-                ch["organization_id"] = org.get("id", "")
-                channels.append(ch)
-
-        if channels:
-            logger.info(f"📡 Buffer: {len(channels)} channels trouvés (query #{i+1})")
-            return channels
-
-        # Si c'est l'introspection, logger les champs disponibles
-        if data.get("__schema"):
-            fields = [f["name"] for f in data["__schema"].get("queryType", {}).get("fields", [])]
-            logger.info(f"📡 Buffer schema fields: {fields}")
-
-    logger.warning("⚠️ Buffer: aucun channel trouvé avec les queries connues")
-    return []
-
-
-BUFFER_ORG_ID = os.getenv("BUFFER_ORG_ID", "")
-
-
 def _get_org_id() -> str:
-    """Récupère l'organization ID Buffer."""
+    """Récupère l'organization ID Buffer via account query."""
     if BUFFER_ORG_ID:
         return BUFFER_ORG_ID
 
-    # Tenter de le récupérer via l'API
-    queries = [
-        """query { organizations { id } }""",
-        """query { account { organizations { id } } }""",
-    ]
-    for q in queries:
-        data = _buffer_graphql(q)
-        if data:
-            orgs = data.get("organizations") or []
-            if not orgs and data.get("account"):
-                orgs = data["account"].get("organizations") or []
-            if orgs:
-                oid = orgs[0].get("id", "")
-                if oid:
-                    logger.info(f"📡 Buffer org ID: {oid}")
-                    return oid
+    query = """query { account { organizations { id name } } }"""
+    data = _buffer_graphql(query)
+    if data and data.get("account"):
+        orgs = data["account"].get("organizations") or []
+        if orgs:
+            oid = orgs[0].get("id", "")
+            logger.info(f"📡 Buffer org: {orgs[0].get('name', '?')} ({oid})")
+            return oid
+    logger.warning("Buffer: impossible de récupérer l'org ID")
     return ""
+
+
+def get_buffer_channels() -> List[Dict]:
+    """Liste les channels Buffer connectés via channels(organizationId)."""
+    org_id = _get_org_id()
+    if not org_id:
+        logger.warning("Buffer: pas d'org ID → impossible de lister les channels")
+        return []
+
+    query = """
+    query GetChannels($input: ChannelsInput!) {
+      channels(input: $input) {
+        id
+        name
+        service
+        organizationId
+      }
+    }
+    """
+    variables = {"input": {"organizationId": org_id}}
+    data = _buffer_graphql(query, variables)
+
+    if not data or not data.get("channels"):
+        logger.warning("Buffer: aucun channel trouvé")
+        return []
+
+    channels = data["channels"]
+    logger.info(f"📡 Buffer: {len(channels)} channels trouvés")
+    for ch in channels:
+        logger.info(f"   → {ch.get('name', '?')} ({ch.get('service', '?')}) id={ch.get('id', '?')}")
+    return channels
 
 
 def publish_to_buffer(text: str, media_urls: List[str] = None,
                       channel_ids: List[str] = None) -> Dict:
-    """Publie un post via Buffer (GraphQL API).
+    """Publie un post via Buffer GraphQL createPost sur tous les channels.
 
-    Crée une Idea puis la publie immédiatement sur tous les channels.
+    Utilise schedulingType: automatic + mode: addToQueue pour publier
+    via la file Buffer (publication immédiate si la file est vide).
     """
     if not BUFFER_ACCESS_TOKEN:
         return {"ok": False, "error": "Buffer non configuré (BUFFER_ACCESS_TOKEN)"}
 
-    org_id = _get_org_id()
-    if not org_id:
-        return {"ok": False, "error": "Impossible de récupérer l'organization ID Buffer. Ajoutez BUFFER_ORG_ID dans les env vars."}
-
-    # 1. Créer l'idée
-    create_query = """
-    mutation CreateIdea($input: CreateIdeaInput!) {
-      createIdea(input: $input) {
-        ... on Idea {
-          id
-          content { text }
-        }
-        ... on CoreError {
-          message
-        }
-      }
-    }
-    """
-
-    content_input = {
-        "text": text,
-    }
-    if media_urls:
-        content_input["media"] = [{"url": url, "alt": ""} for url in media_urls[:4]]
-
-    create_vars = {
-        "input": {
-            "organizationId": org_id,
-            "content": content_input,
-        }
-    }
-
-    idea_data = _buffer_graphql(create_query, create_vars)
-
-    if not idea_data:
-        return {"ok": False, "error": "Buffer createIdea échoué (pas de réponse)"}
-
-    idea = idea_data.get("createIdea", {})
-    if idea.get("message"):
-        return {"ok": False, "error": f"Buffer createIdea: {idea['message']}"}
-
-    idea_id = idea.get("id", "")
-    if not idea_id:
-        return {"ok": False, "error": f"Buffer createIdea: pas d'ID retourné. Réponse: {str(idea_data)[:200]}"}
-
-    logger.info(f"📝 Buffer idea créée: {idea_id}")
-
-    # 2. Récupérer les channels si pas fournis
+    # 1. Récupérer les channels si pas fournis
     if not channel_ids:
         channels = get_buffer_channels()
         channel_ids = [ch["id"] for ch in channels]
 
-    # 3. Publier immédiatement
-    if channel_ids:
-        # Avec channels spécifiques
-        share_query = """
-        mutation ShareIdeaNow($input: ShareIdeaNowInput!) {
-          shareIdeaNow(input: $input) {
-            ... on ShareIdeaNowSuccess {
-              posts { id channelId }
-            }
-            ... on CoreError {
-              message
-            }
-          }
-        }
-        """
-        share_vars = {"input": {"ideaId": idea_id, "channelIds": channel_ids}}
-        pub_data = _buffer_graphql(share_query, share_vars)
+    if not channel_ids:
+        return {"ok": False, "error": "Aucun channel Buffer trouvé. Vérifiez BUFFER_ORG_ID et vos profils connectés."}
 
-        if pub_data:
-            share_result = pub_data.get("shareIdeaNow", {})
-            if share_result.get("posts"):
-                post_ids = [p.get("id", "") for p in share_result["posts"]]
-                logger.info(f"✅ Buffer: publié sur {len(post_ids)} channels")
-                return {"ok": True, "buffer_ids": post_ids, "profiles_count": len(post_ids)}
-            if share_result.get("message"):
-                logger.warning(f"Buffer shareIdeaNow error: {share_result['message']}")
-
-    # 4. Fallback : publier channel par channel
-    if channel_ids:
-        return _publish_direct(text, media_urls, channel_ids, org_id)
-
-    # Pas de channels mais l'idée est créée → succès partiel
-    return {
-        "ok": True,
-        "buffer_ids": [idea_id],
-        "profiles_count": 0,
-        "note": "Idea créée mais pas de channels trouvés pour publier. Publiez depuis Buffer.",
-    }
-
-
-def _publish_direct(text: str, media_urls: List[str], channel_ids: List[str], org_id: str) -> Dict:
-    """Fallback: publier directement via createPost mutation."""
-    query = """
+    # 2. Publier sur chaque channel via createPost
+    mutation = """
     mutation CreatePost($input: CreatePostInput!) {
       createPost(input: $input) {
-        ... on Post {
-          id
-          channelId
+        ... on PostActionSuccess {
+          post {
+            id
+            text
+            dueAt
+          }
         }
-        ... on CoreError {
+        ... on MutationError {
           message
         }
       }
@@ -438,35 +344,54 @@ def _publish_direct(text: str, media_urls: List[str], channel_ids: List[str], or
     errors = []
 
     for ch_id in channel_ids:
-        content = {"text": text}
-        if media_urls:
-            content["media"] = [{"url": url} for url in media_urls[:4]]
-
-        variables = {
-            "input": {
-                "channelId": ch_id,
-                "content": content,
-                "publishNow": True,
-            }
+        post_input = {
+            "text": text,
+            "channelId": ch_id,
+            "schedulingType": "automatic",
+            "mode": "addToQueue",
         }
 
-        result = _buffer_graphql(query, variables)
-        if result:
-            post = result.get("createPost", {})
-            if post.get("id"):
-                published.append(post["id"])
-                logger.info(f"✅ Buffer post créé: {post['id']} → channel {ch_id}")
-            elif post.get("message"):
-                errors.append(post["message"])
-                logger.error(f"Buffer createPost error ({ch_id}): {post['message']}")
+        # Ajouter les médias si présents
+        if media_urls:
+            post_input["media"] = [{"url": url, "alt": ""} for url in media_urls[:4]]
+
+        variables = {"input": post_input}
+        result = _buffer_graphql(mutation, variables)
+
+        if not result:
+            errors.append(f"channel {ch_id}: pas de réponse")
+            continue
+
+        create_result = result.get("createPost", {})
+
+        # Succès → PostActionSuccess
+        post_data = create_result.get("post")
+        if post_data:
+            pid = post_data.get("id", "")
+            due = post_data.get("dueAt", "")
+            published.append(pid)
+            logger.info(f"✅ Buffer post créé: {pid} → channel {ch_id} (dueAt: {due})")
+            continue
+
+        # Erreur → MutationError
+        err_msg = create_result.get("message", "")
+        if err_msg:
+            errors.append(f"channel {ch_id}: {err_msg}")
+            logger.error(f"Buffer createPost error ({ch_id}): {err_msg}")
+        else:
+            errors.append(f"channel {ch_id}: réponse inattendue: {str(create_result)[:200]}")
+            logger.error(f"Buffer createPost réponse inattendue ({ch_id}): {create_result}")
 
     if published:
+        logger.info(f"✅ Buffer: publié sur {len(published)}/{len(channel_ids)} channels")
         return {
             "ok": True,
             "buffer_ids": published,
             "profiles_count": len(published),
+            "errors": errors if errors else None,
         }
-    return {"ok": False, "error": "; ".join(errors) if errors else "Aucun post créé"}
+
+    return {"ok": False, "error": "; ".join(errors) if errors else "Aucun post créé sur Buffer"}
 
 
 def fetch_buffer_stats(post_id: str) -> Optional[Dict]:
