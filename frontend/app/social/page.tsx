@@ -25,6 +25,7 @@ const PLAT_COLORS: Record<string, { icon: string; color: string }> = {
   linkedin: { icon: '💼', color: '#0a66c2' },
   twitter: { icon: '🐦', color: '#1da1f2' },
   youtube: { icon: '▶️', color: '#ff0000' },
+  tiktok: { icon: '🎵', color: '#000000' },
 }
 
 const SENTIMENT_COLORS: Record<string, { icon: string; color: string; bg: string }> = {
@@ -48,14 +49,20 @@ function timeAgo(d: string): string {
   return `il y a ${Math.floor(diff / 86400)}j`
 }
 
-// ── Post Card ──
-function PostCard({ post, onHover, onScrape }: {
+// ── Post Card (Redesigned) ──
+function PostCard({
+  post,
+  onViewDetail,
+  onScrape
+}: {
   post: CampaignPost;
-  onHover: (p: CampaignPost | null) => void;
+  onViewDetail: (post: CampaignPost) => void;
   onScrape?: (postId: string) => void;
 }) {
   const s = post.stats || { views: 0, likes: 0, comments: 0, clicks: 0, reach: 0 }
   const [scraping, setScraping] = useState(false)
+  const bodyPreview = (post.body || '').substring(0, 120).trim()
+  const hasMoreText = (post.body || '').length > 120
 
   const handleScrape = async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -68,96 +75,350 @@ function PostCard({ post, onHover, onScrape }: {
     }
   }
 
+  // Calculate engagement rate
+  const engagement = s.reach > 0
+    ? (((s.likes + s.comments + s.clicks) / s.reach) * 100).toFixed(1)
+    : '0'
+
   return (
     <div
-      className="glass-card p-0 overflow-hidden cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg"
-      onMouseEnter={() => onHover(post)}
-      onMouseLeave={() => onHover(null)}
+      className="glass-card p-0 overflow-hidden cursor-pointer transition-all hover:scale-[1.02] hover:shadow-2xl"
+      onClick={() => onViewDetail(post)}
     >
-      {/* Media preview */}
-      <div className="relative h-40 bg-white/5 flex items-center justify-center overflow-hidden">
+      {/* Media preview - Larger */}
+      <div className="relative h-48 bg-gradient-to-br from-white/5 to-white/2 flex items-center justify-center overflow-hidden group">
         {post.media_url ? (
           post.media_type === 'video' ? (
-            <video src={post.media_url} className="w-full h-full object-cover" muted />
+            <>
+              <img
+                src={post.media_url}
+                alt=""
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect fill=%22%23333%22 width=%2216%22 height=%2216%22/%3E%3Cpath fill=%22%23fff%22 d=%22M6 11V5l5 3z%22/%3E%3C/svg%3E'
+                }}
+              />
+              <div className="absolute inset-0 bg-black/30 group-hover:bg-black/20 flex items-center justify-center transition-all">
+                <span className="text-3xl">▶️</span>
+              </div>
+            </>
           ) : (
-            <img src={post.media_url} alt="" className="w-full h-full object-cover" />
+            <img
+              src={post.media_url}
+              alt=""
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            />
           )
         ) : (
-          <div className="text-4xl opacity-30">📄</div>
+          <div className="text-5xl opacity-20">📄</div>
         )}
-        <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-xs font-medium"
-          style={{ background: 'rgba(0,0,0,0.6)', color: '#fff' }}>
-          {post.media_type === 'video' ? '🎬 Vidéo' : post.media_type === 'carousel' ? '📸 Carrousel' : '📷 Photo'}
+
+        {/* Badge média */}
+        <span className="absolute top-3 right-3 px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-md"
+          style={{ background: 'rgba(0,0,0,0.7)', color: '#fff' }}>
+          {post.media_type === 'video' ? '🎬' : post.media_type === 'carousel' ? '📸' : '📷'}
         </span>
-        {/* Bouton scrape rapide */}
-        <button
-          onClick={handleScrape}
-          disabled={scraping}
-          className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-xs font-medium transition-all hover:scale-105"
-          style={{
-            background: scraping ? 'rgba(234,179,8,0.8)' : 'rgba(0,0,0,0.6)',
-            color: '#fff',
-            cursor: scraping ? 'wait' : 'pointer',
-          }}
-          title="Scraper les stats actuelles"
-        >
-          {scraping ? '⏳ ...' : '🔄 Stats'}
-        </button>
+
+        {/* Campaign Badge */}
+        <span className="absolute top-3 left-3 px-2 py-1 rounded-full text-xs font-medium backdrop-blur-md"
+          style={{ background: 'rgba(59,130,246,0.8)', color: '#fff' }}>
+          {post.campaign_name}
+        </span>
       </div>
+
       {/* Content */}
-      <div className="p-3">
-        <h3 className="font-semibold text-sm mb-1 line-clamp-2" style={{ color: 'var(--text)' }}>
+      <div className="p-4">
+        {/* Title */}
+        <h3 className="font-bold text-sm mb-2 line-clamp-2" style={{ color: 'var(--text)' }}>
           {post.title || 'Sans titre'}
         </h3>
-        <p className="text-xs opacity-60 mb-2">{timeAgo(post.published_at)}</p>
-        <div className="flex gap-3 text-xs opacity-70">
-          <span>👁 {formatNumber(s.views)}</span>
-          <span>❤️ {formatNumber(s.likes)}</span>
-          <span>💬 {s.comments}</span>
-          <span>🔗 {s.clicks}</span>
+
+        {/* Body preview */}
+        {bodyPreview && (
+          <p className="text-xs mb-3 opacity-70 line-clamp-2">
+            {bodyPreview}{hasMoreText && '...'}
+          </p>
+        )}
+
+        {/* Timestamp */}
+        <p className="text-xs opacity-50 mb-3">{timeAgo(post.published_at)}</p>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-4 gap-2 mb-3 p-2 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)' }}>
+          <div className="text-center">
+            <div className="text-lg font-semibold" style={{ color: 'var(--primary)' }}>
+              {formatNumber(s.views)}
+            </div>
+            <div className="text-[10px] opacity-50">Vues</div>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-semibold" style={{ color: '#ef4444' }}>
+              {formatNumber(s.likes)}
+            </div>
+            <div className="text-[10px] opacity-50">J'aime</div>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-semibold" style={{ color: '#3b82f6' }}>
+              {formatNumber(s.comments)}
+            </div>
+            <div className="text-[10px] opacity-50">Commentaires</div>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-semibold" style={{ color: '#22c55e' }}>
+              {engagement}%
+            </div>
+            <div className="text-[10px] opacity-50">Engagement</div>
+          </div>
         </div>
-        {/* Commentaires scrapés */}
+
+        {/* Platform icons */}
+        <div className="flex gap-2 items-center mb-3">
+          {Object.entries(post.platform_stats || {}).map(([platform]) => {
+            const cfg = PLAT_COLORS[platform.toLowerCase()] || { icon: '🌐', color: '#888' }
+            return (
+              <span key={platform} title={platform} style={{ color: cfg.color }}>
+                {cfg.icon}
+              </span>
+            )
+          })}
+        </div>
+
+        {/* Comments count */}
         {post.comments_scraped && post.comments_scraped.length > 0 && (
-          <div className="mt-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-            <span className="text-xs opacity-50">💬 {post.comments_scraped.length} commentaires scrapés</span>
+          <div className="mb-3 p-2 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)' }}>
+            <p className="text-xs opacity-60">
+              💬 {post.comments_scraped.length} commentaires scrapés
+            </p>
           </div>
         )}
+
+        {/* Actions */}
+        <div className="flex gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              handleScrape(e)
+            }}
+            disabled={scraping}
+            className="flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all hover:scale-105 flex items-center justify-center gap-1"
+            style={{
+              background: scraping ? 'rgba(234,179,8,0.2)' : 'rgba(59,130,246,0.15)',
+              color: scraping ? '#eab308' : '#3b82f6',
+              border: `1px solid ${scraping ? 'rgba(234,179,8,0.2)' : 'rgba(59,130,246,0.2)'}`,
+              cursor: scraping ? 'wait' : 'pointer',
+            }}
+            title="Scraper les stats actuelles"
+          >
+            {scraping ? '⏳' : '🔄'} {scraping ? 'Scraping...' : 'Stats'}
+          </button>
+          <button
+            onClick={() => onViewDetail(post)}
+            className="flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1"
+            style={{
+              background: 'rgba(139,92,246,0.15)',
+              color: '#a78bfa',
+              border: '1px solid rgba(139,92,246,0.2)',
+            }}
+          >
+            👁 Voir
+          </button>
+        </div>
       </div>
     </div>
   )
 }
 
-// ── Stat Detail Tooltip ──
-function StatTooltip({ post }: { post: CampaignPost }) {
+// ── Post Detail Modal ──
+function PostDetailModal({
+  post,
+  onClose,
+  onScrape
+}: {
+  post: CampaignPost;
+  onClose: () => void;
+  onScrape?: (postId: string) => void;
+}) {
+  const [scraping, setScraping] = useState(false)
+  const s = post.stats || { views: 0, likes: 0, comments: 0, clicks: 0, reach: 0 }
   const ps = post.platform_stats || {}
+
+  const handleScrape = async () => {
+    if (scraping || !post._id) return
+    setScraping(true)
+    try {
+      if (onScrape) onScrape(post._id)
+    } finally {
+      setTimeout(() => setScraping(false), 3000)
+    }
+  }
+
   return (
-    <div className="glass-card p-4 min-w-[280px]" style={{ background: 'var(--card-bg)' }}>
-      <h4 className="font-semibold mb-3" style={{ color: 'var(--text)' }}>{post.title || 'Sans titre'}</h4>
-      {Object.entries(ps).length > 0 ? (
-        Object.entries(ps).map(([platform, stats]) => {
-          const cfg = PLAT_COLORS[platform] || { icon: '🌐', color: '#888' }
-          const st = stats as { views: number; likes: number; comments: number; clicks: number; reach: number }
-          return (
-            <div key={platform} className="mb-2 p-2 rounded-lg" style={{ background: 'rgba(255,255,255,0.05)' }}>
-              <div className="flex items-center gap-2 mb-1">
-                <span>{cfg.icon}</span>
-                <span className="font-medium text-sm" style={{ color: cfg.color }}>
-                  {platform.charAt(0).toUpperCase() + platform.slice(1)}
-                </span>
-              </div>
-              <div className="grid grid-cols-5 gap-1 text-xs opacity-70">
-                <span>👁 {formatNumber(st.views)}</span>
-                <span>❤️ {formatNumber(st.likes)}</span>
-                <span>💬 {st.comments}</span>
-                <span>🔗 {st.clicks}</span>
-                <span>📊 {formatNumber(st.reach)}</span>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.7)' }}
+      onClick={onClose}
+    >
+      <div
+        className="glass-card w-full max-w-3xl max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: 'var(--card-bg)' }}
+      >
+        <div className="sticky top-0 flex items-center justify-between p-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+          <h2 className="text-lg font-bold" style={{ color: 'var(--text)' }}>
+            {post.title || 'Sans titre'}
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-xl opacity-60 hover:opacity-100 transition-opacity"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Full media preview */}
+          {post.media_url && (
+            <div className="rounded-lg overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)' }}>
+              {post.media_type === 'video' ? (
+                <div className="aspect-video bg-black flex items-center justify-center relative group">
+                  <img
+                    src={post.media_url}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/30 group-hover:bg-black/20 flex items-center justify-center transition-all">
+                    <span className="text-5xl">▶️</span>
+                  </div>
+                </div>
+              ) : (
+                <img src={post.media_url} alt="" className="w-full" />
+              )}
+            </div>
+          )}
+
+          {/* Full text */}
+          <div>
+            <h3 className="text-sm font-semibold mb-2 opacity-70">Contenu du post</h3>
+            <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--text)', opacity: 0.9 }}>
+              {post.body || 'Pas de contenu texte'}
+            </p>
+          </div>
+
+          {/* Stats breakdown */}
+          <div>
+            <h3 className="text-sm font-semibold mb-3 opacity-70">Statistiques globales</h3>
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+              {[
+                { label: 'Vues', value: s.views, icon: '👁', color: 'var(--primary)' },
+                { label: 'J\'aime', value: s.likes, icon: '❤️', color: '#ef4444' },
+                { label: 'Commentaires', value: s.comments, icon: '💬', color: '#3b82f6' },
+                { label: 'Clics', value: s.clicks, icon: '🔗', color: '#22c55e' },
+                { label: 'Reach', value: s.reach, icon: '📊', color: '#f59e0b' },
+                { label: 'Engagement', value: s.reach > 0 ? (((s.likes + s.comments + s.clicks) / s.reach) * 100).toFixed(1) : '0', unit: '%', icon: '⚡', color: '#a78bfa' },
+              ].map(stat => (
+                <div key={stat.label} className="p-3 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                  <div className="text-xl mb-1">{stat.icon}</div>
+                  <div className="text-lg font-bold" style={{ color: stat.color }}>
+                    {formatNumber(typeof stat.value === 'number' ? stat.value : parseFloat(stat.value))}{stat.unit || ''}
+                  </div>
+                  <div className="text-xs opacity-50">{stat.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Platform breakdown */}
+          {Object.entries(ps).length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold mb-3 opacity-70">Par plateforme</h3>
+              <div className="space-y-3">
+                {Object.entries(ps).map(([platform, stats]) => {
+                  const cfg = PLAT_COLORS[platform.toLowerCase()] || { icon: '🌐', color: '#888' }
+                  const st = stats as { views: number; likes: number; comments: number; clicks: number; reach: number }
+                  const engagement = st.reach > 0 ? (((st.likes + st.comments + st.clicks) / st.reach) * 100).toFixed(1) : '0'
+
+                  return (
+                    <div key={platform} className="p-4 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)', borderLeft: `4px solid ${cfg.color}` }}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-xl">{cfg.icon}</span>
+                        <span className="font-semibold" style={{ color: cfg.color }}>
+                          {platform.charAt(0).toUpperCase() + platform.slice(1)}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-5 gap-2 text-sm">
+                        <div>
+                          <div className="text-lg font-bold opacity-70">{formatNumber(st.views)}</div>
+                          <div className="text-xs opacity-50">Vues</div>
+                        </div>
+                        <div>
+                          <div className="text-lg font-bold opacity-70">{formatNumber(st.likes)}</div>
+                          <div className="text-xs opacity-50">J'aime</div>
+                        </div>
+                        <div>
+                          <div className="text-lg font-bold opacity-70">{formatNumber(st.comments)}</div>
+                          <div className="text-xs opacity-50">Commentaires</div>
+                        </div>
+                        <div>
+                          <div className="text-lg font-bold opacity-70">{formatNumber(st.reach)}</div>
+                          <div className="text-xs opacity-50">Reach</div>
+                        </div>
+                        <div>
+                          <div className="text-lg font-bold" style={{ color: '#a78bfa' }}>{engagement}%</div>
+                          <div className="text-xs opacity-50">Engagement</div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
-          )
-        })
-      ) : (
-        <p className="text-xs opacity-50">Stats par plateforme non encore disponibles</p>
-      )}
+          )}
+
+          {/* Comments */}
+          {post.comments_scraped && post.comments_scraped.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold mb-3 opacity-70">Commentaires ({post.comments_scraped.length})</h3>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {(post.comments_scraped as any[]).map((comment, i) => (
+                  <div key={i} className="p-3 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                    {comment.author && (
+                      <div className="font-semibold text-sm opacity-80 mb-1">{comment.author}</div>
+                    )}
+                    <p className="text-sm opacity-70">{comment.text}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+            <button
+              onClick={handleScrape}
+              disabled={scraping}
+              className="flex-1 px-4 py-2 rounded-lg font-medium transition-all hover:scale-105"
+              style={{
+                background: scraping ? 'rgba(234,179,8,0.2)' : 'rgba(59,130,246,0.15)',
+                color: scraping ? '#eab308' : '#3b82f6',
+                border: `1px solid ${scraping ? 'rgba(234,179,8,0.2)' : 'rgba(59,130,246,0.2)'}`,
+              }}
+            >
+              {scraping ? '⏳ Scraping...' : '🔄 Scraper maintenant'}
+            </button>
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-2 rounded-lg font-medium"
+              style={{
+                background: 'rgba(139,92,246,0.15)',
+                color: '#a78bfa',
+                border: '1px solid rgba(139,92,246,0.2)',
+              }}
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -290,7 +551,7 @@ async function compressImage(file: File, maxWidth = 1920, quality = 0.75): Promi
   })
 }
 
-// ── New Post Modal (publication web) ──
+// ── New Post Modal (Improved) ──
 function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
   campaigns: Campaign[];
   selectedCampaignId?: string;
@@ -324,14 +585,13 @@ function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
     setPublishStep(0) // Upload
 
     try {
-      // Compresser l'image côté client avant envoi
       const compressedMedia = media ? await compressImage(media) : undefined
       const res = await publishPost({
         text: text.trim(),
         campaign_id: campaignId || undefined,
         media: compressedMedia || undefined,
       })
-      setPublishStep(3) // Terminé
+      setPublishStep(3)
       setResult(res)
       if (res.ok) {
         setTimeout(() => {
@@ -349,92 +609,147 @@ function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}
       onClick={loading ? undefined : onClose}>
-      <div className="glass-card p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}
+      <div className="glass-card w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}
         style={{ background: 'var(--card-bg)' }}>
-        <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--text)' }}>Nouveau post</h2>
+        <div className="sticky top-0 flex items-center justify-between p-6 border-b" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+          <h2 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Nouveau post</h2>
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="text-xl opacity-60 hover:opacity-100 transition-opacity"
+          >
+            ✕
+          </button>
+        </div>
 
-        {/* Campagne */}
-        <label className="block text-sm mb-1 opacity-70">Campagne</label>
-        <select className="input-dark w-full mb-3" value={campaignId} onChange={e => setCampaignId(e.target.value)}
-          disabled={loading}>
-          <option value="">Détection automatique</option>
-          {campaigns.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
-        </select>
+        <div className="p-6 space-y-5">
+          {/* Campagne */}
+          <div>
+            <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--text)' }}>Campagne</label>
+            <select
+              className="input-dark w-full"
+              value={campaignId}
+              onChange={e => setCampaignId(e.target.value)}
+              disabled={loading}
+            >
+              <option value="">Détection automatique</option>
+              {campaigns.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+            </select>
+            <p className="text-xs opacity-50 mt-1">Laisser vide pour détection automatique</p>
+          </div>
 
-        {/* Texte */}
-        <label className="block text-sm mb-1 opacity-70">
-          Texte du post <span className="opacity-40">(pas de limite de caractères)</span>
-        </label>
-        <textarea
-          className="input-dark w-full mb-1 resize-none"
-          style={{ minHeight: '180px' }}
-          placeholder={"*Titre en gras*\n\nCorps du texte...\nÉcrivez autant que nécessaire, sans limite !\n\n#hashtag1 #hashtag2"}
-          value={text}
-          onChange={e => setText(e.target.value)}
-          disabled={loading}
-        />
-        <p className="text-xs opacity-40 mb-3 text-right">{text.length} caractères</p>
+          {/* Texte */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Contenu du post</label>
+              <span className="text-xs opacity-50">{text.length} caractères</span>
+            </div>
+            <textarea
+              className="input-dark w-full resize-none focus:ring-2 focus:ring-blue-500"
+              style={{ minHeight: '220px', borderRadius: '8px' }}
+              placeholder="Écrivez votre contenu ici... pas de limite de caractères"
+              value={text}
+              onChange={e => setText(e.target.value)}
+              disabled={loading}
+            />
+          </div>
 
-        {/* Média */}
-        <label className="block text-sm mb-1 opacity-70">Média (photo ou vidéo)</label>
-        <div className="mb-4">
-          <label className={`btn-glass px-4 py-2 text-sm inline-block ${loading ? 'opacity-50' : 'cursor-pointer'}`}
-            style={{ background: 'rgba(59,130,246,0.15)' }}>
-            {media ? `📎 ${media.name}` : '📷 Choisir un fichier'}
-            <input type="file" accept="image/*,video/*" className="hidden" onChange={handleMedia} disabled={loading} />
-          </label>
-          {media && !loading && (
-            <button className="ml-2 text-xs opacity-50 hover:opacity-80" onClick={() => { setMedia(null); setMediaPreview('') }}>
-              ✕ Supprimer
-            </button>
-          )}
-          {mediaPreview && (
-            <div className="mt-2 rounded-lg overflow-hidden" style={{ maxHeight: '200px', maxWidth: '300px' }}>
-              <img src={mediaPreview} alt="preview" className="w-full h-full object-cover" />
+          {/* Média */}
+          <div>
+            <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--text)' }}>Média (optionnel)</label>
+            <div className="mb-4">
+              <label className={`inline-block px-4 py-3 rounded-lg text-sm font-medium transition-all ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:scale-105'}`}
+                style={{
+                  background: 'rgba(59,130,246,0.15)',
+                  color: '#3b82f6',
+                  border: '1px dashed rgba(59,130,246,0.3)'
+                }}>
+                {media ? `📎 ${media.name}` : '📁 Cliquez pour sélectionner ou glissez'}
+                <input
+                  type="file"
+                  accept="image/*,video/*"
+                  className="hidden"
+                  onChange={handleMedia}
+                  disabled={loading}
+                />
+              </label>
+              {media && !loading && (
+                <button
+                  className="ml-3 text-xs opacity-50 hover:opacity-80 transition-opacity"
+                  onClick={() => {
+                    setMedia(null)
+                    setMediaPreview('')
+                  }}
+                >
+                  ✕ Supprimer
+                </button>
+              )}
+            </div>
+
+            {mediaPreview && (
+              <div className="rounded-lg overflow-hidden mb-4" style={{ maxHeight: '280px', maxWidth: '100%' }}>
+                <img src={mediaPreview} alt="preview" className="w-full h-full object-cover" />
+              </div>
+            )}
+          </div>
+
+          {/* Barre de progression */}
+          {loading && <PublishProgress step={publishStep} error={false} />}
+
+          {/* Résultat */}
+          {result && (
+            <div className="p-4 rounded-lg text-sm" style={{
+              background: result.ok ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+              color: result.ok ? '#22c55e' : '#ef4444',
+              border: `1px solid ${result.ok ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+            }}>
+              {result.ok ? (
+                <div>
+                  <div className="font-semibold mb-1">✅ Publication réussie !</div>
+                  <div className="opacity-80">{result.platforms} plateforme(s) · Campagne : {result.campaign}</div>
+                </div>
+              ) : (
+                <div>
+                  <div className="font-semibold mb-1">❌ Publication échouée</div>
+                  <div className="opacity-80">
+                    {result.error === 'cloudinary_failed' && 'Cloudinary : upload média échoué. Vérifiez les clés CLOUDINARY_* sur Render.'}
+                    {result.error === 'network' && `Erreur réseau : ${result.detail}`}
+                    {result.error === 'server_error' && `Erreur serveur : ${result.detail}`}
+                    {result.error && !['cloudinary_failed', 'network', 'server_error'].includes(result.error) && (
+                      <>Buffer : {result.detail || result.error}</>
+                    )}
+                    {!result.error && 'Erreur inconnue. Consultez les logs Render.'}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        {/* Barre de progression */}
-        {loading && <PublishProgress step={publishStep} error={false} />}
-
-        {/* Résultat */}
-        {result && (
-          <div className="mb-4 p-4 rounded-lg text-sm" style={{
-            background: result.ok ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
-            color: result.ok ? '#22c55e' : '#ef4444',
-            border: `1px solid ${result.ok ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
-          }}>
-            {result.ok ? (
-              <div>
-                <div className="font-semibold mb-1">✅ Publication réussie !</div>
-                <div className="opacity-80">{result.platforms} plateforme(s) · Campagne : {result.campaign}</div>
-              </div>
-            ) : (
-              <div>
-                <div className="font-semibold mb-1">❌ Publication échouée</div>
-                <div className="opacity-80">
-                  {result.error === 'cloudinary_failed' && 'Cloudinary : upload média échoué. Vérifiez les clés CLOUDINARY_* sur Render.'}
-                  {result.error === 'network' && `Erreur réseau : ${result.detail}`}
-                  {result.error === 'server_error' && `Erreur serveur : ${result.detail}`}
-                  {result.error && !['cloudinary_failed', 'network', 'server_error'].includes(result.error) && (
-                    <>Buffer : {result.detail || result.error}</>
-                  )}
-                  {!result.error && 'Erreur inconnue. Consultez les logs Render.'}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Actions */}
-        <div className="flex gap-3 justify-end">
-          <button className="btn-glass px-4 py-2" onClick={onClose} disabled={loading}>Annuler</button>
+        <div className="flex gap-3 p-6 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
           <button
-            className="btn-glass px-6 py-2 font-semibold"
+            className="flex-1 px-4 py-2 rounded-lg font-medium"
+            onClick={onClose}
+            disabled={loading}
+            style={{
+              background: 'rgba(139,92,246,0.15)',
+              color: '#a78bfa',
+              border: '1px solid rgba(139,92,246,0.2)',
+            }}
+          >
+            Annuler
+          </button>
+          <button
+            className="flex-1 px-6 py-2 rounded-lg font-semibold transition-all"
             onClick={handleSubmit}
             disabled={loading || !text.trim()}
-            style={{ background: loading ? 'rgba(100,100,100,0.3)' : 'rgba(34,197,94,0.3)' }}>
+            style={{
+              background: loading || !text.trim() ? 'rgba(100,100,100,0.2)' : 'rgba(34,197,94,0.3)',
+              color: loading || !text.trim() ? 'rgba(255,255,255,0.4)' : '#22c55e',
+              border: `1px solid ${loading || !text.trim() ? 'rgba(100,100,100,0.1)' : 'rgba(34,197,94,0.2)'}`,
+            }}
+          >
             {loading ? '⏳ Publication en cours...' : '🚀 Publier'}
           </button>
         </div>
@@ -524,7 +839,7 @@ export default function SocialPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null)
   const [posts, setPosts] = useState<CampaignPost[]>([])
-  const [hoveredPost, setHoveredPost] = useState<CampaignPost | null>(null)
+  const [selectedPost, setSelectedPost] = useState<CampaignPost | null>(null)
   const [loading, setLoading] = useState(true)
   const [showNewCampaign, setShowNewCampaign] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
@@ -537,6 +852,8 @@ export default function SocialPage() {
   const [showNewPost, setShowNewPost] = useState(false)
   const [serviceStatus, setServiceStatus] = useState<ServiceStatus | null>(null)
   const [statsStatus, setStatsStatus] = useState<{ configured: boolean; platforms: string[] } | null>(null)
+  const [sortBy, setSortBy] = useState<'date' | 'engagement' | 'reach'>('date')
+  const [filterPlatform, setFilterPlatform] = useState<string>('')
 
   const loadCampaigns = useCallback(async () => {
     try {
@@ -596,23 +913,40 @@ export default function SocialPage() {
   const perfData = analysis?.performance as { best_format?: string; best_platform?: string; best_time?: string; best_day?: string; top_post?: string } | undefined
   const recommendations = (analysis?.recommendations || []) as string[]
 
+  // Sort and filter posts
+  const sortedPosts = [...posts].sort((a, b) => {
+    if (sortBy === 'date') {
+      return new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
+    } else if (sortBy === 'engagement') {
+      const engA = (a.stats?.likes || 0) + (a.stats?.comments || 0)
+      const engB = (b.stats?.likes || 0) + (b.stats?.comments || 0)
+      return engB - engA
+    } else if (sortBy === 'reach') {
+      return (b.stats?.reach || 0) - (a.stats?.reach || 0)
+    }
+    return 0
+  }).filter(p => {
+    if (!filterPlatform) return true
+    return Object.keys(p.platform_stats || {}).some(plat => plat.toLowerCase().includes(filterPlatform.toLowerCase()))
+  })
+
   return (
     <div className="flex min-h-screen" style={{ background: 'var(--bg)' }}>
       <Sidebar />
       <main className="flex-1 p-6 ml-16 md:ml-56">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Campagnes RS</h1>
-            <p className="text-sm opacity-60">Conseil Départemental de Guadeloupe</p>
+            <h1 className="text-3xl font-bold" style={{ color: 'var(--text)' }}>Campagnes RS</h1>
+            <p className="text-sm opacity-60 mt-1">Gestion des posts et statistiques</p>
           </div>
           <div className="flex gap-2">
-            <button className="btn-glass px-4 py-2 font-medium" onClick={() => setShowNewPost(true)}
-              style={{ background: 'rgba(34,197,94,0.2)' }}>
+            <button className="btn-glass px-4 py-2 font-medium transition-all hover:scale-105" onClick={() => setShowNewPost(true)}
+              style={{ background: 'rgba(34,197,94,0.2)', color: '#22c55e' }}>
               🚀 Nouveau post
             </button>
-            <button className="btn-glass px-4 py-2 font-medium" onClick={() => setShowNewCampaign(true)}
-              style={{ background: 'rgba(59,130,246,0.2)' }}>
+            <button className="btn-glass px-4 py-2 font-medium transition-all hover:scale-105" onClick={() => setShowNewCampaign(true)}
+              style={{ background: 'rgba(59,130,246,0.2)', color: '#3b82f6' }}>
               + Nouvelle campagne
             </button>
           </div>
@@ -621,8 +955,12 @@ export default function SocialPage() {
         {/* Tabs */}
         <div className="flex gap-2 mb-6">
           {(['campagne', 'analyse', 'comparaison'] as const).map(tab => (
-            <button key={tab} className="btn-glass px-4 py-2 text-sm font-medium capitalize"
-              style={{ background: view === tab ? 'rgba(59,130,246,0.25)' : 'transparent' }}
+            <button key={tab} className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
+              style={{
+                background: view === tab ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.03)',
+                color: view === tab ? '#3b82f6' : 'var(--text)',
+                border: `1px solid ${view === tab ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.08)'}`
+              }}
               onClick={() => setView(tab)}>
               {tab === 'campagne' ? '📋 Campagne' : tab === 'analyse' ? '📊 Analyse' : '⚖️ Comparaison'}
             </button>
@@ -642,91 +980,125 @@ export default function SocialPage() {
           } catch (e) { alert('Erreur: ' + e) }
         }} />
 
-        <div className="flex gap-6">
-          {/* Sidebar campagnes */}
-          <div className="w-64 shrink-0">
-            <h3 className="text-sm font-semibold mb-3 opacity-70">Campagnes</h3>
-            {loading ? (
-              <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="skeleton h-12 rounded-lg" />)}</div>
-            ) : campaigns.length === 0 ? (
-              <p className="text-sm opacity-50">Aucune campagne. Créez-en une !</p>
-            ) : (
-              <div className="space-y-1">
-                {campaigns.map(c => (
-                  <button key={c._id} className="w-full text-left p-3 rounded-lg transition-all"
-                    style={{
-                      background: selectedCampaign?._id === c._id ? 'rgba(59,130,246,0.15)' : 'transparent',
-                      color: 'var(--text)',
-                    }}
-                    onClick={() => selectCampaign(c)}>
-                    <div className="font-medium text-sm">{c.name}</div>
-                    <div className="text-xs opacity-50 mt-0.5">
-                      {c.post_count} posts · {c.status === 'active' ? '🟢' : '⚪'} {c.status}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
+        {/* Campaign tabs (horizontal) */}
+        {!loading && campaigns.length > 0 && (
+          <div className="mb-6 pb-4 overflow-x-auto" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="flex gap-2 min-w-fit">
+              {campaigns.map(c => (
+                <button
+                  key={c._id}
+                  className="px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all hover:scale-105"
+                  style={{
+                    background: selectedCampaign?._id === c._id ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.03)',
+                    color: selectedCampaign?._id === c._id ? '#3b82f6' : 'var(--text)',
+                    border: `1px solid ${selectedCampaign?._id === c._id ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.08)'}`,
+                  }}
+                  onClick={() => selectCampaign(c)}
+                >
+                  {c.name}
+                  <span className="ml-2 text-xs opacity-60">({c.post_count})</span>
+                </button>
+              ))}
+            </div>
           </div>
+        )}
 
-          {/* Contenu principal */}
-          <div className="flex-1">
+        {/* Contenu principal */}
+        <div>
             {!selectedCampaign ? (
               <div className="glass-card p-12 text-center">
-                <div className="text-5xl mb-4 opacity-30">📢</div>
-                <p className="text-lg opacity-50">Sélectionnez une campagne</p>
+                <div className="text-6xl mb-4 opacity-20">📢</div>
+                <p className="text-lg opacity-50 font-medium">Sélectionnez une campagne pour commencer</p>
+                <p className="text-sm opacity-40 mt-2">Choisissez une campagne dans l'onglet ci-dessus</p>
               </div>
             ) : view === 'campagne' ? (
               <>
                 {/* Stats globales */}
                 {totalStats && (
-                  <div className="grid grid-cols-6 gap-3 mb-6">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
                     {[
-                      { label: 'Posts', value: totalStats.posts, icon: '📝' },
-                      { label: 'Vues', value: totalStats.views, icon: '👁' },
-                      { label: 'Likes', value: totalStats.likes, icon: '❤️' },
-                      { label: 'Commentaires', value: totalStats.comments, icon: '💬' },
-                      { label: 'Clics', value: totalStats.clicks, icon: '🔗' },
-                      { label: 'Reach', value: totalStats.reach, icon: '📊' },
+                      { label: 'Posts', value: totalStats.posts, icon: '📝', color: '#8b5cf6' },
+                      { label: 'Vues', value: totalStats.views, icon: '👁', color: '#3b82f6' },
+                      { label: 'Likes', value: totalStats.likes, icon: '❤️', color: '#ef4444' },
+                      { label: 'Commentaires', value: totalStats.comments, icon: '💬', color: '#f59e0b' },
+                      { label: 'Clics', value: totalStats.clicks, icon: '🔗', color: '#10b981' },
+                      { label: 'Reach', value: totalStats.reach, icon: '📊', color: '#06b6d4' },
                     ].map(s => (
-                      <div key={s.label} className="glass-card p-3 text-center">
-                        <div className="text-lg">{s.icon}</div>
-                        <div className="text-xl font-bold" style={{ color: 'var(--text)' }}>
+                      <div key={s.label} className="glass-card p-4 text-center" style={{ borderLeft: `4px solid ${s.color}` }}>
+                        <div className="text-2xl mb-1">{s.icon}</div>
+                        <div className="text-2xl font-bold" style={{ color: s.color }}>
                           {formatNumber(s.value)}
                         </div>
-                        <div className="text-xs opacity-50">{s.label}</div>
+                        <div className="text-xs opacity-50 mt-1">{s.label}</div>
                       </div>
                     ))}
                   </div>
                 )}
 
+                {/* Filter & Sort */}
+                <div className="flex flex-col md:flex-row gap-3 mb-6 items-stretch md:items-center">
+                  <div className="flex-1">
+                    <select
+                      value={filterPlatform}
+                      onChange={(e) => setFilterPlatform(e.target.value)}
+                      className="input-dark w-full"
+                    >
+                      <option value="">Toutes les plateformes</option>
+                      {Object.keys(PLAT_COLORS).map(plat => (
+                        <option key={plat} value={plat}>
+                          {PLAT_COLORS[plat].icon} {plat.charAt(0).toUpperCase() + plat.slice(1)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex-1">
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as any)}
+                      className="input-dark w-full"
+                    >
+                      <option value="date">Trier par date (récent)</option>
+                      <option value="engagement">Trier par engagement</option>
+                      <option value="reach">Trier par reach</option>
+                    </select>
+                  </div>
+
+                  <div className="text-xs opacity-60 whitespace-nowrap">
+                    {sortedPosts.length} post{sortedPosts.length > 1 ? 's' : ''}
+                  </div>
+                </div>
+
                 {/* Grille de posts */}
                 <div className="relative">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {posts.map(post => (
-                      <PostCard key={post._id} post={post} onHover={setHoveredPost} onScrape={async (pid) => {
-                        try {
-                          const result = await scrapePostStats(pid)
-                          if (result.ok) {
-                            if (selectedCampaign) selectCampaign(selectedCampaign)
-                          } else {
-                            alert(`Scraping échoué: ${result.error}`)
-                          }
-                        } catch (e) { alert('Erreur: ' + e) }
-                      }} />
-                    ))}
-                  </div>
-                  {posts.length === 0 && (
-                    <div className="glass-card p-8 text-center">
-                      <p className="opacity-50">Aucun post dans cette campagne.</p>
-                      <p className="text-sm opacity-30 mt-1">Publiez depuis le bot Telegram pour commencer.</p>
+                  {sortedPosts.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {sortedPosts.map(post => (
+                        <PostCard
+                          key={post._id}
+                          post={post}
+                          onViewDetail={setSelectedPost}
+                          onScrape={async (pid) => {
+                            try {
+                              const result = await scrapePostStats(pid)
+                              if (result.ok) {
+                                if (selectedCampaign) selectCampaign(selectedCampaign)
+                              } else {
+                                alert(`Scraping échoué: ${result.error}`)
+                              }
+                            } catch (e) { alert('Erreur: ' + e) }
+                          }}
+                        />
+                      ))}
                     </div>
-                  )}
-
-                  {/* Tooltip stats au survol */}
-                  {hoveredPost && (
-                    <div className="fixed right-8 top-1/3 z-40">
-                      <StatTooltip post={hoveredPost} />
+                  ) : (
+                    <div className="glass-card p-12 text-center">
+                      <p className="text-lg opacity-50 font-medium">Aucun post trouvé</p>
+                      <p className="text-sm opacity-40 mt-2">
+                        {posts.length === 0
+                          ? 'Publiez depuis le bot Telegram pour commencer.'
+                          : 'Essayez de modifier les filtres ou le tri.'}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -920,6 +1292,25 @@ export default function SocialPage() {
             onPublished={() => {
               if (selectedCampaign) selectCampaign(selectedCampaign)
               loadCampaigns()
+            }}
+          />
+        )}
+        {selectedPost && (
+          <PostDetailModal
+            post={selectedPost}
+            onClose={() => setSelectedPost(null)}
+            onScrape={async (pid) => {
+              try {
+                const result = await scrapePostStats(pid)
+                if (result.ok) {
+                  if (selectedCampaign) selectCampaign(selectedCampaign)
+                  // Update the selected post with new data
+                  const updatedPost = sortedPosts.find(p => p._id === pid)
+                  if (updatedPost) setSelectedPost(updatedPost)
+                } else {
+                  alert(`Scraping échoué: ${result.error}`)
+                }
+              } catch (e) { alert('Erreur: ' + e) }
             }}
           />
         )}

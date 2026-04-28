@@ -1094,6 +1094,7 @@ export interface CampaignPost {
   published_at: string;
   stats: { views: number; likes: number; comments: number; clicks: number; reach: number };
   platform_stats: Record<string, { views: number; likes: number; comments: number; clicks: number; reach: number }>;
+  comments_scraped?: Array<{ author?: string; text: string; likes?: number }>;
   sentiment?: { global: string; score: number } | null;
   ai_analysis?: Record<string, unknown> | null;
 }
