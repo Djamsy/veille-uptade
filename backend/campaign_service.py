@@ -213,98 +213,273 @@ def get_campaign_posts(campaign_id: str = None, limit: int = 50, db=None) -> Lis
 
 
 # ============================================================
-# BUFFER API
+# BUFFER API (GraphQL — nouvelle API)
 # ============================================================
 
-def _buffer_api(endpoint: str, method: str = "GET", data: Dict = None) -> Optional[Dict]:
-    """Appel à l'API Buffer."""
+BUFFER_GRAPHQL_URL = "https://graph.buffer.com/graphql"
+
+
+def _buffer_graphql(query: str, variables: Dict = None) -> Optional[Dict]:
+    """Appel GraphQL à Buffer."""
     if not BUFFER_ACCESS_TOKEN:
         logger.warning("Buffer non configuré")
         return None
 
-    url = f"https://api.bufferapp.com/1/{endpoint}.json?access_token={BUFFER_ACCESS_TOKEN}"
+    payload = json.dumps({
+        "query": query,
+        "variables": variables or {},
+    }).encode()
 
     try:
-        if method == "POST" and data:
-            payload = urllib.parse.urlencode(data, doseq=True).encode()
-            req = urllib.request.Request(url, data=payload, method="POST")
-        else:
-            req = urllib.request.Request(url)
-
-        req.add_header("Content-Type", "application/x-www-form-urlencoded")
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            return json.loads(resp.read())
+        req = urllib.request.Request(BUFFER_GRAPHQL_URL, data=payload, headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {BUFFER_ACCESS_TOKEN}",
+        })
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            result = json.loads(resp.read())
+            if result.get("errors"):
+                logger.error(f"Buffer GraphQL errors: {result['errors']}")
+                return None
+            return result.get("data")
     except Exception as e:
-        logger.error(f"Buffer API error: {e}")
+        logger.error(f"Buffer GraphQL error: {e}")
         return None
 
 
-def get_buffer_profiles() -> List[Dict]:
-    """Liste les profils Buffer connectés."""
-    result = _buffer_api("profiles")
-    if not result:
+def get_buffer_channels() -> List[Dict]:
+    """Liste les channels (profils) Buffer connectés."""
+    query = """
+    query GetChannels {
+      organizations {
+        id
+        channels {
+          id
+          name
+          service
+          serverUrl
+        }
+      }
+    }
+    """
+    data = _buffer_graphql(query)
+    if not data:
         return []
-    return result if isinstance(result, list) else []
+
+    channels = []
+    for org in data.get("organizations", []):
+        for ch in org.get("channels", []):
+            ch["organization_id"] = org["id"]
+            channels.append(ch)
+
+    logger.info(f"📡 Buffer: {len(channels)} channels trouvés")
+    return channels
 
 
 def publish_to_buffer(text: str, media_urls: List[str] = None,
-                      profile_ids: List[str] = None) -> Dict:
-    """Publie un post via Buffer sur toutes les plateformes.
+                      channel_ids: List[str] = None) -> Dict:
+    """Publie un post via Buffer sur toutes les plateformes (GraphQL API).
 
     Args:
         text: Texte du post
         media_urls: URLs des médias (Cloudinary)
-        profile_ids: IDs des profils Buffer (tous si None)
+        channel_ids: IDs des channels Buffer (tous si None)
 
     Returns:
-        Dict avec les résultats par profil
+        Dict avec les résultats
     """
     if not BUFFER_ACCESS_TOKEN:
-        return {"ok": False, "error": "Buffer non configuré"}
+        return {"ok": False, "error": "Buffer non configuré (BUFFER_ACCESS_TOKEN)"}
 
-    # Si pas de profils spécifiés, utiliser tous les profils
-    if not profile_ids:
-        profiles = get_buffer_profiles()
-        profile_ids = [p["id"] for p in profiles]
+    # Récupérer les channels si pas spécifiés
+    if not channel_ids:
+        channels = get_buffer_channels()
+        channel_ids = [ch["id"] for ch in channels]
 
-    if not profile_ids:
-        return {"ok": False, "error": "Aucun profil Buffer trouvé"}
+    if not channel_ids:
+        return {"ok": False, "error": "Aucun channel Buffer trouvé. Connectez vos RS sur buffer.com."}
 
-    data = {
-        "text": text,
-        "profile_ids[]": profile_ids,
-        "now": "true",  # Publier immédiatement
+    # Construire le contenu
+    content = {"text": text}
+    if media_urls:
+        content["media"] = [{"url": url} for url in media_urls[:4]]
+
+    # Mutation GraphQL pour créer un post
+    query = """
+    mutation CreateIdea($input: CreateIdeaInput!) {
+      createIdea(input: $input) {
+        ... on Idea {
+          id
+          content {
+            text
+          }
+        }
+        ... on CoreError {
+          message
+        }
+      }
+    }
+    """
+
+    # D'abord, récupérer l'organization ID
+    channels = get_buffer_channels()
+    if not channels:
+        return {"ok": False, "error": "Aucun channel Buffer trouvé"}
+
+    org_id = channels[0].get("organization_id", "")
+
+    variables = {
+        "input": {
+            "organizationId": org_id,
+            "content": {
+                "title": text[:100],
+                "text": text,
+            },
+        }
+    }
+
+    # Créer l'idée (brouillon)
+    idea_data = _buffer_graphql(query, variables)
+
+    if not idea_data:
+        # Fallback: essayer la publication directe via createPost
+        return _publish_direct(text, media_urls, channel_ids, org_id)
+
+    idea = idea_data.get("createIdea", {})
+    if idea.get("message"):
+        logger.error(f"Buffer createIdea error: {idea['message']}")
+        return _publish_direct(text, media_urls, channel_ids, org_id)
+
+    idea_id = idea.get("id", "")
+    logger.info(f"📝 Buffer idea créée: {idea_id}")
+
+    # Publier immédiatement sur tous les channels
+    publish_query = """
+    mutation ShareIdeaNow($input: ShareIdeaNowInput!) {
+      shareIdeaNow(input: $input) {
+        ... on ShareIdeaNowSuccess {
+          posts {
+            id
+            channelId
+          }
+        }
+        ... on CoreError {
+          message
+        }
+      }
+    }
+    """
+
+    publish_vars = {
+        "input": {
+            "ideaId": idea_id,
+            "channelIds": channel_ids,
+        }
     }
 
     if media_urls:
-        for i, url in enumerate(media_urls[:4]):
-            data[f"media[photo]"] = url  # Buffer accepte photo pour images
-            # Pour les vidéos, Buffer utilise media[video]
+        publish_vars["input"]["content"] = {
+            "text": text,
+            "media": [{"url": url} for url in media_urls[:4]],
+        }
 
-    result = _buffer_api("updates/create", method="POST", data=data)
+    pub_data = _buffer_graphql(publish_query, publish_vars)
 
-    if result and result.get("success"):
+    if pub_data:
+        share_result = pub_data.get("shareIdeaNow", {})
+        if share_result.get("posts"):
+            post_ids = [p.get("id", "") for p in share_result["posts"]]
+            logger.info(f"✅ Buffer: publié sur {len(post_ids)} channels")
+            return {
+                "ok": True,
+                "buffer_ids": post_ids,
+                "profiles_count": len(post_ids),
+            }
+        if share_result.get("message"):
+            logger.error(f"Buffer share error: {share_result['message']}")
+            return {"ok": False, "error": share_result["message"]}
+
+    return {"ok": False, "error": "Buffer publication échouée (pas de réponse)"}
+
+
+def _publish_direct(text: str, media_urls: List[str], channel_ids: List[str], org_id: str) -> Dict:
+    """Fallback: publier directement via createPost mutation."""
+    query = """
+    mutation CreatePost($input: CreatePostInput!) {
+      createPost(input: $input) {
+        ... on Post {
+          id
+          channelId
+        }
+        ... on CoreError {
+          message
+        }
+      }
+    }
+    """
+
+    published = []
+    errors = []
+
+    for ch_id in channel_ids:
+        content = {"text": text}
+        if media_urls:
+            content["media"] = [{"url": url} for url in media_urls[:4]]
+
+        variables = {
+            "input": {
+                "channelId": ch_id,
+                "content": content,
+                "publishNow": True,
+            }
+        }
+
+        result = _buffer_graphql(query, variables)
+        if result:
+            post = result.get("createPost", {})
+            if post.get("id"):
+                published.append(post["id"])
+                logger.info(f"✅ Buffer post créé: {post['id']} → channel {ch_id}")
+            elif post.get("message"):
+                errors.append(post["message"])
+                logger.error(f"Buffer createPost error ({ch_id}): {post['message']}")
+
+    if published:
         return {
             "ok": True,
-            "buffer_ids": [u.get("id") for u in result.get("updates", [])],
-            "profiles_count": len(profile_ids),
+            "buffer_ids": published,
+            "profiles_count": len(published),
         }
-    else:
-        return {"ok": False, "error": str(result)}
+    return {"ok": False, "error": "; ".join(errors) if errors else "Aucun post créé"}
 
 
-def fetch_buffer_stats(buffer_update_id: str) -> Optional[Dict]:
-    """Récupère les stats d'un post Buffer."""
-    result = _buffer_api(f"updates/{buffer_update_id}/interactions")
-    if not result:
+def fetch_buffer_stats(post_id: str) -> Optional[Dict]:
+    """Récupère les stats d'un post Buffer via GraphQL."""
+    query = """
+    query GetPostStats($id: ID!) {
+      post(id: $id) {
+        statistics {
+          impressions
+          reach
+          clicks
+          likes
+          comments
+          shares
+        }
+      }
+    }
+    """
+    data = _buffer_graphql(query, {"id": post_id})
+    if not data or not data.get("post"):
         return None
+
+    stats = data["post"].get("statistics", {})
     return {
-        "views": result.get("views", 0),
-        "likes": result.get("likes", 0),
-        "comments": result.get("comments", 0),
-        "clicks": result.get("clicks", 0),
-        "reach": result.get("reach", 0),
-        "shares": result.get("shares", 0),
+        "views": stats.get("impressions", 0),
+        "likes": stats.get("likes", 0),
+        "comments": stats.get("comments", 0),
+        "clicks": stats.get("clicks", 0),
+        "reach": stats.get("reach", 0),
+        "shares": stats.get("shares", 0),
     }
 
 
