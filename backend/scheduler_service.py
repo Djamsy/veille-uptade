@@ -681,6 +681,56 @@ async def job_social_scrape():
 
 
 # ============================================================
+# JOB Buffer Stats Sync (gratuit — 6×/jour)
+# ============================================================
+
+async def job_buffer_stats_sync():
+    """Synchronise les stats des publications via Buffer API (gratuit)."""
+    try:
+        try:
+            from backend.campaign_service import sync_buffer_stats
+        except ImportError:
+            from campaign_service import sync_buffer_stats
+
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, sync_buffer_stats)
+        updated = result.get("updated", 0)
+        created = result.get("created", 0)
+        logger.info(f"📊 Buffer sync: {updated} mis à jour, {created} créés")
+        return result
+
+    except Exception as e:
+        logger.error(f"❌ Erreur Buffer stats sync: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ============================================================
+# JOB Apify Comments Scrape (payant — 2×/jour, ~$0.43/run)
+# ============================================================
+
+async def job_apify_comments_scrape():
+    """Scrape les commentaires FB/IG/TikTok via Apify (budget $30/mois)."""
+    try:
+        try:
+            from backend.social_stats_scraper import scrape_own_social_stats
+        except ImportError:
+            from social_stats_scraper import scrape_own_social_stats
+
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, scrape_own_social_stats)
+        platforms = result.get("platforms", {})
+        total_comments = sum(
+            p.get("comments_count", 0) for p in platforms.values() if isinstance(p, dict)
+        )
+        logger.info(f"💬 Apify comments: {total_comments} commentaires récupérés sur {len(platforms)} plateformes")
+        return result
+
+    except Exception as e:
+        logger.error(f"❌ Erreur Apify comments scrape: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ============================================================
 # JOB combiné : Scrape → Enrich → Cycle affaires
 # ============================================================
 
@@ -969,12 +1019,28 @@ def _ensure_scheduler():
         name="Health-check flux radio"
     )
 
-    # 📱 Scraping RS 3×/jour (7h10, 13h10, 19h10) — optimisé coûts Apify < 30€/mois
+    # 📱 Scraping RS veille/monitoring 3×/jour (7h10, 13h10, 19h10)
     _scheduler.add_job(
         job_social_scrape,
         CronTrigger(hour="7,13,19", minute="10", timezone=TZ),
         id="social_scrape",
-        name="Scraping RS (FB + IG + TikTok) 3x/jour"
+        name="Scraping RS veille (FB + IG + TikTok) 3x/jour"
+    )
+
+    # 📊 Buffer Stats Sync 6×/jour (gratuit) — 6h, 10h, 13h, 16h, 22h, 23h
+    _scheduler.add_job(
+        job_buffer_stats_sync,
+        CronTrigger(hour="6,10,13,16,22,23", minute="0", timezone=TZ),
+        id="buffer_stats_sync",
+        name="Buffer stats sync (gratuit) 6x/jour"
+    )
+
+    # 💬 Apify Comments Scrape 2×/jour (payant ~$0.43/run) — 8h, 19h
+    _scheduler.add_job(
+        job_apify_comments_scrape,
+        CronTrigger(hour="8,19", minute="0", timezone=TZ),
+        id="apify_comments_scrape",
+        name="Apify comments (FB+IG+TK) 2x/jour — budget $30/mois"
     )
 
     # 🔮 Analyse prédictive IA toutes les heures (minute 30)
@@ -1152,6 +1218,20 @@ async def radio_health_check_now(user: dict = Depends(_sched_admin)):
 async def social_scrape_now(user: dict = Depends(_sched_admin)):
     """Lance le scraping social maintenant (Admin)"""
     result = await job_social_scrape()
+    return {"success": True, "result": result}
+
+
+@router.post("/buffer-sync-now")
+async def buffer_sync_now(user: dict = Depends(_sched_admin)):
+    """Lance la sync Buffer stats maintenant (Admin) — gratuit"""
+    result = await job_buffer_stats_sync()
+    return {"success": True, "result": result}
+
+
+@router.post("/apify-comments-now")
+async def apify_comments_now(user: dict = Depends(_sched_admin)):
+    """Lance le scraping commentaires Apify maintenant (Admin) — ~$0.43"""
+    result = await job_apify_comments_scrape()
     return {"success": True, "result": result}
 
 
