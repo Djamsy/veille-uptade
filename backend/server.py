@@ -2015,6 +2015,28 @@ async def analyze_campaign_endpoint(campaign_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/campaigns/{campaign_id}/analysis-history")
+async def get_analysis_history(campaign_id: str, limit: int = Query(10, ge=1, le=50)):
+    """Historique des analyses IA d'une campagne avec deltas."""
+    try:
+        analyses = list(db["campaign_analyses"].find(
+            {"campaign_id": campaign_id},
+            sort=[("created_at", -1)],
+            limit=limit,
+        ))
+        for a in analyses:
+            a["_id"] = str(a["_id"])
+            if a.get("previous_analysis_id"):
+                a["previous_analysis_id"] = str(a["previous_analysis_id"])
+            if hasattr(a.get("created_at"), "isoformat"):
+                a["created_at"] = a["created_at"].isoformat()
+            if hasattr(a.get("expires_at"), "isoformat"):
+                a["expires_at"] = a["expires_at"].isoformat()
+        return {"ok": True, "history": analyses, "count": len(analyses)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/campaigns/compare")
 async def compare_campaigns_endpoint(request: Request):
     """Compare deux campagnes."""

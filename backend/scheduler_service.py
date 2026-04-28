@@ -731,6 +731,29 @@ async def job_apify_comments_scrape():
 
 
 # ============================================================
+# JOB Auto-analyse campagnes RS (tous les 2 jours)
+# ============================================================
+
+async def job_campaign_auto_analysis():
+    """Re-analyse les campagnes RS dont l'analyse a expiré (>2j)."""
+    try:
+        try:
+            from backend.campaign_service import auto_analyze_campaigns
+        except ImportError:
+            from campaign_service import auto_analyze_campaigns
+
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, auto_analyze_campaigns)
+        analyzed = result.get("analyzed", 0)
+        logger.info(f"Auto-analyse RS: {analyzed} campagnes re-analysees")
+        return result
+
+    except Exception as e:
+        logger.error(f"Erreur auto-analyse campagnes: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ============================================================
 # JOB combiné : Scrape → Enrich → Cycle affaires
 # ============================================================
 
@@ -1043,7 +1066,15 @@ def _ensure_scheduler():
         name="Apify comments (FB+IG+TK) 2x/jour — budget $30/mois"
     )
 
-    # 🔮 Analyse prédictive IA toutes les heures (minute 30)
+    # Auto-analyse campagnes RS tous les 2 jours a 9h
+    _scheduler.add_job(
+        job_campaign_auto_analysis,
+        CronTrigger(day="*/2", hour="9", minute="0", timezone=TZ),
+        id="campaign_auto_analysis",
+        name="Auto-analyse campagnes RS (tous les 2j)"
+    )
+
+    # Analyse predictive IA toutes les heures (minute 30)
     _scheduler.add_job(
         job_predictive_analysis,
         CronTrigger(minute="30", timezone=TZ),

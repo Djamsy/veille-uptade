@@ -959,10 +959,78 @@ Produis une analyse structurée en JSON :
 }}"""
 
 
+def _get_previous_analysis(campaign_id: str, db) -> Optional[Dict]:
+    """Récupère la dernière analyse stockée pour comparaison."""
+    from bson import ObjectId
+    doc = db["campaign_analyses"].find_one(
+        {"campaign_id": campaign_id},
+        sort=[("created_at", -1)]
+    )
+    return doc
+
+
+def _store_analysis(campaign_id: str, analysis: Dict, previous: Optional[Dict], db) -> Dict:
+    """Stocke l'analyse en historique avec delta vs précédente."""
+    from bson import ObjectId
+    now = datetime.now(timezone.utc)
+
+    record = {
+        "campaign_id": campaign_id,
+        "analysis": analysis,
+        "created_at": now,
+        "expires_at": now + timedelta(days=2),
+    }
+
+    # Calculer le delta si on a une analyse précédente
+    if previous and previous.get("analysis"):
+        prev = previous["analysis"]
+        delta = {}
+
+        # Delta sentiment score
+        prev_score = (prev.get("sentiment") or {}).get("score", 0)
+        new_score = (analysis.get("sentiment") or {}).get("score", 0)
+        if prev_score and new_score:
+            delta["sentiment_score_change"] = round(new_score - prev_score, 3)
+            delta["sentiment_direction"] = "up" if new_score > prev_score else ("down" if new_score < prev_score else "stable")
+
+        # Delta sentiment global
+        prev_global = (prev.get("sentiment") or {}).get("global", "")
+        new_global = (analysis.get("sentiment") or {}).get("global", "")
+        if prev_global and new_global and prev_global != new_global:
+            delta["sentiment_shift"] = f"{prev_global} -> {new_global}"
+
+        # Delta recommandations (nouvelles vs anciennes)
+        prev_recs = set(prev.get("recommendations") or [])
+        new_recs = set(analysis.get("recommendations") or [])
+        delta["new_recommendations"] = list(new_recs - prev_recs)
+        delta["resolved_recommendations"] = list(prev_recs - new_recs)
+
+        record["delta"] = delta
+        record["previous_analysis_id"] = previous.get("_id")
+
+    # Stocker dans l'historique
+    result = db["campaign_analyses"].insert_one(record)
+
+    # Mettre à jour la campagne avec la dernière analyse
+    db["campaigns"].update_one(
+        {"_id": ObjectId(campaign_id)},
+        {"$set": {
+            "ai_analysis": analysis,
+            "analyzed_at": now.isoformat(),
+            "analysis_delta": record.get("delta"),
+            "next_analysis_at": (now + timedelta(days=2)).isoformat(),
+        }}
+    )
+
+    return record
+
+
 def analyze_campaign(campaign_id: str, db=None) -> Optional[Dict]:
-    """Analyse IA complète d'une campagne (Mistral → OpenAI fallback)."""
+    """Analyse IA complète d'une campagne (Mistral -> OpenAI fallback).
+    Stocke l'historique et calcule le delta vs la dernière analyse.
+    """
     if not MISTRAL_API_KEY and not OPENAI_API_KEY:
-        logger.warning("Aucune clé IA configurée — analyse impossible")
+        logger.warning("Aucune cle IA configuree -- analyse impossible")
         return None
 
     if db is None:
@@ -975,6 +1043,19 @@ def analyze_campaign(campaign_id: str, db=None) -> Optional[Dict]:
     posts = get_campaign_posts(campaign_id, limit=100, db=db)
     if not posts:
         return {"error": "Aucun post dans cette campagne"}
+
+    # Récupérer l'analyse précédente pour contexte
+    previous = _get_previous_analysis(campaign_id, db)
+    previous_context = ""
+    if previous and previous.get("analysis"):
+        prev_a = previous["analysis"]
+        previous_context = f"""
+
+ANALYSE PRECEDENTE ({previous.get('created_at', '').isoformat() if hasattr(previous.get('created_at', ''), 'isoformat') else str(previous.get('created_at', ''))}):
+- Sentiment: {(prev_a.get('sentiment') or {}).get('global', '?')} (score: {(prev_a.get('sentiment') or {}).get('score', '?')})
+- Recommandations: {json.dumps(prev_a.get('recommendations', [])[:5], ensure_ascii=False)}
+
+Compare avec l'analyse precedente et indique les progressions/regressions dans le champ "evolution"."""
 
     # Préparer les données pour l'IA
     campaign_data = json.dumps({
@@ -1002,7 +1083,7 @@ def analyze_campaign(campaign_id: str, db=None) -> Optional[Dict]:
         campaign_data=campaign_data,
         posts_data=posts_data,
         comments_data=comments_data,
-    )
+    ) + previous_context
 
     content = _call_ai(prompt, max_tokens=2000)
     if not content:
@@ -1011,22 +1092,53 @@ def analyze_campaign(campaign_id: str, db=None) -> Optional[Dict]:
     try:
         analysis = json.loads(content)
 
-        # Sauvegarder l'analyse sur la campagne
-        from bson import ObjectId
-        db["campaigns"].update_one(
-            {"_id": ObjectId(campaign_id)},
-            {"$set": {
-                "ai_analysis": analysis,
-                "analyzed_at": datetime.now(timezone.utc).isoformat(),
-            }}
-        )
+        # Stocker avec historique et delta
+        _store_analysis(campaign_id, analysis, previous, db)
 
-        logger.info(f"🧠 Analyse campagne '{campaign['name']}': {analysis.get('sentiment', {}).get('global', '?')}")
+        logger.info(f"Analyse campagne '{campaign['name']}': {analysis.get('sentiment', {}).get('global', '?')}"
+                     + (f" (delta: {analysis.get('evolution', '')})" if previous else " (premiere analyse)"))
         return analysis
 
     except json.JSONDecodeError as e:
         logger.error(f"Erreur parsing JSON analyse: {e}")
         return None
+
+
+def auto_analyze_campaigns(db=None) -> Dict[str, Any]:
+    """Re-analyse automatiquement les campagnes dont l'analyse a expiré (>2 jours).
+    Appelé par le scheduler."""
+    if db is None:
+        db = _get_db()
+
+    now = datetime.now(timezone.utc)
+    cutoff = (now - timedelta(days=2)).isoformat()
+
+    # Campagnes avec analyse expirée ou jamais analysées
+    campaigns = list(db["campaigns"].find({
+        "$or": [
+            {"analyzed_at": {"$exists": False}},
+            {"analyzed_at": {"$lt": cutoff}},
+        ],
+        "post_count": {"$gt": 0},
+    }))
+
+    results = {"analyzed": 0, "skipped": 0, "errors": 0, "campaigns": []}
+
+    for camp in campaigns:
+        cid = str(camp["_id"])
+        try:
+            analysis = analyze_campaign(cid, db=db)
+            if analysis and "error" not in analysis:
+                results["analyzed"] += 1
+                results["campaigns"].append(camp.get("name", cid))
+            else:
+                results["skipped"] += 1
+        except Exception as e:
+            logger.error(f"Erreur auto-analyse {camp.get('name', cid)}: {e}")
+            results["errors"] += 1
+
+    logger.info(f"Auto-analyse: {results['analyzed']} analysees, {results['skipped']} ignorees, {results['errors']} erreurs")
+    return results
 
 
 def compare_campaigns(campaign_id_a: str, campaign_id_b: str, db=None) -> Optional[Dict]:
