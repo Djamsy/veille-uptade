@@ -1134,3 +1134,16 @@ export const publishPost = async (data: { text: string; campaign_id?: string; me
   if (!res.ok) throw new Error(`Erreur publication: ${res.status}`);
   return res.json() as Promise<{ ok: boolean; post_id: string; campaign: string; platforms: number; media_uploaded: boolean }>;
 };
+
+export interface ServiceStatus {
+  bot_configured: boolean;
+  buffer_configured: boolean;
+  cloudinary_configured: boolean;
+  mistral_configured: boolean;
+}
+
+export const fetchPublicationStatus = () =>
+  apiFetch<ServiceStatus>('/api/publication-bot/status');
+
+export const fetchSocialStatsStatus = () =>
+  apiFetch<{ configured: boolean; platforms: string[]; frequency: string }>('/api/social-stats/status');

@@ -9,8 +9,11 @@ import {
   analyzeCampaign,
   compareCampaigns,
   publishPost,
+  fetchPublicationStatus,
+  fetchSocialStatsStatus,
   Campaign,
   CampaignPost,
+  ServiceStatus,
 } from '../../lib/api'
 
 // ── Couleurs plateformes ──
@@ -173,6 +176,50 @@ function NewCampaignModal({ onClose, onCreated }: { onClose: () => void; onCreat
   )
 }
 
+// ── Barre de progression publication ──
+const PUBLISH_STEPS = [
+  { key: 'upload', label: 'Upload du média', icon: '📤' },
+  { key: 'detect', label: 'Détection campagne', icon: '🔍' },
+  { key: 'buffer', label: 'Publication Buffer', icon: '🌐' },
+  { key: 'save', label: 'Sauvegarde', icon: '💾' },
+]
+
+function PublishProgress({ step, error }: { step: number; error: boolean }) {
+  return (
+    <div className="my-4">
+      <div className="flex items-center gap-1 mb-2">
+        {PUBLISH_STEPS.map((s, i) => (
+          <div key={s.key} className="flex items-center flex-1">
+            <div className="flex flex-col items-center flex-1">
+              <div className="text-lg mb-1" style={{
+                opacity: i <= step ? 1 : 0.3,
+                filter: error && i === step ? 'grayscale(0)' : undefined,
+              }}>
+                {error && i === step ? '❌' : i < step ? '✅' : i === step ? s.icon : '⏳'}
+              </div>
+              <span className="text-[10px] text-center opacity-60">{s.label}</span>
+            </div>
+            {i < PUBLISH_STEPS.length - 1 && (
+              <div className="h-0.5 w-full mx-1 rounded" style={{
+                background: i < step ? '#22c55e' : 'rgba(255,255,255,0.1)',
+                minWidth: '20px',
+              }} />
+            )}
+          </div>
+        ))}
+      </div>
+      {/* Barre animée */}
+      <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+        <div className="h-full rounded-full transition-all duration-700" style={{
+          width: error ? '100%' : `${((step + 1) / PUBLISH_STEPS.length) * 100}%`,
+          background: error ? '#ef4444' : 'linear-gradient(90deg, #3b82f6, #22c55e)',
+          animation: !error && step < PUBLISH_STEPS.length ? 'pulse 1.5s ease-in-out infinite' : undefined,
+        }} />
+      </div>
+    </div>
+  )
+}
+
 // ── New Post Modal (publication web) ──
 function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
   campaigns: Campaign[];
@@ -185,6 +232,7 @@ function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
   const [media, setMedia] = useState<File | null>(null)
   const [mediaPreview, setMediaPreview] = useState('')
   const [loading, setLoading] = useState(false)
+  const [publishStep, setPublishStep] = useState(-1)
   const [result, setResult] = useState<{ ok: boolean; campaign?: string; platforms?: number } | null>(null)
 
   const handleMedia = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -202,18 +250,28 @@ function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
     if (!text.trim()) return
     setLoading(true)
     setResult(null)
+
+    // Simuler les étapes de progression
+    setPublishStep(0) // Upload
+    await new Promise(r => setTimeout(r, 800))
+    setPublishStep(1) // Détection campagne
+    await new Promise(r => setTimeout(r, 500))
+    setPublishStep(2) // Buffer
+
     try {
       const res = await publishPost({
         text: text.trim(),
         campaign_id: campaignId || undefined,
         media: media || undefined,
       })
+      setPublishStep(3) // Sauvegarde
+      await new Promise(r => setTimeout(r, 400))
       setResult(res)
       if (res.ok) {
         setTimeout(() => {
           onPublished()
           onClose()
-        }, 2000)
+        }, 2500)
       }
     } catch (e: any) {
       setResult({ ok: false })
@@ -224,14 +282,15 @@ function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}
-      onClick={onClose}>
+      onClick={loading ? undefined : onClose}>
       <div className="glass-card p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}
         style={{ background: 'var(--card-bg)' }}>
         <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--text)' }}>Nouveau post</h2>
 
         {/* Campagne */}
         <label className="block text-sm mb-1 opacity-70">Campagne</label>
-        <select className="input-dark w-full mb-3" value={campaignId} onChange={e => setCampaignId(e.target.value)}>
+        <select className="input-dark w-full mb-3" value={campaignId} onChange={e => setCampaignId(e.target.value)}
+          disabled={loading}>
           <option value="">Détection automatique</option>
           {campaigns.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
         </select>
@@ -246,18 +305,19 @@ function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
           placeholder={"*Titre en gras*\n\nCorps du texte...\nÉcrivez autant que nécessaire, sans limite !\n\n#hashtag1 #hashtag2"}
           value={text}
           onChange={e => setText(e.target.value)}
+          disabled={loading}
         />
         <p className="text-xs opacity-40 mb-3 text-right">{text.length} caractères</p>
 
         {/* Média */}
         <label className="block text-sm mb-1 opacity-70">Média (photo ou vidéo)</label>
         <div className="mb-4">
-          <label className="btn-glass px-4 py-2 text-sm cursor-pointer inline-block"
+          <label className={`btn-glass px-4 py-2 text-sm inline-block ${loading ? 'opacity-50' : 'cursor-pointer'}`}
             style={{ background: 'rgba(59,130,246,0.15)' }}>
             {media ? `📎 ${media.name}` : '📷 Choisir un fichier'}
-            <input type="file" accept="image/*,video/*" className="hidden" onChange={handleMedia} />
+            <input type="file" accept="image/*,video/*" className="hidden" onChange={handleMedia} disabled={loading} />
           </label>
-          {media && (
+          {media && !loading && (
             <button className="ml-2 text-xs opacity-50 hover:opacity-80" onClick={() => { setMedia(null); setMediaPreview('') }}>
               ✕ Supprimer
             </button>
@@ -269,30 +329,85 @@ function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
           )}
         </div>
 
+        {/* Barre de progression */}
+        {loading && <PublishProgress step={publishStep} error={false} />}
+
         {/* Résultat */}
         {result && (
-          <div className="mb-4 p-3 rounded-lg text-sm" style={{
+          <div className="mb-4 p-4 rounded-lg text-sm" style={{
             background: result.ok ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
             color: result.ok ? '#22c55e' : '#ef4444',
+            border: `1px solid ${result.ok ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
           }}>
-            {result.ok
-              ? `✅ Publié sur ${result.platforms} plateforme(s) ! Campagne : ${result.campaign}`
-              : '❌ Erreur lors de la publication. Vérifiez la configuration Buffer/Cloudinary.'
-            }
+            {result.ok ? (
+              <div>
+                <div className="font-semibold mb-1">✅ Publication réussie !</div>
+                <div className="opacity-80">{result.platforms} plateforme(s) · Campagne : {result.campaign}</div>
+              </div>
+            ) : (
+              <div>
+                <div className="font-semibold mb-1">❌ Publication échouée</div>
+                <div className="opacity-80">Vérifiez la configuration Buffer et Cloudinary sur Render.</div>
+              </div>
+            )}
           </div>
         )}
 
         {/* Actions */}
         <div className="flex gap-3 justify-end">
-          <button className="btn-glass px-4 py-2" onClick={onClose}>Annuler</button>
+          <button className="btn-glass px-4 py-2" onClick={onClose} disabled={loading}>Annuler</button>
           <button
             className="btn-glass px-6 py-2 font-semibold"
             onClick={handleSubmit}
             disabled={loading || !text.trim()}
-            style={{ background: 'rgba(34,197,94,0.3)' }}>
-            {loading ? '⏳ Publication...' : '🚀 Publier'}
+            style={{ background: loading ? 'rgba(100,100,100,0.3)' : 'rgba(34,197,94,0.3)' }}>
+            {loading ? '⏳ Publication en cours...' : '🚀 Publier'}
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Panneau de statut des services ──
+function StatusPanel({ status, statsStatus }: {
+  status: ServiceStatus | null;
+  statsStatus: { configured: boolean; platforms: string[] } | null;
+}) {
+  if (!status) return null
+
+  const services = [
+    { label: 'Buffer', ok: status.buffer_configured, desc: 'Publication multi-plateforme' },
+    { label: 'Cloudinary', ok: status.cloudinary_configured, desc: 'Hébergement média' },
+    { label: 'Bot Telegram', ok: status.bot_configured, desc: 'Publication via Telegram' },
+    { label: 'IA (Mistral)', ok: status.mistral_configured, desc: 'Analyse des campagnes' },
+    { label: 'Apify Stats', ok: statsStatus?.configured || false, desc: statsStatus?.configured ? `Scraping: ${statsStatus?.platforms?.join(', ')}` : 'Scraping stats RS' },
+  ]
+
+  const allOk = services.every(s => s.ok)
+  const someOk = services.some(s => s.ok)
+
+  return (
+    <div className="glass-card p-3 mb-4" style={{
+      border: `1px solid ${allOk ? 'rgba(34,197,94,0.2)' : someOk ? 'rgba(234,179,8,0.2)' : 'rgba(239,68,68,0.2)'}`,
+    }}>
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-sm">{allOk ? '🟢' : someOk ? '🟡' : '🔴'}</span>
+        <span className="text-xs font-medium opacity-70">
+          {allOk ? 'Tous les services connectés' : someOk ? 'Configuration partielle' : 'Services non configurés'}
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {services.map(s => (
+          <div key={s.label} className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs" style={{
+            background: s.ok ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.08)',
+            color: s.ok ? '#22c55e' : '#ef4444',
+            border: `1px solid ${s.ok ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.1)'}`,
+          }} title={s.desc}>
+            <span>{s.ok ? '✓' : '✗'}</span>
+            <span>{s.label}</span>
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -317,6 +432,8 @@ export default function SocialPage() {
   const [comparison, setComparison] = useState<Record<string, unknown> | null>(null)
   const [comparingLoad, setComparingLoad] = useState(false)
   const [showNewPost, setShowNewPost] = useState(false)
+  const [serviceStatus, setServiceStatus] = useState<ServiceStatus | null>(null)
+  const [statsStatus, setStatsStatus] = useState<{ configured: boolean; platforms: string[] } | null>(null)
 
   const loadCampaigns = useCallback(async () => {
     try {
@@ -326,7 +443,12 @@ export default function SocialPage() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { loadCampaigns() }, [loadCampaigns])
+  useEffect(() => {
+    loadCampaigns()
+    // Charger le statut des services
+    fetchPublicationStatus().then(setServiceStatus).catch(() => {})
+    fetchSocialStatsStatus().then(setStatsStatus).catch(() => {})
+  }, [loadCampaigns])
 
   const selectCampaign = async (campaign: Campaign) => {
     setSelectedCampaign(campaign)
@@ -403,6 +525,9 @@ export default function SocialPage() {
             </button>
           ))}
         </div>
+
+        {/* Statut des services */}
+        <StatusPanel status={serviceStatus} statsStatus={statsStatus} />
 
         <div className="flex gap-6">
           {/* Sidebar campagnes */}
