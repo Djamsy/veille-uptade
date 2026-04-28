@@ -315,21 +315,35 @@ def get_buffer_channels() -> List[Dict]:
 
 def _build_create_post_mutation(text: str, channel_id: str, service: str,
                                 media_urls: List[str] = None) -> str:
-    """Construit la mutation createPost.
+    """Construit la mutation createPost avec assets (images/videos).
 
-    Pour l'instant on utilise le minimum de champs supportés par CreatePostInput :
-    text, channelId, schedulingType, mode.
-    Les URLs médias sont incluses dans le texte.
-
-    Les champs comme postType, title, youtubeCategory ne font PAS partie
-    de CreatePostInput — ils sont gérés côté Buffer automatiquement.
+    Docs Buffer :
+    - assets.images: [{ url: "..." }]  → pour images
+    - assets.videos: [{ url: "..." }]  → pour vidéos
     """
-    # Texte avec médias intégrés
-    full_text = text
-    if media_urls:
-        full_text = text.rstrip() + "\n\n" + "\n".join(media_urls)
+    escaped_text = text.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
 
-    escaped_text = full_text.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
+    # Construire le bloc assets si médias présents
+    assets_part = ""
+    if media_urls:
+        images = []
+        videos = []
+        for url in media_urls[:4]:
+            if '/video/' in url or url.lower().endswith(('.mp4', '.mov', '.avi', '.webm')):
+                videos.append(url)
+            else:
+                images.append(url)
+
+        asset_items = []
+        if images:
+            img_entries = ", ".join([f'{{ url: "{u}" }}' for u in images])
+            asset_items.append(f"images: [{img_entries}]")
+        if videos:
+            vid_entries = ", ".join([f'{{ url: "{u}" }}' for u in videos])
+            asset_items.append(f"videos: [{vid_entries}]")
+
+        if asset_items:
+            assets_part = f', assets: {{ {", ".join(asset_items)} }}'
 
     mutation = f'''
     mutation {{
@@ -338,12 +352,17 @@ def _build_create_post_mutation(text: str, channel_id: str, service: str,
         channelId: "{channel_id}",
         schedulingType: automatic,
         mode: addToQueue
+        {assets_part}
       }}) {{
         ... on PostActionSuccess {{
           post {{
             id
             text
             dueAt
+            assets {{
+              id
+              mimeType
+            }}
           }}
         }}
         ... on MutationError {{
