@@ -224,7 +224,12 @@ BUFFER_ORG_ID = os.getenv("BUFFER_ORG_ID", "")
 
 
 def _buffer_graphql(query: str, variables: Dict = None) -> Optional[Dict]:
-    """Appel GraphQL à Buffer (endpoint officiel api.buffer.com)."""
+    """Appel GraphQL à Buffer (endpoint officiel api.buffer.com).
+
+    Retourne le dict "data" en cas de succès.
+    En cas d'erreur GraphQL, retourne {"_errors": [...]} pour que l'appelant
+    puisse voir le message d'erreur exact.
+    """
     if not BUFFER_ACCESS_TOKEN:
         logger.warning("Buffer non configuré (BUFFER_ACCESS_TOKEN manquant)")
         return None
@@ -244,14 +249,16 @@ def _buffer_graphql(query: str, variables: Dict = None) -> Optional[Dict]:
         with urllib.request.urlopen(req, timeout=20) as resp:
             raw = resp.read()
             result = json.loads(raw)
-            logger.info(f"📡 Buffer GraphQL OK: {str(raw[:500])}")
+            logger.info(f"📡 Buffer GraphQL response: {str(raw[:800])}")
             if result.get("errors"):
-                logger.error(f"Buffer GraphQL errors: {result['errors']}")
-                return None
+                err_msgs = [e.get("message", str(e)) for e in result["errors"]]
+                logger.error(f"Buffer GraphQL errors: {err_msgs}")
+                # Retourner les erreurs au lieu de None pour debug
+                return {"_errors": result["errors"], "_data": result.get("data")}
             return result.get("data")
     except urllib.error.HTTPError as e:
         body = e.read().decode() if hasattr(e, "read") else ""
-        logger.error(f"Buffer GraphQL HTTP {e.code}: {body[:300]}")
+        logger.error(f"Buffer GraphQL HTTP {e.code}: {body[:500]}")
         return None
     except Exception as e:
         logger.error(f"Buffer GraphQL error: {e}")
@@ -361,8 +368,16 @@ def publish_to_buffer(text: str, media_urls: List[str] = None,
         result = _buffer_graphql(mutation, variables)
 
         if not result:
-            errors.append(f"channel {ch_id}: pas de réponse")
+            errors.append(f"channel {ch_id}: pas de réponse (HTTP error)")
             continue
+
+        # Si erreurs GraphQL remontées
+        if "_errors" in result:
+            gql_errs = [e.get("message", str(e)) for e in result["_errors"]]
+            errors.append(f"channel {ch_id}: GraphQL errors: {'; '.join(gql_errs)}")
+            logger.error(f"Buffer createPost GQL errors ({ch_id}): {gql_errs}")
+            # Vérifier s'il y a quand même des data partielles
+            result = result.get("_data") or {}
 
         create_result = result.get("createPost", {})
 

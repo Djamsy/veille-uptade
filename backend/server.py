@@ -2243,13 +2243,39 @@ async def buffer_debug():
     else:
         results["steps"].append({"name": "channels", "skipped": "no org id"})
 
-    # Step 3: Introspection rapide des queries dispo
-    r3 = gql('query { __schema { queryType { fields { name } } } }')
-    if isinstance(r3.get("body"), dict):
-        fields = [f["name"] for f in (r3["body"].get("data") or {}).get("__schema", {}).get("queryType", {}).get("fields", [])]
-        results["steps"].append({"name": "schema_fields", "fields": fields})
+    # Step 3: Test createPost (dry run sur le 1er channel)
+    first_channel_id = ""
+    if isinstance(r2.get("body"), dict):
+        chs = (r2["body"].get("data") or {}).get("channels") or []
+        if chs:
+            first_channel_id = chs[0].get("id", "")
+
+    if first_channel_id:
+        r3 = gql(
+            '''mutation($input: CreatePostInput!) {
+              createPost(input: $input) {
+                ... on PostActionSuccess { post { id text dueAt } }
+                ... on MutationError { message }
+              }
+            }''',
+            {"input": {
+                "text": "[TEST DEBUG - ne pas publier] Veille Media test",
+                "channelId": first_channel_id,
+                "schedulingType": "automatic",
+                "mode": "addToQueue",
+            }}
+        )
+        results["steps"].append({"name": "createPost_test", "channel": first_channel_id, "result": r3})
     else:
-        results["steps"].append({"name": "schema_fields", "result": r3})
+        results["steps"].append({"name": "createPost_test", "skipped": "no channel found"})
+
+    # Step 4: Introspection mutations dispo
+    r4 = gql('query { __schema { mutationType { fields { name } } } }')
+    if isinstance(r4.get("body"), dict):
+        fields = [f["name"] for f in (r4["body"].get("data") or {}).get("__schema", {}).get("mutationType", {}).get("fields", [])]
+        results["steps"].append({"name": "mutation_fields", "fields": fields})
+    else:
+        results["steps"].append({"name": "mutation_fields", "result": r4})
 
     return results
 
