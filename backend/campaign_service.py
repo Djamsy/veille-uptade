@@ -313,62 +313,123 @@ def get_buffer_channels() -> List[Dict]:
     return channels
 
 
+def _build_create_post_mutation(text: str, channel_id: str, service: str,
+                                media_urls: List[str] = None) -> str:
+    """Construit la mutation createPost adaptée à chaque plateforme.
+
+    Chaque service a des exigences spécifiques :
+    - facebook: type requis (post/story/reel)
+    - instagram: type requis + au moins 1 média obligatoire
+    - youtube: vidéo requise + title + category
+    - tiktok: au moins 1 média obligatoire
+    """
+    has_media = bool(media_urls)
+    has_video = has_media and any(
+        u.endswith(('.mp4', '.mov', '.avi', '.webm')) or '/video/' in u
+        for u in media_urls
+    )
+
+    # Texte avec médias intégrés
+    full_text = text
+    if media_urls:
+        full_text = text.rstrip() + "\n\n" + "\n".join(media_urls)
+
+    escaped_text = full_text.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
+
+    # Champs supplémentaires par plateforme
+    extra_fields = ""
+
+    if service == "facebook":
+        extra_fields = ', postType: post'
+
+    elif service == "instagram":
+        if has_video:
+            extra_fields = ', postType: reel'
+        elif has_media:
+            extra_fields = ', postType: post'
+        else:
+            # Instagram exige un média — on skip ce channel si pas de média
+            return ""
+
+    elif service == "youtube":
+        if not has_video:
+            # YouTube exige une vidéo — skip si pas de vidéo
+            return ""
+        # Extraire un titre du texte (première ligne ou premiers 70 chars)
+        title_line = text.split('\n')[0].strip('*# ').strip()[:70]
+        escaped_title = title_line.replace('\\', '\\\\').replace('"', '\\"')
+        extra_fields = f', postType: post, title: "{escaped_title}", youtubeCategory: "25"'
+
+    elif service == "tiktok":
+        if not has_media:
+            # TikTok exige un média — skip si pas de média
+            return ""
+        extra_fields = ', postType: reel'
+
+    mutation = f'''
+    mutation {{
+      createPost(input: {{
+        text: "{escaped_text}",
+        channelId: "{channel_id}",
+        schedulingType: automatic,
+        mode: addToQueue
+        {extra_fields}
+      }}) {{
+        ... on PostActionSuccess {{
+          post {{
+            id
+            text
+            dueAt
+          }}
+        }}
+        ... on MutationError {{
+          message
+        }}
+      }}
+    }}
+    '''
+    return mutation
+
+
 def publish_to_buffer(text: str, media_urls: List[str] = None,
                       channel_ids: List[str] = None) -> Dict:
     """Publie un post via Buffer GraphQL createPost sur tous les channels.
 
-    Utilise schedulingType: automatic + mode: addToQueue pour publier
-    via la file Buffer (publication immédiate si la file est vide).
+    Adapte automatiquement le post aux exigences de chaque plateforme
+    (Facebook, Instagram, YouTube, TikTok).
     """
     if not BUFFER_ACCESS_TOKEN:
         return {"ok": False, "error": "Buffer non configuré (BUFFER_ACCESS_TOKEN)"}
 
-    # 1. Récupérer les channels si pas fournis
-    if not channel_ids:
-        channels = get_buffer_channels()
-        channel_ids = [ch["id"] for ch in channels]
-
-    if not channel_ids:
+    # 1. Récupérer les channels avec leur service
+    channels = get_buffer_channels()
+    if not channels:
         return {"ok": False, "error": "Aucun channel Buffer trouvé. Vérifiez BUFFER_ORG_ID et vos profils connectés."}
 
-    # 2. Publier sur chaque channel via createPost
-    # Note: schedulingType et mode sont des enums GraphQL,
-    # ils doivent être inline (pas entre guillemets) dans la query.
+    # Filtrer par channel_ids si fournis
+    if channel_ids:
+        channels = [ch for ch in channels if ch["id"] in channel_ids]
+
+    if not channels:
+        return {"ok": False, "error": "Aucun channel Buffer trouvé avec les IDs fournis."}
+
+    # 2. Publier sur chaque channel avec la mutation adaptée
     published = []
     errors = []
+    skipped = []
 
-    for ch_id in channel_ids:
-        # Ajouter les URLs médias dans le texte (Buffer ne supporte pas
-        # le champ "media" dans CreatePostInput — les liens Cloudinary
-        # sont auto-détectés comme médias par les plateformes)
-        full_text = text
-        if media_urls:
-            full_text = text.rstrip() + "\n\n" + "\n".join(media_urls)
+    for ch in channels:
+        ch_id = ch["id"]
+        service = ch.get("service", "unknown")
+        ch_name = ch.get("name", ch_id)
 
-        # Échapper le texte pour l'inline GraphQL
-        escaped_text = full_text.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
+        mutation = _build_create_post_mutation(text, ch_id, service, media_urls)
 
-        mutation = f'''
-        mutation {{
-          createPost(input: {{
-            text: "{escaped_text}",
-            channelId: "{ch_id}",
-            schedulingType: automatic,
-            mode: addToQueue
-          }}) {{
-            ... on PostActionSuccess {{
-              post {{
-                id
-                text
-                dueAt
-              }}
-            }}
-            ... on MutationError {{
-              message
-            }}
-          }}
-        }}
-        '''
+        if not mutation:
+            reason = f"{ch_name} ({service}): média requis mais non fourni"
+            skipped.append(reason)
+            logger.info(f"⏭️ Buffer skip {reason}")
+            continue
 
         result = _buffer_graphql(mutation)
 
@@ -404,16 +465,19 @@ def publish_to_buffer(text: str, media_urls: List[str] = None,
             errors.append(f"channel {ch_id}: réponse inattendue: {str(create_result)[:200]}")
             logger.error(f"Buffer createPost réponse inattendue ({ch_id}): {create_result}")
 
+    total = len(channels)
     if published:
-        logger.info(f"✅ Buffer: publié sur {len(published)}/{len(channel_ids)} channels")
+        logger.info(f"✅ Buffer: publié sur {len(published)}/{total} channels ({len(skipped)} skippés)")
         return {
             "ok": True,
             "buffer_ids": published,
             "profiles_count": len(published),
+            "skipped": skipped if skipped else None,
             "errors": errors if errors else None,
         }
 
-    return {"ok": False, "error": "; ".join(errors) if errors else "Aucun post créé sur Buffer"}
+    all_issues = errors + [f"⏭️ {s}" for s in skipped]
+    return {"ok": False, "error": "; ".join(all_issues) if all_issues else "Aucun post créé sur Buffer"}
 
 
 def fetch_buffer_stats(post_id: str) -> Optional[Dict]:
