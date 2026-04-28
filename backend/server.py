@@ -1671,6 +1671,30 @@ try:
 except Exception as e:
     logger.warning(f"⚠️ Routes Telegram non disponibles: {e}")
 
+# ── Auto-register Publication Bot Webhook ──
+@app.on_event("startup")
+async def _register_publication_bot_webhook():
+    """Enregistre automatiquement le webhook Telegram du bot de publication au demarrage."""
+    try:
+        from backend.publication_bot import PUBLICATION_BOT_TOKEN, _tg_api, is_configured
+        if not is_configured():
+            logger.info("Publication bot: non configure (PUBLICATION_BOT_TOKEN manquant)")
+            return
+        base_url = os.getenv("RENDER_EXTERNAL_URL", "https://veille-api-ubrw.onrender.com")
+        webhook_url = f"{base_url}/api/publication-bot/webhook"
+        # Vérifier si déjà enregistré
+        info = _tg_api("getWebhookInfo")
+        if info and info.get("ok") and info["result"].get("url") == webhook_url:
+            logger.info(f"Publication bot: webhook deja actif ({webhook_url})")
+            return
+        result = _tg_api("setWebhook", {"url": webhook_url})
+        if result and result.get("ok"):
+            logger.info(f"Publication bot: webhook enregistre automatiquement ({webhook_url})")
+        else:
+            logger.warning(f"Publication bot: echec enregistrement webhook: {result}")
+    except Exception as e:
+        logger.warning(f"Publication bot: erreur auto-register webhook: {e}")
+
 # ============================================================
 # ROUTES VEILLE — Briefing, Trending, Coverage, Watchlist
 # ============================================================
@@ -2334,13 +2358,48 @@ async def publication_bot_status():
         from backend.campaign_service import (
             BUFFER_ACCESS_TOKEN, CLOUDINARY_CLOUD_NAME, MISTRAL_API_KEY
         )
+        # Vérifier le webhook Telegram
+        webhook_url = None
+        try:
+            from backend.publication_bot import PUBLICATION_BOT_TOKEN, _tg_api
+            if PUBLICATION_BOT_TOKEN:
+                info = _tg_api("getWebhookInfo")
+                if info and info.get("ok"):
+                    webhook_url = info["result"].get("url", "")
+        except Exception:
+            pass
         return {
             "bot_configured": bot_configured(),
             "buffer_configured": bool(BUFFER_ACCESS_TOKEN),
             "cloudinary_configured": bool(CLOUDINARY_CLOUD_NAME),
             "mistral_configured": bool(MISTRAL_API_KEY),
+            "webhook_url": webhook_url or "",
+            "webhook_active": bool(webhook_url),
         }
     except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@app.post("/api/publication-bot/register-webhook")
+async def publication_bot_register_webhook():
+    """Enregistre le webhook Telegram pour le bot de publication."""
+    try:
+        from backend.publication_bot import PUBLICATION_BOT_TOKEN, _tg_api, is_configured
+        if not is_configured():
+            return {"ok": False, "error": "Bot non configure (PUBLICATION_BOT_TOKEN manquant)"}
+
+        # Détecter l'URL du serveur
+        base_url = os.getenv("RENDER_EXTERNAL_URL", "https://veille-api-ubrw.onrender.com")
+        webhook_url = f"{base_url}/api/publication-bot/webhook"
+
+        result = _tg_api("setWebhook", {"url": webhook_url})
+        if result and result.get("ok"):
+            logger.info(f"Webhook Telegram enregistre: {webhook_url}")
+            return {"ok": True, "webhook_url": webhook_url, "telegram_response": result}
+        else:
+            return {"ok": False, "error": "Telegram a refuse le webhook", "response": result}
+    except Exception as e:
+        logger.error(f"Erreur enregistrement webhook: {e}")
         return {"ok": False, "error": str(e)}
 
 
