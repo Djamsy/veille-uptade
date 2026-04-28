@@ -60,7 +60,7 @@ export default function ProfilePage() {
   return (
     <div className="flex">
       <Sidebar />
-      <main className="lg:ml-60 flex-1 p-5 lg:p-8 min-h-screen">
+      <main className="lg:ml-16 flex-1 p-5 lg:p-8 min-h-screen">
         <div className="max-w-2xl mx-auto animate-fade-in">
           <h1 className="text-xl font-bold text-white tracking-tight mb-6">Mon profil</h1>
 

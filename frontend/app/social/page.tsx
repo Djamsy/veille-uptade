@@ -21,19 +21,19 @@ import {
 
 // ── Couleurs plateformes ──
 const PLAT_COLORS: Record<string, { icon: string; color: string; bg: string }> = {
-  instagram: { icon: '📸', color: '#e4405f', bg: 'rgba(228,64,95,0.15)' },
-  facebook: { icon: '📘', color: '#1877f2', bg: 'rgba(24,119,242,0.15)' },
-  linkedin: { icon: '💼', color: '#0a66c2', bg: 'rgba(10,102,194,0.15)' },
-  twitter: { icon: '🐦', color: '#1da1f2', bg: 'rgba(29,161,242,0.15)' },
-  youtube: { icon: '▶️', color: '#ff0000', bg: 'rgba(255,0,0,0.15)' },
-  tiktok: { icon: '🎵', color: '#fe2c55', bg: 'rgba(254,44,85,0.15)' },
+  instagram: { icon: 'IG', color: '#e4405f', bg: 'rgba(228,64,95,0.15)' },
+  facebook: { icon: 'FB', color: '#1877f2', bg: 'rgba(24,119,242,0.15)' },
+  linkedin: { icon: 'LI', color: '#0a66c2', bg: 'rgba(10,102,194,0.15)' },
+  twitter: { icon: 'X', color: '#1da1f2', bg: 'rgba(29,161,242,0.15)' },
+  youtube: { icon: 'YT', color: '#ff0000', bg: 'rgba(255,0,0,0.15)' },
+  tiktok: { icon: 'TK', color: '#fe2c55', bg: 'rgba(254,44,85,0.15)' },
 }
 
 const SENTIMENT_COLORS: Record<string, { icon: string; color: string; bg: string }> = {
-  positif: { icon: '😊', color: '#22c55e', bg: 'rgba(34,197,94,0.15)' },
-  négatif: { icon: '😠', color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
-  neutre: { icon: '😐', color: '#94a3b8', bg: 'rgba(148,163,184,0.15)' },
-  mitigé: { icon: '🤔', color: '#eab308', bg: 'rgba(234,179,8,0.15)' },
+  positif: { icon: '+', color: '#22c55e', bg: 'rgba(34,197,94,0.15)' },
+  négatif: { icon: '-', color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
+  neutre: { icon: '~', color: '#94a3b8', bg: 'rgba(148,163,184,0.15)' },
+  mitigé: { icon: '?', color: '#eab308', bg: 'rgba(234,179,8,0.15)' },
 }
 
 const DAY_NAMES = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
@@ -149,7 +149,7 @@ function CalendarPostItem({
           <span className="text-[10px] font-mono opacity-50">{formatTime(post.published_at)}</span>
           <div className="flex gap-0.5">
             {platforms.slice(0, 3).map(p => {
-              const cfg = PLAT_COLORS[p.toLowerCase()] || { icon: '🌐', color: '#888', bg: '' }
+              const cfg = PLAT_COLORS[p.toLowerCase()] || { icon: '•', color: '#888', bg: '' }
               return (
                 <span key={p} className="text-[10px]" style={{ color: cfg.color }} title={p}>
                   {cfg.icon}
@@ -175,7 +175,7 @@ function CalendarPostItem({
             />
             {post.media_type === 'video' && (
               <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                <span className="text-sm">▶️</span>
+                <span className="text-sm">▶</span>
               </div>
             )}
           </div>
@@ -188,9 +188,9 @@ function CalendarPostItem({
 
         {/* Quick stats row */}
         <div className="flex items-center gap-2 mt-1.5">
-          {(s.views || 0) > 0 && <span className="text-[10px] opacity-50">👁 {formatNumber(s.views)}</span>}
-          <span className="text-[10px] opacity-50">❤️ {formatNumber(s.likes || 0)}</span>
-          <span className="text-[10px] opacity-50">💬 {formatNumber(s.comments || 0)}</span>
+          {(s.views || 0) > 0 && <span className="text-[10px] opacity-50">Vues {formatNumber(s.views)}</span>}
+          <span className="text-[10px] opacity-50">Likes {formatNumber(s.likes || 0)}</span>
+          <span className="text-[10px] opacity-50">Com. {formatNumber(s.comments || 0)}</span>
         </div>
 
         {/* Sentiment dot */}
@@ -235,7 +235,7 @@ function CalendarPostItem({
           {/* Platforms */}
           <div className="flex flex-wrap gap-1.5 mb-3">
             {platforms.map(p => {
-              const cfg = PLAT_COLORS[p.toLowerCase()] || { icon: '🌐', color: '#888', bg: 'rgba(128,128,128,0.15)' }
+              const cfg = PLAT_COLORS[p.toLowerCase()] || { icon: '•', color: '#888', bg: 'rgba(128,128,128,0.15)' }
               return (
                 <span
                   key={p}
@@ -251,11 +251,11 @@ function CalendarPostItem({
           {/* Stats grid */}
           <div className="grid grid-cols-3 gap-2 mb-3">
             {[
-              { label: 'Vues', value: s.views, icon: '👁', color: '#3b82f6' },
-              { label: 'Likes', value: s.likes, icon: '❤️', color: '#ef4444' },
-              { label: 'Commentaires', value: s.comments, icon: '💬', color: '#f59e0b' },
-              { label: 'Clics', value: s.clicks, icon: '🔗', color: '#22c55e' },
-              { label: 'Reach', value: s.reach, icon: '📊', color: '#06b6d4' },
+              { label: 'Vues', value: s.views, icon: '◉', color: '#3b82f6' },
+              { label: 'Likes', value: s.likes, icon: '♥', color: '#ef4444' },
+              { label: 'Commentaires', value: s.comments, icon: '◈', color: '#f59e0b' },
+              { label: 'Clics', value: s.clicks, icon: '⌁', color: '#22c55e' },
+              { label: 'Reach', value: s.reach, icon: '◎', color: '#06b6d4' },
               { label: 'Engagement', value: engagement, unit: '%', icon: '⚡', color: '#a78bfa' },
             ].map(stat => (
               <div key={stat.label} className="p-2 rounded-lg text-center" style={{ background: 'rgba(255,255,255,0.04)' }}>
@@ -290,7 +290,7 @@ function CalendarPostItem({
           {Object.entries(post.platform_stats || {}).length > 0 && (
             <div className="space-y-1.5 mb-3">
               {Object.entries(post.platform_stats || {}).map(([platform, stats]) => {
-                const cfg = PLAT_COLORS[platform.toLowerCase()] || { icon: '🌐', color: '#888', bg: '' }
+                const cfg = PLAT_COLORS[platform.toLowerCase()] || { icon: '•', color: '#888', bg: '' }
                 const st = stats as { views: number; likes: number; comments: number; clicks: number; reach: number }
                 const eng = st.reach > 0 ? (((st.likes + st.comments + st.clicks) / st.reach) * 100).toFixed(1) : '0'
                 return (
@@ -309,7 +309,7 @@ function CalendarPostItem({
           {/* Comments preview */}
           {post.comments_scraped && post.comments_scraped.length > 0 && (
             <div className="mb-3">
-              <p className="text-[10px] opacity-50 mb-1">💬 {post.comments_scraped.length} commentaires</p>
+              <p className="text-[10px] opacity-50 mb-1">Com. {post.comments_scraped.length} commentaires</p>
               <div className="space-y-1 max-h-16 overflow-y-auto">
                 {(post.comments_scraped as any[]).slice(0, 2).map((c, i) => (
                   <p key={i} className="text-[10px] opacity-40 line-clamp-1">
@@ -334,14 +334,14 @@ function CalendarPostItem({
               style={{ background: 'rgba(59,130,246,0.15)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.2)' }}
               onClick={(e) => { e.stopPropagation(); if (onScrape && post._id) onScrape(post._id) }}
             >
-              🔄 Scraper
+              Scraper
             </button>
             <button
               className="flex-1 px-2 py-1.5 rounded-lg text-[11px] font-medium transition-all hover:scale-105"
               style={{ background: 'rgba(139,92,246,0.15)', color: '#a78bfa', border: '1px solid rgba(139,92,246,0.2)' }}
               onClick={() => onViewDetail(post)}
             >
-              👁 Détails
+              Détails
             </button>
           </div>
         </div>
@@ -552,7 +552,7 @@ function ChannelSidebar({
         }}
         onClick={() => setFilterPlatform('')}
       >
-        <span className="text-lg">📡</span>
+        <span className="text-lg"></span>
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium">Tous les canaux</div>
         </div>
@@ -636,7 +636,7 @@ function PostDetailModal({
                 <div className="aspect-video bg-black flex items-center justify-center relative group">
                   <img src={post.media_url} alt="" className="w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-black/30 group-hover:bg-black/20 flex items-center justify-center transition-all">
-                    <span className="text-5xl">▶️</span>
+                    <span className="text-5xl">▶</span>
                   </div>
                 </div>
               ) : (
@@ -656,11 +656,11 @@ function PostDetailModal({
             <h3 className="text-sm font-semibold mb-3 opacity-70">Statistiques globales</h3>
             <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
               {[
-                { label: 'Vues', value: s.views, icon: '👁', color: 'var(--primary)' },
-                { label: "J'aime", value: s.likes, icon: '❤️', color: '#ef4444' },
-                { label: 'Commentaires', value: s.comments, icon: '💬', color: '#3b82f6' },
-                { label: 'Clics', value: s.clicks, icon: '🔗', color: '#22c55e' },
-                { label: 'Reach', value: s.reach, icon: '📊', color: '#f59e0b' },
+                { label: 'Vues', value: s.views, icon: '◉', color: 'var(--primary)' },
+                { label: "J'aime", value: s.likes, icon: '♥', color: '#ef4444' },
+                { label: 'Commentaires', value: s.comments, icon: '◈', color: '#3b82f6' },
+                { label: 'Clics', value: s.clicks, icon: '⌁', color: '#22c55e' },
+                { label: 'Reach', value: s.reach, icon: '◎', color: '#f59e0b' },
                 { label: 'Engagement', value: s.reach > 0 ? (((s.likes + s.comments + s.clicks) / s.reach) * 100).toFixed(1) : '0', unit: '%', icon: '⚡', color: '#a78bfa' },
               ].map(stat => (
                 <div key={stat.label} className="p-3 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)' }}>
@@ -679,7 +679,7 @@ function PostDetailModal({
               <h3 className="text-sm font-semibold mb-3 opacity-70">Par plateforme</h3>
               <div className="space-y-3">
                 {Object.entries(ps).map(([platform, stats]) => {
-                  const cfg = PLAT_COLORS[platform.toLowerCase()] || { icon: '🌐', color: '#888', bg: '' }
+                  const cfg = PLAT_COLORS[platform.toLowerCase()] || { icon: '•', color: '#888', bg: '' }
                   const st = stats as { views: number; likes: number; comments: number; clicks: number; reach: number }
                   const eng = st.reach > 0 ? (((st.likes + st.comments + st.clicks) / st.reach) * 100).toFixed(1) : '0'
                   return (
@@ -744,7 +744,7 @@ function PostDetailModal({
                 border: `1px solid ${scraping ? 'rgba(234,179,8,0.2)' : 'rgba(59,130,246,0.2)'}`,
               }}
             >
-              {scraping ? '⏳ Scraping...' : '🔄 Scraper maintenant'}
+              {scraping ? 'Scraping...' : 'Scraper maintenant'}
             </button>
             <button
               onClick={onClose}
@@ -807,10 +807,10 @@ function NewCampaignModal({ onClose, onCreated }: { onClose: () => void; onCreat
 
 // ── Publish Progress ──
 const PUBLISH_STEPS = [
-  { key: 'upload', label: 'Upload du média', icon: '📤' },
-  { key: 'detect', label: 'Détection campagne', icon: '🔍' },
-  { key: 'buffer', label: 'Publication Buffer', icon: '🌐' },
-  { key: 'save', label: 'Sauvegarde', icon: '💾' },
+  { key: 'upload', label: 'Upload du média', icon: '' },
+  { key: 'detect', label: 'Détection campagne', icon: '' },
+  { key: 'buffer', label: 'Publication Buffer', icon: '•' },
+  { key: 'save', label: 'Sauvegarde', icon: '' },
 ]
 
 function PublishProgress({ step, error }: { step: number; error: boolean }) {
@@ -824,7 +824,7 @@ function PublishProgress({ step, error }: { step: number; error: boolean }) {
                 opacity: i <= step ? 1 : 0.3,
                 filter: error && i === step ? 'grayscale(0)' : undefined,
               }}>
-                {error && i === step ? '❌' : i < step ? '✅' : i === step ? s.icon : '⏳'}
+                {error && i === step ? '✗' : i < step ? '✓' : i === step ? s.icon : '⏳'}
               </div>
               <span className="text-[10px] text-center opacity-60">{s.label}</span>
             </div>
@@ -959,7 +959,7 @@ function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
             <div className="mb-4">
               <label className={`inline-block px-4 py-3 rounded-lg text-sm font-medium transition-all ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:scale-105'}`}
                 style={{ background: 'rgba(59,130,246,0.15)', color: '#3b82f6', border: '1px dashed rgba(59,130,246,0.3)' }}>
-                {media ? `📎 ${media.name}` : '📁 Cliquez pour sélectionner ou glissez'}
+                {media ? ` ${media.name}` : ' Cliquez pour sélectionner ou glissez'}
                 <input type="file" accept="image/*,video/*" className="hidden" onChange={handleMedia} disabled={loading} />
               </label>
               {media && !loading && (
@@ -984,12 +984,12 @@ function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
             }}>
               {result.ok ? (
                 <div>
-                  <div className="font-semibold mb-1">✅ Publication réussie !</div>
+                  <div className="font-semibold mb-1">✓ Publication réussie !</div>
                   <div className="opacity-80">{result.platforms} plateforme(s) · Campagne : {result.campaign}</div>
                 </div>
               ) : (
                 <div>
-                  <div className="font-semibold mb-1">❌ Publication échouée</div>
+                  <div className="font-semibold mb-1">✗ Publication échouée</div>
                   <div className="opacity-80">
                     {result.error === 'cloudinary_failed' && 'Cloudinary : upload média échoué. Vérifiez les clés CLOUDINARY_* sur Render.'}
                     {result.error === 'network' && `Erreur réseau : ${result.detail}`}
@@ -1015,7 +1015,7 @@ function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
               color: loading || !text.trim() ? 'rgba(255,255,255,0.4)' : '#22c55e',
               border: `1px solid ${loading || !text.trim() ? 'rgba(100,100,100,0.1)' : 'rgba(34,197,94,0.2)'}`,
             }}>
-            {loading ? '⏳ Publication en cours...' : '🚀 Publier'}
+            {loading ? 'Publication en cours...' : 'Publier'}
           </button>
         </div>
       </div>
@@ -1047,7 +1047,7 @@ function StatusPanel({ status, statsStatus, onGlobalScrape }: {
     }}>
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className="text-sm">{allOk ? '🟢' : someOk ? '🟡' : '🔴'}</span>
+          <span className="text-sm">{allOk ? '●' : someOk ? '●' : '●'}</span>
           <span className="text-xs font-medium opacity-70">
             {allOk ? 'Tous les services connectés' : someOk ? 'Configuration partielle' : 'Services non configurés'}
           </span>
@@ -1068,7 +1068,7 @@ function StatusPanel({ status, statsStatus, onGlobalScrape }: {
               cursor: scraping ? 'wait' : 'pointer',
             }}
           >
-            {scraping ? '⏳ Scraping en cours...' : '🔄 Scraper toutes les stats'}
+            {scraping ? 'Scraping en cours...' : 'Scraper toutes les stats'}
           </button>
         )}
       </div>
@@ -1214,7 +1214,7 @@ export default function SocialPage() {
           <div className="flex gap-2">
             <button className="btn-glass px-4 py-2 font-medium transition-all hover:scale-105" onClick={() => setShowNewPost(true)}
               style={{ background: 'rgba(34,197,94,0.2)', color: '#22c55e' }}>
-              🚀 Nouveau post
+              Nouveau post
             </button>
             <button className="btn-glass px-4 py-2 font-medium transition-all hover:scale-105" onClick={() => setShowNewCampaign(true)}
               style={{ background: 'rgba(59,130,246,0.2)', color: '#3b82f6' }}>
@@ -1233,7 +1233,7 @@ export default function SocialPage() {
                 border: `1px solid ${view === tab ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.08)'}`
               }}
               onClick={() => setView(tab)}>
-              {tab === 'calendrier' ? '📅 Calendrier' : tab === 'analyse' ? '📊 Analyse' : '⚖️ Comparaison'}
+              {tab === 'calendrier' ? 'Calendrier' : tab === 'analyse' ? 'Analyse' : 'Comparaison'}
             </button>
           ))}
         </div>
@@ -1287,10 +1287,15 @@ export default function SocialPage() {
         {/* Main content */}
         <div>
           {!selectedCampaign ? (
-            <div className="glass-card p-12 text-center">
-              <div className="text-6xl mb-4 opacity-20">📢</div>
-              <p className="text-lg opacity-50 font-medium">Sélectionnez une campagne pour commencer</p>
-              <p className="text-sm opacity-40 mt-2">Choisissez une campagne dans l'onglet ci-dessus</p>
+            <div className="rounded-xl p-12 text-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+              <div className="w-16 h-16 mx-auto mb-4 rounded-xl flex items-center justify-center"
+                style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.12)' }}>
+                <svg className="w-7 h-7" style={{ color: '#3b82f680' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+              </div>
+              <p className="font-medium mb-1" style={{ color: 'var(--text)' }}>Selectionnez une campagne</p>
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Choisissez une campagne dans les onglets ci-dessus</p>
             </div>
           ) : view === 'calendrier' ? (
             <>
@@ -1298,12 +1303,12 @@ export default function SocialPage() {
               {totalStats && (totalStats.views + totalStats.likes + totalStats.comments + totalStats.clicks + totalStats.reach) > 0 && (
                 <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
                   {[
-                    { label: 'Posts', value: totalStats.posts, icon: '📝', color: '#8b5cf6' },
-                    { label: 'Vues', value: totalStats.views, icon: '👁', color: '#3b82f6' },
-                    { label: 'Likes', value: totalStats.likes, icon: '❤️', color: '#ef4444' },
-                    { label: 'Commentaires', value: totalStats.comments, icon: '💬', color: '#f59e0b' },
-                    { label: 'Clics', value: totalStats.clicks, icon: '🔗', color: '#10b981' },
-                    { label: 'Reach', value: totalStats.reach, icon: '📊', color: '#06b6d4' },
+                    { label: 'Posts', value: totalStats.posts, icon: '', color: '#8b5cf6' },
+                    { label: 'Vues', value: totalStats.views, icon: '◉', color: '#3b82f6' },
+                    { label: 'Likes', value: totalStats.likes, icon: '♥', color: '#ef4444' },
+                    { label: 'Commentaires', value: totalStats.comments, icon: '◈', color: '#f59e0b' },
+                    { label: 'Clics', value: totalStats.clicks, icon: '⌁', color: '#10b981' },
+                    { label: 'Reach', value: totalStats.reach, icon: '◎', color: '#06b6d4' },
                   ].map(s => (
                     <div key={s.label} className="glass-card p-3 text-center" style={{ borderLeft: `3px solid ${s.color}` }}>
                       <div className="text-lg mb-0.5">{s.icon}</div>
@@ -1356,107 +1361,227 @@ export default function SocialPage() {
               </div>
             </>
           ) : view === 'analyse' ? (
-            <div>
-              <div className="flex items-center gap-4 mb-6">
-                <h2 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>
-                  Analyse : {selectedCampaign.name}
-                </h2>
-                <button className="btn-glass px-3 py-1.5 text-sm" onClick={runAnalysis} disabled={analyzing}
-                  style={{ background: 'rgba(139,92,246,0.2)' }}>
-                  {analyzing ? '🔄 Analyse en cours...' : '🧠 Lancer l\'analyse IA'}
+            <div className="animate-fade-in">
+              {/* Header with action */}
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>
+                    {selectedCampaign.name}
+                  </h2>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Analyse de performance et sentiment</p>
+                </div>
+                <button
+                  className="px-4 py-2.5 rounded-lg text-sm font-semibold transition-all"
+                  onClick={runAnalysis}
+                  disabled={analyzing}
+                  style={{
+                    background: analyzing ? 'rgba(139,92,246,0.1)' : 'linear-gradient(135deg, #8b5cf6, #6366f1)',
+                    color: analyzing ? '#a78bfa' : 'white',
+                    boxShadow: analyzing ? 'none' : '0 4px 16px rgba(99,102,241,0.3)',
+                    opacity: analyzing ? 0.7 : 1,
+                  }}
+                >
+                  {analyzing ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                      Analyse en cours...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                      Lancer l'analyse IA
+                    </span>
+                  )}
                 </button>
               </div>
 
               {analysis ? (
-                <div className="space-y-4">
-                  {sentimentData && (
-                    <div className="glass-card p-5">
-                      <h3 className="font-semibold mb-3" style={{ color: 'var(--text)' }}>Sentiment</h3>
-                      <div className="flex items-center gap-4 mb-3">
-                        <span className="text-3xl">{SENTIMENT_COLORS[sentimentData.global || 'neutre']?.icon || '😐'}</span>
-                        <div>
-                          <div className="font-bold capitalize text-lg" style={{ color: SENTIMENT_COLORS[sentimentData.global || 'neutre']?.color }}>
+                <div className="space-y-5 stagger-cards">
+
+                  {/* ── Sentiment Gauge Card ── */}
+                  {sentimentData && (() => {
+                    const score = (sentimentData.score || 0) * 100
+                    const sentColor = SENTIMENT_COLORS[sentimentData.global || 'neutre']?.color || '#94a3b8'
+                    return (
+                      <div className="rounded-xl p-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Sentiment global</h3>
+                          <span className="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wide"
+                            style={{ background: sentColor + '20', color: sentColor, border: `1px solid ${sentColor}30` }}>
                             {sentimentData.global}
+                          </span>
+                        </div>
+
+                        {/* Score gauge bar */}
+                        <div className="mb-5">
+                          <div className="flex items-end gap-3 mb-2">
+                            <span className="text-4xl font-bold tabular-nums" style={{ color: sentColor }}>{score.toFixed(0)}</span>
+                            <span className="text-sm pb-1" style={{ color: 'var(--text-muted)' }}>/ 100</span>
                           </div>
-                          <div className="text-sm opacity-60">Score: {((sentimentData.score || 0) * 100).toFixed(0)}%</div>
+                          <div className="w-full h-2 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                            <div className="h-full rounded-full transition-all duration-700"
+                              style={{ width: `${Math.max(score, 3)}%`, background: `linear-gradient(90deg, ${sentColor}80, ${sentColor})` }} />
+                          </div>
+                          <div className="flex justify-between mt-1">
+                            <span className="text-[10px]" style={{ color: '#ef4444' }}>Negatif</span>
+                            <span className="text-[10px]" style={{ color: '#94a3b8' }}>Neutre</span>
+                            <span className="text-[10px]" style={{ color: '#22c55e' }}>Positif</span>
+                          </div>
+                        </div>
+
+                        {/* Themes */}
+                        {sentimentData.themes && sentimentData.themes.length > 0 && (
+                          <div className="mb-4">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>Thematiques</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {sentimentData.themes.map((t, i) => (
+                                <span key={i} className="px-2.5 py-1 rounded-md text-xs font-medium"
+                                  style={{ background: 'rgba(99,102,241,0.12)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.2)' }}>
+                                  {t}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Points positifs / négatifs — two columns */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {sentimentData.positive_highlights && sentimentData.positive_highlights.length > 0 && (
+                            <div className="rounded-lg p-3" style={{ background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.12)' }}>
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className="w-1.5 h-1.5 rounded-full" style={{ background: '#22c55e' }} />
+                                <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#22c55e' }}>Points forts</p>
+                              </div>
+                              {sentimentData.positive_highlights.map((h, i) => (
+                                <p key={i} className="text-xs leading-relaxed pl-3 mb-1" style={{ color: '#6ee7b7' }}>{h}</p>
+                              ))}
+                            </div>
+                          )}
+                          {sentimentData.negative_highlights && sentimentData.negative_highlights.length > 0 && (
+                            <div className="rounded-lg p-3" style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.12)' }}>
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className="w-1.5 h-1.5 rounded-full" style={{ background: '#ef4444' }} />
+                                <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#ef4444' }}>Points faibles</p>
+                              </div>
+                              {sentimentData.negative_highlights.map((h, i) => (
+                                <p key={i} className="text-xs leading-relaxed pl-3 mb-1" style={{ color: '#fca5a5' }}>{h}</p>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
-                      {sentimentData.themes && sentimentData.themes.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mb-2">
-                          {sentimentData.themes.map((t, i) => (
-                            <span key={i} className="px-2 py-1 rounded-full text-xs" style={{ background: 'rgba(59,130,246,0.15)', color: 'var(--text)' }}>{t}</span>
-                          ))}
-                        </div>
-                      )}
-                      {sentimentData.positive_highlights && (
-                        <div className="mt-2">
-                          <p className="text-xs font-medium opacity-70 mb-1">Points positifs</p>
-                          {sentimentData.positive_highlights.map((h, i) => (
-                            <p key={i} className="text-sm opacity-80 pl-3" style={{ color: '#22c55e' }}>+ {h}</p>
-                          ))}
-                        </div>
-                      )}
-                      {sentimentData.negative_highlights && (
-                        <div className="mt-2">
-                          <p className="text-xs font-medium opacity-70 mb-1">Points négatifs</p>
-                          {sentimentData.negative_highlights.map((h, i) => (
-                            <p key={i} className="text-sm opacity-80 pl-3" style={{ color: '#ef4444' }}>- {h}</p>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                    )
+                  })()}
 
+                  {/* ── Performance KPI Grid ── */}
                   {perfData && (
-                    <div className="glass-card p-5">
-                      <h3 className="font-semibold mb-3" style={{ color: 'var(--text)' }}>Performances</h3>
+                    <div className="rounded-xl p-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                      <h3 className="text-sm font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--text-muted)' }}>
+                        Performance optimale
+                      </h3>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         {[
-                          { label: 'Meilleur format', value: perfData.best_format, icon: '🎨' },
-                          { label: 'Meilleure plateforme', value: perfData.best_platform, icon: '🌐' },
-                          { label: 'Meilleure heure', value: perfData.best_time, icon: '🕐' },
-                          { label: 'Meilleur jour', value: perfData.best_day, icon: '📅' },
+                          {
+                            label: 'Format',
+                            value: perfData.best_format,
+                            color: '#8b5cf6',
+                            svg: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
+                          },
+                          {
+                            label: 'Plateforme',
+                            value: perfData.best_platform,
+                            color: '#3b82f6',
+                            svg: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" /></svg>,
+                          },
+                          {
+                            label: 'Heure',
+                            value: perfData.best_time,
+                            color: '#f59e0b',
+                            svg: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+                          },
+                          {
+                            label: 'Jour',
+                            value: perfData.best_day,
+                            color: '#10b981',
+                            svg: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
+                          },
                         ].map(p => (
-                          <div key={p.label} className="p-3 rounded-lg text-center" style={{ background: 'rgba(255,255,255,0.05)' }}>
-                            <div className="text-xl mb-1">{p.icon}</div>
-                            <div className="font-semibold text-sm capitalize" style={{ color: 'var(--text)' }}>{p.value || '—'}</div>
-                            <div className="text-xs opacity-50">{p.label}</div>
+                          <div key={p.label} className="rounded-lg p-4 transition-all hover:scale-[1.02]"
+                            style={{ background: `${p.color}08`, border: `1px solid ${p.color}18` }}>
+                            <div className="flex items-center gap-2 mb-3">
+                              <div className="p-1.5 rounded-md" style={{ background: `${p.color}15`, color: p.color }}>{p.svg}</div>
+                              <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{p.label}</span>
+                            </div>
+                            <div className="font-bold text-base capitalize" style={{ color: p.value ? 'var(--text)' : 'var(--text-muted)' }}>
+                              {p.value || 'Pas assez de donnees'}
+                            </div>
                           </div>
                         ))}
                       </div>
                       {perfData.top_post && (
-                        <p className="mt-3 text-sm opacity-70">🏆 Top post : <b>{perfData.top_post}</b></p>
+                        <div className="mt-4 rounded-lg p-3 flex items-start gap-3"
+                          style={{ background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.12)' }}>
+                          <div className="p-1.5 rounded-md shrink-0" style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24' }}>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: '#fbbf24' }}>Meilleur post</p>
+                            <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{perfData.top_post}</p>
+                          </div>
+                        </div>
                       )}
                     </div>
                   )}
 
+                  {/* ── Recommandations IA — actionable cards ── */}
                   {recommendations.length > 0 && (
-                    <div className="glass-card p-5">
-                      <h3 className="font-semibold mb-3" style={{ color: 'var(--text)' }}>Recommandations IA</h3>
-                      <div className="space-y-2">
-                        {recommendations.map((r, i) => (
-                          <div key={i} className="flex gap-2 text-sm">
-                            <span className="opacity-50">{i + 1}.</span>
-                            <span style={{ color: 'var(--text)' }}>{r}</span>
-                          </div>
-                        ))}
+                    <div className="rounded-xl p-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                      <h3 className="text-sm font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--text-muted)' }}>
+                        Recommandations
+                      </h3>
+                      <div className="space-y-2.5">
+                        {recommendations.map((r, i) => {
+                          const colors = ['#818cf8', '#22c55e', '#f59e0b', '#ec4899', '#06b6d4']
+                          const c = colors[i % colors.length]
+                          return (
+                            <div key={i} className="flex items-start gap-3 rounded-lg p-3 transition-all hover:scale-[1.01]"
+                              style={{ background: `${c}08`, border: `1px solid ${c}12` }}>
+                              <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0 text-xs font-bold"
+                                style={{ background: `${c}20`, color: c }}>
+                                {i + 1}
+                              </div>
+                              <p className="text-sm leading-relaxed pt-0.5" style={{ color: 'var(--text-secondary)' }}>{r}</p>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   )}
 
+                  {/* ── Resume ── */}
                   {analysis.summary && (
-                    <div className="glass-card p-5">
-                      <h3 className="font-semibold mb-2" style={{ color: 'var(--text)' }}>Résumé</h3>
-                      <p className="text-sm leading-relaxed" style={{ color: 'var(--text)', opacity: 0.8 }}>
+                    <div className="rounded-xl p-5 relative overflow-hidden"
+                      style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                      <div className="absolute top-0 left-0 w-1 h-full" style={{ background: 'linear-gradient(180deg, #818cf8, #6366f1)' }} />
+                      <h3 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>
+                        Synthese
+                      </h3>
+                      <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
                         {String(analysis.summary)}
                       </p>
                     </div>
                   )}
                 </div>
               ) : (
-                <div className="glass-card p-8 text-center">
-                  <div className="text-4xl mb-3 opacity-30">🧠</div>
-                  <p className="opacity-50">Lancez l'analyse IA pour obtenir les insights</p>
+                <div className="rounded-xl p-12 text-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-xl flex items-center justify-center"
+                    style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.15)' }}>
+                    <svg className="w-7 h-7" style={{ color: '#8b5cf680' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                  </div>
+                  <p className="font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Aucune analyse disponible</p>
+                  <p className="text-sm" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>Lancez l'analyse IA pour obtenir les insights de cette campagne</p>
                 </div>
               )}
             </div>
@@ -1469,7 +1594,7 @@ export default function SocialPage() {
                   <option value="">Campagne A</option>
                   {campaigns.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
                 </select>
-                <span className="flex items-center text-xl opacity-30">⚡</span>
+                <span className="flex items-center text-sm font-bold opacity-30">VS</span>
                 <select className="input-dark flex-1" value={compareB} onChange={e => setCompareB(e.target.value)}>
                   <option value="">Campagne B</option>
                   {campaigns.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
@@ -1506,15 +1631,20 @@ export default function SocialPage() {
                     <div>
                       <h4 className="text-sm font-semibold opacity-70 mb-1">Conseils</h4>
                       {((comparison as any).tips as string[]).map((t, i) => (
-                        <p key={i} className="text-sm pl-3 opacity-80">💡 {t}</p>
+                        <p key={i} className="text-sm pl-3 opacity-80"> {t}</p>
                       ))}
                     </div>
                   )}
                 </div>
               ) : (
-                <div className="glass-card p-8 text-center">
-                  <div className="text-4xl mb-3 opacity-30">⚖️</div>
-                  <p className="opacity-50">Sélectionnez deux campagnes et comparez</p>
+                <div className="rounded-xl p-8 text-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                  <div className="w-12 h-12 mx-auto mb-3 rounded-lg flex items-center justify-center"
+                    style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.12)' }}>
+                    <svg className="w-5 h-5" style={{ color: '#8b5cf680' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                    </svg>
+                  </div>
+                  <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Selectionnez deux campagnes et comparez</p>
                 </div>
               )}
             </div>

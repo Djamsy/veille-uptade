@@ -1068,7 +1068,7 @@ export default function DashboardPage() {
       <Sidebar />
 
       {/* Zone principale = carte plein écran + widgets flottants */}
-      <div className="lg:ml-60 flex-1 relative h-screen overflow-hidden">
+      <div className="lg:ml-16 flex-1 relative h-screen overflow-hidden">
 
         {/* ══ CARTE 3D PLEIN ÉCRAN ══ */}
         <MapboxFullMap communes={mapBgData} onSelectCommune={setSelectedCommune} />

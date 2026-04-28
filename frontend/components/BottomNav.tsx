@@ -48,12 +48,12 @@ const BottomNav = () => {
       ),
     },
     {
-      href: '/briefing',
-      label: 'Briefing',
+      href: '/social',
+      label: 'Réseaux',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-            d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+            d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
         </svg>
       ),
     },
@@ -80,11 +80,11 @@ const BottomNav = () => {
     <nav
       className="fixed bottom-0 left-0 right-0 lg:hidden z-50 bottom-nav"
       style={{
-        background: 'var(--glass-bg)',
+        background: 'rgba(10,10,15,0.85)',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
-        borderTop: '1px solid var(--border)',
-        boxShadow: '0 -2px 20px rgba(0,0,0,0.06)',
+        borderTop: '1px solid rgba(255,255,255,0.06)',
+        boxShadow: '0 -4px 20px rgba(0,0,0,0.4)',
       }}
     >
       <div
@@ -103,7 +103,7 @@ const BottomNav = () => {
               className="flex flex-col items-center justify-center flex-1 text-link"
               style={{
                 minHeight: '48px',
-                color: active ? 'var(--primary)' : 'var(--text-muted)',
+                color: active ? '#818cf8' : '#64748b',
                 transition: 'color 200ms ease-in-out',
               }}
             >
@@ -112,7 +112,7 @@ const BottomNav = () => {
                 style={{
                   padding: '0.25rem',
                   borderRadius: '10px',
-                  background: active ? 'rgba(124,131,219,0.1)' : 'transparent',
+                  background: active ? 'rgba(99,102,241,0.15)' : 'transparent',
                   transition: 'background 200ms ease',
                 }}
               >

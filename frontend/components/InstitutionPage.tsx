@@ -57,7 +57,7 @@ export default function InstitutionPage({ institution, title, subtitle }: Props)
   return (
     <div className="flex min-h-screen" style={{ background: 'var(--bg-main)' }}>
       <Sidebar />
-      <main className="ml-0 lg:ml-60 flex-1 p-4 lg:p-6 pb-24 lg:pb-6 min-h-screen">
+      <main className="ml-0 lg:ml-16 flex-1 p-4 lg:p-6 pb-24 lg:pb-6 min-h-screen">
         <div className="max-w-[1400px] mx-auto animate-fade-in">
 
           {/* Header */}

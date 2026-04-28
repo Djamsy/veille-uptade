@@ -331,7 +331,7 @@ export default function AdminPage() {
     return (
       <div className="flex">
         <Sidebar />
-        <main className="lg:ml-60 flex-1 min-h-screen flex items-center justify-center">
+        <main className="lg:ml-16 flex-1 min-h-screen flex items-center justify-center">
           <div className="animate-spin w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full" />
         </main>
       </div>
@@ -342,7 +342,7 @@ export default function AdminPage() {
     return (
       <div className="flex">
         <Sidebar />
-        <main className="lg:ml-60 flex-1 min-h-screen flex items-center justify-center p-4">
+        <main className="lg:ml-16 flex-1 min-h-screen flex items-center justify-center p-4">
           <div className="glass-card-static p-8 max-w-md w-full text-center">
             <div className="w-12 h-12 mx-auto mb-4 rounded-xl flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.15)' }}>
               <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -371,7 +371,7 @@ export default function AdminPage() {
   return (
     <div className="flex">
       <Sidebar />
-      <main className="lg:ml-60 flex-1 p-4 lg:p-6 min-h-screen">
+      <main className="lg:ml-16 flex-1 p-4 lg:p-6 min-h-screen">
         <div className="max-w-[1400px] mx-auto animate-fade-in">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">

@@ -100,7 +100,7 @@ export default function AnalyticsPage() {
     return (
       <div className="flex">
         <Sidebar />
-        <main className="lg:ml-60 flex-1 p-4 lg:p-8 pb-24 lg:pb-8 min-h-screen">
+        <main className="lg:ml-16 flex-1 p-4 lg:p-8 pb-24 lg:pb-8 min-h-screen">
           <div className="max-w-[1400px] mx-auto">
             <div className="skeleton h-8 w-40 mb-8" />
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
@@ -127,7 +127,7 @@ export default function AnalyticsPage() {
   return (
     <div className="flex">
       <Sidebar />
-      <main className="lg:ml-60 flex-1 p-4 lg:p-8 pb-24 lg:pb-8 min-h-screen">
+      <main className="lg:ml-16 flex-1 p-4 lg:p-8 pb-24 lg:pb-8 min-h-screen">
         <div className="max-w-[1400px] mx-auto animate-fade-in">
 
           {/* Header */}

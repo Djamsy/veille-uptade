@@ -182,7 +182,7 @@ export default function AffairDetailPage() {
     return (
       <div className="flex">
         <Sidebar />
-        <main className="lg:ml-60 flex-1 p-4 lg:p-8 pb-24 lg:pb-8 min-h-screen">
+        <main className="lg:ml-16 flex-1 p-4 lg:p-8 pb-24 lg:pb-8 min-h-screen">
           <div className="max-w-5xl mx-auto">
             <div className="skeleton h-6 w-40 mb-6" />
             <div className="skeleton h-48 w-full mb-6 rounded-xl" />
@@ -200,7 +200,7 @@ export default function AffairDetailPage() {
     return (
       <div className="flex">
         <Sidebar />
-        <main className="lg:ml-60 flex-1 p-4 lg:p-8 pb-24 lg:pb-8 min-h-screen bg-gradient-to-b from-[#06060a] to-[#0f0f14]">
+        <main className="lg:ml-16 flex-1 p-4 lg:p-8 pb-24 lg:pb-8 min-h-screen bg-gradient-to-b from-[#06060a] to-[#0f0f14]">
           <div className="max-w-5xl mx-auto text-center py-20">
             <p className="text-red-400 mb-4">{error || 'Affaire introuvable'}</p>
             <button onClick={() => router.push('/affairs')} className="text-teal-400 hover:text-teal-300 text-sm transition-colors">
@@ -218,7 +218,7 @@ export default function AffairDetailPage() {
   return (
     <div className="flex">
       <Sidebar />
-      <main className="lg:ml-60 flex-1 p-4 lg:p-8 pb-24 lg:pb-8 min-h-screen bg-gradient-to-b from-[#06060a] to-[#0f0f14]">
+      <main className="lg:ml-16 flex-1 p-4 lg:p-8 pb-24 lg:pb-8 min-h-screen bg-gradient-to-b from-[#06060a] to-[#0f0f14]">
         <div className="max-w-5xl mx-auto animate-fade-in">
 
           {/* ── Breadcrumb ────────────────────── */}

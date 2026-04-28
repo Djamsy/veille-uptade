@@ -334,7 +334,7 @@ export default function AffairsPage() {
   return (
     <div className="flex">
       <Sidebar />
-      <main className="lg:ml-60 flex-1 p-3 sm:p-5 lg:p-8 min-h-screen main-content">
+      <main className="lg:ml-16 flex-1 p-3 sm:p-5 lg:p-8 min-h-screen main-content">
         <div className="max-w-7xl mx-auto animate-fade-in">
 
           {/* Header */}
