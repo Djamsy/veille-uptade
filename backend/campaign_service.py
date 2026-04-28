@@ -313,6 +313,46 @@ def get_buffer_channels() -> List[Dict]:
     return channels
 
 
+def _clean_social_text(text: str) -> str:
+    """Nettoie le texte pour les réseaux sociaux.
+
+    Supprime le markdown qui n'est pas interprété par les plateformes :
+    - *gras* → gras (supprime les astérisques)
+    - __texte__ → texte
+    - [texte](url) → texte (url)
+    - Caractères Unicode bold (𝐀-𝐳) → caractères normaux
+    """
+    import unicodedata
+
+    # 1. Liens markdown [texte](url) → texte (url)
+    cleaned = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'\1 (\2)', text)
+
+    # 2. __texte__ → texte
+    cleaned = re.sub(r'__([^_]+)__', r'\1', cleaned)
+
+    # 3. *texte* → texte (mais pas ** ou les emojis)
+    cleaned = re.sub(r'(?<!\*)\*([^*\n]+)\*(?!\*)', r'\1', cleaned)
+
+    # 4. Caractères Unicode bold → ASCII normal
+    # Les Mathematical Bold (U+1D400-1D433) et autres séries Unicode fancy
+    result = []
+    for ch in cleaned:
+        cp = ord(ch)
+        # Mathematical Bold Capital A-Z: U+1D400-1D419
+        if 0x1D400 <= cp <= 0x1D419:
+            result.append(chr(cp - 0x1D400 + ord('A')))
+        # Mathematical Bold Small a-z: U+1D41A-1D433
+        elif 0x1D41A <= cp <= 0x1D433:
+            result.append(chr(cp - 0x1D41A + ord('a')))
+        # Bold digits: U+1D7CE-1D7D7
+        elif 0x1D7CE <= cp <= 0x1D7D7:
+            result.append(chr(cp - 0x1D7CE + ord('0')))
+        else:
+            result.append(ch)
+
+    return ''.join(result)
+
+
 def _build_create_post_mutation(text: str, channel_id: str, service: str,
                                 media_urls: List[str] = None) -> str:
     """Construit la mutation createPost avec assets + metadata par plateforme.
@@ -324,7 +364,9 @@ def _build_create_post_mutation(text: str, channel_id: str, service: str,
     - metadata.youtube:   { title: "...", categoryId: "22" }
     - metadata.tiktok:    { title: "..." }
     """
-    escaped_text = text.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
+    # Nettoyer le markdown / Unicode bold
+    clean_text = _clean_social_text(text)
+    escaped_text = clean_text.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
 
     # ── Assets (images / videos) ──
     has_video = False
@@ -357,13 +399,11 @@ def _build_create_post_mutation(text: str, channel_id: str, service: str,
     has_media = has_video or has_image
 
     if service == "facebook":
-        # type est NON_NULL → post par défaut, reel si vidéo
-        fb_type = "reel" if has_video else "post"
-        metadata_part = f'metadata: {{ facebook: {{ type: {fb_type} }} }},'
+        # Toujours "post" — reel limité à 1m30
+        metadata_part = 'metadata: { facebook: { type: post } },'
 
     elif service == "instagram":
         # type + shouldShareToFeed sont NON_NULL
-        # Instagram exige un média
         if not has_media:
             return ""  # skip — Instagram sans média impossible
         ig_type = "reel" if has_video else "post"
@@ -373,9 +413,13 @@ def _build_create_post_mutation(text: str, channel_id: str, service: str,
         # YouTube exige une vidéo
         if not has_video:
             return ""  # skip — YouTube sans vidéo impossible
-        # Extraire un titre (première ligne, max 70 chars)
-        title_line = text.split('\\n')[0].split('\n')[0].strip('*# ').strip()[:70]
-        escaped_title = title_line.replace('\\', '\\\\').replace('"', '\\"')
+        # Extraire un titre nettoyé (première ligne, max 90 chars)
+        raw_title = clean_text.split('\\n')[0].split('\n')[0].strip()
+        # Enlever emojis de début et ponctuation
+        raw_title = re.sub(r'^[^\w]*', '', raw_title).strip()[:90]
+        escaped_title = raw_title.replace('\\', '\\\\').replace('"', '\\"')
+        if not escaped_title:
+            escaped_title = "Publication Conseil Departemental Guadeloupe"
         metadata_part = f'metadata: {{ youtube: {{ title: "{escaped_title}", categoryId: "25" }} }},'
 
     elif service == "tiktok":
