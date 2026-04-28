@@ -2186,6 +2186,72 @@ async def publish_from_web(request: Request):
         return {"ok": False, "error": "server_error", "detail": str(e)[:300]}
 
 
+# ── Buffer Debug ──
+@app.get("/api/buffer/debug")
+async def buffer_debug():
+    """Debug complet de la connexion Buffer API — teste chaque étape."""
+    import urllib.request, urllib.error
+    token = os.getenv("BUFFER_ACCESS_TOKEN", "")
+    org_id = os.getenv("BUFFER_ORG_ID", "")
+    url = "https://api.buffer.com"
+    results = {
+        "token_present": bool(token),
+        "token_prefix": token[:8] + "..." if token else "",
+        "org_id_env": org_id,
+        "steps": [],
+    }
+
+    def gql(query, variables=None):
+        payload = json.dumps({"query": query, "variables": variables or {}}).encode()
+        req = urllib.request.Request(url, data=payload, headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                return {"status": resp.status, "body": json.loads(resp.read())}
+        except urllib.error.HTTPError as e:
+            body = e.read().decode() if hasattr(e, "read") else ""
+            return {"status": e.code, "body": body[:500]}
+        except Exception as e:
+            return {"status": 0, "body": str(e)[:500]}
+
+    # Step 1: Get account / org
+    r1 = gql('query { account { organizations { id name } } }')
+    results["steps"].append({"name": "account_orgs", "result": r1})
+
+    # Extraire org_id de la réponse si pas en env
+    detected_org = ""
+    if isinstance(r1.get("body"), dict):
+        data = r1["body"].get("data", {})
+        orgs = (data.get("account") or {}).get("organizations") or []
+        if orgs:
+            detected_org = orgs[0].get("id", "")
+    results["detected_org_id"] = detected_org
+
+    use_org = org_id or detected_org
+
+    # Step 2: Get channels
+    if use_org:
+        r2 = gql(
+            'query($input: ChannelsInput!) { channels(input: $input) { id name service } }',
+            {"input": {"organizationId": use_org}}
+        )
+        results["steps"].append({"name": "channels", "org_used": use_org, "result": r2})
+    else:
+        results["steps"].append({"name": "channels", "skipped": "no org id"})
+
+    # Step 3: Introspection rapide des queries dispo
+    r3 = gql('query { __schema { queryType { fields { name } } } }')
+    if isinstance(r3.get("body"), dict):
+        fields = [f["name"] for f in (r3["body"].get("data") or {}).get("__schema", {}).get("queryType", {}).get("fields", [])]
+        results["steps"].append({"name": "schema_fields", "fields": fields})
+    else:
+        results["steps"].append({"name": "schema_fields", "result": r3})
+
+    return results
+
+
 # ── Bot Publication Webhook ──
 @app.post("/api/publication-bot/webhook")
 async def publication_bot_webhook(request: Request):
