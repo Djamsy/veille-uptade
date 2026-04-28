@@ -332,40 +332,47 @@ def publish_to_buffer(text: str, media_urls: List[str] = None,
         return {"ok": False, "error": "Aucun channel Buffer trouvé. Vérifiez BUFFER_ORG_ID et vos profils connectés."}
 
     # 2. Publier sur chaque channel via createPost
-    mutation = """
-    mutation CreatePost($input: CreatePostInput!) {
-      createPost(input: $input) {
-        ... on PostActionSuccess {
-          post {
-            id
-            text
-            dueAt
-          }
-        }
-        ... on MutationError {
-          message
-        }
-      }
-    }
-    """
-
+    # Note: schedulingType et mode sont des enums GraphQL,
+    # ils doivent être inline (pas entre guillemets) dans la query.
     published = []
     errors = []
 
     for ch_id in channel_ids:
-        post_input = {
-            "text": text,
-            "channelId": ch_id,
-            "schedulingType": "automatic",
-            "mode": "addToQueue",
-        }
+        # Échapper le texte pour l'inline GraphQL
+        escaped_text = text.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
 
-        # Ajouter les médias si présents
+        # Construire les médias inline si présents
+        media_part = ""
         if media_urls:
-            post_input["media"] = [{"url": url, "alt": ""} for url in media_urls[:4]]
+            media_items = ", ".join([
+                f'{{ url: "{url}", alt: "" }}' for url in media_urls[:4]
+            ])
+            media_part = f", media: [{media_items}]"
 
-        variables = {"input": post_input}
-        result = _buffer_graphql(mutation, variables)
+        mutation = f'''
+        mutation {{
+          createPost(input: {{
+            text: "{escaped_text}",
+            channelId: "{ch_id}",
+            schedulingType: automatic,
+            mode: addToQueue
+            {media_part}
+          }}) {{
+            ... on PostActionSuccess {{
+              post {{
+                id
+                text
+                dueAt
+              }}
+            }}
+            ... on MutationError {{
+              message
+            }}
+          }}
+        }}
+        '''
+
+        result = _buffer_graphql(mutation)
 
         if not result:
             errors.append(f"channel {ch_id}: pas de réponse (HTTP error)")

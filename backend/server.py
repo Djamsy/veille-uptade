@@ -2251,19 +2251,19 @@ async def buffer_debug():
             first_channel_id = chs[0].get("id", "")
 
     if first_channel_id:
+        # Enums inline (pas de guillemets autour de automatic / addToQueue)
         r3 = gql(
-            '''mutation($input: CreatePostInput!) {
-              createPost(input: $input) {
-                ... on PostActionSuccess { post { id text dueAt } }
-                ... on MutationError { message }
-              }
-            }''',
-            {"input": {
-                "text": "[TEST DEBUG - ne pas publier] Veille Media test",
-                "channelId": first_channel_id,
-                "schedulingType": "automatic",
-                "mode": "addToQueue",
-            }}
+            f'''mutation {{
+              createPost(input: {{
+                text: "[TEST DEBUG] Veille Media",
+                channelId: "{first_channel_id}",
+                schedulingType: automatic,
+                mode: addToQueue
+              }}) {{
+                ... on PostActionSuccess {{ post {{ id text dueAt }} }}
+                ... on MutationError {{ message }}
+              }}
+            }}'''
         )
         results["steps"].append({"name": "createPost_test", "channel": first_channel_id, "result": r3})
     else:
