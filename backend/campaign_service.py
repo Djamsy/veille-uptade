@@ -238,6 +238,8 @@ def _buffer_graphql(query: str, variables: Dict = None) -> Optional[Dict]:
         req = urllib.request.Request(BUFFER_GRAPHQL_URL, data=payload, headers={
             "Content-Type": "application/json",
             "Authorization": f"Bearer {BUFFER_ACCESS_TOKEN}",
+            "User-Agent": "VeilleMedia/1.0",
+            "Accept": "application/json",
         })
         with urllib.request.urlopen(req, timeout=20) as resp:
             raw = resp.read()

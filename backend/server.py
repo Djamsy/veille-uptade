@@ -2206,6 +2206,8 @@ async def buffer_debug():
         req = urllib.request.Request(url, data=payload, headers={
             "Content-Type": "application/json",
             "Authorization": f"Bearer {token}",
+            "User-Agent": "VeilleMedia/1.0",
+            "Accept": "application/json",
         })
         try:
             with urllib.request.urlopen(req, timeout=15) as resp:
