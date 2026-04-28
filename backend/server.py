@@ -2269,21 +2269,18 @@ async def buffer_debug():
     else:
         results["steps"].append({"name": "createPost_test", "skipped": "no channel found"})
 
-    # Step 4: Introspection de CreatePostInput (quels champs existent ?)
-    r4 = gql('''query {
-      __type(name: "CreatePostInput") {
-        name
-        inputFields {
-          name
-          type { name kind ofType { name kind ofType { name } } }
-        }
-      }
-    }''')
-    if isinstance(r4.get("body"), dict):
-        type_info = (r4["body"].get("data") or {}).get("__type")
-        results["steps"].append({"name": "CreatePostInput_schema", "type": type_info})
-    else:
-        results["steps"].append({"name": "CreatePostInput_schema", "result": r4})
+    # Step 4: Introspection des types liés à createPost
+    for type_name in ["CreatePostInput", "PostInputMetaData", "AssetsInput", "ShareMode", "SchedulingType"]:
+        r = gql(f'''query {{ __type(name: "{type_name}") {{
+          name kind
+          inputFields {{ name type {{ name kind ofType {{ name kind ofType {{ name }} }} }} }}
+          enumValues {{ name }}
+        }} }}''')
+        if isinstance(r.get("body"), dict):
+            type_info = (r["body"].get("data") or {}).get("__type")
+            results["steps"].append({"name": f"schema_{type_name}", "type": type_info})
+        else:
+            results["steps"].append({"name": f"schema_{type_name}", "result": r})
 
     return results
 
