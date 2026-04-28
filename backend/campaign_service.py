@@ -315,15 +315,20 @@ def get_buffer_channels() -> List[Dict]:
 
 def _build_create_post_mutation(text: str, channel_id: str, service: str,
                                 media_urls: List[str] = None) -> str:
-    """Construit la mutation createPost avec assets (images/videos).
+    """Construit la mutation createPost avec assets + metadata par plateforme.
 
-    Docs Buffer :
-    - assets.images: [{ url: "..." }]  → pour images
-    - assets.videos: [{ url: "..." }]  → pour vidéos
+    Schema Buffer (introspection) :
+    - assets: { images: [{ url }], videos: [{ url }] }
+    - metadata.facebook:  { type: post|story|reel }  (NON_NULL)
+    - metadata.instagram: { type: post|story|reel, shouldShareToFeed: true } (NON_NULL)
+    - metadata.youtube:   { title: "...", categoryId: "22" }
+    - metadata.tiktok:    { title: "..." }
     """
     escaped_text = text.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
 
-    # Construire le bloc assets si médias présents
+    # ── Assets (images / videos) ──
+    has_video = False
+    has_image = False
     assets_part = ""
     if media_urls:
         images = []
@@ -334,6 +339,8 @@ def _build_create_post_mutation(text: str, channel_id: str, service: str,
             else:
                 images.append(url)
 
+        has_video = bool(videos)
+        has_image = bool(images)
         asset_items = []
         if images:
             img_entries = ", ".join([f'{{ url: "{u}" }}' for u in images])
@@ -343,7 +350,38 @@ def _build_create_post_mutation(text: str, channel_id: str, service: str,
             asset_items.append(f"videos: [{vid_entries}]")
 
         if asset_items:
-            assets_part = f', assets: {{ {", ".join(asset_items)} }}'
+            assets_part = f'assets: {{ {", ".join(asset_items)} }},'
+
+    # ── Metadata par plateforme ──
+    metadata_part = ""
+    has_media = has_video or has_image
+
+    if service == "facebook":
+        # type est NON_NULL → post par défaut, reel si vidéo
+        fb_type = "reel" if has_video else "post"
+        metadata_part = f'metadata: {{ facebook: {{ type: {fb_type} }} }},'
+
+    elif service == "instagram":
+        # type + shouldShareToFeed sont NON_NULL
+        # Instagram exige un média
+        if not has_media:
+            return ""  # skip — Instagram sans média impossible
+        ig_type = "reel" if has_video else "post"
+        metadata_part = f'metadata: {{ instagram: {{ type: {ig_type}, shouldShareToFeed: true }} }},'
+
+    elif service == "youtube":
+        # YouTube exige une vidéo
+        if not has_video:
+            return ""  # skip — YouTube sans vidéo impossible
+        # Extraire un titre (première ligne, max 70 chars)
+        title_line = text.split('\\n')[0].split('\n')[0].strip('*# ').strip()[:70]
+        escaped_title = title_line.replace('\\', '\\\\').replace('"', '\\"')
+        metadata_part = f'metadata: {{ youtube: {{ title: "{escaped_title}", categoryId: "25" }} }},'
+
+    elif service == "tiktok":
+        # TikTok exige un média
+        if not has_media:
+            return ""  # skip — TikTok sans média impossible
 
     mutation = f'''
     mutation {{
@@ -351,18 +389,15 @@ def _build_create_post_mutation(text: str, channel_id: str, service: str,
         text: "{escaped_text}",
         channelId: "{channel_id}",
         schedulingType: automatic,
-        mode: addToQueue
+        mode: addToQueue,
         {assets_part}
+        {metadata_part}
       }}) {{
         ... on PostActionSuccess {{
           post {{
             id
             text
             dueAt
-            assets {{
-              id
-              mimeType
-            }}
           }}
         }}
         ... on MutationError {{
