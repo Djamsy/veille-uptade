@@ -2383,21 +2383,46 @@ async def publication_bot_status():
 @app.post("/api/publication-bot/register-webhook")
 async def publication_bot_register_webhook():
     """Enregistre le webhook Telegram pour le bot de publication."""
+    import urllib.request as _urllib_req
     try:
-        from backend.publication_bot import PUBLICATION_BOT_TOKEN, _tg_api, is_configured
+        from backend.publication_bot import PUBLICATION_BOT_TOKEN, is_configured
         if not is_configured():
             return {"ok": False, "error": "Bot non configure (PUBLICATION_BOT_TOKEN manquant)"}
 
         # Détecter l'URL du serveur
         base_url = os.getenv("RENDER_EXTERNAL_URL", "https://veille-api-ubrw.onrender.com")
         webhook_url = f"{base_url}/api/publication-bot/webhook"
+        tg_url = f"https://api.telegram.org/bot{PUBLICATION_BOT_TOKEN}/setWebhook"
 
-        result = _tg_api("setWebhook", {"url": webhook_url})
-        if result and result.get("ok"):
-            logger.info(f"Webhook Telegram enregistre: {webhook_url}")
-            return {"ok": True, "webhook_url": webhook_url, "telegram_response": result}
-        else:
-            return {"ok": False, "error": "Telegram a refuse le webhook", "response": result}
+        # Diagnostic: vérifier le token d'abord
+        token_preview = PUBLICATION_BOT_TOKEN[:8] + "..." if len(PUBLICATION_BOT_TOKEN) > 8 else "(trop court)"
+
+        # Appel direct avec meilleur diagnostic
+        try:
+            payload = json.dumps({"url": webhook_url}).encode()
+            req = _urllib_req.Request(tg_url, data=payload, headers={"Content-Type": "application/json"})
+            with _urllib_req.urlopen(req, timeout=15) as resp:
+                result = json.loads(resp.read())
+            if result.get("ok"):
+                logger.info(f"Webhook Telegram enregistre: {webhook_url}")
+                return {"ok": True, "webhook_url": webhook_url, "telegram_response": result}
+            else:
+                return {"ok": False, "error": "Telegram a refuse", "telegram_response": result, "token_preview": token_preview}
+        except _urllib_req.HTTPError as http_err:
+            body = http_err.read().decode("utf-8", errors="replace")
+            return {
+                "ok": False,
+                "error": f"HTTP {http_err.code}: {body}",
+                "token_preview": token_preview,
+                "webhook_url_attempted": webhook_url,
+            }
+        except Exception as inner_e:
+            return {
+                "ok": False,
+                "error": f"Connexion Telegram echouee: {type(inner_e).__name__}: {inner_e}",
+                "token_preview": token_preview,
+                "webhook_url_attempted": webhook_url,
+            }
     except Exception as e:
         logger.error(f"Erreur enregistrement webhook: {e}")
         return {"ok": False, "error": str(e)}
