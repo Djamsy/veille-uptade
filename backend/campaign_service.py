@@ -315,56 +315,21 @@ def get_buffer_channels() -> List[Dict]:
 
 def _build_create_post_mutation(text: str, channel_id: str, service: str,
                                 media_urls: List[str] = None) -> str:
-    """Construit la mutation createPost adaptée à chaque plateforme.
+    """Construit la mutation createPost.
 
-    Chaque service a des exigences spécifiques :
-    - facebook: type requis (post/story/reel)
-    - instagram: type requis + au moins 1 média obligatoire
-    - youtube: vidéo requise + title + category
-    - tiktok: au moins 1 média obligatoire
+    Pour l'instant on utilise le minimum de champs supportés par CreatePostInput :
+    text, channelId, schedulingType, mode.
+    Les URLs médias sont incluses dans le texte.
+
+    Les champs comme postType, title, youtubeCategory ne font PAS partie
+    de CreatePostInput — ils sont gérés côté Buffer automatiquement.
     """
-    has_media = bool(media_urls)
-    has_video = has_media and any(
-        u.endswith(('.mp4', '.mov', '.avi', '.webm')) or '/video/' in u
-        for u in media_urls
-    )
-
     # Texte avec médias intégrés
     full_text = text
     if media_urls:
         full_text = text.rstrip() + "\n\n" + "\n".join(media_urls)
 
     escaped_text = full_text.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
-
-    # Champs supplémentaires par plateforme
-    extra_fields = ""
-
-    if service == "facebook":
-        extra_fields = ', postType: post'
-
-    elif service == "instagram":
-        if has_video:
-            extra_fields = ', postType: reel'
-        elif has_media:
-            extra_fields = ', postType: post'
-        else:
-            # Instagram exige un média — on skip ce channel si pas de média
-            return ""
-
-    elif service == "youtube":
-        if not has_video:
-            # YouTube exige une vidéo — skip si pas de vidéo
-            return ""
-        # Extraire un titre du texte (première ligne ou premiers 70 chars)
-        title_line = text.split('\n')[0].strip('*# ').strip()[:70]
-        escaped_title = title_line.replace('\\', '\\\\').replace('"', '\\"')
-        extra_fields = f', postType: post, title: "{escaped_title}", youtubeCategory: "25"'
-
-    elif service == "tiktok":
-        if not has_media:
-            # TikTok exige un média — skip si pas de média
-            return ""
-        extra_fields = ', postType: reel'
 
     mutation = f'''
     mutation {{
@@ -373,7 +338,6 @@ def _build_create_post_mutation(text: str, channel_id: str, service: str,
         channelId: "{channel_id}",
         schedulingType: automatic,
         mode: addToQueue
-        {extra_fields}
       }}) {{
         ... on PostActionSuccess {{
           post {{

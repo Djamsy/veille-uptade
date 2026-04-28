@@ -2269,13 +2269,21 @@ async def buffer_debug():
     else:
         results["steps"].append({"name": "createPost_test", "skipped": "no channel found"})
 
-    # Step 4: Introspection mutations dispo
-    r4 = gql('query { __schema { mutationType { fields { name } } } }')
+    # Step 4: Introspection de CreatePostInput (quels champs existent ?)
+    r4 = gql('''query {
+      __type(name: "CreatePostInput") {
+        name
+        inputFields {
+          name
+          type { name kind ofType { name kind ofType { name } } }
+        }
+      }
+    }''')
     if isinstance(r4.get("body"), dict):
-        fields = [f["name"] for f in (r4["body"].get("data") or {}).get("__schema", {}).get("mutationType", {}).get("fields", [])]
-        results["steps"].append({"name": "mutation_fields", "fields": fields})
+        type_info = (r4["body"].get("data") or {}).get("__type")
+        results["steps"].append({"name": "CreatePostInput_schema", "type": type_info})
     else:
-        results["steps"].append({"name": "mutation_fields", "result": r4})
+        results["steps"].append({"name": "CreatePostInput_schema", "result": r4})
 
     return results
 
