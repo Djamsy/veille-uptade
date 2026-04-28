@@ -57,7 +57,7 @@ function MapboxFullMap({
   communes,
   onSelectCommune,
 }: {
-  communes?: Record<string, { stats: { total_items: number; max_gravity: number }; affairs?: any[] }>;
+  communes?: Record<string, { stats: { total_items: number; max_gravity: number; article_count?: number; transcription_count?: number; affair_count?: number }; affairs?: any[] }>;
   onSelectCommune?: (name: string | null) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -158,7 +158,7 @@ function MapboxFullMap({
     };
   }, []);
 
-  // Markers communes
+  // Markers communes with popups
   useEffect(() => {
     if (!mapRef.current || !communes || !ready) return;
     const mapboxgl = (window as any).mapboxgl;
@@ -179,12 +179,58 @@ function MapboxFullMap({
       el.title = `${name} — ${cData.stats.total_items} items`;
       el.onmouseenter = () => { el.style.transform = 'scale(1.3)'; };
       el.onmouseleave = () => { el.style.transform = 'scale(1)'; };
+
+      // Create popup HTML with affairs
+      const affairsList = (cData.affairs || []).slice(0, 3);
+      const affairsHTML = affairsList.map((a: any) => {
+        const gravityColor = (a.gravity_score || 0) >= 0.7 ? '#ef4444' : (a.gravity_score || 0) >= 0.5 ? '#f97316' : (a.gravity_score || 0) >= 0.3 ? '#eab308' : '#22c55e';
+        return `<div style="padding:6px; border-bottom:1px solid rgba(255,255,255,0.08); font-size:11px;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:6px; margin-bottom:3px;">
+            <span style="font-weight:600; color:#fff; flex:1;">${a.title || 'Sans titre'}</span>
+            <span style="color:${gravityColor}; font-weight:700; flex-shrink:0;">${Math.round((a.gravity_score || 0) * 100)}%</span>
+          </div>
+          <div style="font-size:9px; color:rgba(255,255,255,0.6);">${a.theme || 'N/A'}</div>
+        </div>`;
+      }).join('');
+
+      const popupHTML = `
+        <div style="background:rgba(2,6,23,0.92); backdrop-filter:blur(20px); border:1px solid rgba(255,255,255,0.1); border-radius:12px; color:#fff; font-family:system-ui,-apple-system,sans-serif; padding:0; min-width:240px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.3);">
+          <div style="padding:10px 12px; border-bottom:1px solid rgba(255,255,255,0.1);">
+            <div style="font-weight:700; font-size:13px; margin-bottom:8px;">${name}</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; text-align:center; font-size:11px;">
+              <div>
+                <div style="font-weight:700; color:#60a5fa; font-size:14px;">${cData.stats.article_count || 0}</div>
+                <div style="color:rgba(255,255,255,0.5); font-size:9px; text-transform:uppercase;">Articles</div>
+              </div>
+              <div>
+                <div style="font-weight:700; color:#a78bfa; font-size:14px;">${cData.stats.transcription_count || 0}</div>
+                <div style="color:rgba(255,255,255,0.5); font-size:9px; text-transform:uppercase;">Radios</div>
+              </div>
+              <div>
+                <div style="font-weight:700; color:#fbbf24; font-size:14px;">${cData.stats.affair_count || 0}</div>
+                <div style="color:rgba(255,255,255,0.5); font-size:9px; text-transform:uppercase;">Affaires</div>
+              </div>
+            </div>
+          </div>
+          ${affairsHTML ? `<div style="max-height:180px; overflow-y:auto;">${affairsHTML}</div>` : `<div style="padding:10px 12px; color:rgba(255,255,255,0.4); font-size:11px;">Aucune affaire</div>`}
+          <div style="padding:8px 12px; border-top:1px solid rgba(255,255,255,0.1); text-align:center;">
+            <button style="background:rgba(99,102,241,0.5); color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; transition:background 0.2s;">Voir tout</button>
+          </div>
+        </div>
+      `;
+
+      const popup = new mapboxgl.Popup({
+        closeButton: true,
+        closeOnClick: false,
+        maxWidth: '280px',
+      }).setHTML(popupHTML);
+
       el.onclick = () => {
         if (onSelectCommune) onSelectCommune(name);
         mapRef.current?.flyTo({ center: coords, zoom: 13, pitch: 60, duration: 1500 });
       };
 
-      const marker = new mapboxgl.Marker({ element: el }).setLngLat(coords).addTo(mapRef.current);
+      const marker = new mapboxgl.Marker({ element: el }).setLngLat(coords).setPopup(popup).addTo(mapRef.current);
       markersRef.current.push(marker);
     }
   }, [communes, ready, onSelectCommune]);
@@ -1373,25 +1419,55 @@ export default function DashboardPage() {
 
             {/* Commune sélectionnée */}
             {selectedCommune && mapBgData[selectedCommune] && (
-              <div className={`${panelStyle} p-3`} style={{ ...panelBg, borderColor: 'rgba(99,102,241,0.3)' }}>
-                <div className="flex items-center justify-between mb-2">
-                  <h2 className="text-xs font-bold text-white">{selectedCommune}</h2>
-                  <button onClick={() => setSelectedCommune(null)} className="text-[10px] px-1.5 py-0.5 rounded" style={{ color: 'rgba(255,255,255,0.4)' }}>✕</button>
+              <div className={`${panelStyle} overflow-hidden`} style={{ ...panelBg, borderColor: 'rgba(99,102,241,0.3)' }}>
+                {/* Header */}
+                <div className="flex items-center justify-between p-3 border-b" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+                  <h2 className="text-sm font-bold text-white">{selectedCommune}</h2>
+                  <button onClick={() => setSelectedCommune(null)} className="text-[10px] px-1.5 py-0.5 rounded hover:bg-white/10 transition-colors" style={{ color: 'rgba(255,255,255,0.4)' }}>✕</button>
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-center">
+
+                {/* Stats Grid */}
+                <div className="p-3 border-b grid grid-cols-3 gap-2 text-center" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
                   <div>
-                    <p className="text-lg font-bold" style={{ color: '#60a5fa' }}>{(mapBgData[selectedCommune] as any)?.stats?.article_count || 0}</p>
+                    <p className="text-sm font-bold" style={{ color: '#60a5fa' }}>{(mapBgData[selectedCommune] as any)?.stats?.article_count || 0}</p>
                     <p className="text-[8px] uppercase" style={{ color: 'rgba(255,255,255,0.3)' }}>Articles</p>
                   </div>
                   <div>
-                    <p className="text-lg font-bold" style={{ color: '#a78bfa' }}>{(mapBgData[selectedCommune] as any)?.stats?.transcription_count || 0}</p>
+                    <p className="text-sm font-bold" style={{ color: '#a78bfa' }}>{(mapBgData[selectedCommune] as any)?.stats?.transcription_count || 0}</p>
                     <p className="text-[8px] uppercase" style={{ color: 'rgba(255,255,255,0.3)' }}>Radios</p>
                   </div>
                   <div>
-                    <p className="text-lg font-bold" style={{ color: '#fbbf24' }}>{(mapBgData[selectedCommune] as any)?.stats?.affair_count || 0}</p>
+                    <p className="text-sm font-bold" style={{ color: '#fbbf24' }}>{(mapBgData[selectedCommune] as any)?.stats?.affair_count || 0}</p>
                     <p className="text-[8px] uppercase" style={{ color: 'rgba(255,255,255,0.3)' }}>Affaires</p>
                   </div>
                 </div>
+
+                {/* Affairs List */}
+                {((mapBgData[selectedCommune] as any)?.affairs?.length || 0) > 0 && (
+                  <div className="p-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider px-1 mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>Affaires principales</p>
+                    <div className="space-y-1 max-h-48 overflow-y-auto">
+                      {((mapBgData[selectedCommune] as any)?.affairs || []).slice(0, 8).map((affair: any, idx: number) => {
+                        const gravityColor = (affair.gravity_score || 0) >= 0.7 ? '#ef4444' : (affair.gravity_score || 0) >= 0.5 ? '#f97316' : (affair.gravity_score || 0) >= 0.3 ? '#eab308' : '#22c55e';
+                        return (
+                          <Link key={affair._id || idx} href={`/affairs/${affair._id}`}>
+                            <div className="p-1.5 rounded-md hover:bg-white/10 transition-colors cursor-pointer group">
+                              <div className="flex items-start gap-1.5 justify-between">
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[10px] font-medium text-white group-hover:text-indigo-300 transition-colors truncate">{affair.title || 'Sans titre'}</p>
+                                  <p className="text-[8px]" style={{ color: 'rgba(255,255,255,0.4)' }}>{affair.theme || 'N/A'}</p>
+                                </div>
+                                <span className="text-[9px] font-bold flex-shrink-0 px-1.5 py-0.5 rounded" style={{ background: `${gravityColor}22`, color: gravityColor }}>
+                                  {Math.round((affair.gravity_score || 0) * 100)}%
+                                </span>
+                              </div>
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
