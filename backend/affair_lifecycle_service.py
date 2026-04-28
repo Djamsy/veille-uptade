@@ -2835,7 +2835,9 @@ class AffairLifecycleService:
         - Titre normalisé + SequenceMatcher
         - Fuzzy entity matching
         - Embeddings en bonus MODÉRÉ (deux meurtres ≠ même meurtre)
-        - SEUIL DE FUSION = 8 (relevé de 6)
+        - SEUIL DE FUSION = 8 (effectif depuis le fix anti boule de neige)
+        - Sur thème large sans entité spécifique : seuil porté à 12 dans la
+          consolidation 24h pour éviter les rattachements opportunistes.
         """
         # Entités de l'affaire
         aff_elected = set(
@@ -3543,7 +3545,66 @@ class AffairLifecycleService:
                     best_score = score
                     best_match = affair
 
-            if best_match and best_score >= 6:
+            if best_match and best_score >= 8:
+                # ── Anti boule de neige : gardes-fous locaux AVANT GPT ──
+                # Bloque la consolidation si :
+                #  - les titres mentionnent des communes différentes
+                #  - les catégories d'événements sont incompatibles (meurtre vs élection…)
+                #  - les champs sémantiques sont exclusifs (agriculture vs esclavage…)
+                # Évite que des articles sans lien réel ne s'agrègent à une affaire en cours.
+                _art_title = art.get("title", "") or ""
+                _aff_title = best_match.get("title", "") or ""
+                _aff_desc = best_match.get("description", "") or best_match.get("gpt_context", "") or ""
+                _art_summary = art.get("summary", "") or art.get("gpt_analysis", "") or ""
+
+                _commune_block = self._titles_have_different_communes(_art_title, _aff_title)
+                if _commune_block:
+                    logger.info(f"   🚫 Consolidation BLOQUÉE ({_commune_block}): "
+                                f"'{_art_title[:50]}' ↛ '{_aff_title[:40]}'")
+                    self.articles.update_one(
+                        {"_id": art["_id"]},
+                        {"$inc": {"_affair_attempts": 1}}
+                    )
+                    continue
+
+                _coherent, _block_reason = self._titles_are_coherent(
+                    _art_title, _aff_title, _art_summary, _aff_desc,
+                )
+                if not _coherent:
+                    logger.info(f"   🚫 Consolidation BLOQUÉE ({_block_reason}): "
+                                f"'{_art_title[:50]}' ↛ '{_aff_title[:40]}'")
+                    self.articles.update_one(
+                        {"_id": art["_id"]},
+                        {"$inc": {"_affair_attempts": 1}}
+                    )
+                    continue
+
+                # ── Anti-générique : si le score n'est pas porté par des entités
+                # spécifiques (élu non-générique ou institution spécifique), exiger
+                # un score plus élevé pour limiter les rattachements opportunistes
+                # sur thèmes larges (santé, sécurité, général).
+                _has_specific_entity = (
+                    bool(art_elected & set(
+                        e.lower().strip() for e in (best_match.get("elected", []) or [])
+                        if e and len(e) > 3 and e.lower().strip() not in self.GENERIC_ELECTED
+                    ))
+                    or bool(
+                        (art_institutions - self.GENERIC_INSTITUTIONS) & set(
+                            e.lower().strip() for e in (best_match.get("institutions", []) or [])
+                            if e and len(e) > 3 and e.lower().strip() not in self.GENERIC_INSTITUTIONS
+                        )
+                    )
+                )
+                if not _has_specific_entity and art_theme in ("", "general", "sante_social", "securite_justice"):
+                    if best_score < 12:
+                        logger.info(f"   🚫 Consolidation BLOQUÉE (thème large sans entité spécifique, "
+                                    f"score={best_score}<12): '{_art_title[:50]}' ↛ '{_aff_title[:40]}'")
+                        self.articles.update_one(
+                            {"_id": art["_id"]},
+                            {"$inc": {"_affair_attempts": 1}}
+                        )
+                        continue
+
                 # ── GPT validation gate (même logique que le matching principal) ──
                 if best_score < 15 and _ai_relevance_ok and _ai_relevance:
                     try:
