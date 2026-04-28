@@ -344,6 +344,100 @@ def _update_campaign_totals(db):
         )
 
 
+# ── Configuration suivi des commentaires ──────────────────
+# Durée pendant laquelle on continue de scraper les commentaires d'un post
+COMMENT_TRACKING_DAYS = int(os.getenv("COMMENT_TRACKING_DAYS", "14"))
+
+
+# ── Scraping ciblé (post spécifique) ─────────────────────
+
+def scrape_single_post(post_id: str) -> Dict[str, Any]:
+    """Scrape les stats/commentaires d'un post spécifique (appel manuel).
+
+    Utile en cas d'explosion virale pour obtenir les stats en temps réel.
+    """
+    if not APIFY_TOKEN:
+        return {"ok": False, "error": "APIFY_TOKEN non configuré"}
+
+    from bson import ObjectId
+    db = _get_db()
+
+    try:
+        post = db["campaign_posts"].find_one({"_id": ObjectId(post_id)})
+    except Exception:
+        return {"ok": False, "error": "ID de post invalide"}
+
+    if not post:
+        return {"ok": False, "error": "Post non trouvé"}
+
+    # Déterminer la plateforme du post
+    platform = post.get("platform", "")
+    post_url = post.get("url", "")
+
+    # Chercher dans les platform_stats ou buffer_ids
+    if not platform:
+        ps = post.get("platform_stats", {})
+        if ps:
+            platform = list(ps.keys())[0]
+
+    if not platform and not post_url:
+        return {"ok": False, "error": "Impossible de déterminer la plateforme du post"}
+
+    # Détection par URL si pas de plateforme explicite
+    if not platform and post_url:
+        if "instagram.com" in post_url:
+            platform = "instagram"
+        elif "facebook.com" in post_url:
+            platform = "facebook"
+        elif "twitter.com" in post_url or "x.com" in post_url:
+            platform = "twitter"
+        elif "linkedin.com" in post_url:
+            platform = "linkedin"
+        elif "tiktok.com" in post_url:
+            platform = "tiktok"
+        elif "youtube.com" in post_url or "youtu.be" in post_url:
+            platform = "youtube"
+
+    if not platform:
+        return {"ok": False, "error": "Plateforme non identifiable"}
+
+    # Scraper la plateforme et matcher le post
+    scraper_map = {
+        "instagram": _scrape_instagram,
+        "facebook": _scrape_facebook,
+        "twitter": _scrape_twitter,
+        "linkedin": _scrape_linkedin,
+    }
+
+    scraper = scraper_map.get(platform)
+    if not scraper:
+        return {"ok": False, "error": f"Scraping non supporté pour {platform}"}
+
+    if not OWN_PROFILES.get(platform):
+        return {"ok": False, "error": f"CD971_{platform.upper()}_URL non configurée"}
+
+    logger.info(f"🔍 Scraping ciblé pour post {post_id} ({platform})")
+    scraped_posts = scraper()
+
+    # Matcher avec le post demandé
+    db_posts = [post]
+    for sp in scraped_posts:
+        match = _match_to_db_post(sp, db_posts)
+        if match:
+            _update_post_stats(post_id, sp, db)
+            logger.info(f"✅ Stats mises à jour pour post {post_id}: {sp.get('stats', {})}")
+            return {
+                "ok": True,
+                "post_id": post_id,
+                "platform": platform,
+                "stats": sp.get("stats", {}),
+                "comments_count": len(sp.get("comments", [])),
+                "scraped_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+    return {"ok": False, "error": f"Post non trouvé dans le scraping {platform}. Le post est peut-être trop ancien."}
+
+
 # ── Job principal (appelé par le scheduler) ──────────────
 
 def scrape_own_social_stats() -> Dict[str, Any]:
@@ -352,20 +446,24 @@ def scrape_own_social_stats() -> Dict[str, Any]:
     - Posts existants → mise à jour des stats + commentaires
     - Posts inconnus  → création comme post externe
     - Totaux campagnes recalculés à la fin
+    - Ne scrape les commentaires que pour les posts de moins de COMMENT_TRACKING_DAYS jours
     """
     if not is_configured():
         logger.warning("Social stats scraper non configuré (APIFY_TOKEN + CD971_*_URL)")
         return {"ok": False, "error": "not_configured"}
 
     db = _get_db()
-    results = {"ok": True, "platforms": {}, "updated": 0, "created": 0}
+    results = {
+        "ok": True, "platforms": {}, "updated": 0, "created": 0,
+        "comment_tracking_days": COMMENT_TRACKING_DAYS,
+    }
 
-    # Posts récents en base (60 jours)
+    # Posts récents en base (60 jours pour les stats, COMMENT_TRACKING_DAYS pour les commentaires)
     cutoff = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
     db_posts = list(db["campaign_posts"].find(
         {"created_at": {"$gte": cutoff}},
         {"_id": 1, "title": 1, "body": 1, "platform_post_id": 1, "url": 1,
-         "platform_stats": 1, "stats": 1}
+         "platform_stats": 1, "stats": 1, "created_at": 1}
     ))
 
     scrapers = {

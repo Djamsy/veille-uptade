@@ -11,6 +11,8 @@ import {
   publishPost,
   fetchPublicationStatus,
   fetchSocialStatsStatus,
+  triggerGlobalScrape,
+  scrapePostStats,
   Campaign,
   CampaignPost,
   ServiceStatus,
@@ -47,8 +49,25 @@ function timeAgo(d: string): string {
 }
 
 // ── Post Card ──
-function PostCard({ post, onHover }: { post: CampaignPost; onHover: (p: CampaignPost | null) => void }) {
+function PostCard({ post, onHover, onScrape }: {
+  post: CampaignPost;
+  onHover: (p: CampaignPost | null) => void;
+  onScrape?: (postId: string) => void;
+}) {
   const s = post.stats || { views: 0, likes: 0, comments: 0, clicks: 0, reach: 0 }
+  const [scraping, setScraping] = useState(false)
+
+  const handleScrape = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (scraping || !post._id) return
+    setScraping(true)
+    try {
+      if (onScrape) onScrape(post._id)
+    } finally {
+      setTimeout(() => setScraping(false), 3000)
+    }
+  }
+
   return (
     <div
       className="glass-card p-0 overflow-hidden cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg"
@@ -59,7 +78,7 @@ function PostCard({ post, onHover }: { post: CampaignPost; onHover: (p: Campaign
       <div className="relative h-40 bg-white/5 flex items-center justify-center overflow-hidden">
         {post.media_url ? (
           post.media_type === 'video' ? (
-            <div className="text-4xl">🎬</div>
+            <video src={post.media_url} className="w-full h-full object-cover" muted />
           ) : (
             <img src={post.media_url} alt="" className="w-full h-full object-cover" />
           )
@@ -70,6 +89,20 @@ function PostCard({ post, onHover }: { post: CampaignPost; onHover: (p: Campaign
           style={{ background: 'rgba(0,0,0,0.6)', color: '#fff' }}>
           {post.media_type === 'video' ? '🎬 Vidéo' : post.media_type === 'carousel' ? '📸 Carrousel' : '📷 Photo'}
         </span>
+        {/* Bouton scrape rapide */}
+        <button
+          onClick={handleScrape}
+          disabled={scraping}
+          className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-xs font-medium transition-all hover:scale-105"
+          style={{
+            background: scraping ? 'rgba(234,179,8,0.8)' : 'rgba(0,0,0,0.6)',
+            color: '#fff',
+            cursor: scraping ? 'wait' : 'pointer',
+          }}
+          title="Scraper les stats actuelles"
+        >
+          {scraping ? '⏳ ...' : '🔄 Stats'}
+        </button>
       </div>
       {/* Content */}
       <div className="p-3">
@@ -83,6 +116,12 @@ function PostCard({ post, onHover }: { post: CampaignPost; onHover: (p: Campaign
           <span>💬 {s.comments}</span>
           <span>🔗 {s.clicks}</span>
         </div>
+        {/* Commentaires scrapés */}
+        {post.comments_scraped && post.comments_scraped.length > 0 && (
+          <div className="mt-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+            <span className="text-xs opacity-50">💬 {post.comments_scraped.length} commentaires scrapés</span>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -405,10 +444,13 @@ function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
 }
 
 // ── Panneau de statut des services ──
-function StatusPanel({ status, statsStatus }: {
+function StatusPanel({ status, statsStatus, onGlobalScrape }: {
   status: ServiceStatus | null;
   statsStatus: { configured: boolean; platforms: string[] } | null;
+  onGlobalScrape?: () => void;
 }) {
+  const [scraping, setScraping] = useState(false)
+
   if (!status) return null
 
   const services = [
@@ -422,15 +464,41 @@ function StatusPanel({ status, statsStatus }: {
   const allOk = services.every(s => s.ok)
   const someOk = services.some(s => s.ok)
 
+  const handleScrape = async () => {
+    setScraping(true)
+    try {
+      if (onGlobalScrape) onGlobalScrape()
+    } finally {
+      setTimeout(() => setScraping(false), 30000) // Scraping peut prendre du temps
+    }
+  }
+
   return (
     <div className="glass-card p-3 mb-4" style={{
       border: `1px solid ${allOk ? 'rgba(34,197,94,0.2)' : someOk ? 'rgba(234,179,8,0.2)' : 'rgba(239,68,68,0.2)'}`,
     }}>
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-sm">{allOk ? '🟢' : someOk ? '🟡' : '🔴'}</span>
-        <span className="text-xs font-medium opacity-70">
-          {allOk ? 'Tous les services connectés' : someOk ? 'Configuration partielle' : 'Services non configurés'}
-        </span>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm">{allOk ? '🟢' : someOk ? '🟡' : '🔴'}</span>
+          <span className="text-xs font-medium opacity-70">
+            {allOk ? 'Tous les services connectés' : someOk ? 'Configuration partielle' : 'Services non configurés'}
+          </span>
+        </div>
+        {statsStatus?.configured && (
+          <button
+            onClick={handleScrape}
+            disabled={scraping}
+            className="px-3 py-1 rounded-lg text-xs font-medium transition-all hover:scale-105"
+            style={{
+              background: scraping ? 'rgba(234,179,8,0.2)' : 'rgba(59,130,246,0.15)',
+              color: scraping ? '#eab308' : '#3b82f6',
+              border: `1px solid ${scraping ? 'rgba(234,179,8,0.3)' : 'rgba(59,130,246,0.25)'}`,
+              cursor: scraping ? 'wait' : 'pointer',
+            }}
+          >
+            {scraping ? '⏳ Scraping en cours...' : '🔄 Scraper toutes les stats'}
+          </button>
+        )}
       </div>
       <div className="flex flex-wrap gap-2">
         {services.map(s => (
@@ -562,7 +630,17 @@ export default function SocialPage() {
         </div>
 
         {/* Statut des services */}
-        <StatusPanel status={serviceStatus} statsStatus={statsStatus} />
+        <StatusPanel status={serviceStatus} statsStatus={statsStatus} onGlobalScrape={async () => {
+          try {
+            const result = await triggerGlobalScrape()
+            if (result.ok) {
+              alert(`Scraping terminé : ${result.updated || 0} MAJ, ${result.created || 0} créés`)
+              if (selectedCampaign) selectCampaign(selectedCampaign)
+            } else {
+              alert(`Erreur scraping: ${result.error}`)
+            }
+          } catch (e) { alert('Erreur: ' + e) }
+        }} />
 
         <div className="flex gap-6">
           {/* Sidebar campagnes */}
@@ -626,7 +704,16 @@ export default function SocialPage() {
                 <div className="relative">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {posts.map(post => (
-                      <PostCard key={post._id} post={post} onHover={setHoveredPost} />
+                      <PostCard key={post._id} post={post} onHover={setHoveredPost} onScrape={async (pid) => {
+                        try {
+                          const result = await scrapePostStats(pid)
+                          if (result.ok) {
+                            if (selectedCampaign) selectCampaign(selectedCampaign)
+                          } else {
+                            alert(`Scraping échoué: ${result.error}`)
+                          }
+                        } catch (e) { alert('Erreur: ' + e) }
+                      }} />
                     ))}
                   </div>
                   {posts.length === 0 && (

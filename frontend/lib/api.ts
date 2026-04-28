@@ -1147,3 +1147,11 @@ export const fetchPublicationStatus = () =>
 
 export const fetchSocialStatsStatus = () =>
   apiFetch<{ configured: boolean; platforms: string[]; frequency: string }>('/api/social-stats/status');
+
+export const triggerGlobalScrape = () =>
+  apiFetch<{ ok: boolean; updated?: number; created?: number; error?: string }>('/api/social-stats/scrape', { method: 'POST' });
+
+export const scrapePostStats = (postId: string) =>
+  apiFetch<{ ok: boolean; stats?: Record<string, number>; comments_count?: number; error?: string }>(
+    `/api/social-stats/scrape-post/${postId}`, { method: 'POST' }
+  );

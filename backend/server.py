@@ -2449,6 +2449,19 @@ async def trigger_social_stats_scrape():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/social-stats/scrape-post/{post_id}")
+async def trigger_single_post_scrape(post_id: str):
+    """Scrape les stats/commentaires d'un post spécifique (appel manuel, cas viral)."""
+    try:
+        from backend.social_stats_scraper import scrape_single_post, is_configured as ss_configured
+        if not ss_configured():
+            return {"ok": False, "error": "Non configuré (APIFY_TOKEN + CD971_*_URL)"}
+        result = scrape_single_post(post_id)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/social-stats/status")
 async def social_stats_status():
     """Statut du scraping stats RS propres."""
