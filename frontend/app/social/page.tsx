@@ -110,7 +110,7 @@ function CalendarPostItem({
   const [hovered, setHovered] = useState(false)
   const [popupSide, setPopupSide] = useState<'right' | 'left'>('right')
   const ref = useRef<HTMLDivElement>(null)
-  const raw = post.stats || {}
+  const raw = (post.stats || {}) as Record<string, number | undefined>
   const s = { views: raw.views || 0, likes: raw.likes || 0, comments: raw.comments || 0, clicks: raw.clicks || 0, reach: raw.reach || 0 }
   const platforms = Object.keys(post.platform_stats || {})
   const engagement = s.reach > 0 ? (((s.likes + s.comments + s.clicks) / s.reach) * 100).toFixed(1) : '0'
@@ -597,7 +597,7 @@ function PostDetailModal({
   onScrape?: (postId: string) => void
 }) {
   const [scraping, setScraping] = useState(false)
-  const raw2 = post.stats || {}
+  const raw2 = (post.stats || {}) as Record<string, number | undefined>
   const s = { views: raw2.views || 0, likes: raw2.likes || 0, comments: raw2.comments || 0, clicks: raw2.clicks || 0, reach: raw2.reach || 0 }
   const ps = post.platform_stats || {}
 
