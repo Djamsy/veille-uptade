@@ -2462,6 +2462,21 @@ async def trigger_single_post_scrape(post_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/social-stats/buffer-sync")
+async def trigger_buffer_stats_sync():
+    """Synchronise les stats via l'API Buffer (gratuit, pas de tokens Apify).
+
+    Récupère les posts publiés via Buffer et met à jour les stats en base.
+    """
+    try:
+        from backend.campaign_service import sync_buffer_stats
+        result = sync_buffer_stats()
+        return result
+    except Exception as e:
+        logger.error(f"Buffer sync error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/social-stats/status")
 async def social_stats_status():
     """Statut du scraping stats RS propres."""

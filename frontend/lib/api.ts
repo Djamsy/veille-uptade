@@ -1156,3 +1156,8 @@ export const scrapePostStats = (postId: string) =>
   apiFetch<{ ok: boolean; stats?: Record<string, number>; comments_count?: number; error?: string }>(
     `/api/social-stats/scrape-post/${postId}`, { method: 'POST' }
   );
+
+export const syncBufferStats = () =>
+  apiFetch<{ ok: boolean; updated?: number; created?: number; platforms?: Record<string, unknown>; error?: string }>(
+    '/api/social-stats/buffer-sync', { method: 'POST' }
+  );

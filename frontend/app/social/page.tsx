@@ -13,6 +13,7 @@ import {
   fetchSocialStatsStatus,
   triggerGlobalScrape,
   scrapePostStats,
+  syncBufferStats,
   Campaign,
   CampaignPost,
   ServiceStatus,
@@ -109,7 +110,8 @@ function CalendarPostItem({
   const [hovered, setHovered] = useState(false)
   const [popupSide, setPopupSide] = useState<'right' | 'left'>('right')
   const ref = useRef<HTMLDivElement>(null)
-  const s = post.stats || { views: 0, likes: 0, comments: 0, clicks: 0, reach: 0 }
+  const raw = post.stats || {}
+  const s = { views: raw.views || 0, likes: raw.likes || 0, comments: raw.comments || 0, clicks: raw.clicks || 0, reach: raw.reach || 0 }
   const platforms = Object.keys(post.platform_stats || {})
   const engagement = s.reach > 0 ? (((s.likes + s.comments + s.clicks) / s.reach) * 100).toFixed(1) : '0'
   const sentimentInfo = post.sentiment
@@ -186,9 +188,9 @@ function CalendarPostItem({
 
         {/* Quick stats row */}
         <div className="flex items-center gap-2 mt-1.5">
-          <span className="text-[10px] opacity-50">👁 {formatNumber(s.views)}</span>
-          <span className="text-[10px] opacity-50">❤️ {formatNumber(s.likes)}</span>
-          <span className="text-[10px] opacity-50">💬 {formatNumber(s.comments)}</span>
+          {(s.views || 0) > 0 && <span className="text-[10px] opacity-50">👁 {formatNumber(s.views)}</span>}
+          <span className="text-[10px] opacity-50">❤️ {formatNumber(s.likes || 0)}</span>
+          <span className="text-[10px] opacity-50">💬 {formatNumber(s.comments || 0)}</span>
         </div>
 
         {/* Sentiment dot */}
@@ -595,7 +597,8 @@ function PostDetailModal({
   onScrape?: (postId: string) => void
 }) {
   const [scraping, setScraping] = useState(false)
-  const s = post.stats || { views: 0, likes: 0, comments: 0, clicks: 0, reach: 0 }
+  const raw2 = post.stats || {}
+  const s = { views: raw2.views || 0, likes: raw2.likes || 0, comments: raw2.comments || 0, clicks: raw2.clicks || 0, reach: raw2.reach || 0 }
   const ps = post.platform_stats || {}
 
   const handleScrape = async () => {
@@ -1238,13 +1241,23 @@ export default function SocialPage() {
         {/* Service status */}
         <StatusPanel status={serviceStatus} statsStatus={statsStatus} onGlobalScrape={async () => {
           try {
-            const result = await triggerGlobalScrape()
-            if (result.ok) {
-              alert(`Scraping terminé : ${result.updated || 0} MAJ, ${result.created || 0} créés`)
-              if (selectedCampaign) selectCampaign(selectedCampaign)
-            } else {
-              alert(`Erreur scraping: ${result.error}`)
-            }
+            // D'abord sync via Buffer API (gratuit, pas de tokens)
+            const bufferResult = await syncBufferStats()
+            const bufferMsg = bufferResult.ok
+              ? `Buffer: ${bufferResult.updated || 0} MAJ`
+              : `Buffer: erreur`
+
+            // Puis Apify si configuré (pour les commentaires)
+            let apifyMsg = ''
+            try {
+              const apifyResult = await triggerGlobalScrape()
+              apifyMsg = apifyResult.ok
+                ? `, Apify: ${apifyResult.updated || 0} MAJ, ${apifyResult.created || 0} créés`
+                : `, Apify: ${apifyResult.error || 'erreur'}`
+            } catch { apifyMsg = '' }
+
+            alert(`Sync terminé — ${bufferMsg}${apifyMsg}`)
+            if (selectedCampaign) selectCampaign(selectedCampaign)
           } catch (e) { alert('Erreur: ' + e) }
         }} />
 
@@ -1281,8 +1294,8 @@ export default function SocialPage() {
             </div>
           ) : view === 'calendrier' ? (
             <>
-              {/* Stats bar */}
-              {totalStats && (
+              {/* Stats bar — only show when there are actual stats */}
+              {totalStats && (totalStats.views + totalStats.likes + totalStats.comments + totalStats.clicks + totalStats.reach) > 0 && (
                 <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
                   {[
                     { label: 'Posts', value: totalStats.posts, icon: '📝', color: '#8b5cf6' },
@@ -1294,7 +1307,7 @@ export default function SocialPage() {
                   ].map(s => (
                     <div key={s.label} className="glass-card p-3 text-center" style={{ borderLeft: `3px solid ${s.color}` }}>
                       <div className="text-lg mb-0.5">{s.icon}</div>
-                      <div className="text-xl font-bold" style={{ color: s.color }}>{formatNumber(s.value)}</div>
+                      <div className="text-xl font-bold" style={{ color: s.color }}>{formatNumber(s.value || 0)}</div>
                       <div className="text-[10px] opacity-50">{s.label}</div>
                     </div>
                   ))}

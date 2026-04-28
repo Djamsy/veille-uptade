@@ -574,13 +574,215 @@ def fetch_buffer_stats(post_id: str) -> Optional[Dict]:
 
     stats = data["post"].get("statistics", {})
     return {
-        "views": stats.get("impressions", 0),
-        "likes": stats.get("likes", 0),
-        "comments": stats.get("comments", 0),
-        "clicks": stats.get("clicks", 0),
-        "reach": stats.get("reach", 0),
-        "shares": stats.get("shares", 0),
+        "views": stats.get("impressions", 0) or 0,
+        "likes": stats.get("likes", 0) or 0,
+        "comments": stats.get("comments", 0) or 0,
+        "clicks": stats.get("clicks", 0) or 0,
+        "reach": stats.get("reach", 0) or 0,
+        "shares": stats.get("shares", 0) or 0,
     }
+
+
+def fetch_buffer_sent_posts(channel_id: str = None, limit: int = 30) -> List[Dict]:
+    """Liste les posts envoyés (publiés) via Buffer avec leurs stats.
+
+    Utilise la query 'sentPosts' du GraphQL Buffer pour chaque channel.
+    Beaucoup plus fiable qu'Apify et ne consomme pas de tokens.
+    """
+    channels = get_buffer_channels()
+    if not channels:
+        return []
+
+    if channel_id:
+        channels = [ch for ch in channels if ch.get("id") == channel_id]
+
+    all_posts = []
+
+    for ch in channels:
+        cid = ch.get("id", "")
+        service = (ch.get("service", "") or "").lower()
+
+        # Query sentPosts pour ce channel
+        query = """
+        query GetSentPosts($input: SentPostsInput!) {
+          sentPosts(input: $input) {
+            id
+            text
+            createdAt
+            scheduledAt
+            sentAt
+            status
+            assets {
+              images { url }
+              videos { url }
+            }
+            statistics {
+              impressions
+              reach
+              clicks
+              likes
+              comments
+              shares
+              engagements
+            }
+          }
+        }
+        """
+        variables = {"input": {"channelId": cid, "limit": limit}}
+        data = _buffer_graphql(query, variables)
+
+        if not data or not data.get("sentPosts"):
+            # Essayer avec la pagination directe
+            query2 = """
+            query GetSentPosts($channelId: ID!, $limit: Int) {
+              channel(id: $channelId) {
+                sentPosts(limit: $limit) {
+                  id
+                  text
+                  createdAt
+                  scheduledAt
+                  sentAt
+                  status
+                  statistics {
+                    impressions
+                    reach
+                    clicks
+                    likes
+                    comments
+                    shares
+                  }
+                }
+              }
+            }
+            """
+            data2 = _buffer_graphql(query2, {"channelId": cid, "limit": limit})
+            if data2 and data2.get("channel"):
+                posts = data2["channel"].get("sentPosts", []) or []
+            else:
+                logger.warning(f"Buffer: pas de sentPosts pour channel {ch.get('name', cid)}")
+                continue
+        else:
+            posts = data.get("sentPosts", []) or []
+
+        for p in posts:
+            stats_raw = p.get("statistics") or {}
+            all_posts.append({
+                "buffer_id": p.get("id", ""),
+                "platform": service,
+                "channel_name": ch.get("name", ""),
+                "text": p.get("text", ""),
+                "published_at": p.get("sentAt") or p.get("scheduledAt") or p.get("createdAt", ""),
+                "media_url": "",
+                "stats": {
+                    "views": stats_raw.get("impressions", 0) or 0,
+                    "likes": stats_raw.get("likes", 0) or 0,
+                    "comments": stats_raw.get("comments", 0) or 0,
+                    "clicks": stats_raw.get("clicks", 0) or 0,
+                    "reach": stats_raw.get("reach", 0) or 0,
+                    "shares": stats_raw.get("shares", 0) or 0,
+                },
+            })
+            # Extraire l'URL média
+            assets = p.get("assets") or {}
+            images = assets.get("images") or []
+            videos = assets.get("videos") or []
+            if videos:
+                all_posts[-1]["media_url"] = videos[0].get("url", "")
+                all_posts[-1]["media_type"] = "video"
+            elif images:
+                all_posts[-1]["media_url"] = images[0].get("url", "")
+                all_posts[-1]["media_type"] = "photo"
+
+        logger.info(f"📡 Buffer sentPosts: {len(posts)} posts pour {ch.get('name', cid)} ({service})")
+
+    return all_posts
+
+
+def sync_buffer_stats() -> Dict[str, Any]:
+    """Synchronise les stats Buffer → campaign_posts en base.
+
+    Pour chaque post publié via Buffer (qui a des buffer_ids),
+    récupère les stats actuelles et met à jour la base.
+
+    Retourne un résumé des mises à jour.
+    """
+    from bson import ObjectId
+    from difflib import SequenceMatcher
+
+    db = _get_db()
+    results = {"ok": True, "updated": 0, "created": 0, "platforms": {}}
+
+    # Récupérer les posts Buffer
+    buffer_posts = fetch_buffer_sent_posts(limit=30)
+    if not buffer_posts:
+        logger.info("📡 Buffer sync: aucun post trouvé")
+        return {"ok": True, "updated": 0, "created": 0, "message": "Aucun post Buffer"}
+
+    # Posts récents en base (60 jours)
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
+    db_posts = list(db["campaign_posts"].find(
+        {"created_at": {"$gte": cutoff}},
+        {"_id": 1, "title": 1, "body": 1, "buffer_ids": 1, "platform_stats": 1,
+         "stats": 1, "platform": 1, "url": 1, "created_at": 1}
+    ))
+
+    for bp in buffer_posts:
+        bid = bp.get("buffer_id", "")
+        platform = bp.get("platform", "")
+        text = bp.get("text", "")
+
+        # Compteur par plateforme
+        if platform not in results["platforms"]:
+            results["platforms"][platform] = {"updated": 0, "created": 0, "skipped": 0}
+
+        # 1) Match par buffer_id
+        matched = None
+        for dbp in db_posts:
+            bids = dbp.get("buffer_ids") or []
+            if bid and bid in bids:
+                matched = dbp
+                break
+
+        # 2) Match par texte similaire
+        if not matched and text:
+            s_text = text.strip()[:200].lower()
+            for dbp in db_posts:
+                db_text = (dbp.get("title", "") + " " + dbp.get("body", "")).strip()[:200].lower()
+                if db_text and SequenceMatcher(None, s_text, db_text).ratio() >= 0.55:
+                    matched = dbp
+                    break
+
+        if matched:
+            # Mettre à jour les stats
+            post_id = matched["_id"]
+            all_ps = matched.get("platform_stats", {})
+            all_ps[platform] = bp["stats"]
+
+            total = {"views": 0, "likes": 0, "comments": 0, "clicks": 0, "reach": 0, "shares": 0}
+            for ps in all_ps.values():
+                for k in total:
+                    total[k] += (ps.get(k, 0) or 0)
+
+            db["campaign_posts"].update_one(
+                {"_id": post_id},
+                {"$set": {
+                    f"platform_stats.{platform}": bp["stats"],
+                    "stats": total,
+                    "stats_updated_at": datetime.now(timezone.utc).isoformat(),
+                }}
+            )
+            results["updated"] += 1
+            results["platforms"][platform]["updated"] += 1
+        else:
+            # Post non trouvé en base, on le skip (déjà créé par le scraper Facebook)
+            results["platforms"][platform]["skipped"] += 1
+
+    # Recalculer totaux campagnes
+    from backend.social_stats_scraper import _update_campaign_totals
+    _update_campaign_totals(db)
+
+    logger.info(f"📡 Buffer sync terminé: {results['updated']} MAJ, {results['created']} créés")
+    return results
 
 
 # ============================================================
