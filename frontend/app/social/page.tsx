@@ -220,6 +220,37 @@ function PublishProgress({ step, error }: { step: number; error: boolean }) {
   )
 }
 
+// ── Compression image côté client ──
+async function compressImage(file: File, maxWidth = 1920, quality = 0.75): Promise<File> {
+  if (!file.type.startsWith('image/')) return file
+  if (file.size < 500_000) return file // < 500KB = pas besoin
+
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      let { width, height } = img
+      if (width > maxWidth) {
+        height = Math.round(height * (maxWidth / width))
+        width = maxWidth
+      }
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')!
+      ctx.drawImage(img, 0, 0, width, height)
+      canvas.toBlob((blob) => {
+        if (blob && blob.size < file.size) {
+          resolve(new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }))
+        } else {
+          resolve(file)
+        }
+      }, 'image/jpeg', quality)
+    }
+    img.onerror = () => resolve(file)
+    img.src = URL.createObjectURL(file)
+  })
+}
+
 // ── New Post Modal (publication web) ──
 function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
   campaigns: Campaign[];
@@ -251,21 +282,17 @@ function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
     setLoading(true)
     setResult(null)
 
-    // Simuler les étapes de progression
     setPublishStep(0) // Upload
-    await new Promise(r => setTimeout(r, 800))
-    setPublishStep(1) // Détection campagne
-    await new Promise(r => setTimeout(r, 500))
-    setPublishStep(2) // Buffer
 
     try {
+      // Compresser l'image côté client avant envoi
+      const compressedMedia = media ? await compressImage(media) : undefined
       const res = await publishPost({
         text: text.trim(),
         campaign_id: campaignId || undefined,
-        media: media || undefined,
+        media: compressedMedia || undefined,
       })
-      setPublishStep(3) // Sauvegarde
-      await new Promise(r => setTimeout(r, 400))
+      setPublishStep(3) // Terminé
       setResult(res)
       if (res.ok) {
         setTimeout(() => {

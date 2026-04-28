@@ -312,11 +312,11 @@ def fetch_buffer_stats(buffer_update_id: str) -> Optional[Dict]:
 # CLOUDINARY
 # ============================================================
 
-def upload_to_cloudinary(file_url: str, resource_type: str = "image") -> Optional[str]:
-    """Upload un fichier sur Cloudinary depuis une URL.
+def upload_to_cloudinary(file_source: str, resource_type: str = "image") -> Optional[str]:
+    """Upload un fichier sur Cloudinary depuis une URL ou un chemin local.
 
     Args:
-        file_url: URL du fichier (ex: URL Telegram)
+        file_source: URL distante (https://...) ou chemin local (file:///path)
         resource_type: "image" ou "video"
 
     Returns:
@@ -328,26 +328,59 @@ def upload_to_cloudinary(file_url: str, resource_type: str = "image") -> Optiona
 
     import time
     timestamp = str(int(time.time()))
+    is_local = file_source.startswith("file://")
 
     # Signature Cloudinary
     params = f"timestamp={timestamp}{CLOUDINARY_API_SECRET}"
     signature = hashlib.sha1(params.encode()).hexdigest()
 
     url = f"https://api.cloudinary.com/v1_1/{CLOUDINARY_CLOUD_NAME}/{resource_type}/upload"
-
-    data = urllib.parse.urlencode({
-        "file": file_url,
-        "api_key": CLOUDINARY_API_KEY,
-        "timestamp": timestamp,
-        "signature": signature,
-    }).encode()
+    timeout = 60 if resource_type == "video" else 30
 
     try:
-        req = urllib.request.Request(url, data=data, method="POST")
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        if is_local:
+            # Upload fichier local en multipart
+            local_path = file_source.replace("file://", "")
+            import mimetypes
+            content_type = mimetypes.guess_type(local_path)[0] or "application/octet-stream"
+
+            boundary = f"----CloudinaryBoundary{int(time.time())}"
+            fields = {
+                "api_key": CLOUDINARY_API_KEY,
+                "timestamp": timestamp,
+                "signature": signature,
+            }
+
+            body = b""
+            for key, val in fields.items():
+                body += f"--{boundary}\r\nContent-Disposition: form-data; name=\"{key}\"\r\n\r\n{val}\r\n".encode()
+
+            with open(local_path, "rb") as f:
+                file_data = f.read()
+
+            fname = os.path.basename(local_path)
+            body += f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{fname}\"\r\nContent-Type: {content_type}\r\n\r\n".encode()
+            body += file_data
+            body += f"\r\n--{boundary}--\r\n".encode()
+
+            req = urllib.request.Request(url, data=body, method="POST", headers={
+                "Content-Type": f"multipart/form-data; boundary={boundary}",
+            })
+        else:
+            # Upload depuis URL distante
+            data = urllib.parse.urlencode({
+                "file": file_source,
+                "api_key": CLOUDINARY_API_KEY,
+                "timestamp": timestamp,
+                "signature": signature,
+            }).encode()
+            req = urllib.request.Request(url, data=data, method="POST")
+
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             result = json.loads(resp.read())
             public_url = result.get("secure_url", "")
-            logger.info(f"☁️ Upload Cloudinary OK: {public_url[:60]}")
+            size_kb = result.get("bytes", 0) // 1024
+            logger.info(f"☁️ Upload Cloudinary OK ({size_kb}KB): {public_url[:60]}")
             return public_url
     except Exception as e:
         logger.error(f"Cloudinary upload error: {e}")

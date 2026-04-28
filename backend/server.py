@@ -2099,17 +2099,37 @@ async def publish_from_web(request: Request):
             content_type = getattr(media_file, 'content_type', '') or ''
             media_type = "video" if "video" in content_type else "photo"
 
-            # Sauvegarder temporairement
             suffix = ".mp4" if media_type == "video" else ".jpg"
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
                 tmp.write(content)
                 tmp_path = tmp.name
 
-            # Upload sur Cloudinary depuis le fichier local
+            # Compression image (max 1920px, qualité 80%)
+            if media_type == "photo":
+                try:
+                    from PIL import Image
+                    img = Image.open(tmp_path)
+                    # Redimensionner si trop grand
+                    max_dim = 1920
+                    if max(img.size) > max_dim:
+                        img.thumbnail((max_dim, max_dim), Image.LANCZOS)
+                    # Convertir en RGB si nécessaire (pour JPEG)
+                    if img.mode in ('RGBA', 'P'):
+                        img = img.convert('RGB')
+                    compressed_path = tmp_path + '_compressed.jpg'
+                    img.save(compressed_path, 'JPEG', quality=80, optimize=True)
+                    os.unlink(tmp_path)
+                    tmp_path = compressed_path
+                    logger.info(f"📐 Image compressée: {len(content)} → {os.path.getsize(tmp_path)} bytes")
+                except ImportError:
+                    logger.warning("Pillow non installé — upload sans compression")
+                except Exception as e:
+                    logger.warning(f"Compression image échouée: {e}")
+
+            # Upload sur Cloudinary avec transformation auto
             resource_type = "video" if media_type == "video" else "image"
             cloudinary_url = upload_to_cloudinary(f"file://{tmp_path}", resource_type)
 
-            # Nettoyer
             try:
                 os.unlink(tmp_path)
             except Exception:
