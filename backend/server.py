@@ -2126,8 +2126,9 @@ async def publish_from_web(request: Request):
                 except Exception as e:
                     logger.warning(f"Compression image échouée: {e}")
 
-            # Upload sur Cloudinary avec transformation auto
+            # Upload sur Cloudinary
             resource_type = "video" if media_type == "video" else "image"
+            logger.info(f"☁️ Upload Cloudinary: {tmp_path} ({os.path.getsize(tmp_path)} bytes, {resource_type})")
             cloudinary_url = upload_to_cloudinary(f"file://{tmp_path}", resource_type)
 
             try:
@@ -2135,16 +2136,26 @@ async def publish_from_web(request: Request):
             except Exception:
                 pass
 
-            if cloudinary_url:
-                media_urls = [cloudinary_url]
+            if not cloudinary_url:
+                return {
+                    "ok": False,
+                    "error": "cloudinary_failed",
+                    "detail": "Upload Cloudinary échoué. Vérifiez CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET.",
+                }
+            media_urls = [cloudinary_url]
 
         # Publier via Buffer
+        logger.info(f"📤 Publication Buffer: {len(str(text))} chars, {len(media_urls)} médias")
         buffer_result = publish_to_buffer(
             text=str(text),
             media_urls=media_urls,
         )
 
-        # Sauvegarder le post
+        if not buffer_result.get("ok"):
+            buffer_error = buffer_result.get("error", "inconnu")
+            logger.error(f"❌ Buffer échoué: {buffer_error}")
+
+        # Sauvegarder le post (même si Buffer échoue)
         post = save_post({
             "title": title,
             "body": body_text,
@@ -2164,13 +2175,15 @@ async def publish_from_web(request: Request):
             "campaign": campaign_name,
             "platforms": buffer_result.get("profiles_count", 0),
             "media_uploaded": bool(cloudinary_url),
+            "error": buffer_result.get("error") if not buffer_result.get("ok") else None,
+            "detail": str(buffer_result.get("error", ""))[:300] if not buffer_result.get("ok") else None,
         }
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Erreur publication web: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Erreur publication web: {e}", exc_info=True)
+        return {"ok": False, "error": "server_error", "detail": str(e)[:300]}
 
 
 # ── Bot Publication Webhook ──

@@ -264,7 +264,7 @@ function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
   const [mediaPreview, setMediaPreview] = useState('')
   const [loading, setLoading] = useState(false)
   const [publishStep, setPublishStep] = useState(-1)
-  const [result, setResult] = useState<{ ok: boolean; campaign?: string; platforms?: number } | null>(null)
+  const [result, setResult] = useState<{ ok: boolean; campaign?: string; platforms?: number; error?: string; detail?: string } | null>(null)
 
   const handleMedia = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -301,7 +301,7 @@ function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
         }, 2500)
       }
     } catch (e: any) {
-      setResult({ ok: false })
+      setResult({ ok: false, error: 'network', detail: e?.message || 'Erreur réseau' })
       console.error(e)
     }
     setLoading(false)
@@ -374,7 +374,15 @@ function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
             ) : (
               <div>
                 <div className="font-semibold mb-1">❌ Publication échouée</div>
-                <div className="opacity-80">Vérifiez la configuration Buffer et Cloudinary sur Render.</div>
+                <div className="opacity-80">
+                  {result.error === 'cloudinary_failed' && 'Cloudinary : upload média échoué. Vérifiez les clés CLOUDINARY_* sur Render.'}
+                  {result.error === 'network' && `Erreur réseau : ${result.detail}`}
+                  {result.error === 'server_error' && `Erreur serveur : ${result.detail}`}
+                  {result.error && !['cloudinary_failed', 'network', 'server_error'].includes(result.error) && (
+                    <>Buffer : {result.detail || result.error}</>
+                  )}
+                  {!result.error && 'Erreur inconnue. Consultez les logs Render.'}
+                </div>
               </div>
             )}
           </div>
