@@ -1127,7 +1127,7 @@ export const publishPost = async (data: { text: string; campaign_id?: string; me
   if (data.campaign_id) formData.append('campaign_id', data.campaign_id);
   if (data.media) formData.append('media', data.media);
 
-  const res = await fetch(`${API_BASE}/api/publish`, {
+  const res = await fetch(`${BACKEND_URL}/api/publish`, {
     method: 'POST',
     body: formData,
   });
