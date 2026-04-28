@@ -1,20 +1,18 @@
 # backend/social_stats_scraper.py
 """
-Scraping des stats et commentaires sur les RS propres du Conseil Départemental.
+Scraping des commentaires RS propres du Conseil Départemental via Apify.
 
-Complète le bot Telegram : récupère les stats même pour les posts publiés
-manuellement ou directement via Buffer (hors pipeline bot).
+Architecture :
+  - STATS (likes, vues, reach) → récupérées via Buffer API (gratuit, cf campaign_service.sync_buffer_stats)
+  - COMMENTAIRES → récupérés via Apify (ce module) pour analyse sentiment/thématique par GPT
 
-Fréquence : toutes les 48h (pour rester dans les quotas Apify).
-
-Utilise le même APIFY_TOKEN que apify_social_scraper.py.
+Plateformes prioritaires : Facebook, Instagram, TikTok.
 
 Configuration :
   APIFY_API_TOKEN             — token API Apify (ou APIFY_TOKEN)
   CD971_INSTAGRAM_URL         — profil Instagram du CD971
   CD971_FACEBOOK_URL          — page Facebook du CD971
-  CD971_LINKEDIN_URL          — page LinkedIn du CD971
-  CD971_TWITTER_URL           — profil Twitter/X du CD971
+  CD971_TIKTOK_URL            — profil TikTok du CD971
 """
 
 import os
@@ -30,20 +28,18 @@ logger = logging.getLogger("veille.social_stats")
 
 APIFY_TOKEN = os.getenv("APIFY_API_TOKEN", "") or os.getenv("APIFY_TOKEN", "")
 
-# Profils RS du CD971
+# Profils RS du CD971 — focus FB / Insta / TikTok
 OWN_PROFILES = {
     "instagram": os.getenv("CD971_INSTAGRAM_URL", ""),
     "facebook": os.getenv("CD971_FACEBOOK_URL", ""),
-    "linkedin": os.getenv("CD971_LINKEDIN_URL", ""),
-    "twitter": os.getenv("CD971_TWITTER_URL", ""),
+    "tiktok": os.getenv("CD971_TIKTOK_URL", ""),
 }
 
-# Actors Apify par plateforme
+# Actors Apify par plateforme (corrigés avril 2026)
 ACTORS = {
-    "instagram": "apify/instagram-profile-scraper",
-    "facebook": "apify/facebook-posts-scraper",
-    "linkedin": "apify/linkedin-profile-scraper",
-    "twitter": "apify/twitter-scraper",
+    "instagram": "apify/instagram-scraper",           # posts + comments (pas profile-scraper !)
+    "facebook": "apify/facebook-posts-scraper",        # posts + comments
+    "tiktok": "clockworks/tiktok-profile-scraper",     # profil + vidéos
 }
 
 
@@ -83,55 +79,66 @@ def _run_actor(actor_id: str, run_input: Dict, timeout: int = 120) -> List[Dict]
 # ── Scrapers par plateforme ──────────────────────────────
 
 def _scrape_instagram() -> List[Dict]:
+    """Scrape les posts Instagram via apify/instagram-scraper.
+
+    Utilise directUrls + resultsType=posts pour récupérer les posts récents
+    avec commentaires.
+    """
     url = OWN_PROFILES.get("instagram", "")
     if not url:
         return []
 
     items = _run_actor(ACTORS["instagram"], {
         "directUrls": [url],
-        "resultsLimit": 30,
         "resultsType": "posts",
+        "resultsLimit": 20,
+        "addParentData": False,
     })
 
     posts = []
     for item in items:
-        comments_raw = item.get("latestComments") or []
+        comments_raw = item.get("latestComments") or item.get("comments") or []
         posts.append({
             "platform": "instagram",
-            "external_id": item.get("id", ""),
-            "text": item.get("caption", ""),
-            "url": item.get("url", ""),
-            "media_url": item.get("displayUrl", "") or item.get("videoUrl", ""),
-            "media_type": "video" if item.get("isVideo") else "photo",
-            "published_at": item.get("timestamp", ""),
+            "external_id": item.get("id") or item.get("shortCode") or "",
+            "text": item.get("caption") or item.get("alt") or "",
+            "url": item.get("url") or item.get("webLink") or "",
+            "media_url": item.get("displayUrl") or item.get("videoUrl") or "",
+            "media_type": "video" if item.get("isVideo") or item.get("type") == "Video" else "photo",
+            "published_at": item.get("timestamp") or item.get("takenAtTimestamp") or "",
             "stats": {
-                "likes": _safe_int(item.get("likesCount")),
+                "likes": _safe_int(item.get("likesCount") or item.get("likes")),
                 "comments": _safe_int(item.get("commentsCount")),
-                "views": _safe_int(item.get("videoViewCount") or item.get("videoPlayCount")),
+                "views": _safe_int(item.get("videoViewCount") or item.get("videoPlayCount") or item.get("playCount")),
             },
             "comments": [
-                {"author": c.get("ownerUsername", ""), "text": c.get("text", "")}
-                for c in (comments_raw[:20] if isinstance(comments_raw, list) else [])
+                {
+                    "author": c.get("ownerUsername") or c.get("owner", {}).get("username", "") if isinstance(c, dict) else "",
+                    "text": c.get("text", "") if isinstance(c, dict) else str(c),
+                    "likes": _safe_int(c.get("likesCount", 0)) if isinstance(c, dict) else 0,
+                }
+                for c in (comments_raw[:30] if isinstance(comments_raw, list) else [])
             ],
         })
     return posts
 
 
 def _scrape_facebook() -> List[Dict]:
+    """Scrape les posts Facebook via apify/facebook-posts-scraper."""
     url = OWN_PROFILES.get("facebook", "")
     if not url:
         return []
 
     items = _run_actor(ACTORS["facebook"], {
         "startUrls": [{"url": url}],
-        "resultsLimit": 30,
+        "resultsLimit": 20,
         "commentsMode": "RANKED_THREADED",
-        "maxComments": 15,
+        "maxComments": 30,
     })
 
     posts = []
     for item in items:
-        comments_raw = item.get("topComments") or item.get("comments_full") or []
+        comments_raw = item.get("topComments") or item.get("comments_full") or item.get("comments") or []
         posts.append({
             "platform": "facebook",
             "external_id": item.get("postId", "") or item.get("id", ""),
@@ -146,71 +153,58 @@ def _scrape_facebook() -> List[Dict]:
                 "shares": _safe_int(item.get("sharesCount") or item.get("shares")),
             },
             "comments": [
-                {"author": c.get("profileName", ""), "text": c.get("text", "")}
-                for c in (comments_raw[:15] if isinstance(comments_raw, list) else [])
+                {
+                    "author": c.get("profileName") or c.get("name", "") if isinstance(c, dict) else "",
+                    "text": c.get("text", "") if isinstance(c, dict) else str(c),
+                    "likes": _safe_int(c.get("likesCount", 0)) if isinstance(c, dict) else 0,
+                }
+                for c in (comments_raw[:30] if isinstance(comments_raw, list) else [])
             ],
         })
     return posts
 
 
-def _scrape_twitter() -> List[Dict]:
-    url = OWN_PROFILES.get("twitter", "")
+def _scrape_tiktok() -> List[Dict]:
+    """Scrape les vidéos TikTok via clockworks/tiktok-profile-scraper."""
+    url = OWN_PROFILES.get("tiktok", "")
     if not url:
         return []
 
-    items = _run_actor(ACTORS["twitter"], {
-        "startUrls": [{"url": url}],
-        "maxItems": 30,
-        "sort": "Latest",
-    })
+    # Extraire le username depuis l'URL
+    username = url.rstrip("/").split("/")[-1].lstrip("@")
+
+    items = _run_actor(ACTORS["tiktok"], {
+        "profiles": [username],
+        "resultsPerPage": 20,
+        "shouldDownloadVideos": False,
+        "shouldDownloadCovers": False,
+    }, timeout=180)
 
     posts = []
     for item in items:
+        comments_raw = item.get("comments") or []
         posts.append({
-            "platform": "twitter",
-            "external_id": item.get("id", ""),
-            "text": item.get("full_text", "") or item.get("text", ""),
-            "url": item.get("url", ""),
-            "media_url": "",
-            "media_type": "photo",
-            "published_at": item.get("created_at", ""),
+            "platform": "tiktok",
+            "external_id": item.get("id") or item.get("videoId") or "",
+            "text": item.get("text") or item.get("desc") or item.get("description") or "",
+            "url": item.get("webVideoUrl") or item.get("url") or "",
+            "media_url": item.get("videoUrl") or item.get("coverUrl") or "",
+            "media_type": "video",
+            "published_at": item.get("createTimeISO") or item.get("createTime") or "",
             "stats": {
-                "likes": _safe_int(item.get("favorite_count") or item.get("likeCount")),
-                "comments": _safe_int(item.get("reply_count") or item.get("replyCount")),
-                "retweets": _safe_int(item.get("retweet_count") or item.get("retweetCount")),
-                "views": _safe_int(item.get("views") or item.get("viewCount")),
+                "likes": _safe_int(item.get("diggCount") or item.get("likes") or item.get("likesCount")),
+                "comments": _safe_int(item.get("commentCount") or item.get("comments")),
+                "shares": _safe_int(item.get("shareCount") or item.get("shares")),
+                "views": _safe_int(item.get("playCount") or item.get("views")),
             },
-            "comments": [],
-        })
-    return posts
-
-
-def _scrape_linkedin() -> List[Dict]:
-    url = OWN_PROFILES.get("linkedin", "")
-    if not url:
-        return []
-
-    items = _run_actor(ACTORS["linkedin"], {
-        "startUrls": [{"url": url}],
-        "maxItems": 20,
-    })
-
-    posts = []
-    for item in items:
-        posts.append({
-            "platform": "linkedin",
-            "external_id": item.get("id", "") or item.get("urn", ""),
-            "text": item.get("text", "") or item.get("commentary", ""),
-            "url": item.get("url", "") or item.get("postUrl", ""),
-            "media_url": item.get("imageUrl", ""),
-            "media_type": "photo",
-            "published_at": item.get("postedAt", ""),
-            "stats": {
-                "likes": _safe_int(item.get("likesCount") or item.get("numLikes")),
-                "comments": _safe_int(item.get("commentsCount") or item.get("numComments")),
-                "shares": _safe_int(item.get("sharesCount") or item.get("numShares")),
-            },
-            "comments": [],
+            "comments": [
+                {
+                    "author": c.get("uniqueId") or c.get("user", {}).get("uniqueId", "") if isinstance(c, dict) else "",
+                    "text": c.get("text", "") if isinstance(c, dict) else str(c),
+                    "likes": _safe_int(c.get("diggCount", 0)) if isinstance(c, dict) else 0,
+                }
+                for c in (comments_raw[:30] if isinstance(comments_raw, list) else [])
+            ],
         })
     return posts
 
@@ -286,11 +280,12 @@ def _create_external_post(scraped: Dict, db) -> str:
 
 
 def _update_post_stats(post_id, scraped: Dict, db):
-    """Met à jour les stats d'un post existant."""
+    """Met à jour les stats et commentaires d'un post existant."""
     from bson import ObjectId
 
     platform = scraped["platform"]
     stats = scraped.get("stats", {})
+    comments = scraped.get("comments", [])
 
     # Recalculer les stats agrégées
     post = db["campaign_posts"].find_one({"_id": ObjectId(post_id)})
@@ -300,10 +295,10 @@ def _update_post_stats(post_id, scraped: Dict, db):
     all_ps = post.get("platform_stats", {})
     all_ps[platform] = stats
 
-    total = {"likes": 0, "comments": 0, "views": 0, "shares": 0, "retweets": 0}
+    total = {"likes": 0, "comments": 0, "views": 0, "shares": 0}
     for ps in all_ps.values():
         for k in total:
-            total[k] += ps.get(k, 0)
+            total[k] += (ps.get(k, 0) or 0)
 
     update = {
         f"platform_stats.{platform}": stats,
@@ -311,10 +306,10 @@ def _update_post_stats(post_id, scraped: Dict, db):
         "stats_updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    # Ajouter les commentaires si disponibles
-    comments = scraped.get("comments", [])
+    # Mettre à jour les commentaires (priorité Apify car plus riches)
     if comments:
         update["comments_scraped"] = comments
+        update["comments_scraped_at"] = datetime.now(timezone.utc).isoformat()
 
     db["campaign_posts"].update_one({"_id": ObjectId(post_id)}, {"$set": update})
 
@@ -329,7 +324,7 @@ def _update_campaign_totals(db):
         totals = {"views": 0, "likes": 0, "comments": 0, "shares": 0}
         for p in posts:
             for k in totals:
-                totals[k] += p.get("stats", {}).get(k, 0)
+                totals[k] += (p.get("stats", {}).get(k, 0) or 0)
 
         db["campaigns"].update_one(
             {"_id": camp["_id"]},
@@ -345,17 +340,13 @@ def _update_campaign_totals(db):
 
 
 # ── Configuration suivi des commentaires ──────────────────
-# Durée pendant laquelle on continue de scraper les commentaires d'un post
 COMMENT_TRACKING_DAYS = int(os.getenv("COMMENT_TRACKING_DAYS", "14"))
 
 
 # ── Scraping ciblé (post spécifique) ─────────────────────
 
 def scrape_single_post(post_id: str) -> Dict[str, Any]:
-    """Scrape les stats/commentaires d'un post spécifique (appel manuel).
-
-    Utile en cas d'explosion virale pour obtenir les stats en temps réel.
-    """
+    """Scrape les commentaires d'un post spécifique (appel manuel, cas viral)."""
     if not APIFY_TOKEN:
         return {"ok": False, "error": "APIFY_TOKEN non configuré"}
 
@@ -374,39 +365,26 @@ def scrape_single_post(post_id: str) -> Dict[str, Any]:
     platform = post.get("platform", "")
     post_url = post.get("url", "")
 
-    # Chercher dans les platform_stats ou buffer_ids
     if not platform:
         ps = post.get("platform_stats", {})
         if ps:
             platform = list(ps.keys())[0]
 
-    if not platform and not post_url:
-        return {"ok": False, "error": "Impossible de déterminer la plateforme du post"}
-
-    # Détection par URL si pas de plateforme explicite
     if not platform and post_url:
         if "instagram.com" in post_url:
             platform = "instagram"
         elif "facebook.com" in post_url:
             platform = "facebook"
-        elif "twitter.com" in post_url or "x.com" in post_url:
-            platform = "twitter"
-        elif "linkedin.com" in post_url:
-            platform = "linkedin"
         elif "tiktok.com" in post_url:
             platform = "tiktok"
-        elif "youtube.com" in post_url or "youtu.be" in post_url:
-            platform = "youtube"
 
     if not platform:
         return {"ok": False, "error": "Plateforme non identifiable"}
 
-    # Scraper la plateforme et matcher le post
     scraper_map = {
         "instagram": _scrape_instagram,
         "facebook": _scrape_facebook,
-        "twitter": _scrape_twitter,
-        "linkedin": _scrape_linkedin,
+        "tiktok": _scrape_tiktok,
     }
 
     scraper = scraper_map.get(platform)
@@ -435,18 +413,20 @@ def scrape_single_post(post_id: str) -> Dict[str, Any]:
                 "scraped_at": datetime.now(timezone.utc).isoformat(),
             }
 
-    return {"ok": False, "error": f"Post non trouvé dans le scraping {platform}. Le post est peut-être trop ancien."}
+    return {"ok": False, "error": f"Post non trouvé dans le scraping {platform}"}
 
 
 # ── Job principal (appelé par le scheduler) ──────────────
 
 def scrape_own_social_stats() -> Dict[str, Any]:
-    """Scrape les RS propres du CD971 et met à jour campaign_posts.
+    """Scrape les RS propres du CD971 — focus sur les commentaires.
 
-    - Posts existants → mise à jour des stats + commentaires
+    Les stats (likes, vues, reach) sont gérées par Buffer sync.
+    Apify récupère les commentaires + stats complémentaires.
+
+    - Posts existants → mise à jour stats + commentaires
     - Posts inconnus  → création comme post externe
     - Totaux campagnes recalculés à la fin
-    - Ne scrape les commentaires que pour les posts de moins de COMMENT_TRACKING_DAYS jours
     """
     if not is_configured():
         logger.warning("Social stats scraper non configuré (APIFY_TOKEN + CD971_*_URL)")
@@ -458,7 +438,7 @@ def scrape_own_social_stats() -> Dict[str, Any]:
         "comment_tracking_days": COMMENT_TRACKING_DAYS,
     }
 
-    # Posts récents en base (60 jours pour les stats, COMMENT_TRACKING_DAYS pour les commentaires)
+    # Posts récents en base (60 jours pour le matching)
     cutoff = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
     db_posts = list(db["campaign_posts"].find(
         {"created_at": {"$gte": cutoff}},
@@ -469,15 +449,14 @@ def scrape_own_social_stats() -> Dict[str, Any]:
     scrapers = {
         "instagram": _scrape_instagram,
         "facebook": _scrape_facebook,
-        "twitter": _scrape_twitter,
-        "linkedin": _scrape_linkedin,
+        "tiktok": _scrape_tiktok,
     }
 
     for platform, fn in scrapers.items():
         if not OWN_PROFILES.get(platform):
             continue
 
-        logger.info(f"🔍 Scraping stats {platform}...")
+        logger.info(f"🔍 Scraping commentaires {platform}...")
         try:
             scraped_posts = fn()
             pstats = {"scraped": len(scraped_posts), "updated": 0, "created": 0}
@@ -494,7 +473,7 @@ def scrape_own_social_stats() -> Dict[str, Any]:
                     results["created"] += 1
 
             results["platforms"][platform] = pstats
-            logger.info(f"✅ {platform}: {pstats['updated']} MAJ, {pstats['created']} créés")
+            logger.info(f"✅ {platform}: {pstats['updated']} MAJ, {pstats['created']} créés, {sum(len(sp.get('comments', [])) for sp in scraped_posts)} commentaires")
 
         except Exception as e:
             logger.error(f"❌ {platform}: {e}")
@@ -503,5 +482,5 @@ def scrape_own_social_stats() -> Dict[str, Any]:
     # Recalculer les totaux campagnes
     _update_campaign_totals(db)
 
-    logger.info(f"📊 Stats scraping terminé: {results['updated']} MAJ, {results['created']} créés")
+    logger.info(f"📊 Scraping terminé: {results['updated']} MAJ, {results['created']} créés")
     return results
