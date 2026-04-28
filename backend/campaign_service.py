@@ -427,6 +427,16 @@ def _build_create_post_mutation(text: str, channel_id: str, service: str,
         if not has_media:
             return ""  # skip — TikTok sans média impossible
 
+    elif service == "twitter":
+        # Twitter : pas de metadata requise, mais limite 280 chars
+        # On tronque le texte nettoyé et on ajoute un lien si possible
+        if len(clean_text) > 275:
+            # Couper au dernier espace avant 275 chars + "..."
+            cut = clean_text[:272].rsplit(' ', 1)[0]
+            escaped_text = cut.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r') + "..."
+
+    # Pour les services inconnus, on envoie tel quel (pas de metadata)
+
     mutation = f'''
     mutation {{
       createPost(input: {{
