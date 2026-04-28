@@ -2270,7 +2270,12 @@ async def buffer_debug():
         results["steps"].append({"name": "createPost_test", "skipped": "no channel found"})
 
     # Step 4: Introspection des types liés à createPost
-    for type_name in ["CreatePostInput", "PostInputMetaData", "AssetsInput", "ShareMode", "SchedulingType"]:
+    introspect_types = [
+        "FacebookPostMetadataInput", "InstagramPostMetadataInput",
+        "YoutubePostMetadataInput", "TikTokPostMetadataInput",
+        "ImageAssetInput", "VideoAssetInput",
+    ]
+    for type_name in introspect_types:
         r = gql(f'''query {{ __type(name: "{type_name}") {{
           name kind
           inputFields {{ name type {{ name kind ofType {{ name kind ofType {{ name }} }} }} }}
