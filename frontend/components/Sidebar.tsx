@@ -123,7 +123,7 @@ export default function Sidebar() {
   }
 
   const filteredItems = navItems.filter(item => {
-    if (item.href === '/admin' && user?.role !== 'admin') return false
+    if ((item.href === '/admin' || item.href === '/social') && user?.role !== 'admin') return false
     return true
   })
 

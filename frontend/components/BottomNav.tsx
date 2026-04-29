@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from './AuthGuard';
 
 const BottomNav = () => {
   const pathname = usePathname();
+  const { user } = useAuth();
 
   const navItems = [
     {
@@ -94,7 +96,10 @@ const BottomNav = () => {
           paddingTop: '0.375rem',
         }}
       >
-        {navItems.map((item) => {
+        {navItems.filter(item => {
+          if ((item.href === '/admin' || item.href === '/social') && user?.role !== 'admin') return false
+          return true
+        }).map((item) => {
           const active = isActive(item.href);
           return (
             <Link
