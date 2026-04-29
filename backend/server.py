@@ -2336,6 +2336,32 @@ async def buffer_debug():
     return results
 
 
+@app.get("/api/debug/buffer-enums")
+async def debug_buffer_enums():
+    """Introspection des enums Buffer pour schedulingType et mode."""
+    try:
+        from backend.campaign_service import _buffer_graphql
+        enums_to_check = [
+            "SchedulingType", "PostMode", "PostSchedulingType",
+            "CreatePostSchedulingType", "CreatePostMode",
+        ]
+        # Aussi introspécter le input type de createPost
+        results = {}
+        for name in enums_to_check:
+            r = _buffer_graphql(f'query {{ __type(name: "{name}") {{ name kind enumValues {{ name description }} }} }}')
+            if r and r.get("__type"):
+                results[name] = r["__type"]
+        # Introspécter le CreatePostInput
+        r2 = _buffer_graphql('''query { __type(name: "CreatePostInput") {
+          name kind inputFields { name type { name kind enumValues { name description } ofType { name kind enumValues { name description } } } }
+        } }''')
+        if r2 and r2.get("__type"):
+            results["CreatePostInput"] = r2["__type"]
+        return {"ok": True, "enums": results}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 # ── Bot Publication Webhook ──
 @app.post("/api/publication-bot/webhook")
 async def publication_bot_webhook(request: Request):
