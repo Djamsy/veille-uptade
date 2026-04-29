@@ -442,7 +442,8 @@ def _build_create_post_mutation(text: str, channel_id: str, service: str,
       createPost(input: {{
         text: "{escaped_text}",
         channelId: "{channel_id}",
-        schedulingType: now,
+        schedulingType: automatic,
+        mode: addToQueue,
         {assets_part}
         {metadata_part}
       }}) {{
