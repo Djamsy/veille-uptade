@@ -887,6 +887,7 @@ function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
   const [campaignId, setCampaignId] = useState(selectedCampaignId || '')
   const [media, setMedia] = useState<File | null>(null)
   const [mediaPreview, setMediaPreview] = useState('')
+  const [schedule, setSchedule] = useState<'now' | 'queue'>('now')
   const [loading, setLoading] = useState(false)
   const [publishStep, setPublishStep] = useState(-1)
   const [result, setResult] = useState<{ ok: boolean; campaign?: string; platforms?: number; error?: string; detail?: string } | null>(null)
@@ -910,6 +911,7 @@ function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
         text: text.trim(),
         campaign_id: campaignId || undefined,
         media: compressedMedia || undefined,
+        schedule,
       })
       setPublishStep(3)
       setResult(res)
@@ -972,6 +974,41 @@ function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
                 <img src={mediaPreview} alt="preview" className="w-full h-full object-cover" />
               </div>
             )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--text)' }}>Mode de publication</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setSchedule('now')}
+                disabled={loading}
+                className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all"
+                style={{
+                  background: schedule === 'now' ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.05)',
+                  color: schedule === 'now' ? '#22c55e' : 'rgba(255,255,255,0.5)',
+                  border: `1px solid ${schedule === 'now' ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.1)'}`,
+                }}
+              >
+                Publier maintenant
+              </button>
+              <button
+                type="button"
+                onClick={() => setSchedule('queue')}
+                disabled={loading}
+                className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all"
+                style={{
+                  background: schedule === 'queue' ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.05)',
+                  color: schedule === 'queue' ? '#818cf8' : 'rgba(255,255,255,0.5)',
+                  border: `1px solid ${schedule === 'queue' ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.1)'}`,
+                }}
+              >
+                Ajouter a la file
+              </button>
+            </div>
+            <p className="text-xs opacity-50 mt-1">
+              {schedule === 'now' ? 'Le post sera publie immediatement sur toutes les plateformes' : 'Le post sera ajoute a la file Buffer et publie au prochain creneau'}
+            </p>
           </div>
 
           {loading && <PublishProgress step={publishStep} error={false} />}

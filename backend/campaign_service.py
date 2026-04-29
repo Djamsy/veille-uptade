@@ -354,7 +354,8 @@ def _clean_social_text(text: str) -> str:
 
 
 def _build_create_post_mutation(text: str, channel_id: str, service: str,
-                                media_urls: List[str] = None) -> str:
+                                media_urls: List[str] = None,
+                                share_mode: str = "shareNow") -> str:
     """Construit la mutation createPost avec assets + metadata par plateforme.
 
     Schema Buffer (introspection) :
@@ -443,7 +444,7 @@ def _build_create_post_mutation(text: str, channel_id: str, service: str,
         text: "{escaped_text}",
         channelId: "{channel_id}",
         schedulingType: automatic,
-        mode: shareNow,
+        mode: {share_mode},
         {assets_part}
         {metadata_part}
       }}) {{
@@ -464,11 +465,16 @@ def _build_create_post_mutation(text: str, channel_id: str, service: str,
 
 
 def publish_to_buffer(text: str, media_urls: List[str] = None,
-                      channel_ids: List[str] = None) -> Dict:
+                      channel_ids: List[str] = None,
+                      immediate: bool = True) -> Dict:
     """Publie un post via Buffer GraphQL createPost sur tous les channels.
 
     Adapte automatiquement le post aux exigences de chaque plateforme
     (Facebook, Instagram, YouTube, TikTok).
+
+    Args:
+        immediate: True = shareNow (publication instantanée),
+                   False = addToQueue (file d'attente Buffer)
     """
     if not BUFFER_ACCESS_TOKEN:
         return {"ok": False, "error": "Buffer non configuré (BUFFER_ACCESS_TOKEN)"}
@@ -495,7 +501,8 @@ def publish_to_buffer(text: str, media_urls: List[str] = None,
         service = ch.get("service", "unknown")
         ch_name = ch.get("name", ch_id)
 
-        mutation = _build_create_post_mutation(text, ch_id, service, media_urls)
+        share_mode = "shareNow" if immediate else "addToQueue"
+        mutation = _build_create_post_mutation(text, ch_id, service, media_urls, share_mode)
 
         if not mutation:
             reason = f"{ch_name} ({service}): média requis mais non fourni"

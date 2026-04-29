@@ -2190,11 +2190,16 @@ async def publish_from_web(request: Request):
                 }
             media_urls = [cloudinary_url]
 
+        # Mode de publication: immediate (shareNow) ou queue (addToQueue)
+        schedule_mode = form.get("schedule", "now")  # "now" ou "queue"
+        immediate = schedule_mode != "queue"
+
         # Publier via Buffer
-        logger.info(f"📤 Publication Buffer: {len(str(text))} chars, {len(media_urls)} médias")
+        logger.info(f"📤 Publication Buffer: {len(str(text))} chars, {len(media_urls)} médias, mode={'shareNow' if immediate else 'addToQueue'}")
         buffer_result = publish_to_buffer(
             text=str(text),
             media_urls=media_urls,
+            immediate=immediate,
         )
 
         if not buffer_result.get("ok"):

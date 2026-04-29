@@ -1122,11 +1122,12 @@ export const compareCampaigns = (a: string, b: string) =>
 export const fetchCampaignPosts = (campaignId: string, limit = 50) =>
   apiFetch<{ posts: CampaignPost[]; total: number }>(`/api/campaigns/${campaignId}/posts?limit=${limit}`);
 
-export const publishPost = async (data: { text: string; campaign_id?: string; media?: File }) => {
+export const publishPost = async (data: { text: string; campaign_id?: string; media?: File; schedule?: 'now' | 'queue' }) => {
   const formData = new FormData();
   formData.append('text', data.text);
   if (data.campaign_id) formData.append('campaign_id', data.campaign_id);
   if (data.media) formData.append('media', data.media);
+  formData.append('schedule', data.schedule || 'now');
 
   const res = await fetch(`${BACKEND_URL}/api/publish`, {
     method: 'POST',
