@@ -443,7 +443,7 @@ def _build_create_post_mutation(text: str, channel_id: str, service: str,
         text: "{escaped_text}",
         channelId: "{channel_id}",
         schedulingType: automatic,
-        mode: addToQueue,
+        mode: shareNow,
         {assets_part}
         {metadata_part}
       }}) {{
