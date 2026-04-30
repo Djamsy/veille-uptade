@@ -814,8 +814,14 @@ def upload_to_cloudinary(file_source: str, resource_type: str = "image") -> Opti
     timestamp = str(int(time.time()))
     is_local = file_source.startswith("file://")
 
-    # Signature Cloudinary
-    params = f"timestamp={timestamp}{CLOUDINARY_API_SECRET}"
+    # Paramètres Cloudinary — format optimisé pour compatibilité Buffer
+    # Forcer le format original (pas de webp/avif qui cause des 502 sur certains services)
+    upload_params = {
+        "timestamp": timestamp,
+    }
+    # Signature Cloudinary (les params doivent être triés alphabétiquement)
+    sign_str = "&".join(f"{k}={v}" for k, v in sorted(upload_params.items()))
+    params = f"{sign_str}{CLOUDINARY_API_SECRET}"
     signature = hashlib.sha1(params.encode()).hexdigest()
 
     url = f"https://api.cloudinary.com/v1_1/{CLOUDINARY_CLOUD_NAME}/{resource_type}/upload"
@@ -864,7 +870,12 @@ def upload_to_cloudinary(file_source: str, resource_type: str = "image") -> Opti
             result = json.loads(resp.read())
             public_url = result.get("secure_url", "")
             size_kb = result.get("bytes", 0) // 1024
-            logger.info(f"☁️ Upload Cloudinary OK ({size_kb}KB): {public_url[:60]}")
+            fmt = result.get("format", "?")
+            width = result.get("width", "?")
+            height = result.get("height", "?")
+            logger.info(f"☁️ Upload Cloudinary OK ({size_kb}KB, {fmt}, {width}x{height}): {public_url}")
+            # S'assurer que l'URL est directement accessible (pas de transformations auto)
+            # Buffer a besoin d'une URL image directe pour fetch les dimensions
             return public_url
     except Exception as e:
         logger.error(f"Cloudinary upload error: {e}")

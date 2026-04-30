@@ -2194,6 +2194,24 @@ async def publish_from_web(request: Request):
         schedule_mode = form.get("schedule", "now")  # "now" ou "queue"
         immediate = schedule_mode != "queue"
 
+        # Vérifier que l'URL Cloudinary est accessible avant d'envoyer à Buffer
+        import urllib.request as _url_req
+        if media_urls:
+            logger.info(f"🔗 URL Cloudinary pour Buffer: {media_urls[0]}")
+            try:
+                check_req = _url_req.Request(media_urls[0], method="HEAD")
+                with _url_req.urlopen(check_req, timeout=10) as check_resp:
+                    ct = check_resp.headers.get("Content-Type", "")
+                    cl = check_resp.headers.get("Content-Length", "?")
+                    logger.info(f"✅ Cloudinary accessible: {ct}, {cl} bytes")
+            except Exception as check_err:
+                logger.warning(f"⚠️ Cloudinary URL check failed: {check_err}")
+
+        # Petit délai pour laisser Cloudinary propager l'image (évite 502 côté Buffer)
+        if media_urls:
+            import time as _time
+            _time.sleep(2)
+
         # Publier via Buffer
         logger.info(f"📤 Publication Buffer: {len(str(text))} chars, {len(media_urls)} médias, mode={'shareNow' if immediate else 'addToQueue'}")
         buffer_result = publish_to_buffer(
@@ -2201,6 +2219,16 @@ async def publish_from_web(request: Request):
             media_urls=media_urls,
             immediate=immediate,
         )
+
+        # Retry si échec (souvent un problème de timing avec Cloudinary)
+        if not buffer_result.get("ok") and media_urls:
+            logger.warning("⚠️ Buffer 1ère tentative échouée, retry après 3s...")
+            _time.sleep(3)
+            buffer_result = publish_to_buffer(
+                text=str(text),
+                media_urls=media_urls,
+                immediate=immediate,
+            )
 
         if not buffer_result.get("ok"):
             buffer_error = buffer_result.get("error", "inconnu")
