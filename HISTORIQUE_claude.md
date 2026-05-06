@@ -137,10 +137,15 @@ Décision Djamsy : avant de basculer sur un modèle « affaires journalières »
   - Flux timeline (80 derniers événements) + table articles refusés (50, fenêtre 2× hours)
   - Bouton « ⚠️ Ultime clear » avec window.confirm
 
+**Modes de reset disponibles** (correctif Djamsy : ne pas reclasser tout l'historique)
+- `fresh` (défaut, recommandé) : vide affairs/timeline/clusters/candidates **et fige tous les articles existants** (`_affair_processed=True`, `_affair_ignored=True`, `_ignore_reason="frozen_pre_reset"`). Seuls les nouveaux articles alimenteront les nouvelles affaires.
+- `since_hours=N` : fige les articles plus vieux que N heures, libère les plus récents pour reclassement (utile pour donner une période de chauffe).
+- `full` : ancien comportement, reclasse TOUT (coûteux, à éviter sauf cas particulier).
+
 **Usage attendu**
 1. Aller sur `/admin/affairs-monitor`.
-2. Cliquer « ⚠️ Ultime clear » et confirmer.
-3. Attendre les prochains cycles d'enrichissement (10-15 min selon le scheduler).
+2. Cliquer « ⚠️ Ultime clear » → choisir `fresh` (défaut). Confirmer.
+3. Attendre les prochains cycles d'enrichissement (10-15 min selon le scheduler) — désormais alimentés UNIQUEMENT par les nouveaux articles scrapés.
 4. Observer : combien d'affaires sont créées, combien d'articles sont absorbés vs bloqués, et pour quelles raisons.
 5. Si la « raison de blocage » majoritaire est `commune_diff` ou `theme_incoherent`, c'est que les gardes-fous tiennent. Si on voit beaucoup de fusions cluster→affaire avec des thèmes hétéroclites, le modèle est toujours problématique → basculer en daily affairs.
 

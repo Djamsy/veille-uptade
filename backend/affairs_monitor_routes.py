@@ -217,49 +217,126 @@ def blocked_articles(
 @router.post("/reset")
 def reset_pipeline(
     confirm: str = Query(..., description='Doit valoir "yes-reset-affairs"'),
+    mode: str = Query(
+        "fresh",
+        description=(
+            "fresh (défaut) = vide affairs/timeline/clusters/candidates ET fige tous les articles existants "
+            "(_affair_processed=True, raison 'frozen_pre_reset') pour qu'ils ne soient PAS reclassés. "
+            "Seuls les nouveaux articles alimenteront les nouvelles affaires.\n"
+            "since_hours=N (via since_hours param) = fige les articles plus vieux que N heures, libère les plus récents.\n"
+            "full = remet tous les flags à zéro et reclasse l'intégralité (ANCIEN COMPORTEMENT, coûteux)."
+        ),
+    ),
+    since_hours: Optional[int] = Query(
+        None, ge=1, le=720,
+        description="Mode 'since_hours' uniquement : on garde les articles plus récents que N heures.",
+    ),
     admin: dict = Depends(require_admin),
 ):
     """
-    Ultime clear : supprime affairs/timeline/clusters/candidates et réinitialise les flags
-    sur articles_guadeloupe. ⚠️ Action destructive.
+    Ultime clear contrôlé. ⚠️ Action destructive.
+
+    Modes :
+    - fresh (défaut) : repart de zéro côté affaires, mais l'historique d'articles est figé.
+                       Les nouvelles affaires se construisent uniquement sur le flux entrant.
+    - since_hours=N  : on libère les N dernières heures d'articles, le reste est figé.
+    - full           : on libère tout (ancien comportement, peut générer des centaines d'affaires).
     """
     if confirm != "yes-reset-affairs":
         return {"ok": False, "error": "confirm parameter required (yes-reset-affairs)"}
+    if mode not in ("fresh", "since_hours", "full"):
+        return {"ok": False, "error": f"mode invalide: {mode}"}
+    if mode == "since_hours" and not since_hours:
+        return {"ok": False, "error": "since_hours requis pour mode='since_hours'"}
 
     db = get_db()
+    articles = db["articles_guadeloupe"]
+
+    # 1. Vide les collections d'affaires (toujours)
     affairs_deleted = db["affairs"].delete_many({}).deleted_count
     timeline_deleted = db["affair_timeline"].delete_many({}).deleted_count
     candidates_deleted = db["topic_candidates"].delete_many({}).deleted_count
     clusters_deleted = db["topic_clusters"].delete_many({}).deleted_count
-    articles_reset = db["articles_guadeloupe"].update_many(
-        {"$or": [
-            {"_affair_processed": True},
-            {"_affair_ignored": True},
-            {"_affair_id": {"$exists": True}},
-            {"_affair_attempts": {"$exists": True}},
-        ]},
-        {"$set": {
-            "_affair_processed": False,
-            "_affair_ignored": False,
-            "_affair_id": None,
-            "_affair_attempts": 0,
-        }, "$unset": {"_ignore_reason": ""}},
-    ).modified_count
+
+    # 2. Gestion des flags articles selon le mode
+    articles_frozen = 0
+    articles_freed = 0
+
+    if mode == "full":
+        # Ancien comportement : on libère tout
+        articles_freed = articles.update_many(
+            {},
+            {"$set": {
+                "_affair_processed": False,
+                "_affair_ignored": False,
+                "_affair_id": None,
+                "_affair_attempts": 0,
+            }, "$unset": {"_ignore_reason": ""}},
+        ).modified_count
+
+    elif mode == "fresh":
+        # On fige TOUT l'existant : marqué comme "déjà traité, ne pas reconsidérer"
+        # Astuce : on met _affair_processed=True ET _affair_ignored=True pour que les
+        # deux requêtes possibles du scheduler (cherche pas processed / cherche pas ignored)
+        # le sautent. On stocke la raison pour traçabilité.
+        articles_frozen = articles.update_many(
+            {},
+            {"$set": {
+                "_affair_processed": True,
+                "_affair_ignored": True,
+                "_affair_id": None,
+                "_ignore_reason": "frozen_pre_reset",
+                "_affair_attempts": 0,
+            }},
+        ).modified_count
+
+    elif mode == "since_hours":
+        cutoff = datetime.utcnow() - timedelta(hours=since_hours)
+        # Articles vieux : figés
+        articles_frozen = articles.update_many(
+            {"$or": [
+                {"scraped_at": {"$lt": cutoff}},
+                {"scraped_at": {"$lt": cutoff.isoformat()}},
+            ]},
+            {"$set": {
+                "_affair_processed": True,
+                "_affair_ignored": True,
+                "_affair_id": None,
+                "_ignore_reason": "frozen_pre_reset",
+                "_affair_attempts": 0,
+            }},
+        ).modified_count
+        # Articles récents : libérés pour ré-enrichissement éventuel
+        articles_freed = articles.update_many(
+            {"$or": [
+                {"scraped_at": {"$gte": cutoff}},
+                {"scraped_at": {"$gte": cutoff.isoformat()}},
+            ]},
+            {"$set": {
+                "_affair_processed": False,
+                "_affair_ignored": False,
+                "_affair_id": None,
+                "_affair_attempts": 0,
+            }, "$unset": {"_ignore_reason": ""}},
+        ).modified_count
 
     logger.warning(
-        f"🧹 RESET pipeline affaires by {admin.get('email')} — "
+        f"🧹 RESET pipeline (mode={mode}) by {admin.get('email')} — "
         f"affairs={affairs_deleted} timeline={timeline_deleted} "
         f"candidates={candidates_deleted} clusters={clusters_deleted} "
-        f"articles_reset={articles_reset}"
+        f"articles_frozen={articles_frozen} articles_freed={articles_freed}"
     )
 
     return {
         "ok": True,
+        "mode": mode,
+        "since_hours": since_hours,
         "affairs_deleted": affairs_deleted,
         "timeline_deleted": timeline_deleted,
         "candidates_deleted": candidates_deleted,
         "clusters_deleted": clusters_deleted,
-        "articles_reset": articles_reset,
+        "articles_frozen": articles_frozen,
+        "articles_freed": articles_freed,
         "by": admin.get("email"),
         "at": datetime.utcnow().isoformat(),
     }

@@ -148,19 +148,52 @@ export default function AffairsMonitorPage() {
   }, [refresh])
 
   async function handleReset() {
+    const choice = window.prompt(
+      "⚠️ Ultime clear — choisir le mode :\n\n" +
+      "  fresh        → vide les affaires + FIGE l'historique articles.\n" +
+      "                 Seuls les nouveaux articles alimenteront les nouvelles affaires.\n" +
+      "                 (recommandé — ce que tu veux a priori)\n\n" +
+      "  since:24     → fige tout sauf les 24 dernières heures (libérées pour reclassement)\n" +
+      "                 Tu peux changer le nombre : since:48, since:72…\n\n" +
+      "  full         → ancien comportement, reclasse TOUS les articles (coûteux, peut générer\n" +
+      "                 des centaines d'affaires d'un coup)\n\n" +
+      "Tape : fresh (défaut), since:N, ou full",
+      'fresh'
+    )
+    if (!choice) return
+
+    let mode = 'fresh'
+    let sinceHours: number | null = null
+    if (choice.toLowerCase().startsWith('since:')) {
+      const n = parseInt(choice.split(':')[1], 10)
+      if (!Number.isFinite(n) || n <= 0) {
+        setError(`Reset : valeur since invalide (${choice})`)
+        return
+      }
+      mode = 'since_hours'
+      sinceHours = n
+    } else if (['fresh', 'full'].includes(choice.toLowerCase())) {
+      mode = choice.toLowerCase()
+    } else {
+      setError(`Reset : mode inconnu "${choice}"`)
+      return
+    }
+
     if (!window.confirm(
-      "⚠️ Ultime clear : supprime TOUTES les affaires, timeline, clusters, et reset les flags articles.\n\n" +
-      "Le pipeline sera observé à neuf au prochain cycle d'enrichissement.\n\n" +
-      "Confirmer ?"
+      `⚠️ Confirmer le reset en mode "${mode}${sinceHours ? `:${sinceHours}h` : ''}" ?\n\n` +
+      "Cette action est irréversible (les affaires actuelles seront supprimées)."
     )) return
+
     setResetting(true)
     setResetMsg('')
     try {
-      const r = await adminPost<any>('/api/affairs/monitor/reset?confirm=yes-reset-affairs')
+      const qs = new URLSearchParams({ confirm: 'yes-reset-affairs', mode })
+      if (sinceHours) qs.set('since_hours', String(sinceHours))
+      const r = await adminPost<any>(`/api/affairs/monitor/reset?${qs}`)
       setResetMsg(
-        `✅ Reset OK — ${r.affairs_deleted} affaires, ${r.timeline_deleted} événements, ` +
-        `${r.candidates_deleted} candidats, ${r.clusters_deleted} clusters supprimés. ` +
-        `${r.articles_reset} articles réinitialisés.`
+        `✅ Reset (mode=${r.mode}) — ${r.affairs_deleted} affaires, ${r.timeline_deleted} évts, ` +
+        `${r.clusters_deleted} clusters supprimés. ` +
+        `Articles : ${r.articles_frozen} figés, ${r.articles_freed} libérés.`
       )
       await refresh()
     } catch (e: any) {
