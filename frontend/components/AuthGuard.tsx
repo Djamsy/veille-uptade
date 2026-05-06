@@ -44,6 +44,7 @@ const PAGE_ROLES: Record<string, string> = {
   '/radio': 'user',
   '/elections': 'user',
   '/social': 'admin',
+  '/admin/presence': 'admin',
   '/departement': 'user',
   '/region': 'user',
   '/dashboard': 'user',

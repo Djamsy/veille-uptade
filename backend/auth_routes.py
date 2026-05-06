@@ -13,7 +13,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["auth"])  # ✅ CORRECTION ICI
 
 # Configuration
-SECRET_KEY = os.getenv("JWT_SECRET", "dev-secret-change-me")
+SECRET_KEY = os.getenv("JWT_SECRET")
+if not SECRET_KEY or SECRET_KEY == "dev-secret-change-me":
+    # Sécurité : on refuse de démarrer avec un secret faible/par défaut.
+    # Définir JWT_SECRET dans l'environnement (Render: Environment Variables).
+    raise RuntimeError(
+        "JWT_SECRET environment variable is required and must not be the default value. "
+        "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+    )
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 120
 
@@ -217,6 +224,12 @@ def _require_admin_auth(token: str = Depends(oauth2_scheme)):
     if not user or user.get("role") != "admin":
         raise HTTPException(403, "Accès réservé aux administrateurs")
     return {"email": email, "role": "admin"}
+
+
+# Alias public — à utiliser dans les autres modules
+# from auth_routes import require_admin
+# @app.post("/...")(admin: dict = Depends(require_admin))
+require_admin = _require_admin_auth
 
 
 @router.post("/create-user")

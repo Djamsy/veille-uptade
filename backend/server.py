@@ -85,10 +85,21 @@ from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
 from bson import ObjectId
 
-from fastapi import FastAPI, HTTPException, Query, Request, BackgroundTasks, Body
+from fastapi import FastAPI, HTTPException, Query, Request, BackgroundTasks, Body, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse, FileResponse, StreamingResponse
 import uvicorn
+
+# Garde admin (importable depuis auth_routes) — utilisée sur les routes destructives.
+# Fallback no-op si l'import échoue, pour ne pas casser le boot en dev local.
+try:
+    try:
+        from backend.auth_routes import require_admin  # type: ignore
+    except ImportError:
+        from auth_routes import require_admin  # type: ignore
+except Exception:  # pragma: no cover
+    def require_admin():  # type: ignore
+        raise HTTPException(503, "Auth indisponible — endpoint protégé")
 
 # Configuration des logs
 logging.basicConfig(
@@ -162,8 +173,17 @@ app = FastAPI(
 from starlette.middleware.gzip import GZipMiddleware
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
-# CORS
-ALLOWED_ORIGINS = os.environ.get("CORS_ORIGINS", "*").split(",")
+# CORS — liste explicite (jamais "*" avec credentials, refusé par la spec fetch)
+# Surcharge possible via la variable d'env CORS_ORIGINS (CSV).
+_DEFAULT_CORS_ORIGINS = [
+    "http://localhost:3000",
+    "https://veille-uptade.vercel.app",
+]
+_cors_env = os.environ.get("CORS_ORIGINS", "").strip()
+if _cors_env:
+    ALLOWED_ORIGINS = [o.strip().rstrip("/") for o in _cors_env.split(",") if o.strip()]
+else:
+    ALLOWED_ORIGINS = _DEFAULT_CORS_ORIGINS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -1283,8 +1303,8 @@ async def get_map_data(days: int = Query(7, ge=1, le=30)):
 
 
 @app.post("/api/digest/send")
-async def send_digest_now():
-    """Déclencher manuellement l'envoi du digest Telegram GPT."""
+async def send_digest_now(admin: dict = Depends(require_admin)):
+    """Déclencher manuellement l'envoi du digest Telegram GPT. (admin)"""
     try:
         from enhanced_scheduler import telegram_morning_digest_job
         result = await telegram_morning_digest_job()
@@ -1300,8 +1320,12 @@ async def send_digest_now():
 
 
 @app.post("/api/affairs/{affair_id}/cleanup")
-async def cleanup_affair_endpoint(affair_id: str, background_tasks: BackgroundTasks):
-    """Nettoyer une affaire avec validation GPT — retire les articles non pertinents."""
+async def cleanup_affair_endpoint(
+    affair_id: str,
+    background_tasks: BackgroundTasks,
+    admin: dict = Depends(require_admin),
+):
+    """Nettoyer une affaire avec validation GPT — retire les articles non pertinents. (admin)"""
     try:
         lifecycle = get_affair_lifecycle_service(db)
         result = lifecycle.cleanup_affair(affair_id)
@@ -1311,8 +1335,11 @@ async def cleanup_affair_endpoint(affair_id: str, background_tasks: BackgroundTa
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/affairs/cleanup-all")
-async def cleanup_all_affairs_endpoint(background_tasks: BackgroundTasks):
-    """Nettoyer TOUTES les affaires actives avec validation GPT."""
+async def cleanup_all_affairs_endpoint(
+    background_tasks: BackgroundTasks,
+    admin: dict = Depends(require_admin),
+):
+    """Nettoyer TOUTES les affaires actives avec validation GPT. (admin)"""
     try:
         lifecycle = get_affair_lifecycle_service(db)
         result = lifecycle.cleanup_all_affairs()
@@ -1322,8 +1349,8 @@ async def cleanup_all_affairs_endpoint(background_tasks: BackgroundTasks):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/affairs/crosscheck-stale")
-async def crosscheck_stale_active_endpoint():
-    """Cross-check GPT : compare affaires en veille vs actives pour fusion."""
+async def crosscheck_stale_active_endpoint(admin: dict = Depends(require_admin)):
+    """Cross-check GPT : compare affaires en veille vs actives pour fusion. (admin)"""
     try:
         lifecycle = get_affair_lifecycle_service(db)
         merged = lifecycle._cross_check_stale_active()
@@ -1367,8 +1394,11 @@ async def classify_communes_endpoint(background_tasks: BackgroundTasks):
 
 
 @app.post("/api/affairs/revalidate")
-async def revalidate_affairs_endpoint(background_tasks: BackgroundTasks):
-    """Re-vérifie les articles de chaque affaire active pour nettoyer les faux positifs."""
+async def revalidate_affairs_endpoint(
+    background_tasks: BackgroundTasks,
+    admin: dict = Depends(require_admin),
+):
+    """Re-vérifie les articles de chaque affaire active pour nettoyer les faux positifs. (admin)"""
     try:
         lifecycle = get_affair_lifecycle_service(db)
         # Réinitialiser les articles pour retraitement
@@ -1390,11 +1420,14 @@ async def revalidate_affairs_endpoint(background_tasks: BackgroundTasks):
 
 
 @app.post("/api/scrape")
-async def trigger_scraping(background_tasks: BackgroundTasks):
-    """Déclencher le scraping"""
+async def trigger_scraping(
+    background_tasks: BackgroundTasks,
+    admin: dict = Depends(require_admin),
+):
+    """Déclencher le scraping. (admin)"""
     if not guadeloupe_scraper:
         raise HTTPException(status_code=503, detail="Scraper non disponible")
-    
+
     background_tasks.add_task(guadeloupe_scraper.scrape_all_sites)
     return {"message": "Scraping lancé en arrière-plan"}
 
@@ -1510,8 +1543,8 @@ async def debug_scheduler():
 
 
 @app.post("/api/debug/reset-affairs")
-async def reset_affairs():
-    """Remet à zéro les affaires pour re-traitement propre.
+async def reset_affairs(admin: dict = Depends(require_admin)):
+    """Remet à zéro les affaires pour re-traitement propre. (admin)
     Supprime toutes les affaires et reset les flags _affair_processed."""
     if db is None:
         return {"error": "no_db"}
@@ -1704,6 +1737,18 @@ try:
     logger.info("✅ Routes Veille chargées (/api/veille/*)")
 except Exception as e:
     logger.warning(f"⚠️ Routes Veille non disponibles: {e}")
+
+
+# ========== ENTITY PRESENCE (admin only) ==========
+try:
+    try:
+        from backend.presence_routes import router as presence_router
+    except ImportError:
+        from presence_routes import router as presence_router
+    app.include_router(presence_router)
+    logger.info("✅ Routes Presence chargées (/api/presence/* — admin only)")
+except Exception as e:
+    logger.warning(f"⚠️ Routes Presence non disponibles: {e}")
 
 
 # ============================================================
@@ -2602,8 +2647,8 @@ async def facebook_status():
 # ========== SCRAPING STATS RS PROPRES ==========
 
 @app.post("/api/social-stats/scrape")
-async def trigger_social_stats_scrape():
-    """Déclenche manuellement le scraping des stats RS propres."""
+async def trigger_social_stats_scrape(admin: dict = Depends(require_admin)):
+    """Déclenche manuellement le scraping des stats RS propres. (admin)"""
     try:
         from backend.social_stats_scraper import scrape_own_social_stats, is_configured as ss_configured
         if not ss_configured():
@@ -2615,8 +2660,8 @@ async def trigger_social_stats_scrape():
 
 
 @app.post("/api/social-stats/scrape-post/{post_id}")
-async def trigger_single_post_scrape(post_id: str):
-    """Scrape les stats/commentaires d'un post spécifique (appel manuel, cas viral)."""
+async def trigger_single_post_scrape(post_id: str, admin: dict = Depends(require_admin)):
+    """Scrape les stats/commentaires d'un post spécifique (cas viral). (admin)"""
     try:
         from backend.social_stats_scraper import scrape_single_post, is_configured as ss_configured
         if not ss_configured():
@@ -2628,8 +2673,8 @@ async def trigger_single_post_scrape(post_id: str):
 
 
 @app.post("/api/social-stats/buffer-sync")
-async def trigger_buffer_stats_sync():
-    """Synchronise les stats via l'API Buffer (gratuit, pas de tokens Apify).
+async def trigger_buffer_stats_sync(admin: dict = Depends(require_admin)):
+    """Synchronise les stats via l'API Buffer (gratuit, pas de tokens Apify). (admin)
 
     Récupère les posts publiés via Buffer et met à jour les stats en base.
     """

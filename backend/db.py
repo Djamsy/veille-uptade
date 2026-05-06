@@ -189,6 +189,14 @@ def ensure_api_indexes(db=None):
         _safe_index(affairs, [("status", ASCENDING), ("gravity_score", DESCENDING)], "idx_affairs_status_gravity")
         _safe_index(affairs, [("status", ASCENDING), ("updated_at", DESCENDING)], "idx_affairs_status_updated")
 
+        # ── Entity Presence (feature « carte de présence d'élus ») ──
+        # Aucune TTL : durée d'observation indéfinie.
+        presences = db["entity_presences"]
+        _safe_index(presences, [("entity_canonical", ASCENDING), ("published_at", DESCENDING)], "idx_presence_entity_date")
+        _safe_index(presences, [("commune", ASCENDING), ("published_at", DESCENDING)], "idx_presence_commune_date")
+        _safe_index(presences, [("published_at", DESCENDING)], "idx_presence_date")
+        _safe_index(presences, [("article_id", ASCENDING), ("entity_canonical", ASCENDING), ("commune", ASCENDING)], "idx_presence_dedup")
+
         _indexes_created = True
         logger.info("✅ Tous les index API créés avec succès")
     except Exception as e:
