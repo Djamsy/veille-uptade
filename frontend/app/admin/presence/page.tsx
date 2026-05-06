@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
+import PresenceMap from '@/components/PresenceMap'
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 
@@ -222,6 +223,31 @@ export default function PresencePage() {
             <div className="text-xs text-gray-400">Élus suivis (V1)</div>
             <div className="text-2xl font-bold mt-1">{entities.length}</div>
           </div>
+        </div>
+
+        {/* Carte choropleth */}
+        <div className="mb-6 bg-gray-900 border border-gray-800 rounded-lg p-4">
+          <h2 className="text-sm font-semibold text-gray-300 mb-3">
+            Carte de présence — densité par commune
+            {entityFilter && <span className="text-blue-400"> · {entityFilter}</span>}
+          </h2>
+          <PresenceMap
+            data={Object.fromEntries(
+              communes.map(c => [
+                c.commune,
+                {
+                  count: c.count,
+                  topEntities: c.top_entities,
+                  lastSeen: c.last_seen,
+                },
+              ])
+            )}
+            onCommuneClick={(name) => {
+              // Sélectionne la commune cliquée comme filtre rapide (pas encore implémenté)
+              // pour l'instant on copie juste son nom dans le presse-papier
+              try { navigator.clipboard.writeText(name) } catch {}
+            }}
+          />
         </div>
 
         {/* Détail entité (si filtré) */}

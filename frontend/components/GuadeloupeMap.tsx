@@ -23,7 +23,7 @@ interface GuadeloupeMapProps {
    Basse-Terre = aile ouest (volcan, montagnes, plus allongée N-S)
    Grande-Terre = aile est (plate, plus large E-O)
    Séparées par la Rivière Salée au centre (~x=130-140)            */
-const COMMUNES: { name: string; d: string }[] = [
+export const GUADELOUPE_COMMUNE_PATHS: { name: string; d: string }[] = [
   // ═══ BASSE-TERRE (aile ouest — du nord au sud) ═══
   { name: 'Deshaies',
     d: 'M52,38 C56,32 64,28 72,30 C78,32 82,36 84,42 C86,48 82,54 76,56 C70,58 62,56 58,52 C54,48 50,44 52,38 Z' },
@@ -165,7 +165,7 @@ export default function GuadeloupeMap({
           fill="none" stroke="rgba(37,99,235,0.12)" strokeWidth="1.5" strokeDasharray="3,3" />
 
         {/* Communes */}
-        {COMMUNES.map((c) => {
+        {GUADELOUPE_COMMUNE_PATHS.map((c) => {
           const data = communeData[c.name];
           const isHovered = hovered === c.name;
           const hasData = !!data && data.count > 0;

@@ -218,6 +218,7 @@ async def job_enrich():
             from pymongo import UpdateOne
             bulk_ops = []
             telegram_queue = []
+            enriched_payloads = []  # pour l'extraction de présence (fait après le bulk_write)
 
             for article in articles:
                 try:
@@ -246,6 +247,8 @@ async def job_enrich():
                                 {"$set": update_fields}
                             ))
                             enriched_count += 1
+                            # Conserver la version enrichie pour l'extraction de présence
+                            enriched_payloads.append({**article, **update_fields})
 
                             # Queue Telegram notifications
                             try:
@@ -296,6 +299,45 @@ async def job_enrich():
                     logger.debug(f"Telegram notif article: {tg_err}")
 
             logger.info(f"✅ {enriched_count}/{len(articles)} articles enrichis ({method})")
+
+            # ── Extraction de présence (élus → commune) sur les articles enrichis ──
+            # Idempotent grâce à idx_presence_dedup. N'échoue jamais le job principal.
+            try:
+                if enriched_payloads:
+                    try:
+                        from backend.entity_presence_service import extract_presences_from_article  # type: ignore
+                    except ImportError:
+                        from entity_presence_service import extract_presences_from_article  # type: ignore
+
+                    presences_col = _db["entity_presences"]
+                    pres_total = 0
+                    pres_inserted = 0
+                    for payload in enriched_payloads:
+                        try:
+                            records = await loop.run_in_executor(
+                                None, extract_presences_from_article, payload
+                            )
+                            if not records:
+                                continue
+                            pres_total += len(records)
+                            for r in records:
+                                key = {
+                                    "article_id": r["article_id"],
+                                    "entity_canonical": r["entity_canonical"],
+                                    "commune": r["commune"],
+                                }
+                                if presences_col.find_one(key):
+                                    continue
+                                presences_col.insert_one(r)
+                                pres_inserted += 1
+                        except Exception as e:
+                            logger.debug(f"Presence extract: {e}")
+                    if pres_total or pres_inserted:
+                        logger.info(
+                            f"📍 Présences : {pres_inserted}/{pres_total} insérées sur {len(enriched_payloads)} articles enrichis"
+                        )
+            except Exception as e:
+                logger.warning(f"⚠️ Pipeline présence indisponible: {e}")
 
             # Générer les embeddings pour les articles enrichis sans embedding
             try:

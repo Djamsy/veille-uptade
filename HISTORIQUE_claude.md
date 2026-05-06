@@ -103,9 +103,58 @@ Sprint « fondations présence » :
 - `tsc --noEmit` OK sur le frontend.
 
 **Ce qui n'est PAS encore branché**
-- Extraction automatique au moment du scrape : il faudra greffer un appel à `extract_presences_from_article` + `_insert_presences` dans le pipeline d'enrichissement (`enhanced_scraper_with_themes.py` ou `enrich_existing_articles.py`). Pour l'instant, seule la voie manuelle (POST `/api/presence/backfill`) alimente la collection.
 - Quartier : champ stocké, mais pas encore de gazetteer dédié. Le LLM le remplit s'il est nommé explicitement, sinon `null`. Gazetteer manuel à prévoir en V1.1.
-- Carte Mapbox choropleth : V1 affiche une table triée. Migration vers Mapbox une fois le pipeline validé.
+
+### LIVRÉ — V1.1 (même session, après déploiement V1)
+
+**Étape 6 — auto-extraction dans le pipeline d'enrichissement**
+- `backend/scheduler_service.py` (job_enrich) : après le `bulk_write` des enrichissements, le job parcourt les articles enrichis et appelle `extract_presences_from_article`. Insertion idempotente grâce à `idx_presence_dedup`. Failures isolées (debug log), n'échoue jamais le job principal. Désormais chaque cycle d'enrichissement alimente automatiquement `entity_presences` — plus besoin de backfill manuel pour les nouveaux articles.
+
+**Étape 7 — carte choropleth SVG**
+- `frontend/components/GuadeloupeMap.tsx` : export de `GUADELOUPE_COMMUNE_PATHS` (les paths Bézier).
+- `frontend/components/PresenceMap.tsx` (nouveau) : carte choropleth réutilisant les paths, échelle bleue (Faible / Modérée / Forte / Très forte), tooltip avec top élus + dernière date, click pour copier le nom de la commune.
+- `frontend/app/admin/presence/page.tsx` : carte branchée au-dessus de la table.
+
+### LIVRÉ — V1.2 monitoring création d'affaires (étape 8)
+
+Décision Djamsy : avant de basculer sur un modèle « affaires journalières », on tente un ultime clear et on observe le pipeline en temps réel pour voir si le fix ea88e5f tient.
+
+**Backend**
+- `backend/affairs_monitor_routes.py` (nouveau) — router admin `/api/affairs/monitor/*` :
+  - GET `/overview?hours` : KPIs (créations, processés, en attente, ignorés, distributions thèmes/statuts/raisons).
+  - GET `/recent-affairs?limit` : derniers documents `affairs` triés par created_at desc.
+  - GET `/timeline?event&limit` : flux brut de `affair_timeline`.
+  - GET `/blocked-articles?hours&limit` : articles avec `_affair_ignored=true` et leur `_ignore_reason`.
+  - POST `/reset?confirm=yes-reset-affairs` : ultime clear (affairs + timeline + clusters + candidates + reset flags articles). Logué avec l'email admin.
+- Branchement dans `server.py` après le router presence.
+
+**Frontend**
+- `frontend/components/AuthGuard.tsx` : route `/admin/affairs-monitor` ajoutée.
+- `frontend/app/admin/affairs-monitor/page.tsx` (nouveau) — dashboard avec auto-refresh 30 s :
+  - KPIs (4 chiffres clés)
+  - 3 distributions (statut / thème / raison de blocage)
+  - Table des 50 dernières affaires
+  - Flux timeline (80 derniers événements) + table articles refusés (50, fenêtre 2× hours)
+  - Bouton « ⚠️ Ultime clear » avec window.confirm
+
+**Usage attendu**
+1. Aller sur `/admin/affairs-monitor`.
+2. Cliquer « ⚠️ Ultime clear » et confirmer.
+3. Attendre les prochains cycles d'enrichissement (10-15 min selon le scheduler).
+4. Observer : combien d'affaires sont créées, combien d'articles sont absorbés vs bloqués, et pour quelles raisons.
+5. Si la « raison de blocage » majoritaire est `commune_diff` ou `theme_incoherent`, c'est que les gardes-fous tiennent. Si on voit beaucoup de fusions cluster→affaire avec des thèmes hétéroclites, le modèle est toujours problématique → basculer en daily affairs.
+
+### À DÉCIDER — passer aux « affaires journalières »
+Djamsy (2026-05-06) : « je crois qu'il faut complètement abandonner le suivi d'affaire dans le temps et passer en affaire journalière ».
+
+Implication majeure : abandonner le modèle `affair_lifecycle_service.py` (5 653 lignes, status active/stale, consolidation 24h, cross-check, etc.) au profit d'un modèle où **chaque journée produit son propre cluster d'affaires**, sans liaison cross-day.
+
+**À discuter avant tout code** :
+- Qu'est-ce qu'on perd ? (vue « histoire qui se développe », trend sur la semaine, BMG cumulatif)
+- Qu'est-ce qu'on gagne ? (zéro boule de neige, logique simple, audit clair)
+- Migration : que devient la collection `affairs` actuelle ?
+- Est-ce qu'on peut faire tourner les deux modèles en parallèle pour comparer ?
+- Impact UI : page `/affairs`, dashboard, BMG, briefing, digest Telegram — tous dépendent du modèle actuel.
 
 ---
 
