@@ -1751,6 +1751,18 @@ except Exception as e:
     logger.warning(f"⚠️ Routes Presence non disponibles: {e}")
 
 
+# ========== AFFAIRS MONITOR (admin only) ==========
+try:
+    try:
+        from backend.affairs_monitor_routes import router as affairs_monitor_router
+    except ImportError:
+        from affairs_monitor_routes import router as affairs_monitor_router
+    app.include_router(affairs_monitor_router)
+    logger.info("✅ Routes Affairs Monitor chargées (/api/affairs/monitor/* — admin only)")
+except Exception as e:
+    logger.warning(f"⚠️ Routes Affairs Monitor non disponibles: {e}")
+
+
 # ============================================================
 # RÉSUMÉ AUTOMATIQUE (journalier / hebdomadaire)
 # ============================================================
