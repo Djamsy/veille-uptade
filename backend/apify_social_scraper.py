@@ -34,7 +34,9 @@ try:
 except Exception:
     TZ = ZoneInfo("UTC")
 
-APIFY_TOKEN = os.environ.get("APIFY_TOKEN", "").strip()
+# Accepter les deux noms de variable : APIFY_API_TOKEN (utilisé partout ailleurs)
+# ou APIFY_TOKEN (ancien nom, encore dans certaines routes).
+APIFY_TOKEN = (os.environ.get("APIFY_API_TOKEN") or os.environ.get("APIFY_TOKEN") or "").strip()
 MONGO_URL = (os.environ.get("MONGO_URL") or "mongodb://localhost:27017").strip()
 
 # =========================
@@ -184,12 +186,22 @@ class ApifySocialScraper:
                         logger.error(f"❌ {actor_id}: échoué — {str(data)[:300]}")
                 return []
 
+            elif resp.status_code == 401:
+                logger.error(
+                    f"🔐 {actor_id}: ERREUR 401 — Token Apify invalide ou expiré.\n"
+                    f"   Token utilisé: {APIFY_TOKEN[:12]}...\n"
+                    f"   → Vérifiez APIFY_API_TOKEN dans vos variables d'environnement.\n"
+                    f"   → Régénérez le token sur https://console.apify.com/account#/integrations\n"
+                    f"   Réponse Apify: {resp.text[:300]}"
+                )
             elif resp.status_code == 402:
-                logger.error(f"❌ {actor_id}: crédits insuffisants (402)")
+                logger.error(f"💰 {actor_id}: crédits insuffisants (402) — rechargez sur https://console.apify.com/billing")
+            elif resp.status_code == 429:
+                logger.error(f"⏳ {actor_id}: rate limit Apify (429) — trop de requêtes, réessayez plus tard")
             elif resp.status_code in (400, 404, 408):
                 logger.error(f"❌ {actor_id}: HTTP {resp.status_code} — {resp.text[:300]}")
             else:
-                logger.error(f"❌ {actor_id}: HTTP {resp.status_code}")
+                logger.error(f"❌ {actor_id}: HTTP {resp.status_code} — {resp.text[:200]}")
             return []
 
         except requests.Timeout:

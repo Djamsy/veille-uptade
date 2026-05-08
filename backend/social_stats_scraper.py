@@ -20,6 +20,7 @@ import logging
 import json
 import re
 import urllib.request
+import urllib.error
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, List
 from difflib import SequenceMatcher
@@ -71,6 +72,18 @@ def _run_actor(actor_id: str, run_input: Dict, timeout: int = 120) -> List[Dict]
             if isinstance(data, dict):
                 return data.get("items", []) or data.get("data", []) or []
             return []
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            logger.error(
+                f"🔐 Apify 401 — Token invalide ou expiré pour {actor_id}.\n"
+                f"   → Régénérez sur https://console.apify.com/account#/integrations\n"
+                f"   → Mettez à jour APIFY_API_TOKEN dans les variables d'environnement."
+            )
+        elif e.code == 402:
+            logger.error(f"💰 Apify 402 — Crédits épuisés pour {actor_id}")
+        else:
+            logger.error(f"Apify {actor_id}: HTTP {e.code}")
+        return []
     except Exception as e:
         logger.error(f"Apify {actor_id}: {e}")
         return []

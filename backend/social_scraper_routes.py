@@ -101,9 +101,9 @@ async def social_test_raw(platform: str = Query("facebook", description="faceboo
     """Teste un scrape minimal avec proxy résidentiel et retourne la réponse brute d'Apify."""
     import os, requests as req
 
-    token = os.environ.get("APIFY_TOKEN", "").strip()
+    token = (os.environ.get("APIFY_API_TOKEN") or os.environ.get("APIFY_TOKEN") or "").strip()
     if not token:
-        return {"error": "APIFY_TOKEN non configuré"}
+        return {"error": "APIFY_API_TOKEN non configuré"}
 
     # Config par plateforme
     configs = {
@@ -209,9 +209,9 @@ async def social_test_raw(platform: str = Query("facebook", description="faceboo
 async def social_diagnostic():
     """Teste la connexion Apify et retourne les infos de compte."""
     import os, requests as req
-    token = os.environ.get("APIFY_TOKEN", "").strip()
+    token = (os.environ.get("APIFY_API_TOKEN") or os.environ.get("APIFY_TOKEN") or "").strip()
     if not token:
-        return {"success": False, "error": "APIFY_TOKEN non configuré"}
+        return {"success": False, "error": "APIFY_API_TOKEN non configuré"}
 
     diag = {"token_set": True, "token_preview": f"{token[:8]}..."}
 

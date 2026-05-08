@@ -241,44 +241,74 @@ class ApifySocialService:
 
     def _run_apify_actor(self, actor_id: str, input_data: Dict) -> Optional[Dict]:
         """Exécute un acteur Apify et récupère les résultats"""
+        if not self.apify_token:
+            logger.warning("APIFY_API_TOKEN non configuré — impossible de lancer l'actor")
+            return None
+
         try:
             # Lancer l'acteur
             start_url = f"{self.apify_base_url}/acts/{actor_id}/runs"
             headers = {"Authorization": f"Bearer {self.apify_token}"}
-            
+
             response = requests.post(start_url, json=input_data, headers=headers)
+
+            # ── Gestion spécifique des erreurs d'authentification ──
+            if response.status_code == 401:
+                logger.error(
+                    f"🔐 Apify 401 — Token invalide ou expiré.\n"
+                    f"   Token: {self.apify_token[:12]}...\n"
+                    f"   → Régénérez sur https://console.apify.com/account#/integrations\n"
+                    f"   → Mettez à jour APIFY_API_TOKEN dans les variables d'env.\n"
+                    f"   Réponse: {response.text[:300]}"
+                )
+                return None
+            if response.status_code == 402:
+                logger.error(f"💰 Apify 402 — Crédits épuisés. Rechargez sur https://console.apify.com/billing")
+                return None
+            if response.status_code == 429:
+                logger.error(f"⏳ Apify 429 — Rate limit, réessayez plus tard")
+                return None
+
             response.raise_for_status()
-            
+
             run_info = response.json()["data"]
             run_id = run_info["id"]
-            
+
             # Attendre la fin (max 5 minutes)
             max_wait = 300  # 5 minutes
             waited = 0
-            
+
             while waited < max_wait:
                 status_url = f"{self.apify_base_url}/actor-runs/{run_id}"
                 status_response = requests.get(status_url, headers=headers)
+
+                if status_response.status_code == 401:
+                    logger.error("🔐 Apify 401 pendant polling — token expiré en cours de run")
+                    return None
+
                 status_data = status_response.json()["data"]
-                
+
                 if status_data["status"] == "SUCCEEDED":
                     # Récupérer les résultats
                     dataset_id = status_data["defaultDatasetId"]
                     dataset_url = f"{self.apify_base_url}/datasets/{dataset_id}/items"
-                    
+
                     data_response = requests.get(dataset_url, headers=headers)
                     return {"items": data_response.json()}
-                    
+
                 elif status_data["status"] in ["FAILED", "ABORTED"]:
                     logger.error(f"Apify run failed: {status_data.get('statusMessage')}")
                     return None
-                
+
                 time.sleep(10)
                 waited += 10
-            
+
             logger.warning(f"Apify run timeout après {max_wait}s")
             return None
-            
+
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"Erreur HTTP Apify actor {actor_id}: {e} — {e.response.text[:300] if e.response else ''}")
+            return None
         except Exception as e:
             logger.error(f"Erreur exécution Apify actor {actor_id}: {e}")
             return None
