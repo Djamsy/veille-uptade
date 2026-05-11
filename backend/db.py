@@ -167,6 +167,38 @@ def ensure_api_indexes(db=None):
         # Index content_hash (non-unique car optionnel, mais indexé pour les lookups rapides)
         _safe_index(articles, [("content_hash", ASCENDING)], "idx_content_hash")
 
+        # ── Index UNIQUE content_hash (anti-doublons) ──
+        # Bloque toute insertion d'un article au contenu identique à un existant,
+        # peu importe la formule d'article_id utilisée par le scraper.
+        # Sparse → ignore les docs sans content_hash (les anciens, les RSS sans contenu).
+        # Si la création échoue parce qu'il y a déjà des doublons, on log clairement
+        # et on continue (l'index non-unique ci-dessus reste en place).
+        try:
+            articles.create_index(
+                [("content_hash", ASCENDING)],
+                name="idx_content_hash_unique",
+                unique=True,
+                sparse=True,
+                background=True,
+            )
+            logger.info("✅ Index unique content_hash créé (anti-doublons)")
+        except Exception as e:
+            err = str(e).lower()
+            if "already exists" in err or "exists with different" in err:
+                # OK, déjà créé lors d'un boot précédent
+                pass
+            elif "duplicate key" in err or "e11000" in err:
+                # Il y a déjà des doublons en base — on ne peut pas créer l'index
+                # tant qu'ils ne sont pas nettoyés. L'index non-unique reste actif.
+                logger.error(
+                    "❌ Index unique content_hash IMPOSSIBLE — doublons existants. "
+                    "L'index continuera de bloquer les NOUVEAUX doublons une fois la base assainie. "
+                    "Détails de l'erreur : %s",
+                    str(e)[:200],
+                )
+            else:
+                logger.warning(f"⚠️ Index unique content_hash: {e}")
+
         # ── TTL : suppression automatique des vieux articles (120 jours) ──
         # Réduit le stockage Atlas Flex qui grossit à l'infini
         try:

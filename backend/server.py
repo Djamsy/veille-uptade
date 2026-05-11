@@ -173,7 +173,8 @@ app = FastAPI(
 from starlette.middleware.gzip import GZipMiddleware
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
-# CORS — liste explicite (jamais "*" avec credentials, refusé par la spec fetch)
+# CORS — liste explicite + regex pour les previews Vercel
+# (jamais "*" avec credentials, refusé par la spec fetch)
 # Surcharge possible via la variable d'env CORS_ORIGINS (CSV).
 _DEFAULT_CORS_ORIGINS = [
     "http://localhost:3000",
@@ -184,9 +185,20 @@ if _cors_env:
     ALLOWED_ORIGINS = [o.strip().rstrip("/") for o in _cors_env.split(",") if o.strip()]
 else:
     ALLOWED_ORIGINS = _DEFAULT_CORS_ORIGINS
+
+# Regex pour autoriser tous les déploiements preview Vercel du projet :
+#   https://veille-uptade-<hash>-<org>.vercel.app
+#   https://veille-uptade-<branch>.vercel.app
+# Surcharge possible via CORS_ORIGIN_REGEX.
+_CORS_REGEX = os.environ.get(
+    "CORS_ORIGIN_REGEX",
+    r"^https://veille-uptade[a-z0-9\-]*\.vercel\.app$",
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=_CORS_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

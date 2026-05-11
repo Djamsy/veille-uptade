@@ -1150,15 +1150,16 @@ export const fetchPublicationStatus = () =>
 export const fetchSocialStatsStatus = () =>
   apiFetch<{ configured: boolean; platforms: string[]; frequency: string }>('/api/social-stats/status');
 
+// Actions destructives → adminFetch (header Authorization requis depuis le passage admin-only)
 export const triggerGlobalScrape = () =>
-  apiFetch<{ ok: boolean; updated?: number; created?: number; error?: string }>('/api/social-stats/scrape', { method: 'POST' });
+  adminFetch<{ ok: boolean; updated?: number; created?: number; error?: string }>('/api/social-stats/scrape', { method: 'POST' });
 
 export const scrapePostStats = (postId: string) =>
-  apiFetch<{ ok: boolean; stats?: Record<string, number>; comments_count?: number; error?: string }>(
+  adminFetch<{ ok: boolean; stats?: Record<string, number>; comments_count?: number; error?: string }>(
     `/api/social-stats/scrape-post/${postId}`, { method: 'POST' }
   );
 
 export const syncBufferStats = () =>
-  apiFetch<{ ok: boolean; updated?: number; created?: number; platforms?: Record<string, unknown>; error?: string }>(
+  adminFetch<{ ok: boolean; updated?: number; created?: number; platforms?: Record<string, unknown>; error?: string }>(
     '/api/social-stats/buffer-sync', { method: 'POST' }
   );

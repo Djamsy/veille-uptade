@@ -149,6 +149,32 @@ Décision Djamsy : avant de basculer sur un modèle « affaires journalières »
 4. Observer : combien d'affaires sont créées, combien d'articles sont absorbés vs bloqués, et pour quelles raisons.
 5. Si la « raison de blocage » majoritaire est `commune_diff` ou `theme_incoherent`, c'est que les gardes-fous tiennent. Si on voit beaucoup de fusions cluster→affaire avec des thèmes hétéroclites, le modèle est toujours problématique → basculer en daily affairs.
 
+### LIVRÉ — fix doublons articles (étape 9)
+
+**Diagnostic posé sur l'affaire 69fb912e... (Goyave + 187 morts antidrogue)**
+- Affaire montrant 4× le même article Goyave de La 1ère, 2× le 187 morts, 2× le RN1 Goyave
+- Cause racine identifiée : **3 formules d'article_id différentes** dans le code
+  - `scraper_service.py:319` : `md5(url:title)[:12]`
+  - `server.py:481` : `ART-{md5(url:title)[:12].upper()}`
+  - `enhanced_scraper_with_themes.py:205` + `national_scrap.py:219` : `{site_key}_{md5(url).hex()}`
+- Le même article scrapé par 2 pipelines différents reçoit 2 IDs distincts → l'index unique sur `article_id` ne détecte pas la collision → insertion dupliquée
+- Effet de bord : 4 versions du même article gonflent artificiellement le score de matching cluster→affaire, le garde-fou ea88e5f n'arrive pas à filtrer
+
+**Fix livré** (option 1 choisie par Djamsy)
+- `backend/db.py` : ajout d'un index UNIQUE sparse sur `content_hash` (`idx_content_hash_unique`)
+- Bloque toute insertion future d'un article au contenu identique, peu importe la formule d'article_id
+- Création tente avec gestion d'erreur : si des doublons existent déjà en base, l'index unique échoue à se créer mais l'index non-unique reste, et le log indique clairement la situation
+- Rejets futurs visibles dans les logs Render (DuplicateKeyError E11000)
+
+**À surveiller après déploiement**
+- Logs Render au boot : « ✅ Index unique content_hash créé » (succès) ou « ❌ Index unique content_hash IMPOSSIBLE — doublons existants » (échec, duplicatas legacy)
+- Si échec → on bascule sur une étape de dédoublonnage (option 3 non implémentée pour l'instant)
+- Effet attendu : zéro nouveau doublon dans `articles_guadeloupe`. Les anciens doublons restent jusqu'à un éventuel nettoyage.
+
+**Non livré dans cette session (à décider plus tard)**
+- Unification des 3 formules d'`article_id` (option 2) — non bloquant grâce au content_hash unique
+- Script de dédoublonnage des doublons existants (option 3) — peut attendre l'analyse post-clear
+
 ### À DÉCIDER — passer aux « affaires journalières »
 Djamsy (2026-05-06) : « je crois qu'il faut complètement abandonner le suivi d'affaire dans le temps et passer en affaire journalière ».
 
