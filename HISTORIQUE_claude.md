@@ -242,6 +242,48 @@ Décision Djamsy : avant de basculer sur un modèle « affaires journalières »
 - `frontend/app/admin/presence/page.tsx`
 - `HISTORIQUE_claude.md`
 
+### LIVRÉ — Migration Buffer API (breaking change 2026-05-25)
+
+**Contexte** : Buffer annonce un changement de schéma sur l'input `assets` de `createPost`/`editPost`. L'ancien format reste accepté jusqu'au 2026-05-25, après cette date l'API renvoie une GraphQL validation error.
+
+**Avant (ancien schéma)**
+```
+assets: { images: [{ url: "..." }], videos: [{ url: "..." }] }
+```
+
+**Après (nouveau schéma)**
+```
+assets: [
+  { image: { url: "..." } },
+  { video: { url: "..." } }
+]
+```
+Notes :
+- Tableau ordonné (l'ordre détermine le carousel).
+- Clés au singulier (`image`/`video`) au lieu du pluriel.
+
+**Fix livré** dans `backend/campaign_service.py` :
+
+1. **`_build_create_post_mutation()`** (ligne ~356) — génère désormais le nouveau format array, en préservant l'ordre des `media_urls` (donc l'ordre du carousel reflète l'ordre des médias passés).
+
+2. **Parsing des stats Buffer** (lecture des posts existants, ligne ~693) — supporte les **deux shapes simultanément** :
+   - `assets` est un `list` → nouveau format, on cherche le 1er `video`/`image`.
+   - `assets` est un `dict` → ancien format, fallback sur `images[0]`/`videos[0]`.
+
+   Ce dual-mode permet de continuer à lire les posts publiés avant le 25 mai sans casser.
+
+**Validation effectuée**
+- `py_compile` OK
+- Test mutation 1 image : `[{ image: { url: "..." } }]` ✓
+- Test carousel mix 3 médias (img/vid/img) : ordre préservé ✓
+- Test sans média : pas de `assets` dans la mutation ✓
+
+**À pousser** : `backend/campaign_service.py` + `HISTORIQUE_claude.md`.
+
+**Risque résiduel**
+- Si Buffer change aussi le schéma de `editPost`, on l'a déjà couvert puisque le helper est partagé. Mais à vérifier dans le commit que tu as déjà sur `editPost` si différent.
+- L'introspection `/api/debug/buffer-enums` (commit e19b3b8) renvoie peut-être encore l'ancien type — pas bloquant, c'est juste de la doc.
+
 ### À DÉCIDER — passer aux « affaires journalières »
 Djamsy (2026-05-06) : « je crois qu'il faut complètement abandonner le suivi d'affaire dans le temps et passer en affaire journalière ».
 

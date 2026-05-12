@@ -358,42 +358,36 @@ def _build_create_post_mutation(text: str, channel_id: str, service: str,
                                 share_mode: str = "shareNow") -> str:
     """Construit la mutation createPost avec assets + metadata par plateforme.
 
-    Schema Buffer (introspection) :
-    - assets: { images: [{ url }], videos: [{ url }] }
+    Schema Buffer (post-migration 2026-05-12, obligatoire après 2026-05-25) :
+    - assets: [ { image: { url } } | { video: { url } } ]  (array ordonné, carousel)
     - metadata.facebook:  { type: post|story|reel }  (NON_NULL)
     - metadata.instagram: { type: post|story|reel, shouldShareToFeed: true } (NON_NULL)
     - metadata.youtube:   { title: "...", categoryId: "22" }
     - metadata.tiktok:    { title: "..." }
+
+    NB : l'ordre des items dans le tableau détermine l'ordre du carousel.
     """
     # Nettoyer le markdown / Unicode bold
     clean_text = _clean_social_text(text)
     escaped_text = clean_text.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
 
-    # ── Assets (images / videos) ──
+    # ── Assets (images / videos) — nouveau schéma array ordonné ──
     has_video = False
     has_image = False
     assets_part = ""
     if media_urls:
-        images = []
-        videos = []
+        asset_items: List[str] = []
         for url in media_urls[:4]:
-            if '/video/' in url or url.lower().endswith(('.mp4', '.mov', '.avi', '.webm')):
-                videos.append(url)
+            is_video = '/video/' in url or url.lower().endswith(('.mp4', '.mov', '.avi', '.webm'))
+            if is_video:
+                asset_items.append(f'{{ video: {{ url: "{url}" }} }}')
+                has_video = True
             else:
-                images.append(url)
-
-        has_video = bool(videos)
-        has_image = bool(images)
-        asset_items = []
-        if images:
-            img_entries = ", ".join([f'{{ url: "{u}" }}' for u in images])
-            asset_items.append(f"images: [{img_entries}]")
-        if videos:
-            vid_entries = ", ".join([f'{{ url: "{u}" }}' for u in videos])
-            asset_items.append(f"videos: [{vid_entries}]")
+                asset_items.append(f'{{ image: {{ url: "{url}" }} }}')
+                has_image = True
 
         if asset_items:
-            assets_part = f'assets: {{ {", ".join(asset_items)} }},'
+            assets_part = f'assets: [{", ".join(asset_items)}],'
 
     # ── Metadata par plateforme ──
     metadata_part = ""
@@ -689,16 +683,41 @@ def fetch_buffer_sent_posts(channel_id: str = None, limit: int = 30) -> List[Dic
                     "shares": stats_raw.get("shares", 0) or 0,
                 },
             })
-            # Extraire l'URL média
-            assets = p.get("assets") or {}
-            images = assets.get("images") or []
-            videos = assets.get("videos") or []
-            if videos:
-                all_posts[-1]["media_url"] = videos[0].get("url", "")
-                all_posts[-1]["media_type"] = "video"
-            elif images:
-                all_posts[-1]["media_url"] = images[0].get("url", "")
-                all_posts[-1]["media_type"] = "photo"
+            # Extraire l'URL média — supporte les DEUX shapes Buffer :
+            #   ancien : assets = { images: [{url}], videos: [{url}] }
+            #   nouveau (≥ 2026-05-12) : assets = [ { image:{url} } | { video:{url} } ]
+            assets = p.get("assets")
+            media_url = ""
+            media_type = ""
+            if isinstance(assets, list):
+                # Nouveau format : array ordonné, on cherche le 1er média (vidéo prioritaire)
+                first_video = next(
+                    (a.get("video") for a in assets if isinstance(a, dict) and a.get("video")),
+                    None,
+                )
+                first_image = next(
+                    (a.get("image") for a in assets if isinstance(a, dict) and a.get("image")),
+                    None,
+                )
+                if first_video:
+                    media_url = first_video.get("url", "") if isinstance(first_video, dict) else ""
+                    media_type = "video"
+                elif first_image:
+                    media_url = first_image.get("url", "") if isinstance(first_image, dict) else ""
+                    media_type = "photo"
+            elif isinstance(assets, dict):
+                # Ancien format (rétro-compat jusqu'au 2026-05-25)
+                videos = assets.get("videos") or []
+                images = assets.get("images") or []
+                if videos:
+                    media_url = videos[0].get("url", "")
+                    media_type = "video"
+                elif images:
+                    media_url = images[0].get("url", "")
+                    media_type = "photo"
+            if media_url:
+                all_posts[-1]["media_url"] = media_url
+                all_posts[-1]["media_type"] = media_type
 
         logger.info(f"📡 Buffer sentPosts: {len(posts)} posts pour {ch.get('name', cid)} ({service})")
 
