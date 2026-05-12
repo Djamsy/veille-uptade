@@ -124,10 +124,16 @@ def presence_by_commune(
     period_days: Optional[int] = Query(None, ge=1, le=3650,
         description="Fenêtre rétroactive en jours. None = pas de filtre temporel."),
     entity: Optional[str] = Query(None, description="Filtrer sur un élu (nom canonique)."),
+    event_kind: Optional[str] = Query(
+        "presence",
+        regex="^(presence|reaction|all)$",
+        description="presence (défaut, déplacements physiques) | reaction (commentaires/déclarations à distance) | all",
+    ),
     admin: dict = Depends(require_admin),
 ):
     """Agrégation par commune — base de la choropleth admin."""
-    rows = aggregate_by_commune(_presences_col(), period_days=period_days, entity=entity)
+    ek = None if event_kind == "all" else event_kind
+    rows = aggregate_by_commune(_presences_col(), period_days=period_days, entity=entity, event_kind=ek)
     # On joint avec la liste officielle pour que les communes sans présence apparaissent à 0
     by_name = {r["commune"]: r for r in rows}
     out = []
@@ -142,6 +148,7 @@ def presence_by_commune(
     return {
         "period_days": period_days,
         "entity_filter": entity,
+        "event_kind": event_kind,
         "communes": out,
         "total_presences": sum(r["count"] for r in out),
         "active_communes": sum(1 for r in out if r["count"] > 0),
@@ -152,12 +159,16 @@ def presence_by_commune(
 def presence_entity(
     entity_name: str,
     period_days: Optional[int] = Query(None, ge=1, le=3650),
+    event_kind: Optional[str] = Query(
+        "presence", regex="^(presence|reaction|all)$",
+    ),
     admin: dict = Depends(require_admin),
 ):
     """Vue par élu : ses communes + timeline."""
     if entity_name not in ELECTED_ALIASES:
         raise HTTPException(404, f"Entité inconnue : {entity_name}")
-    summary = aggregate_by_entity(_presences_col(), entity_name, period_days=period_days)
+    ek = None if event_kind == "all" else event_kind
+    summary = aggregate_by_entity(_presences_col(), entity_name, period_days=period_days, event_kind=ek)
     summary["communes"] = [
         {**c, "last_seen": _serialize_dt(c.get("last_seen"))} for c in summary["communes"]
     ]

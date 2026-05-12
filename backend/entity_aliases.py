@@ -23,7 +23,13 @@ logger = logging.getLogger("entity_aliases")
 # Clé = forme canonique, valeurs = variantes connues
 # ============================================================
 
-ELECTED_ALIASES: Dict[str, List[str]] = {
+# ============================================================
+# ALIAS MANUELS — historique, conservés comme fallback
+# La source principale est désormais elus_database (JSON officiel).
+# Le merge se fait en bas de fichier (cf. _MERGED_ELECTED_ALIASES).
+# ============================================================
+
+_MANUAL_ELECTED_ALIASES: Dict[str, List[str]] = {
     "Guy Losbar": [
         "guy losbar", "m. losbar", "losbar", "président du département",
         "president du departement", "le président losbar",
@@ -39,8 +45,8 @@ ELECTED_ALIASES: Dict[str, List[str]] = {
     ],
     "Éric Jalton": [
         "éric jalton", "eric jalton", "m. jalton", "jalton",
-        "maire de pointe-à-pitre", "maire de pointe-a-pitre",
-        "le maire jalton",
+        "maire des abymes", "maire des abymes",
+        "le maire jalton", "le maire des abymes",
     ],
     "Josette Borel-Lincertin": [
         "josette borel-lincertin", "borel-lincertin", "josette borel",
@@ -86,7 +92,8 @@ ELECTED_ALIASES: Dict[str, List[str]] = {
     ],
     "Cedric Cornet": [
         "cedric cornet", "cédric cornet", "m. cornet", "cornet",
-        "maire des abymes",
+        # NOTE 2026-05: "maire des abymes" retiré — c'est Éric Jalton (cf. ELECTED_ALIASES["Éric Jalton"]).
+        # Si Cornet est conseiller municipal des Abymes, ajouter un alias plus spécifique.
     ],
     "Jocelyn Sapotille": [
         "jocelyn sapotille", "m. sapotille", "sapotille",
@@ -186,6 +193,50 @@ ELECTED_ALIASES: Dict[str, List[str]] = {
         "conseiller départemental sainte-rose 2",
     ],
 }
+
+# ============================================================
+# ELECTED_ALIASES = base officielle (elus_database) + alias manuels
+# La base officielle est PRIORITAIRE : si un élu existe dans les deux,
+# on garde la version officielle (canonical issu de data.gouv.fr) et on
+# ne fusionne PAS les alias manuels (pour éviter de réintroduire des bugs
+# du genre « Jalton maire de Pointe-à-Pitre »).
+# Les alias manuels servent pour les élus hors-DB (sénateurs, ex-élus,
+# personnalités ministérielles qui n'apparaissent pas dans le répertoire).
+# ============================================================
+
+def _build_elected_aliases() -> Dict[str, List[str]]:
+    """Construit le dict ELECTED_ALIASES final (officiel + fallback manuel)."""
+    try:
+        try:
+            from backend.elus_database import build_aliases_index  # type: ignore
+        except ImportError:
+            from elus_database import build_aliases_index  # type: ignore
+        official = build_aliases_index()
+    except Exception as e:
+        logger.warning(f"⚠️ elus_database indisponible, fallback sur alias manuels: {e}")
+        official = {}
+
+    # Index par nom de famille normalisé pour détecter les conflits
+    def last_token(name: str) -> str:
+        return name.split()[-1].lower() if name else ""
+
+    official_lasts = {last_token(n) for n in official.keys()}
+
+    merged: Dict[str, List[str]] = dict(official)
+    for canonical, aliases in _MANUAL_ELECTED_ALIASES.items():
+        # Ne pas réintroduire un élu déjà présent dans la base officielle
+        # (évite les alias manuels périmés)
+        if canonical in merged:
+            continue
+        if last_token(canonical) in official_lasts:
+            # Probable doublon avec accent différent → on skip
+            continue
+        merged[canonical] = aliases
+    return merged
+
+
+ELECTED_ALIASES: Dict[str, List[str]] = _build_elected_aliases()
+
 
 # ============================================================
 # ALIAS STATIQUES — Institutions guadeloupéennes

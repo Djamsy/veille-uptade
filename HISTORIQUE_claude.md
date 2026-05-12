@@ -175,6 +175,73 @@ Décision Djamsy : avant de basculer sur un modèle « affaires journalières »
 - Unification des 3 formules d'`article_id` (option 2) — non bloquant grâce au content_hash unique
 - Script de dédoublonnage des doublons existants (option 3) — peut attendre l'analyse post-clear
 
+### LIVRÉ — V2 présences (étape 10 + base officielle)
+
+**Symptômes constatés par Djamsy sur `/admin/presence`**
+- Éric Jalton positionné à Capesterre-de-Marie-Galante (faux).
+- Les présences ne collent pas aux fonctions ni aux habitudes des élus.
+- Confusion entre « était sur place » et « a réagi à un événement ailleurs ».
+
+**Causes identifiées**
+1. `entity_aliases.py` contenait des **mandats périmés** : Jalton noté « maire de Pointe-à-Pitre » au lieu de « maire des Abymes », Cornet avec « maire des abymes » en doublon. Durimel noté « maire de Pointe-Noire » alors qu'il est maire de Pointe-à-Pitre.
+2. Aliases trop génériques (« le maire », « le préfet ») provoquant des faux positifs au pré-filtre.
+3. Aucune validation de proximité texte : un élu mentionné loin d'une commune dans l'article était quand même associé.
+4. Pas de distinction présence physique vs réaction à distance.
+
+**Fixes livrés (en une session)**
+
+1. **Base officielle d'élus** : Djamsy fournit 4 JSON data.gouv.fr.
+   - Script de transformation → `backend/data/elus_guadeloupe.json` (113 entries, 96 noms uniques : 32 maires + 42 conseillers départementaux + 39 conseillers régionaux).
+   - Nouveau module `backend/elus_database.py` qui :
+     - Charge le JSON au démarrage (cache LRU).
+     - Génère dynamiquement les alias (canonical, last_name si ≥5 chars, « M./Mme NOM », « maire de COMMUNE », « le maire NOM », « le président du conseil régional/départemental »).
+     - Expose `build_mandat_communes()` → mapping élu → commune principale (32 maires couverts).
+     - Expose `get_mandat_commune()` helper.
+
+2. **`entity_aliases.py` refondu**
+   - Ancien dict renommé `_MANUAL_ELECTED_ALIASES` (fallback).
+   - Nouveau `ELECTED_ALIASES` = base officielle prioritaire + alias manuels en fallback (seulement si pas de doublon par nom de famille).
+   - Cornet : alias « maire des abymes » retiré (corrigé via la DB officielle).
+
+3. **`entity_presence_service.py` V3**
+   - Constantes : `_GENERIC_ALIAS_DENYLIST` (drop « le maire », « le président », etc.), `_MIN_ALIAS_LENGTH=5`, `_MAX_ENTITY_COMMUNE_DISTANCE=280`.
+   - Nouveau champ `event_kind ∈ {"presence", "reaction"}` (issu LLM ou dérivé du presence_type).
+   - Helper `_is_useful_alias()` → drop les alias génériques au pré-filtre.
+   - Helper `_commune_search_variants()` → tolère « aux Abymes » pour « Les Abymes », « du Gosier » pour « Le Gosier ».
+   - Helper `_entity_commune_proximity()` → vérifie qu'élu et commune apparaissent à ≤ 280 chars dans le texte. Sinon rejeté.
+   - Stockage enrichi : `event_kind`, `mandat_commune`, `commune_in_mandat` (bool, pour audit).
+   - `extraction_method` passé à `"llm_v3_official_db"`.
+   - Prompt LLM réécrit : règle stricte « le nom de l'élu et la commune DOIVENT être dans la même phrase ».
+   - Agrégations (`aggregate_by_commune` / `aggregate_by_entity`) acceptent un param `event_kind`, défaut = `"presence"` (la carte ne montre que les présences physiques).
+
+4. **`presence_routes.py`**
+   - `GET /communes` et `GET /entity/{name}` acceptent `event_kind=presence|reaction|all` (défaut `presence`).
+   - Réponse exposée dans le JSON.
+
+5. **`frontend/app/admin/presence/page.tsx`**
+   - Toggle « Présences / Réactions / Les deux » (couleur emeraude, tooltips explicatifs).
+   - Le toggle reload automatiquement la carte + la table.
+
+**Effets attendus**
+- Tous les faux positifs liés à des aliases pourris (Jalton/PaP, Durimel/PNoire) disparaissent au prochain backfill ou cycle d'enrichissement.
+- Les associations « élu à 1500 chars d'une commune » sont rejetées (proximity check).
+- La carte montre par défaut UNIQUEMENT les déplacements physiques, les réactions sont accessibles via le toggle.
+- Le champ `commune_in_mandat` permettra d'auditer les présences inattendues (élu hors de sa commune).
+
+**Migration douce**
+- Les anciens documents `entity_presences` sans `event_kind` sont traités comme présences par défaut (rétro-compat).
+- Les anciens documents sans `mandat_commune` continuent de s'afficher mais sans le flag de cohérence.
+- Pour repartir sur des données fraîches : `POST /api/affairs/monitor/reset?mode=fresh` (mais ça touche aussi les affaires, pas les présences). Pour purger uniquement les présences, drop manuel de la collection `entity_presences` côté Atlas si tu veux un test propre.
+
+**À pousser (ensemble)**
+- `backend/entity_aliases.py`
+- `backend/entity_presence_service.py`
+- `backend/presence_routes.py`
+- `backend/elus_database.py` (nouveau)
+- `backend/data/elus_guadeloupe.json` (nouveau, 113 entries)
+- `frontend/app/admin/presence/page.tsx`
+- `HISTORIQUE_claude.md`
+
 ### À DÉCIDER — passer aux « affaires journalières »
 Djamsy (2026-05-06) : « je crois qu'il faut complètement abandonner le suivi d'affaire dans le temps et passer en affaire journalière ».
 

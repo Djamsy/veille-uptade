@@ -20,6 +20,7 @@ import PresenceMap from '@/components/PresenceMap'
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 
 type Period = '7' | '30' | '180' | '365' | 'all'
+type EventKind = 'presence' | 'reaction' | 'all'
 
 interface CommuneRow {
   commune: string
@@ -80,6 +81,7 @@ function fmtDate(s: string | null): string {
 
 export default function PresencePage() {
   const [period, setPeriod] = useState<Period>('30')
+  const [eventKind, setEventKind] = useState<EventKind>('presence')
   const [entityFilter, setEntityFilter] = useState<string>('')
   const [entities, setEntities] = useState<string[]>([])
   const [communes, setCommunes] = useState<CommuneRow[]>([])
@@ -99,14 +101,15 @@ export default function PresencePage() {
       .catch(e => setError(`Liste élus indisponible : ${e.message}`))
   }, [])
 
-  // Recharger à chaque changement de période ou d'entité
+  // Recharger à chaque changement de période, entité ou type d'événement
   useEffect(() => {
     setLoading(true)
     setError('')
     const qs = new URLSearchParams()
     if (periodDays != null) qs.set('period_days', String(periodDays))
     if (entityFilter) qs.set('entity', entityFilter)
-    const url = `/api/presence/communes${qs.toString() ? '?' + qs : ''}`
+    qs.set('event_kind', eventKind)
+    const url = `/api/presence/communes?${qs}`
 
     adminGet<CommunesResponse>(url)
       .then(d => {
@@ -115,7 +118,7 @@ export default function PresencePage() {
       })
       .catch(e => setError(`Chargement communes : ${e.message}`))
       .finally(() => setLoading(false))
-  }, [periodDays, entityFilter])
+  }, [periodDays, entityFilter, eventKind])
 
   // Détail entité
   useEffect(() => {
@@ -123,11 +126,12 @@ export default function PresencePage() {
       setEntityDetail(null)
       return
     }
-    const qs = periodDays != null ? `?period_days=${periodDays}` : ''
-    adminGet<EntitySummary>(`/api/presence/entity/${encodeURIComponent(entityFilter)}${qs}`)
+    const qs = new URLSearchParams({ event_kind: eventKind })
+    if (periodDays != null) qs.set('period_days', String(periodDays))
+    adminGet<EntitySummary>(`/api/presence/entity/${encodeURIComponent(entityFilter)}?${qs}`)
       .then(setEntityDetail)
       .catch(() => setEntityDetail(null))
-  }, [entityFilter, periodDays])
+  }, [entityFilter, periodDays, eventKind])
 
   async function handleBackfill() {
     setBackfilling(true)
@@ -193,6 +197,26 @@ export default function PresencePage() {
               }`}
             >
               {p === 'all' ? 'Tout' : p === '7' ? '7 j' : p === '30' ? '30 j' : p === '180' ? '6 mois' : '12 mois'}
+            </button>
+          ))}
+
+          <label className="text-sm text-gray-400 ml-4">Type :</label>
+          {([
+            { v: 'presence' as EventKind, label: 'Présences', tip: 'L\'élu était physiquement sur place' },
+            { v: 'reaction' as EventKind, label: 'Réactions', tip: 'L\'élu commente/réagit depuis ailleurs' },
+            { v: 'all' as EventKind, label: 'Les deux', tip: 'Présences + réactions' },
+          ]).map(k => (
+            <button
+              key={k.v}
+              onClick={() => setEventKind(k.v)}
+              title={k.tip}
+              className={`px-3 py-1.5 rounded text-sm border ${
+                eventKind === k.v
+                  ? 'bg-emerald-600 border-emerald-500 text-white'
+                  : 'bg-gray-900 border-gray-700 text-gray-300 hover:border-gray-500'
+              }`}
+            >
+              {k.label}
             </button>
           ))}
 
