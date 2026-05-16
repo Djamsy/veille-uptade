@@ -7,20 +7,29 @@ module.exports = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['var(--font-inter)', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        serif: ['var(--font-newsreader)', 'Newsreader', 'Georgia', 'serif'],
+        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+      },
       colors: {
-        dark: {
-          50: '#f1f5f9',
-          100: '#e2e8f0',
-          200: '#cbd5e1',
-          300: '#94a3b8',
-          400: '#64748b',
-          500: '#475569',
-          600: '#1e293b',
-          700: '#0f172a',
-          800: '#0c1220',
-          900: '#060a13',
-          950: '#030509',
+        // ── Press editorial accent palette (replaces indigo/violet) ──
+        press: {
+          DEFAULT: '#DC2626',
+          dark: '#991B1B',
+          light: '#EF4444',
         },
+        alert: {
+          DEFAULT: '#F59E0B',
+          dark: '#B45309',
+          light: '#FBBF24',
+        },
+        link: {
+          DEFAULT: '#0369A1',
+          dark: '#075985',
+          light: '#0EA5E9',
+        },
+        // ── Semantic tokens for app data ──
         gpe: {
           green: '#16a34a',
           yellow: '#eab308',
@@ -32,7 +41,13 @@ module.exports = {
           low: '#16a34a',
           medium: '#eab308',
           high: '#ef4444',
-          critical: '#dc2626',
+          critical: '#7f1d1d',
+        },
+        sentiment: {
+          positive: '#16a34a',
+          neutral: '#94a3b8',
+          negative: '#dc2626',
+          mixed: '#f59e0b',
         },
       },
       animation: {
