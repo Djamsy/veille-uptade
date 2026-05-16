@@ -32,6 +32,9 @@ import {
 } from '../lib/api'
 import { COMMUNE_COORDS } from '../lib/communes'
 import { timeAgo, themeLabel, themeColor, themeColorParts } from '../lib/formatters'
+import { ThemeBadge } from './_components/dashboard/ThemeBadge'
+import { TrendArrow } from './_components/dashboard/TrendArrow'
+import { SkeletonCard, SkeletonWidget } from './_components/dashboard/Skeletons'
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
@@ -240,29 +243,6 @@ function MapboxFullMap({
       )}
     </>
   );
-}
-
-function ThemeBadge({ theme }: { theme: string }) {
-  const [bg, color, border] = themeColorParts(theme)
-  return (
-    <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: bg, color, border: `1px solid ${border}` }}>
-      {themeLabel(theme)}
-    </span>
-  )
-}
-
-function TrendArrow({ pct }: { pct: number }) {
-  if (pct === 0) return <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.2)' }}>—</span>
-  const up = pct > 0
-  return (
-    <span className="text-[10px] font-semibold flex items-center gap-0.5" style={{ color: up ? '#34d399' : '#f87171' }}>
-      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-        style={{ transform: up ? 'rotate(0)' : 'rotate(180deg)' }}>
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-      </svg>
-      {Math.abs(pct)}%
-    </span>
-  )
 }
 
 // ── Sentiment Arc Gauge ─────────────────────────────────
@@ -715,39 +695,6 @@ function GravityDonut({ distribution }: {
             </span>
           </div>
         ))}
-      </div>
-    </div>
-  )
-}
-
-// ── Skeleton ────────────────────────────────
-function SkeletonCard() {
-  return (
-    <div className="glass-card-static p-4">
-      <div className="flex items-center justify-between mb-3">
-        <div className="skeleton h-2.5 w-20" />
-        <div className="skeleton h-5 w-5 rounded-full" />
-      </div>
-      <div className="skeleton h-8 w-16 mb-2" />
-      <div className="skeleton h-1.5 w-full mb-2 rounded-full" />
-      <div className="skeleton h-2 w-24" />
-    </div>
-  )
-}
-
-function SkeletonWidget() {
-  return (
-    <div className="glass-card-static p-5">
-      <div className="flex items-center justify-between mb-2">
-        <div className="skeleton h-2.5 w-24" />
-        <div className="skeleton h-5 w-5 rounded-full" />
-      </div>
-      <div className="skeleton h-2 w-40 mb-4" />
-      <div className="space-y-3">
-        <div className="skeleton h-3 w-full" />
-        <div className="skeleton h-3 w-4/5" />
-        <div className="skeleton h-3 w-3/5" />
-        <div className="skeleton h-3 w-4/5" />
       </div>
     </div>
   )
