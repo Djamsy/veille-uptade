@@ -636,7 +636,7 @@ export default function DashboardPage() {
 
             {/* Commune sélectionnée */}
             {selectedCommune && mapBgData[selectedCommune] && (
-              <div className={`${panelStyle} overflow-hidden`} style={{ ...panelBg, borderColor: 'rgba(99,102,241,0.3)' }}>
+              <div className={`${panelStyle} overflow-hidden`} style={{ ...panelBg, borderColor: 'rgba(220,38,38,0.3)' }}>
                 {/* Header */}
                 <div className="flex items-center justify-between p-3 border-b" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
                   <h2 className="text-sm font-bold text-white">{selectedCommune}</h2>
@@ -766,7 +766,7 @@ export default function DashboardPage() {
             {notifications.map(n => (
               <div key={n.id} className="animate-slide-up rounded-xl px-4 py-2.5 shadow-2xl text-xs font-medium flex items-center gap-2"
                 style={{
-                  background: n.type === 'hot' ? 'rgba(239,68,68,0.9)' : n.type === 'success' ? 'rgba(16,185,129,0.9)' : 'rgba(99,102,241,0.9)',
+                  background: n.type === 'hot' ? 'rgba(239,68,68,0.9)' : n.type === 'success' ? 'rgba(16,185,129,0.9)' : 'rgba(3,105,161,0.9)',
                   color: 'white',
                   backdropFilter: 'blur(12px)',
                   border: '1px solid rgba(255,255,255,0.15)',
@@ -827,8 +827,8 @@ export default function DashboardPage() {
                     {/* Sections */}
                     {summaryData.summary.sections?.map((section, si) => (
                       <div key={si}>
-                        <h3 className="text-sm font-bold mb-3 flex items-center gap-2" style={{ color: themeMode === 'light' ? '#4f46e5' : '#818cf8' }}>
-                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                        <h3 className="text-sm font-bold mb-3 flex items-center gap-2" style={{ color: themeMode === 'light' ? '#075985' : '#7dd3fc' }}>
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#0369A1' }} />
                           {section.titre}
                         </h3>
                         <div className="space-y-3 ml-3">
@@ -850,7 +850,7 @@ export default function DashboardPage() {
                               {art.contexte && <p className="opacity-50 italic text-[10px] mb-1">{art.contexte}</p>}
                               <div className="flex flex-wrap gap-1.5 mt-1">
                                 {art.communes?.map((c, ci) => (
-                                  <span key={ci} className="text-[9px] px-1.5 py-0.5 rounded-full" style={themeMode === 'light' ? { background: 'rgba(99,102,241,0.1)', color: '#4f46e5' } : { background: 'rgba(99,102,241,0.15)', color: '#a5b4fc' }}>{c}</span>
+                                  <span key={ci} className="text-[9px] px-1.5 py-0.5 rounded-full" style={themeMode === 'light' ? { background: 'rgba(3,105,161,0.1)', color: '#075985' } : { background: 'rgba(3,105,161,0.15)', color: '#7dd3fc' }}>{c}</span>
                                 ))}
                                 {art.sources?.map((s, si) => (
                                   <span key={si} className="text-[9px] px-1.5 py-0.5 rounded-full" style={themeMode === 'light' ? { background: 'rgba(245,158,11,0.1)', color: '#b45309' } : { background: 'rgba(245,158,11,0.15)', color: '#fbbf24' }}>{s}</span>
@@ -933,11 +933,11 @@ export default function DashboardPage() {
                           height: `${height}px`,
                           minWidth: '3px',
                           background: isToday
-                            ? '#6366f1'
+                            ? '#DC2626'
                             : d.articles > maxCount * 0.7
                               ? (themeMode === 'light' ? '#f59e0b' : '#fbbf24')
                               : d.articles > maxCount * 0.3
-                                ? (themeMode === 'light' ? '#6366f1' : '#818cf8')
+                                ? (themeMode === 'light' ? '#0369A1' : '#0EA5E9')
                                 : (themeMode === 'light' ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.15)'),
                           opacity: isToday ? 1 : 0.7,
                         }}
