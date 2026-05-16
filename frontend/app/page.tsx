@@ -30,27 +30,10 @@ import {
   type SummaryResponse,
   type MediaSummary,
 } from '../lib/api'
+import { COMMUNE_COORDS } from '../lib/communes'
+import { timeAgo, themeLabel, themeColor, themeColorParts } from '../lib/formatters'
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
-
-// ── Coordonnées communes Guadeloupe ─────────────────
-const COMMUNE_COORDS: Record<string, [number, number]> = {
-  'Pointe-à-Pitre': [-61.5339, 16.2411], 'Les Abymes': [-61.5028, 16.2706],
-  'Baie-Mahault': [-61.5917, 16.2678], 'Le Moule': [-61.3469, 16.3339],
-  'Sainte-Anne': [-61.3833, 16.2267], 'Saint-François': [-61.2753, 16.2536],
-  'Le Gosier': [-61.4936, 16.2133], 'Petit-Bourg': [-61.5897, 16.1933],
-  'Capesterre-Belle-Eau': [-61.5667, 16.0500], 'Sainte-Rose': [-61.6972, 16.3339],
-  'Deshaies': [-61.7917, 16.3078], 'Bouillante': [-61.7719, 16.1378],
-  'Trois-Rivières': [-61.6333, 15.9750], 'Basse-Terre': [-61.7256, 15.9978],
-  "Morne-à-l'Eau": [-61.4539, 16.3339], 'Port-Louis': [-61.5278, 16.4189],
-  'Lamentin': [-61.6333, 16.2700], 'Goyave': [-61.5800, 16.1300],
-  'Vieux-Habitants': [-61.7580, 16.0600], 'Pointe-Noire': [-61.7900, 16.2300],
-  'Saint-Claude': [-61.6900, 16.0200], 'Gourbeyre': [-61.7000, 15.9800],
-  'Vieux-Fort': [-61.7000, 15.9500], 'Marie-Galante': [-61.2700, 15.9400],
-  'La Désirade': [-61.0500, 16.3100], 'Terre-de-Haut': [-61.5900, 15.8600],
-  'Terre-de-Bas': [-61.6400, 15.8600], 'Anse-Bertrand': [-61.5000, 16.4700],
-  'Petit-Canal': [-61.4900, 16.3700],
-};
 
 // ── Mapbox 3D Map (interactif, plein écran) ─────────────
 function MapboxFullMap({
@@ -257,62 +240,6 @@ function MapboxFullMap({
       )}
     </>
   );
-}
-
-// ── Helpers ──────────────────────────────────────────────
-function timeAgo(dateStr: string): string {
-  if (!dateStr) return ''
-  const now = Date.now()
-  const then = new Date(dateStr).getTime()
-  const diff = Math.floor((now - then) / 1000)
-  if (diff < 60) return 'à l\'instant'
-  if (diff < 3600) return `il y a ${Math.floor(diff / 60)}min`
-  if (diff < 86400) return `il y a ${Math.floor(diff / 3600)}h`
-  return `il y a ${Math.floor(diff / 86400)}j`
-}
-
-function themeLabel(theme: string): string {
-  const map: Record<string, string> = {
-    politique: 'Politique', economie: 'Économie', social: 'Social',
-    economie_emploi: 'Économie', eau_env: 'Environnement',
-    energie_transports: 'Transports', sante_social: 'Santé',
-    securite_justice: 'Justice', education: 'Éducation',
-    culture_patrimoine: 'Culture', sport: 'Sport', general: 'Général',
-    environnement: 'Environnement', sante: 'Santé', justice: 'Justice',
-    culture: 'Culture', securite: 'Sécurité', infrastructure: 'Infra',
-  }
-  return map[theme] || theme
-}
-
-function themeColor(theme: string): string {
-  const map: Record<string, string> = {
-    politique: '#facc15', economie: '#34d399', social: '#93c5fd',
-    environnement: '#86efac', sante: '#fda4af', justice: '#fde68a',
-    securite: '#fca5a5', education: '#93c5fd', culture: '#f9a8d4',
-    sport: '#67e8f9', infrastructure: '#fdba74', general: '#cbd5e1',
-    economie_emploi: '#34d399', eau_env: '#86efac',
-    energie_transports: '#fdba74', sante_social: '#fda4af',
-    securite_justice: '#fde68a', culture_patrimoine: '#f9a8d4',
-  }
-  return map[theme] || '#cbd5e1'
-}
-
-function themeColorParts(theme: string): [string, string, string] {
-  const map: Record<string, string> = {
-    politique: 'rgba(22,163,74,0.12)_#facc15_rgba(22,163,74,0.25)',
-    economie: 'rgba(16,185,129,0.12)_#34d399_rgba(16,185,129,0.25)',
-    social: 'rgba(96,165,250,0.12)_#93c5fd_rgba(96,165,250,0.25)',
-    environnement: 'rgba(74,222,128,0.12)_#86efac_rgba(74,222,128,0.25)',
-    sante: 'rgba(251,113,133,0.12)_#fda4af_rgba(251,113,133,0.25)',
-    justice: 'rgba(251,191,36,0.12)_#fde68a_rgba(251,191,36,0.25)',
-    securite: 'rgba(248,113,113,0.12)_#fca5a5_rgba(248,113,113,0.25)',
-    education: 'rgba(129,140,248,0.12)_#93c5fd_rgba(129,140,248,0.25)',
-    culture: 'rgba(244,114,182,0.12)_#f9a8d4_rgba(244,114,182,0.25)',
-    sport: 'rgba(34,211,238,0.12)_#67e8f9_rgba(34,211,238,0.25)',
-    infrastructure: 'rgba(251,146,60,0.12)_#fdba74_rgba(251,146,60,0.25)',
-  }
-  const raw = map[theme] || 'rgba(148,163,184,0.12)_#cbd5e1_rgba(148,163,184,0.25)'
-  return raw.split('_') as [string, string, string]
 }
 
 function ThemeBadge({ theme }: { theme: string }) {
