@@ -30,7 +30,6 @@ import {
   type SummaryResponse,
   type MediaSummary,
 } from '../lib/api'
-import { SentimentGauge } from './_components/dashboard/SentimentGauge'
 import { TopPersonalities } from './_components/dashboard/TopPersonalities'
 import { GravityDonut } from './_components/dashboard/GravityDonut'
 import { MapboxFullMap } from './_components/dashboard/MapboxFullMap'
@@ -38,6 +37,8 @@ import { DashboardTopbar } from './_components/dashboard/DashboardTopbar'
 import { KpiStrip } from './_components/dashboard/KpiStrip'
 import { LiveFeed } from './_components/dashboard/LiveFeed'
 import { BarometreCard } from './_components/dashboard/BarometreCard'
+import { SentimentBar } from './_components/dashboard/SentimentBar'
+import { RadioCapturesPanel } from './_components/dashboard/RadioCapturesPanel'
 import {
   MOCK_AFFAIRS,
   MOCK_ENTITIES,
@@ -442,20 +443,36 @@ export default function DashboardPage() {
               }}
             >
               <div
-                className="px-3.5 py-3"
+                className="flex items-center justify-between px-3.5 py-3"
                 style={{ borderBottom: '1px solid var(--border-subtle)' }}
               >
-                <span
-                  className="font-mono text-[10px] uppercase tracking-[0.14em]"
-                  style={{ color: 'var(--text-muted)' }}
-                >
-                  Climat médiatique
-                </span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className="font-mono text-[10px] uppercase tracking-[0.14em]"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    Sentiment du jour
+                  </span>
+                  {isMockKpis && (
+                    <span
+                      className="font-mono text-[9px] uppercase tracking-[0.12em] px-1 py-0.5 rounded-sm"
+                      style={{ background: 'var(--warn-soft)', color: '#9d551f', border: '1px solid #f3dcc5' }}
+                    >
+                      Aperçu
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="p-4">
-                <SentimentGauge sentimentDist={liveSentiment} />
+              <div className="px-3.5 py-3.5">
+                <SentimentBar sentimentDist={liveSentiment} />
               </div>
             </div>
+
+            <RadioCapturesPanel
+              todayCount={radioToday.count}
+              totalCount={radioHealth.length}
+              isMock={radioToday.count === 0}
+            />
 
             {gravityDist && (
               <div
