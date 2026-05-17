@@ -45,7 +45,7 @@ function sevColor(s: Item['severity']) {
   }
 }
 
-export function LiveFeed({ affairs }: { affairs: Affair[] }) {
+export function LiveFeed({ affairs, isMock }: { affairs: Affair[]; isMock?: boolean }) {
   const items = affairsToFeed(affairs)
 
   return (
@@ -61,21 +61,31 @@ export function LiveFeed({ affairs }: { affairs: Affair[] }) {
         className="flex items-center justify-between px-3.5 py-3"
         style={{ borderBottom: '1px solid var(--border-subtle)' }}
       >
-        <span
-          className="font-mono text-[10px] uppercase tracking-[0.14em]"
-          style={{ color: 'var(--text-muted)' }}
-        >
-          Flux temps réel
-        </span>
+        <div className="flex items-center gap-2">
+          <span
+            className="font-mono text-[10px] uppercase tracking-[0.14em]"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            Flux temps réel
+          </span>
+          {isMock && (
+            <span
+              className="font-mono text-[9px] uppercase tracking-[0.12em] px-1 py-0.5 rounded-sm"
+              style={{ background: 'var(--warn-soft)', color: '#9d551f', border: '1px solid #f3dcc5' }}
+            >
+              Aperçu
+            </span>
+          )}
+        </div>
         <span
           className="inline-flex items-center gap-1.5 font-mono text-[10px]"
-          style={{ color: 'var(--positive)' }}
+          style={{ color: isMock ? 'var(--text-muted)' : 'var(--positive)' }}
         >
           <span
             className="w-1.5 h-1.5 rounded-full"
-            style={{ background: 'var(--positive)' }}
+            style={{ background: isMock ? 'var(--text-muted)' : 'var(--positive)' }}
           />
-          LIVE
+          {isMock ? 'OFFLINE' : 'LIVE'}
         </span>
       </div>
       <div className="flex-1">

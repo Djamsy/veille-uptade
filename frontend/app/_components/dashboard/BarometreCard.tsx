@@ -6,6 +6,7 @@ type Props = {
   articlesDelta?: number
   activity: DailyActivity[]
   sentimentDist: Record<string, number>
+  isMock?: boolean
 }
 
 function computeSentimentScore(dist: Record<string, number>): number {
@@ -46,7 +47,7 @@ function buildPath(values: number[], w: number, h: number, padY = 8): string {
   return d
 }
 
-export function BarometreCard({ avgBmg, articlesDelta = 0, activity, sentimentDist }: Props) {
+export function BarometreCard({ avgBmg, articlesDelta = 0, activity, sentimentDist, isMock }: Props) {
   const bmgScaled = Math.round((avgBmg || 0) * 100)
   const bmgDelta = Math.round(articlesDelta * 0.4) // proxy: scale article trend to BMG-ish delta
   const sentimentScore = computeSentimentScore(sentimentDist)
@@ -75,13 +76,21 @@ export function BarometreCard({ avgBmg, articlesDelta = 0, activity, sentimentDi
       }}
     >
       <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <span
             className="font-mono text-[10px] uppercase tracking-[0.14em]"
             style={{ color: 'var(--text-muted)' }}
           >
             Baromètre médiatique · 7 jours
           </span>
+          {isMock && (
+            <span
+              className="font-mono text-[9px] uppercase tracking-[0.12em] px-1 py-0.5 rounded-sm"
+              style={{ background: 'var(--warn-soft)', color: '#9d551f', border: '1px solid #f3dcc5' }}
+            >
+              Aperçu
+            </span>
+          )}
         </div>
         <div
           className="inline-flex font-mono text-[10px]"

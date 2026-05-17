@@ -38,6 +38,14 @@ import { DashboardTopbar } from './_components/dashboard/DashboardTopbar'
 import { KpiStrip } from './_components/dashboard/KpiStrip'
 import { LiveFeed } from './_components/dashboard/LiveFeed'
 import { BarometreCard } from './_components/dashboard/BarometreCard'
+import {
+  MOCK_AFFAIRS,
+  MOCK_ENTITIES,
+  MOCK_ENTITY_META,
+  MOCK_ACTIVITY,
+  MOCK_SENTIMENT,
+  MOCK_KPIS,
+} from './_components/dashboard/mocks'
 
 // ════════════════════════════════════════════════════════════
 // MAIN DASHBOARD
@@ -271,6 +279,17 @@ export default function DashboardPage() {
   const avgBmg = data?.avg_bmg || 0
   const cycleId = Math.floor(lastRefresh.getTime() / 60000) % 10000
 
+  // ── Mocks fallback (when backend returns nothing) ──
+  const liveAffairs = topAffairs.length > 0 ? topAffairs : MOCK_AFFAIRS
+  const livePeople = entities.length > 0 ? entities : MOCK_ENTITIES
+  const liveActivity = activity.length > 0 ? activity : MOCK_ACTIVITY
+  const liveSentiment = Object.keys(sentimentDist).length > 0 ? sentimentDist : MOCK_SENTIMENT
+  const liveBmg = (avgBmg > 0 ? avgBmg : MOCK_KPIS.bmg_scaled / 100)
+  const liveArticlesDelta = trends?.articles_trend_pct ?? (data ? 0 : MOCK_KPIS.articles_delta_pct)
+  const isMockFeed = topAffairs.length === 0
+  const isMockPeople = entities.length === 0
+  const isMockKpis = !data
+
   const openBrief = () => {
     handleGenerateSummary(summaryPeriod)
   }
@@ -306,34 +325,42 @@ export default function DashboardPage() {
               </div>
             ) : (
               <BarometreCard
-                avgBmg={avgBmg}
-                articlesDelta={trends?.articles_trend_pct ?? 0}
-                activity={activity}
-                sentimentDist={sentimentDist}
+                avgBmg={liveBmg}
+                articlesDelta={liveArticlesDelta}
+                activity={liveActivity}
+                sentimentDist={liveSentiment}
+                isMock={isMockKpis}
               />
             )}
 
             <KpiStrip
+              isMock={isMockKpis}
               kpis={[
                 {
                   label: 'Affaires actives',
-                  value: stats?.affairs_active ?? 0,
+                  value: stats?.affairs_active ?? MOCK_KPIS.affairs_active,
+                  trend: isMockKpis ? { delta: MOCK_KPIS.affairs_delta_pct, period: '%' } : undefined,
                 },
                 {
                   label: 'Urgentes ≥70',
-                  value: priorityCounts?.hot ?? 0,
-                  severity: (priorityCounts?.hot ?? 0) > 0 ? 'crit' : 'neutral',
+                  value: priorityCounts?.hot ?? MOCK_KPIS.urgents,
+                  trend: isMockKpis ? { delta: MOCK_KPIS.urgents_delta_pct, period: '%' } : undefined,
+                  severity: ((priorityCounts?.hot ?? MOCK_KPIS.urgents) > 0) ? 'crit' : 'neutral',
                 },
                 {
                   label: 'Articles · 7j',
-                  value: coverage?.total_articles_7d ?? 0,
+                  value: coverage?.total_articles_7d ?? MOCK_KPIS.articles_7d,
                   trend: trends?.articles_trend_pct != null
                     ? { delta: Math.round(trends.articles_trend_pct), period: '%' }
-                    : undefined,
+                    : isMockKpis
+                      ? { delta: MOCK_KPIS.articles_delta_pct, period: '%' }
+                      : undefined,
                 },
                 {
                   label: 'Captures radio · 24h',
-                  value: `${radioToday.count}/${radioHealth.length || 0}`,
+                  value: radioToday.count > 0
+                    ? `${radioToday.count}/${radioHealth.length || 0}`
+                    : `${MOCK_KPIS.radio_today}/${MOCK_KPIS.radio_total}`,
                 },
               ]}
             />
@@ -398,11 +425,14 @@ export default function DashboardPage() {
                 </Link>
               </div>
               <div className="p-3.5">
-                <TopPersonalities entities={entities} />
+                <TopPersonalities
+                  entities={livePeople}
+                  meta={isMockPeople ? MOCK_ENTITY_META : undefined}
+                />
               </div>
             </div>
 
-            <LiveFeed affairs={topAffairs} />
+            <LiveFeed affairs={liveAffairs} isMock={isMockFeed} />
 
             <div
               style={{
@@ -423,7 +453,7 @@ export default function DashboardPage() {
                 </span>
               </div>
               <div className="p-4">
-                <SentimentGauge sentimentDist={sentimentDist} />
+                <SentimentGauge sentimentDist={liveSentiment} />
               </div>
             </div>
 

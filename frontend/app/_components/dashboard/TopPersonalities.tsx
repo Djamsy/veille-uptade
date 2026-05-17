@@ -1,38 +1,80 @@
 import type { TopEntity } from '../../../lib/api'
 
-export function TopPersonalities({ entities }: { entities: TopEntity[] }) {
-  const colors = ['#60a5fa', '#34d399', '#facc15', '#f87171', '#c084fc', '#fb923c', '#67e8f9', '#f9a8d4']
+type Meta = {
+  role: string
+  sentiment: 'positif' | 'mitigé' | 'négatif'
+  trend: 'up' | 'flat' | 'down'
+}
 
-  if (entities.length === 0) return <p className="text-xs py-4" style={{ color: 'rgba(255,255,255,0.2)' }}>Aucune entité</p>
+const SENTIMENT_COLOR: Record<Meta['sentiment'], string> = {
+  positif: 'var(--positive)',
+  mitigé: 'var(--warning)',
+  négatif: 'var(--negative)',
+}
+
+const TREND = {
+  up: { arrow: '↗', color: 'var(--warning)' },
+  flat: { arrow: '→', color: 'var(--text-muted)' },
+  down: { arrow: '↘', color: 'var(--positive)' },
+} as const
+
+function initials(name: string): string {
+  return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+}
+
+export function TopPersonalities({
+  entities,
+  meta,
+}: {
+  entities: TopEntity[]
+  /** Optional per-name extra fields. When provided for a name, the row renders the richer editorial layout. */
+  meta?: Record<string, Meta>
+}) {
+  if (entities.length === 0) {
+    return <p className="text-xs py-4" style={{ color: 'var(--text-muted)' }}>Aucune entité</p>
+  }
 
   return (
-    <div className="space-y-2">
-      {entities.slice(0, 8).map((e, i) => {
-        const color = colors[i % colors.length]
-        const maxC = entities[0].count
-        const initials = e.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+    <div>
+      {entities.slice(0, 6).map((e, i) => {
+        const m = meta?.[e.name]
+        const isLast = i === Math.min(entities.length, 6) - 1
         return (
-          <div key={i} className="flex items-center gap-3 group">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold"
+          <div
+            key={e.name}
+            className="flex items-center gap-2.5 py-2"
+            style={{ borderBottom: isLast ? 'none' : '1px solid var(--border-subtle)' }}
+          >
+            <div
+              className="w-7 h-7 rounded-sm flex items-center justify-center text-[10px] font-semibold font-mono shrink-0"
               style={{
-                background: `${color}18`,
-                border: `1.5px solid ${color}40`,
-                color: color,
-              }}>
-              {initials}
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-secondary)',
+              }}
+            >
+              {initials(e.name)}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between mb-0.5">
-                <span className="text-xs truncate font-medium group-hover:text-white/80 transition-colors" style={{ color: 'rgba(255,255,255,0.55)' }}>{e.name}</span>
-                <span className="text-[10px] ml-2 flex-shrink-0 font-semibold" style={{ color }}>{e.count}</span>
+              <div className="text-xs font-medium truncate" style={{ color: 'var(--text)' }}>
+                {e.name}
               </div>
-              <div className="h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                <div className="h-full rounded-full transition-all duration-700" style={{
-                  width: `${(e.count / maxC) * 100}%`,
-                  background: `linear-gradient(90deg, ${color}80, ${color})`,
-                  boxShadow: `0 0 6px ${color}20`,
-                }} />
+              <div className="text-[10px] truncate" style={{ color: 'var(--text-muted)' }}>
+                {m?.role ?? `${e.count} mentions`}
               </div>
+            </div>
+            <div className="text-right shrink-0">
+              <div className="font-mono text-[11px] tabular-nums" style={{ color: 'var(--text-secondary)' }}>
+                {e.count}
+              </div>
+              {m && (
+                <div className="flex items-center gap-1 justify-end mt-0.5">
+                  <span className="w-1 h-1 rounded-full" style={{ background: SENTIMENT_COLOR[m.sentiment] }} />
+                  <span className="font-mono text-[10px]" style={{ color: TREND[m.trend].color }}>
+                    {TREND[m.trend].arrow}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         )

@@ -57,10 +57,20 @@ function Cell({ kpi }: { kpi: Kpi }) {
   )
 }
 
-export function KpiStrip({ kpis }: { kpis: Kpi[] }) {
+export function KpiStrip({ kpis, isMock }: { kpis: Kpi[]; isMock?: boolean }) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-      {kpis.map(k => <Cell key={k.label} kpi={k} />)}
+    <div className="relative">
+      {isMock && (
+        <span
+          className="absolute -top-2 right-0 font-mono text-[9px] uppercase tracking-[0.12em] px-1 py-0.5 rounded-sm z-10"
+          style={{ background: 'var(--warn-soft)', color: '#9d551f', border: '1px solid #f3dcc5' }}
+        >
+          Aperçu
+        </span>
+      )}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {kpis.map(k => <Cell key={k.label} kpi={k} />)}
+      </div>
     </div>
   )
 }
