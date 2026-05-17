@@ -5,6 +5,24 @@ import Sidebar from '../../components/Sidebar'
 import { useAuth } from '../../components/AuthGuard'
 import { changePassword } from '../../lib/api'
 
+function roleLabel(role: string): string {
+  switch (role) {
+    case 'admin': return 'Administrateur'
+    case 'editor': return 'Éditeur'
+    case 'viewer': return 'Visualiseur'
+    default: return 'Utilisateur'
+  }
+}
+
+function roleColor(role: string): string {
+  switch (role) {
+    case 'admin': return 'var(--negative)'
+    case 'editor': return 'var(--warning)'
+    case 'viewer': return 'var(--accent-link)'
+    default: return 'var(--positive)'
+  }
+}
+
 export default function ProfilePage() {
   const { user } = useAuth()
   const [currentPassword, setCurrentPassword] = useState('')
@@ -32,113 +50,126 @@ export default function ProfilePage() {
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
-    } catch (e: any) {
-      showMsg(e.message || 'Erreur lors du changement', 'error')
+    } catch (e: unknown) {
+      showMsg(e instanceof Error ? e.message : 'Erreur lors du changement', 'error')
     } finally {
       setLoading(false)
     }
   }
 
-  const roleLabel = (role: string) => {
-    switch (role) {
-      case 'admin': return 'Administrateur'
-      case 'editor': return 'Éditeur'
-      case 'viewer': return 'Visualiseur'
-      default: return 'Utilisateur'
-    }
-  }
-
-  const roleColor = (role: string) => {
-    switch (role) {
-      case 'admin': return '#dc2626'
-      case 'editor': return '#eab308'
-      case 'viewer': return '#2563eb'
-      default: return '#16a34a'
-    }
-  }
+  const role = user?.role || 'user'
+  const rColor = roleColor(role)
 
   return (
-    <div className="flex">
+    <div className="flex min-h-screen" style={{ background: 'var(--bg-base)' }}>
       <Sidebar />
-      <main className="lg:ml-16 flex-1 p-5 lg:p-8 min-h-screen">
-        <div className="max-w-2xl mx-auto animate-fade-in">
-          <h1 className="text-xl font-bold text-white tracking-tight mb-6">Mon profil</h1>
+      <main className="lg:ml-16 flex-1 overflow-y-auto">
+        <header className="px-6 lg:px-8 pt-5 pb-5" style={{ borderBottom: '1px solid var(--border)' }}>
+          <div className="font-mono text-[10px] uppercase tracking-[0.18em] mb-2" style={{ color: 'var(--text-muted)' }}>
+            Système / Profil
+          </div>
+          <h1 className="font-serif text-3xl lg:text-4xl font-medium tracking-tight italic" style={{ color: 'var(--text)' }}>
+            Mon profil
+          </h1>
+        </header>
 
-          {/* Info utilisateur */}
-          <div className="p-6 bg-white/[0.03] border border-white/[0.06] rounded-2xl mb-6">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-14 h-14 rounded-xl flex items-center justify-center text-xl font-bold text-white"
+        <div className="px-6 lg:px-8 py-6 max-w-2xl mx-auto space-y-5">
+          {/* Info user */}
+          <div
+            className="p-5"
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}
+          >
+            <div className="flex items-center gap-4">
+              <div
+                className="w-14 h-14 rounded-md grid place-items-center font-serif text-xl font-semibold"
                 style={{
-                  background: `linear-gradient(135deg, ${roleColor(user?.role || 'user')}40, ${roleColor(user?.role || 'user')}20)`,
-                  border: `1px solid ${roleColor(user?.role || 'user')}50`,
-                }}>
+                  background: 'var(--bg-elevated)',
+                  border: `1px solid ${rColor}`,
+                  color: rColor,
+                }}
+              >
                 {user?.name?.charAt(0).toUpperCase() || 'U'}
               </div>
-              <div>
-                <h2 className="text-base font-semibold text-white">{user?.name || 'Utilisateur'}</h2>
-                <p className="text-sm text-white/40">{user?.email}</p>
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider mt-1 inline-block"
-                  style={{ background: `${roleColor(user?.role || 'user')}20`, color: roleColor(user?.role || 'user'), border: `1px solid ${roleColor(user?.role || 'user')}30` }}>
-                  {roleLabel(user?.role || 'user')}
+              <div className="flex-1 min-w-0">
+                <h2 className="font-serif text-lg font-semibold tracking-tight" style={{ color: 'var(--text)' }}>
+                  {user?.name || 'Utilisateur'}
+                </h2>
+                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{user?.email}</p>
+                <span
+                  className="inline-block font-mono text-[10px] uppercase tracking-[0.14em] px-1.5 py-0.5 rounded-sm mt-2"
+                  style={{
+                    background: 'var(--bg-elevated)',
+                    color: rColor,
+                    border: `1px solid ${rColor}40`,
+                  }}
+                >
+                  {roleLabel(role)}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Changer le mot de passe */}
-          <div className="p-6 bg-white/[0.03] border border-white/[0.06] rounded-2xl">
-            <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-              <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
+          {/* Change password */}
+          <div
+            className="p-5"
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}
+          >
+            <div className="font-mono text-[10px] uppercase tracking-[0.14em] mb-3" style={{ color: 'var(--text-muted)' }}>
+              Sécurité
+            </div>
+            <h3 className="font-serif text-base font-semibold tracking-tight mb-4" style={{ color: 'var(--text)' }}>
               Changer le mot de passe
             </h3>
 
             {msg && (
-              <div className="mb-4 px-4 py-2.5 rounded-xl text-sm" style={{
-                background: msgType === 'success' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
-                border: `1px solid ${msgType === 'success' ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}`,
-                color: msgType === 'success' ? '#34d399' : '#f87171',
-              }}>
+              <div
+                className="mb-4 px-4 py-2.5 text-xs"
+                style={{
+                  background: msgType === 'success' ? 'var(--ok-soft)' : 'var(--crit-soft)',
+                  color: msgType === 'success' ? '#3d6f44' : '#b02939',
+                  border: `1px solid ${msgType === 'success' ? '#cce5d0' : '#f5d4d9'}`,
+                  borderRadius: 'var(--radius-sm)',
+                }}
+              >
                 {msg}
               </div>
             )}
 
             <div className="space-y-3">
-              <div>
-                <label className="block text-[10px] text-white/40 uppercase tracking-wider mb-1">Mot de passe actuel</label>
-                <input
-                  type="password"
-                  value={currentPassword}
-                  onChange={e => setCurrentPassword(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="Entrez votre mot de passe actuel"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] text-white/40 uppercase tracking-wider mb-1">Nouveau mot de passe</label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={e => setNewPassword(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="6 caractères minimum"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] text-white/40 uppercase tracking-wider mb-1">Confirmer le nouveau mot de passe</label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={e => setConfirmPassword(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="Confirmez le mot de passe"
-                />
-              </div>
+              {[
+                { label: 'Mot de passe actuel', value: currentPassword, setter: setCurrentPassword, placeholder: 'Entrez votre mot de passe actuel' },
+                { label: 'Nouveau mot de passe', value: newPassword, setter: setNewPassword, placeholder: '6 caractères minimum' },
+                { label: 'Confirmer', value: confirmPassword, setter: setConfirmPassword, placeholder: 'Confirmez le mot de passe' },
+              ].map(field => (
+                <div key={field.label}>
+                  <label
+                    className="block font-mono text-[10px] uppercase tracking-[0.14em] mb-1.5"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    {field.label}
+                  </label>
+                  <input
+                    type="password"
+                    value={field.value}
+                    onChange={e => field.setter(e.target.value)}
+                    placeholder={field.placeholder}
+                    className="w-full px-3 py-2 text-sm focus:outline-none"
+                    style={{
+                      background: 'var(--bg-surface)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-sm)',
+                      color: 'var(--text)',
+                    }}
+                  />
+                </div>
+              ))}
               <button
                 onClick={handleChangePassword}
                 disabled={loading || !currentPassword || !newPassword || !confirmPassword}
-                className="w-full mt-2 px-5 py-2.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-500 disabled:opacity-40 transition flex items-center justify-center gap-2"
+                className="w-full mt-2 px-4 py-2.5 text-sm font-semibold rounded-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                style={{ background: 'var(--accent-press)', color: '#fafafa', border: '1px solid var(--accent-press)' }}
               >
-                {loading && <span className="animate-spin w-4 h-4 border-2 border-white/50 border-t-white rounded-full" />}
+                {loading && <span className="animate-spin w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full" />}
                 Mettre à jour le mot de passe
               </button>
             </div>
