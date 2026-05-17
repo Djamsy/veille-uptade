@@ -4,193 +4,133 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Sidebar from '../../../components/Sidebar'
-import { fetchAffairDetail, recalculateBmg, generateAffairContext, fetchAffairContext, type Affair, type AffairContext, type TimelineEvent, type BmgDetails, type LinkedArticle, type LinkedRadio, type LinkedSocial } from '../../../lib/api'
+import {
+  fetchAffairDetail,
+  recalculateBmg,
+  generateAffairContext,
+  fetchAffairContext,
+  type Affair,
+  type AffairContext,
+  type TimelineEvent,
+  type BmgDetails,
+  type LinkedArticle,
+  type LinkedRadio,
+  type LinkedSocial,
+} from '../../../lib/api'
+import { timeAgo, themeLabel } from '../../../lib/formatters'
 
-// ── Helpers ──────────────────────────────────────────────
-function timeAgo(dateStr: string): string {
-  const now = Date.now()
-  const then = new Date(dateStr).getTime()
-  const diff = Math.floor((now - then) / 1000)
-  if (diff < 60) return "à l'instant"
-  if (diff < 3600) return `il y a ${Math.floor(diff / 60)}min`
-  if (diff < 86400) return `il y a ${Math.floor(diff / 3600)}h`
-  return `il y a ${Math.floor(diff / 86400)}j`
-}
-
-function formatDate(dateStr: string): string {
+function formatDate(s: string): string {
   try {
-    return new Date(dateStr).toLocaleDateString('fr-FR', {
-      day: 'numeric', month: 'long', year: 'numeric',
-      hour: '2-digit', minute: '2-digit',
-    })
-  } catch { return dateStr }
+    return new Date(s).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  } catch { return s }
 }
 
-function themeLabel(theme: string): string {
-  const map: Record<string, string> = {
-    politique: 'Politique', economie: 'Économie', social: 'Social',
-    environnement: 'Environnement', sante: 'Santé', justice: 'Justice',
-    education: 'Éducation', culture: 'Culture', sport: 'Sport',
-    securite: 'Sécurité', infrastructure: 'Infrastructure', general: 'Général',
-  }
-  return map[theme] || theme
+function gravityColor(pct: number): string {
+  if (pct >= 70) return 'var(--negative)'
+  if (pct >= 50) return 'var(--warning)'
+  if (pct >= 25) return 'var(--caution)'
+  return 'var(--positive)'
 }
 
-function themeColor(theme: string): string {
-  const map: Record<string, string> = {
-    politique: 'bg-[rgba(22,163,74,0.15)] text-[#facc15] border-[rgba(22,163,74,0.3)]',
-    economie: 'bg-[rgba(16,185,129,0.15)] text-[#6ee7b7] border-[rgba(16,185,129,0.3)]',
-    social: 'bg-[rgba(59,130,246,0.15)] text-[#93c5fd] border-[rgba(59,130,246,0.3)]',
-    sante: 'bg-[rgba(244,63,94,0.15)] text-[#fb7185] border-[rgba(244,63,94,0.3)]',
-    justice: 'bg-[rgba(217,119,6,0.15)] text-[#fbbf24] border-[rgba(217,119,6,0.3)]',
-    securite: 'bg-[rgba(239,68,68,0.15)] text-[#fca5a5] border-[rgba(239,68,68,0.3)]',
-  }
-  return map[theme] || 'bg-[rgba(255,255,255,0.04)] text-[rgba(255,255,255,0.35)] border-[rgba(255,255,255,0.06)]'
+type SentimentKind = 'crit' | 'warn' | 'caution' | 'ok' | 'neutral'
+function sentimentKind(s?: string): SentimentKind {
+  const l = (s || '').toLowerCase()
+  if (l.startsWith('très négatif') || l.startsWith('tres negatif')) return 'crit'
+  if (l.includes('négatif') || l.includes('negatif')) return 'warn'
+  if (l.includes('mitigé') || l.includes('mixte')) return 'caution'
+  if (l.includes('positif')) return 'ok'
+  return 'neutral'
 }
 
-// ── Canal bar ────────────────────────────────────────────
+const SENT_STYLE: Record<SentimentKind, { bg: string; color: string; border: string }> = {
+  crit:    { bg: 'var(--crit-soft)',   color: '#b02939', border: '#f5d4d9' },
+  warn:    { bg: 'var(--warn-soft)',   color: '#9d551f', border: '#f3dcc5' },
+  caution: { bg: 'var(--caution-soft)',color: '#8a7218', border: '#ecdfa9' },
+  ok:      { bg: 'var(--ok-soft)',     color: '#3d6f44', border: '#cce5d0' },
+  neutral: { bg: 'var(--bg-elevated)', color: 'var(--text-muted)', border: 'var(--border)' },
+}
+
 function CanalBar({ canal, value, max }: { canal: string; value: number; max: number }) {
   const pct = max > 0 ? (value / max) * 100 : 0
   const colors: Record<string, string> = {
-    presse: 'bg-teal-500 shadow-lg shadow-teal-500/20',
-    radio: 'bg-amber-500 shadow-lg shadow-amber-500/20',
-    tv: 'bg-purple-500 shadow-lg shadow-purple-500/20',
-    social: 'bg-pink-500 shadow-lg shadow-pink-500/20',
+    presse: 'var(--accent-link)',
+    radio: 'var(--warning)',
+    tv: 'var(--negative)',
+    social: 'var(--positive)',
   }
   return (
-    <div className="flex items-center gap-3">
-      <span className="text-xs text-[rgba(255,255,255,0.5)] w-14 capitalize">{canal}</span>
-      <div className="flex-1 bg-[rgba(255,255,255,0.06)] rounded-full h-2 progress-bar-bg">
+    <div className="flex items-center gap-3 text-xs">
+      <span className="capitalize w-14" style={{ color: 'var(--text-muted)' }}>{canal}</span>
+      <div className="flex-1 h-1.5 rounded-sm" style={{ background: 'var(--bg-elevated)' }}>
         <div
-          className={`h-2 rounded-full ${colors[canal] || 'bg-slate-500'} transition-all duration-500`}
-          style={{ width: `${Math.max(pct, 2)}%` }}
+          className="h-full rounded-sm transition-all duration-500"
+          style={{ width: `${Math.max(pct, 2)}%`, background: colors[canal] || 'var(--text-muted)' }}
         />
       </div>
-      <span className="text-xs text-[rgba(255,255,255,0.5)] w-8 text-right">{value.toFixed(1)}</span>
+      <span className="font-mono tabular-nums w-10 text-right" style={{ color: 'var(--text-secondary)' }}>{value.toFixed(1)}</span>
     </div>
   )
 }
 
-// ── Timeline item ────────────────────────────────────────
-function TimelineItem({ event }: { event: TimelineEvent }) {
-  const iconByEvent: Record<string, string> = {
-    created: 'bg-emerald-500',
-    promoted: 'bg-teal-500',
-    bmg_updated: 'bg-amber-500',
-    status_changed: 'bg-purple-500',
-    item_added: 'bg-[rgba(255,255,255,0.3)]',
-  }
-  const color = iconByEvent[event.event] || 'bg-[rgba(255,255,255,0.3)]'
-
-  return (
-    <div className="flex gap-3">
-      <div className="flex flex-col items-center">
-        <div className={`w-2.5 h-2.5 rounded-full ${color}`} />
-        <div className="w-px flex-1 bg-[rgba(255,255,255,0.1)]" />
-      </div>
-      <div className="pb-4 flex-1">
-        <p className="text-xs font-medium text-[rgba(255,255,255,0.5)]">{event.event.replace(/_/g, ' ')}</p>
-        <p className="text-[10px] text-[rgba(255,255,255,0.35)]">{formatDate(event.timestamp)}</p>
-        {event.details && Object.keys(event.details).length > 0 && (
-          <div className="mt-1 text-[10px] text-[rgba(255,255,255,0.35)] glass-card-static rounded p-2">
-            {Object.entries(event.details).slice(0, 4).map(([k, v]) => (
-              <div key={k}><span className="text-[rgba(255,255,255,0.35)]">{k}:</span> {String(v)}</div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ════════════════════════════════════════════════════════════
-// MAIN PAGE
-// ════════════════════════════════════════════════════════════
 export default function AffairDetailPage() {
-  const params = useParams()
+  const { id } = useParams() as { id: string }
   const router = useRouter()
-  const id = params.id as string
 
   const [affair, setAffair] = useState<Affair | null>(null)
   const [timeline, setTimeline] = useState<TimelineEvent[]>([])
   const [bmgLive, setBmgLive] = useState<BmgDetails | null>(null)
-  const [linkedArticles, setLinkedArticles] = useState<LinkedArticle[]>([])
-  const [linkedRadio, setLinkedRadio] = useState<LinkedRadio[]>([])
-  const [linkedSocial, setLinkedSocial] = useState<LinkedSocial[]>([])
+  const [articles, setArticles] = useState<LinkedArticle[]>([])
+  const [radio, setRadio] = useState<LinkedRadio[]>([])
+  const [social, setSocial] = useState<LinkedSocial[]>([])
+  const [ctx, setCtx] = useState<AffairContext | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [recalculating, setRecalculating] = useState(false)
-  const [aiContext, setAiContext] = useState<AffairContext | null>(null)
-  const [contextLoading, setContextLoading] = useState(false)
-  const [contextError, setContextError] = useState('')
+  const [busy, setBusy] = useState('')
 
-  const loadDetail = useCallback(async () => {
+  const load = useCallback(async () => {
+    setLoading(true)
     try {
       const data = await fetchAffairDetail(id)
       setAffair(data.affair)
       setTimeline(data.timeline || [])
-      setBmgLive(data.bmg_live || null)
-      setLinkedArticles(data.linked_articles || [])
-      setLinkedRadio(data.linked_radio || [])
-      setLinkedSocial(data.linked_social || [])
-      setError('')
-      // Charger le contexte IA si disponible
+      setBmgLive(data.bmg_live)
+      setArticles(data.linked_articles || [])
+      setRadio(data.linked_radio || [])
+      setSocial(data.linked_social || [])
       try {
-        const ctx = await fetchAffairContext(id)
-        setAiContext(ctx)
-      } catch { /* pas de contexte, OK */ }
-    } catch (e: any) {
-      setError(e.message || 'Erreur de chargement')
+        const c = await fetchAffairContext(id)
+        setCtx(c)
+      } catch { /* ignore */ }
+      setError('')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Erreur de chargement')
     } finally {
       setLoading(false)
     }
   }, [id])
 
-  useEffect(() => { loadDetail() }, [loadDetail])
+  useEffect(() => { load() }, [load])
 
-  const handleGenerateContext = async () => {
-    setContextLoading(true)
-    setContextError('')
-    try {
-      const result = await generateAffairContext(id)
-      setAiContext(result.ai_context)
-      if (result.gravity_adjusted || result.sentiment_updated) {
-        await loadDetail() // Recharger si gravité/sentiment modifiés
-      }
-    } catch (e: any) {
-      setContextError(e.message || 'Erreur de génération')
-    } finally {
-      setContextLoading(false)
-    }
+  const handleRecalcBmg = async () => {
+    setBusy('bmg')
+    try { await recalculateBmg(id); await load() }
+    catch (e) { console.error(e) }
+    finally { setBusy('') }
   }
 
-  const handleRecalculate = async () => {
-    setRecalculating(true)
-    try {
-      const result = await recalculateBmg(id)
-      if (result.bmg) setBmgLive(result.bmg)
-      await loadDetail()
-    } catch (e: any) {
-      console.error('Recalculate error:', e)
-    } finally {
-      setRecalculating(false)
-    }
+  const handleGenerateCtx = async () => {
+    setBusy('ctx')
+    try { await generateAffairContext(id); await load() }
+    catch (e) { console.error(e) }
+    finally { setBusy('') }
   }
 
-  // ── Loading ──────────────────────────────────────
   if (loading) {
     return (
-      <div className="flex">
+      <div className="flex min-h-screen" style={{ background: 'var(--bg-base)' }}>
         <Sidebar />
-        <main className="lg:ml-16 flex-1 p-4 lg:p-8 pb-24 lg:pb-8 min-h-screen">
-          <div className="max-w-5xl mx-auto">
-            <div className="skeleton h-6 w-40 mb-6" />
-            <div className="skeleton h-48 w-full mb-6 rounded-xl" />
-            <div className="grid grid-cols-2 gap-4">
-              <div className="skeleton h-32 rounded-xl" />
-              <div className="skeleton h-32 rounded-xl" />
-            </div>
-          </div>
+        <main className="lg:ml-16 flex-1 p-8 font-mono text-xs animate-pulse" style={{ color: 'var(--text-muted)' }}>
+          Chargement…
         </main>
       </div>
     )
@@ -198,509 +138,347 @@ export default function AffairDetailPage() {
 
   if (error || !affair) {
     return (
-      <div className="flex">
+      <div className="flex min-h-screen" style={{ background: 'var(--bg-base)' }}>
         <Sidebar />
-        <main className="lg:ml-16 flex-1 p-4 lg:p-8 pb-24 lg:pb-8 min-h-screen bg-gradient-to-b from-[#06060a] to-[#0f0f14]">
-          <div className="max-w-5xl mx-auto text-center py-20">
-            <p className="text-red-400 mb-4">{error || 'Affaire introuvable'}</p>
-            <button onClick={() => router.push('/affairs')} className="text-teal-400 hover:text-teal-300 text-sm transition-colors">
-              Retour aux affaires
-            </button>
+        <main className="lg:ml-16 flex-1 p-8">
+          <div className="max-w-xl">
+            <Link href="/affairs" className="inline-flex items-center gap-1 text-xs font-mono mb-4" style={{ color: 'var(--accent-link)' }}>
+              ← Affaires
+            </Link>
+            <div
+              className="px-4 py-3 text-xs"
+              style={{ background: 'var(--crit-soft)', color: '#b02939', border: '1px solid #f5d4d9', borderRadius: 'var(--radius-sm)' }}
+            >
+              {error || 'Affaire introuvable'}
+            </div>
           </div>
         </main>
       </div>
     )
   }
 
-  const bmg = bmgLive || affair.bmg_details
-  const maxCanal = bmg ? Math.max(...Object.values(bmg.bnp_by_canal || {}), 1) : 1
+  const gravity = Math.round(affair.gravity_score * 100)
+  const bmg = Math.round(affair.bmg * 100)
+  const bmgValues = bmgLive ? Object.values(bmgLive.bnp_by_canal) : []
+  const maxCanal = Math.max(...bmgValues, 1)
+  const sentS = SENT_STYLE[sentimentKind(affair.sentiment)]
 
   return (
-    <div className="flex">
+    <div className="flex min-h-screen" style={{ background: 'var(--bg-base)' }}>
       <Sidebar />
-      <main className="lg:ml-16 flex-1 p-4 lg:p-8 pb-24 lg:pb-8 min-h-screen bg-gradient-to-b from-[#06060a] to-[#0f0f14]">
-        <div className="max-w-5xl mx-auto animate-fade-in">
-
-          {/* ── Breadcrumb ────────────────────── */}
-          <div className="flex items-center gap-2 text-xs text-[rgba(255,255,255,0.35)] mb-6">
-            <Link href="/affairs" className="hover:text-[rgba(255,255,255,0.5)] transition-colors">Affaires</Link>
-            <span>/</span>
-            <span className="text-[rgba(255,255,255,0.35)]">{affair.title || affair.primary_entity}</span>
-          </div>
-
-          {/* ── Header Card ───────────────────── */}
-          <div className="glass-card border border-[rgba(255,255,255,0.08)] p-6 mb-6">
-            <div className="flex flex-col lg:flex-row items-start justify-between gap-6">
-              <div className="flex-1">
-                <h1 className="text-xl font-bold text-white mb-2">
-                  {affair.title || affair.primary_entity || 'Affaire'}
-                </h1>
-                {affair.description && (
-                  <p className="text-sm text-[rgba(255,255,255,0.5)] mb-4">{affair.description}</p>
-                )}
-
-                {/* Tags */}
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <span className={`badge border ${themeColor(affair.theme)}`}>
-                    {themeLabel(affair.theme)}
-                  </span>
-                  <span className={`badge border ${
-                    affair.status === 'active' ? 'bg-[rgba(16,185,129,0.15)] text-[#6ee7b7] border-[rgba(16,185,129,0.3)]'
-                    : 'bg-[rgba(255,255,255,0.04)] text-[rgba(255,255,255,0.35)] border-[rgba(255,255,255,0.06)]'
-                  }`}>
-                    {affair.status}
-                  </span>
-                  <span className="badge bg-[rgba(255,255,255,0.04)] text-[rgba(255,255,255,0.35)] border border-[rgba(255,255,255,0.06)]">
-                    {affair.affair_type}
-                  </span>
-                  {affair.sentiment && affair.sentiment !== 'neutre' && (
-                    <span className={`badge border ${
-                      affair.sentiment.includes('négatif') || affair.sentiment.includes('negatif') || affair.sentiment === 'critique'
-                        ? 'bg-[rgba(239,68,68,0.15)] text-red-400 border-[rgba(239,68,68,0.3)]'
-                        : affair.sentiment === 'positif' || affair.sentiment.includes('positif')
-                        ? 'bg-[rgba(16,185,129,0.15)] text-emerald-400 border-[rgba(16,185,129,0.3)]'
-                        : 'bg-[rgba(234,179,8,0.15)] text-amber-400 border-[rgba(234,179,8,0.3)]'
-                    }`}>
-                      {affair.sentiment.includes('négatif') || affair.sentiment.includes('negatif') ? '😠' :
-                       affair.sentiment.includes('positif') ? '😊' : '😐'} {affair.sentiment}
-                    </span>
-                  )}
+      <main className="lg:ml-16 flex-1 overflow-y-auto">
+        <header className="px-6 lg:px-8 pt-5 pb-5" style={{ borderBottom: '1px solid var(--border)' }}>
+          <Link
+            href="/affairs"
+            className="inline-flex items-center gap-1 text-xs font-mono mb-3 hover:underline"
+            style={{ color: 'var(--accent-link)' }}
+          >
+            ← Affaires
+          </Link>
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="flex-1 min-w-0">
+              <div className="font-mono text-[10px] uppercase tracking-[0.18em] mb-2" style={{ color: 'var(--text-muted)' }}>
+                Affaire / Détail · {themeLabel(affair.theme)}
+              </div>
+              <h1 className="font-serif text-3xl lg:text-4xl font-medium tracking-tight italic leading-[1.1]" style={{ color: 'var(--text)' }}>
+                {affair.title || affair.primary_entity || 'Affaire'}
+              </h1>
+              {affair.description && (
+                <p className="mt-3 text-sm leading-relaxed max-w-3xl" style={{ color: 'var(--text-secondary)' }}>
+                  {affair.description}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-col items-end gap-2 shrink-0">
+              <div className="flex gap-4">
+                <div className="text-center">
+                  <div className="font-serif text-4xl font-semibold tabular-nums leading-none" style={{ color: gravityColor(gravity) }}>
+                    {gravity}
+                  </div>
+                  <div className="font-mono text-[10px] uppercase tracking-[0.14em] mt-1" style={{ color: 'var(--text-muted)' }}>
+                    Gravité
+                  </div>
                 </div>
-
-                {/* Meta */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-                  <div>
-                    <p className="text-[rgba(255,255,255,0.3)]">Créée</p>
-                    <p className="text-white">{formatDate(affair.created_at)}</p>
+                <div className="text-center">
+                  <div className="font-serif text-4xl font-semibold tabular-nums leading-none" style={{ color: gravityColor(bmg) }}>
+                    {bmg}
                   </div>
-                  <div>
-                    <p className="text-[rgba(255,255,255,0.3)]">Dernière activité</p>
-                    <p className="text-white">{timeAgo(affair.last_activity || affair.created_at)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[rgba(255,255,255,0.3)]">Items</p>
-                    <p className="text-white">{affair.item_count || 0}</p>
-                  </div>
-                  <div>
-                    <p className="text-[rgba(255,255,255,0.3)]">Gravité</p>
-                    <p className={`font-bold ${
-                      affair.gravity_score >= 0.8 ? 'text-red-400' :
-                      affair.gravity_score >= 0.5 ? 'text-orange-400' : 'text-emerald-400'
-                    }`}>{Math.round(affair.gravity_score * 100)}%</p>
+                  <div className="font-mono text-[10px] uppercase tracking-[0.14em] mt-1" style={{ color: 'var(--text-muted)' }}>
+                    BMG
                   </div>
                 </div>
               </div>
-
-              {/* BMG Gauge large */}
-              <div className="flex flex-col items-center gap-2">
-                <div className="w-[120px] h-[120px] rounded-full flex items-center justify-center text-2xl font-bold"
-                  style={{
-                    background: `conic-gradient(#22d3ee ${(affair.bmg || 0) * 100}%, rgba(255,255,255,0.05) 0)`,
-                    color: '#22d3ee',
-                  }}>
-                  <div className="w-24 h-24 rounded-full flex flex-col items-center justify-center" style={{ background: 'var(--bg, #0a0f1a)' }}>
-                    <span>{Math.round((affair.bmg || 0) * 100)}</span>
-                    <span className="text-[9px] text-white/40 font-normal">{bmg?.niveau_alerte || 'BMG'}</span>
-                  </div>
-                </div>
+              <div className="flex gap-2">
                 <button
-                  onClick={handleRecalculate}
-                  disabled={recalculating}
-                  className="text-[10px] text-teal-400 hover:text-teal-300 disabled:opacity-50 transition-colors"
+                  onClick={handleRecalcBmg}
+                  disabled={busy === 'bmg'}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-sm transition-colors hover:bg-ink-100 disabled:opacity-50"
+                  style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
                 >
-                  {recalculating ? 'Calcul...' : 'Recalculer BMG'}
+                  {busy === 'bmg' ? 'Calcul…' : 'Recalculer BMG'}
+                </button>
+                <button
+                  onClick={handleGenerateCtx}
+                  disabled={busy === 'ctx'}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-sm transition-colors disabled:opacity-50"
+                  style={{ background: 'var(--accent-press)', color: '#fafafa', border: '1px solid var(--accent-press)' }}
+                >
+                  {busy === 'ctx' ? 'Génération…' : 'Analyse IA'}
                 </button>
               </div>
             </div>
           </div>
 
-          {/* ── Encart Contexte IA ────────────── */}
-          <div className="glass-card border border-[rgba(255,255,255,0.08)] p-5 mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                <span className="text-lg">🧠</span>
-                Contexte IA
-              </h3>
-              <button
-                onClick={handleGenerateContext}
-                disabled={contextLoading}
-                className={`text-xs px-3 py-1.5 rounded-lg transition-all ${
-                  contextLoading
-                    ? 'bg-[rgba(255,255,255,0.04)] text-[rgba(255,255,255,0.25)] cursor-wait'
-                    : aiContext
-                    ? 'bg-[rgba(16,185,129,0.1)] text-teal-400 hover:bg-[rgba(16,185,129,0.2)] border border-[rgba(16,185,129,0.3)]'
-                    : 'bg-[rgba(139,92,246,0.15)] text-purple-400 hover:bg-[rgba(139,92,246,0.25)] border border-[rgba(139,92,246,0.3)]'
-                }`}
+          {/* Meta chips */}
+          <div className="flex flex-wrap gap-1.5 mt-4">
+            {affair.sentiment && (
+              <span
+                className="inline-flex items-center gap-1.5 text-[10px] font-medium px-1.5 py-0.5 rounded-sm"
+                style={{ background: sentS.bg, color: sentS.color, border: `1px solid ${sentS.border}` }}
               >
-                {contextLoading ? (
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin" />
-                    Analyse en cours...
-                  </span>
-                ) : aiContext ? 'Regénérer' : 'Générer le contexte'}
-              </button>
-            </div>
-
-            {contextError && (
-              <p className="text-xs text-red-400 mb-3">{contextError}</p>
+                <span className="w-1 h-1 rounded-full" style={{ background: sentS.color }} />
+                {affair.sentiment}
+              </span>
             )}
+            <span
+              className="text-[10px] font-medium px-1.5 py-0.5 rounded-sm font-mono"
+              style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+            >
+              {affair.item_count} items
+            </span>
+            <span
+              className="text-[10px] font-medium px-1.5 py-0.5 rounded-sm font-mono"
+              style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+            >
+              {(affair.sources || []).length} sources
+            </span>
+            {affair.elected?.map(e => (
+              <span
+                key={e}
+                className="text-[10px] font-medium px-1.5 py-0.5 rounded-sm"
+                style={{ background: 'var(--info-soft)', color: '#2f5680', border: '1px solid #d3dde9' }}
+              >
+                {e}
+              </span>
+            ))}
+            {affair.institutions?.map(i => (
+              <span
+                key={i}
+                className="text-[10px] font-medium px-1.5 py-0.5 rounded-sm"
+                style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+              >
+                {i}
+              </span>
+            ))}
+          </div>
+        </header>
 
-            {!aiContext && !contextLoading && (
-              <p className="text-xs text-[rgba(255,255,255,0.35)] italic">
-                Cliquez sur &quot;Générer le contexte&quot; pour que l&apos;IA analyse le fond de cette affaire,
-                les enjeux, et évalue le bruit médiatique.
-              </p>
-            )}
-
-            {aiContext && (
-              <div className="space-y-4 animate-fade-in">
-                {/* Contexte principal */}
-                <div>
-                  <p className="text-xs text-[rgba(255,255,255,0.7)] leading-relaxed">
-                    {aiContext.contexte}
-                  </p>
-                </div>
-
-                {/* Métriques IA : Bruit + Sentiment */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="glass-card-static rounded-lg p-3 border border-[rgba(255,255,255,0.06)]">
-                    <p className="text-[10px] text-[rgba(255,255,255,0.3)] uppercase tracking-wider mb-1">Bruit médiatique IA</p>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 bg-[rgba(255,255,255,0.06)] rounded-full h-2">
-                        <div
-                          className={`h-2 rounded-full transition-all duration-500 ${
-                            aiContext.bruit_score >= 75 ? 'bg-red-500 shadow-lg shadow-red-500/30'
-                            : aiContext.bruit_score >= 50 ? 'bg-orange-500 shadow-lg shadow-orange-500/30'
-                            : aiContext.bruit_score >= 25 ? 'bg-amber-500 shadow-lg shadow-amber-500/30'
-                            : 'bg-emerald-500 shadow-lg shadow-emerald-500/30'
-                          }`}
-                          style={{ width: `${aiContext.bruit_score}%` }}
-                        />
-                      </div>
-                      <span className={`text-sm font-bold ${
-                        aiContext.bruit_score >= 75 ? 'text-red-400'
-                        : aiContext.bruit_score >= 50 ? 'text-orange-400'
-                        : 'text-emerald-400'
-                      }`}>{aiContext.bruit_score}</span>
-                    </div>
-                  </div>
-                  <div className="glass-card-static rounded-lg p-3 border border-[rgba(255,255,255,0.06)]">
-                    <p className="text-[10px] text-[rgba(255,255,255,0.3)] uppercase tracking-wider mb-1">Sentiment IA</p>
-                    <span className={`text-sm font-bold ${
-                      aiContext.sentiment_ia.includes('négatif') ? 'text-red-400'
-                      : aiContext.sentiment_ia.includes('positif') ? 'text-emerald-400'
-                      : aiContext.sentiment_ia === 'mitigé' ? 'text-amber-400'
-                      : 'text-[rgba(255,255,255,0.5)]'
-                    }`}>
-                      {aiContext.sentiment_ia.includes('très_négatif') ? '🔴 Très négatif'
-                       : aiContext.sentiment_ia.includes('négatif') ? '🟠 Négatif'
-                       : aiContext.sentiment_ia === 'mitigé' ? '🟡 Mitigé'
-                       : aiContext.sentiment_ia.includes('positif') ? '🟢 Positif'
-                       : '⚪ Neutre'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Enjeux */}
-                {aiContext.enjeux && aiContext.enjeux.length > 0 && (
-                  <div>
-                    <p className="text-[10px] text-[rgba(255,255,255,0.3)] uppercase tracking-wider mb-2">Enjeux clés</p>
-                    <div className="space-y-1.5">
-                      {aiContext.enjeux.map((enjeu, i) => (
-                        <div key={i} className="flex items-start gap-2">
-                          <span className="text-teal-400 text-xs mt-0.5">▸</span>
-                          <p className="text-xs text-[rgba(255,255,255,0.6)]">{enjeu}</p>
-                        </div>
+        <div className="px-6 lg:px-8 py-6 max-w-[1500px] mx-auto grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-5">
+          <section className="flex flex-col gap-5 min-w-0">
+            {ctx && (
+              <Section label="Analyse IA">
+                <p className="font-serif text-base italic leading-relaxed mb-4" style={{ color: 'var(--text-secondary)' }}>
+                  {ctx.contexte}
+                </p>
+                {ctx.enjeux?.length > 0 && (
+                  <Block label="Enjeux">
+                    <ul className="space-y-1.5">
+                      {ctx.enjeux.map((e, i) => (
+                        <li key={i} className="text-sm flex items-start gap-2" style={{ color: 'var(--text-secondary)' }}>
+                          <span className="mt-1.5 w-1 h-1 rounded-full shrink-0" style={{ background: 'var(--accent-press)' }} />
+                          {e}
+                        </li>
                       ))}
-                    </div>
-                  </div>
+                    </ul>
+                  </Block>
                 )}
-
-                {/* Historique */}
-                {aiContext.historique && (
-                  <div>
-                    <p className="text-[10px] text-[rgba(255,255,255,0.3)] uppercase tracking-wider mb-1">Historique / Précédents</p>
-                    <p className="text-xs text-[rgba(255,255,255,0.5)] leading-relaxed">{aiContext.historique}</p>
-                  </div>
+                {ctx.historique && (
+                  <Block label="Historique">
+                    <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{ctx.historique}</p>
+                  </Block>
                 )}
-
-                {/* Impact potentiel */}
-                {aiContext.impact_potentiel && (
-                  <div>
-                    <p className="text-[10px] text-[rgba(255,255,255,0.3)] uppercase tracking-wider mb-1">Impact potentiel</p>
-                    <p className="text-xs text-[rgba(255,255,255,0.5)] leading-relaxed">{aiContext.impact_potentiel}</p>
-                  </div>
+                {ctx.impact_potentiel && (
+                  <Block label="Impact potentiel">
+                    <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{ctx.impact_potentiel}</p>
+                  </Block>
                 )}
-
-                {/* Mots-clés contextuels */}
-                {aiContext.mots_cles_contexte && aiContext.mots_cles_contexte.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 pt-2 border-t border-[rgba(255,255,255,0.06)]">
-                    {aiContext.mots_cles_contexte.map((kw, i) => (
-                      <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-[rgba(139,92,246,0.1)] text-purple-300 border border-[rgba(139,92,246,0.2)]">
-                        {kw}
+                {ctx.mots_cles_contexte?.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-4 pt-3" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                    {ctx.mots_cles_contexte.map((k, i) => (
+                      <span
+                        key={i}
+                        className="font-mono text-[10px] px-1.5 py-0.5 rounded-sm"
+                        style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+                      >
+                        {k}
                       </span>
                     ))}
                   </div>
                 )}
-
-                {/* Timestamp */}
-                {aiContext.generated_at && (
-                  <p className="text-[9px] text-[rgba(255,255,255,0.2)] text-right">
-                    Généré le {formatDate(aiContext.generated_at)}
-                  </p>
-                )}
-              </div>
+              </Section>
             )}
-          </div>
 
-          {/* ── Two column layout ─────────────── */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-            {/* ── Left: BMG Details + Entities ── */}
-            <div className="lg:col-span-2 space-y-6">
-
-              {/* BMG par canal */}
-              {bmg && bmg.bnp_by_canal && (
-                <div className="glass-card border border-[rgba(255,255,255,0.08)] p-5">
-                  <h3 className="text-sm font-semibold text-white mb-4">BNP par canal</h3>
-                  <div className="space-y-3">
-                    {Object.entries(bmg.bnp_by_canal).map(([canal, val]) => (
-                      <CanalBar key={canal} canal={canal} value={val as number} max={maxCanal} />
-                    ))}
-                  </div>
-                  <div className="mt-4 pt-3 border-t border-[rgba(255,255,255,0.06)] flex items-center justify-between text-xs text-[rgba(255,255,255,0.35)]">
-                    <span>{bmg.active_canals} canaux actifs</span>
-                    {bmg.multi_canal_bonus && (
-                      <span className="text-teal-400">Bonus multi-canal actif</span>
-                    )}
-                    <span>Dominant: {bmg.dominant_canal || '—'}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* BMG History */}
-              {affair.bmg_history && affair.bmg_history.length > 1 && (
-                <div className="glass-card border border-[rgba(255,255,255,0.08)] p-5">
-                  <h3 className="text-sm font-semibold text-white mb-4">Évolution BMG</h3>
-                  <div className="flex items-end gap-1 h-24">
-                    {affair.bmg_history.slice(-20).map((h, i) => {
-                      const pct = Math.min(100, Math.max(5, h.bmg))
-                      const color = h.bmg >= 75 ? 'bg-red-500 shadow-lg shadow-red-500/20' :
-                                    h.bmg >= 50 ? 'bg-orange-500 shadow-lg shadow-orange-500/20' :
-                                    h.bmg >= 25 ? 'bg-amber-500 shadow-lg shadow-amber-500/20' : 'bg-emerald-500 shadow-lg shadow-emerald-500/20'
-                      return (
-                        <div
-                          key={i}
-                          className={`flex-1 rounded-t ${color} transition-all`}
-                          style={{ height: `${pct}%` }}
-                          title={`BMG ${Math.round(h.bmg)} — ${new Date(h.at).toLocaleDateString('fr-FR')}`}
-                        />
-                      )
-                    })}
-                  </div>
-                  <div className="flex justify-between text-[10px] text-[rgba(255,255,255,0.35)] mt-1">
-                    <span>{formatDate(affair.bmg_history[0]?.at)}</span>
-                    <span>{formatDate(affair.bmg_history[affair.bmg_history.length - 1]?.at)}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Entités */}
-              <div className="glass-card border border-[rgba(255,255,255,0.08)] p-5">
-                <h3 className="text-sm font-semibold text-white mb-3">Entités</h3>
-                <div className="space-y-4">
-                  {affair.elected && affair.elected.length > 0 && (
-                    <div>
-                      <p className="text-[10px] text-[rgba(255,255,255,0.3)] uppercase tracking-wider mb-1.5">Élus</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {affair.elected.map((e, i) => (
-                          <span key={i} className="text-xs px-2 py-1 rounded-lg bg-[rgba(22,163,74,0.1)] text-[#facc15] border border-[rgba(22,163,74,0.3)]">
-                            {e}
-                          </span>
-                        ))}
+            {articles.length > 0 && (
+              <Section label="Articles" count={articles.length}>
+                <div className="space-y-0">
+                  {articles.map((a, i) => {
+                    const g = Math.round((a.gravity_score || 0) * 100)
+                    return (
+                      <div
+                        key={a._id}
+                        className="flex items-start gap-3 py-2.5"
+                        style={{ borderBottom: i < articles.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}
+                      >
+                        <span
+                          className="font-serif text-base font-semibold tabular-nums w-10 text-center shrink-0"
+                          style={{ color: gravityColor(g) }}
+                        >
+                          {g}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <a
+                            href={a.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm font-medium hover:underline"
+                            style={{ color: 'var(--text)' }}
+                          >
+                            {a.title}
+                          </a>
+                          <div className="font-mono text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                            {a.source} · {timeAgo(a.date || a.scraped_at || '')}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  {affair.institutions && affair.institutions.length > 0 && (
-                    <div>
-                      <p className="text-[10px] text-[rgba(255,255,255,0.3)] uppercase tracking-wider mb-1.5">Institutions</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {affair.institutions.map((e, i) => (
-                          <span key={i} className="text-xs px-2 py-1 rounded-lg bg-[rgba(16,185,129,0.1)] text-[#6ee7b7] border border-[rgba(16,185,129,0.3)]">
-                            {e}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {affair.entities && affair.entities.length > 0 && (
-                    <div>
-                      <p className="text-[10px] text-[rgba(255,255,255,0.3)] uppercase tracking-wider mb-1.5">Autres entités</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {affair.entities.map((e, i) => (
-                          <span key={i} className="text-xs px-2 py-1 rounded-lg bg-[rgba(255,255,255,0.04)] text-[rgba(255,255,255,0.35)] border border-[rgba(255,255,255,0.06)]">
-                            {e}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                    )
+                  })}
                 </div>
-              </div>
+              </Section>
+            )}
 
-              {/* Sources */}
-              <div className="glass-card border border-[rgba(255,255,255,0.08)] p-5">
-                <h3 className="text-sm font-semibold text-white mb-3">Sources ({affair.sources?.length || 0})</h3>
-                <div className="flex flex-wrap gap-2">
-                  {(affair.sources || []).map((src, i) => (
-                    <span key={i} className="text-xs px-2.5 py-1 rounded-lg bg-[rgba(255,255,255,0.04)] text-[rgba(255,255,255,0.35)] border border-[rgba(255,255,255,0.06)]">
-                      {src}
-                    </span>
+            {radio.length > 0 && (
+              <Section label="Radio" count={radio.length}>
+                <div className="space-y-2.5">
+                  {radio.map(r => (
+                    <div key={r._id} className="py-1.5">
+                      <div className="flex items-baseline gap-2 mb-0.5">
+                        <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>{r.topic_title || r.radio}</span>
+                        <span className="font-mono text-[10px]" style={{ color: 'var(--text-muted)' }}>{r.radio}</span>
+                        <span className="ml-auto font-mono text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                          {timeAgo(r.captured_at || '')}
+                        </span>
+                      </div>
+                      <p className="text-xs leading-relaxed line-clamp-3" style={{ color: 'var(--text-secondary)' }}>
+                        {r.topic_summary || r.summary || r.text}
+                      </p>
+                    </div>
                   ))}
                 </div>
-                <div className="mt-3 pt-3 border-t border-[rgba(255,255,255,0.06)] text-xs text-[rgba(255,255,255,0.35)]">
-                  {linkedArticles.length} articles, {linkedRadio.length} transcriptions radio, {linkedSocial.length} posts sociaux
-                </div>
-              </div>
+              </Section>
+            )}
 
-              {/* ── Articles liés ────────────────── */}
-              {linkedArticles.length > 0 && (
-                <div className="glass-card border border-[rgba(255,255,255,0.08)] p-5">
-                  <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-teal-500 shadow-lg shadow-teal-500/30" />
-                    Articles ({linkedArticles.length})
-                  </h3>
-                  <div className="space-y-3">
-                    {linkedArticles.map((art) => (
-                      <div key={art._id} className="glass-card-static rounded-lg border border-[rgba(255,255,255,0.06)] p-3 hover:border-[rgba(255,255,255,0.12)] transition-colors">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1 min-w-0">
-                            {art.url ? (
-                              <a href={art.url} target="_blank" rel="noopener noreferrer"
-                                className="text-sm font-medium text-teal-400 hover:text-teal-300 transition-colors line-clamp-2">
-                                {art.title}
-                              </a>
-                            ) : (
-                              <p className="text-sm font-medium text-white line-clamp-2">{art.title}</p>
-                            )}
-                            <div className="flex items-center gap-3 mt-1.5 text-[11px] text-[rgba(255,255,255,0.35)]">
-                              <span className="font-medium text-[rgba(255,255,255,0.5)]">{art.source}</span>
-                              {art.date && <span>{art.date}</span>}
-                              {art.theme && (
-                                <span className="px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.04)] text-[rgba(255,255,255,0.35)]">{art.theme}</span>
-                              )}
-                            </div>
-                          </div>
-                          {art.gravity_score != null && art.gravity_score > 0 && (
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                              art.gravity_score >= 0.8 ? 'bg-[rgba(239,68,68,0.15)] text-red-400'
-                              : art.gravity_score >= 0.5 ? 'bg-[rgba(217,119,6,0.15)] text-orange-400'
-                              : 'bg-[rgba(255,255,255,0.04)] text-[rgba(255,255,255,0.35)]'
-                            }`}>
-                              {Math.round(art.gravity_score * 100)}%
-                            </span>
-                          )}
+            {social.length > 0 && (
+              <Section label="Réseaux sociaux" count={social.length}>
+                <div className="space-y-2.5">
+                  {social.map(s => (
+                    <div key={s._id} className="py-1.5">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span
+                          className="font-mono text-[10px] uppercase tracking-[0.12em] px-1.5 py-0.5 rounded-sm"
+                          style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+                        >
+                          {s.platform}
+                        </span>
+                        {s.author && <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{s.author}</span>}
+                        <span className="ml-auto font-mono text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                          {timeAgo(s.created_at || '')}
+                        </span>
+                      </div>
+                      <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{s.text}</p>
+                    </div>
+                  ))}
+                </div>
+              </Section>
+            )}
+          </section>
+
+          <aside className="flex flex-col gap-5 min-w-0">
+            {bmgLive && (
+              <Section label="BMG par canal">
+                <div className="space-y-2">
+                  {Object.entries(bmgLive.bnp_by_canal).map(([canal, v]) => (
+                    <CanalBar key={canal} canal={canal} value={v} max={maxCanal} />
+                  ))}
+                </div>
+                <div className="mt-3 pt-3 grid grid-cols-2 gap-3" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                  <Mini label="Canaux actifs" value={String(bmgLive.active_canals)} />
+                  <Mini label="Dominant" value={bmgLive.dominant_canal || '—'} />
+                  <Mini label="Niveau" value={bmgLive.niveau_alerte} />
+                  <Mini label="Items" value={String(bmgLive.total_items)} />
+                </div>
+              </Section>
+            )}
+
+            {timeline.length > 0 && (
+              <Section label="Chronologie" count={timeline.length}>
+                <div className="space-y-3">
+                  {timeline.slice(0, 8).map(ev => (
+                    <div key={ev._id} className="flex gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background: 'var(--accent-press)' }} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium" style={{ color: 'var(--text)' }}>
+                          {ev.event.replace(/_/g, ' ')}
+                        </div>
+                        <div className="font-mono text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                          {formatDate(ev.timestamp)}
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
-              )}
+              </Section>
+            )}
 
-              {/* ── Radio liées ──────────────────── */}
-              {linkedRadio.length > 0 && (
-                <div className="glass-card border border-[rgba(255,255,255,0.08)] p-5">
-                  <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-amber-500 shadow-lg shadow-amber-500/30" />
-                    Sujets radio ({linkedRadio.length})
-                  </h3>
-                  <div className="space-y-3">
-                    {linkedRadio.map((radio, idx) => {
-                      const topicTitle = radio.topic_title
-                      const topicSummary = radio.topic_summary
-                      const topicGravity = radio.gravity
-                      return (
-                        <div key={`${radio._id}-${idx}`} className="glass-card-static rounded-lg border border-[rgba(255,255,255,0.06)] p-3">
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <span className="text-xs font-medium text-amber-400">{radio.radio}</span>
-                            {radio.captured_at && (
-                              <span className="text-[10px] text-[rgba(255,255,255,0.35)]">
-                                {typeof radio.captured_at === 'string' && radio.captured_at.includes('T')
-                                  ? new Date(radio.captured_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-                                  : radio.captured_at}
-                              </span>
-                            )}
-                            {topicGravity != null && topicGravity > 0 && (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium"
-                                style={{
-                                  background: topicGravity >= 0.6 ? 'rgba(239,68,68,0.15)' : 'rgba(234,179,8,0.15)',
-                                  color: topicGravity >= 0.6 ? '#f87171' : '#fbbf24',
-                                  border: `1px solid ${topicGravity >= 0.6 ? 'rgba(239,68,68,0.3)' : 'rgba(234,179,8,0.3)'}`,
-                                }}>
-                                {Math.round(topicGravity * 100)}%
-                              </span>
-                            )}
-                          </div>
-                          {topicTitle && (
-                            <p className="text-xs font-medium text-white mb-1">{topicTitle}</p>
-                          )}
-                          <p className="text-xs text-[rgba(255,255,255,0.5)] line-clamp-3">
-                            {topicSummary || radio.summary || radio.text}
-                          </p>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* ── Posts sociaux liés ───────────── */}
-              {linkedSocial.length > 0 && (
-                <div className="glass-card border border-[rgba(255,255,255,0.08)] p-5">
-                  <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-pink-500 shadow-lg shadow-pink-500/30" />
-                    Posts sociaux ({linkedSocial.length})
-                  </h3>
-                  <div className="space-y-3">
-                    {linkedSocial.map((post) => (
-                      <div key={post._id} className="glass-card-static rounded-lg border border-[rgba(255,255,255,0.06)] p-3">
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <span className="text-xs font-medium text-pink-400">{post.platform}</span>
-                          {post.author && <span className="text-[10px] text-[rgba(255,255,255,0.35)]">@{post.author}</span>}
-                        </div>
-                        <p className="text-xs text-[rgba(255,255,255,0.35)] line-clamp-3">{post.text}</p>
-                        {post.url && (
-                          <a href={post.url} target="_blank" rel="noopener noreferrer"
-                            className="text-[10px] text-teal-400 hover:text-teal-300 mt-1 inline-block transition-colors">
-                            Voir le post
-                          </a>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* ── Right: Timeline ────────────── */}
-            <div>
-              <div className="glass-card border border-[rgba(255,255,255,0.08)] p-5 sticky top-8">
-                <h3 className="text-sm font-semibold text-white mb-4">Chronologie</h3>
-                {timeline.length === 0 ? (
-                  <p className="text-xs text-[rgba(255,255,255,0.35)]">Aucun événement</p>
-                ) : (
-                  <div className="max-h-[500px] overflow-y-auto pr-1">
-                    {timeline.slice(0, 30).map((evt) => (
-                      <TimelineItem key={evt._id} event={evt} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-          </div>
+            <button
+              onClick={() => router.back()}
+              className="text-xs font-mono hover:underline self-start"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              ← Retour
+            </button>
+          </aside>
         </div>
       </main>
+    </div>
+  )
+}
+
+function Section({ label, count, children }: { label: string; count?: number; children: React.ReactNode }) {
+  return (
+    <section style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+      <div className="flex items-baseline justify-between px-4 py-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+        <span className="font-mono text-[10px] uppercase tracking-[0.14em]" style={{ color: 'var(--text-muted)' }}>{label}</span>
+        {count != null && <span className="font-mono text-[10px]" style={{ color: 'var(--text-muted)' }}>{count}</span>}
+      </div>
+      <div className="p-4">{children}</div>
+    </section>
+  )
+}
+
+function Block({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-4">
+      <div className="font-mono text-[10px] uppercase tracking-[0.14em] mb-2" style={{ color: 'var(--text-muted)' }}>{label}</div>
+      {children}
+    </div>
+  )
+}
+
+function Mini({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="font-mono text-[9px] uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>{label}</div>
+      <div className="text-xs font-medium mt-0.5 capitalize" style={{ color: 'var(--text)' }}>{value}</div>
     </div>
   )
 }
