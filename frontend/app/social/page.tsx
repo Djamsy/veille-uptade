@@ -139,8 +139,8 @@ function CalendarPostItem({
       <div
         className="rounded-lg p-2 mb-1.5 cursor-pointer transition-all hover:scale-[1.03] hover:shadow-lg"
         style={{
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid rgba(255,255,255,0.08)',
+          background: 'var(--bg-elevated)',
+          border: '1px solid var(--border)',
         }}
         onClick={() => onViewDetail(post)}
       >
@@ -211,7 +211,7 @@ function CalendarPostItem({
             [popupSide === 'right' ? 'left' : 'right']: 'calc(100% + 12px)',
             background: 'rgba(20,20,30,0.97)',
             backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255,255,255,0.12)',
+            border: '1px solid var(--border-hover)',
           }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -258,7 +258,7 @@ function CalendarPostItem({
               { label: 'Reach', value: s.reach, icon: '◎', color: '#06b6d4' },
               { label: 'Engagement', value: engagement, unit: '%', icon: '⚡', color: '#a78bfa' },
             ].map(stat => (
-              <div key={stat.label} className="p-2 rounded-lg text-center" style={{ background: 'rgba(255,255,255,0.04)' }}>
+              <div key={stat.label} className="p-2 rounded-lg text-center" style={{ background: 'var(--bg-elevated)' }}>
                 <div className="text-xs mb-0.5">{stat.icon}</div>
                 <div className="text-sm font-bold" style={{ color: stat.color }}>
                   {typeof stat.value === 'number' ? formatNumber(stat.value) : stat.value}{stat.unit || ''}
@@ -295,7 +295,7 @@ function CalendarPostItem({
                 const eng = st.reach > 0 ? (((st.likes + st.comments + st.clicks) / st.reach) * 100).toFixed(1) : '0'
                 return (
                   <div key={platform} className="flex items-center gap-2 text-[10px] p-1.5 rounded"
-                    style={{ background: 'rgba(255,255,255,0.03)', borderLeft: `3px solid ${cfg.color}` }}>
+                    style={{ background: 'var(--bg-elevated)', borderLeft: `3px solid ${cfg.color}` }}>
                     <span>{cfg.icon}</span>
                     <span className="flex-1 opacity-60">
                       {formatNumber(st.views)} vues · {formatNumber(st.likes)} likes · {eng}%
@@ -403,7 +403,7 @@ function CalendarView({
         <div className="flex items-center gap-3">
           <button
             className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all hover:scale-105"
-            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+            style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
             onClick={() => setWeekOffset(o => o - 1)}
           >
             ← Sem. préc.
@@ -411,9 +411,9 @@ function CalendarView({
           <button
             className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all hover:scale-105"
             style={{
-              background: weekOffset === 0 ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.06)',
+              background: weekOffset === 0 ? 'rgba(59,130,246,0.2)' : 'var(--bg-elevated)',
               color: weekOffset === 0 ? '#3b82f6' : 'var(--text)',
-              border: `1px solid ${weekOffset === 0 ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.1)'}`,
+              border: `1px solid ${weekOffset === 0 ? 'rgba(59,130,246,0.3)' : 'var(--border)'}`,
             }}
             onClick={() => setWeekOffset(0)}
           >
@@ -421,7 +421,7 @@ function CalendarView({
           </button>
           <button
             className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all hover:scale-105"
-            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+            style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
             onClick={() => setWeekOffset(o => o + 1)}
           >
             Sem. suiv. →
@@ -440,8 +440,8 @@ function CalendarView({
 
       {/* Calendar grid */}
       <div className="grid grid-cols-7 gap-px rounded-xl overflow-hidden" style={{
-        background: 'rgba(255,255,255,0.06)',
-        border: '1px solid rgba(255,255,255,0.08)',
+        background: 'var(--bg-elevated)',
+        border: '1px solid var(--border)',
       }}>
         {/* Day headers */}
         {weekDays.map((day, i) => {
@@ -451,8 +451,8 @@ function CalendarView({
               key={i}
               className="p-3 text-center"
               style={{
-                background: isToday ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.02)',
-                borderBottom: '1px solid rgba(255,255,255,0.08)',
+                background: isToday ? 'rgba(59,130,246,0.1)' : 'var(--bg-elevated)',
+                borderBottom: '1px solid var(--border)',
               }}
             >
               <div className="text-xs font-semibold opacity-60">{DAY_NAMES[i]}</div>
@@ -622,7 +622,7 @@ function PostDetailModal({
         onClick={(e) => e.stopPropagation()}
         style={{ background: 'var(--card-bg)' }}
       >
-        <div className="sticky top-0 flex items-center justify-between p-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.08)', background: 'var(--card-bg)' }}>
+        <div className="sticky top-0 flex items-center justify-between p-4 border-b" style={{ borderColor: 'var(--border)', background: 'var(--card-bg)' }}>
           <h2 className="text-lg font-bold" style={{ color: 'var(--text)' }}>
             {post.title || 'Sans titre'}
           </h2>
@@ -631,7 +631,7 @@ function PostDetailModal({
 
         <div className="p-6 space-y-6">
           {post.media_url && (
-            <div className="rounded-lg overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)' }}>
+            <div className="rounded-lg overflow-hidden" style={{ background: 'var(--bg-elevated)' }}>
               {post.media_type === 'video' ? (
                 <div className="aspect-video bg-black flex items-center justify-center relative group">
                   <img src={post.media_url} alt="" className="w-full h-full object-cover" />
@@ -663,7 +663,7 @@ function PostDetailModal({
                 { label: 'Reach', value: s.reach, icon: '◎', color: '#f59e0b' },
                 { label: 'Engagement', value: s.reach > 0 ? (((s.likes + s.comments + s.clicks) / s.reach) * 100).toFixed(1) : '0', unit: '%', icon: '⚡', color: '#a78bfa' },
               ].map(stat => (
-                <div key={stat.label} className="p-3 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                <div key={stat.label} className="p-3 rounded-lg" style={{ background: 'var(--bg-elevated)' }}>
                   <div className="text-xl mb-1">{stat.icon}</div>
                   <div className="text-lg font-bold" style={{ color: stat.color }}>
                     {formatNumber(typeof stat.value === 'number' ? stat.value : parseFloat(stat.value as string))}{(stat as any).unit || ''}
@@ -683,7 +683,7 @@ function PostDetailModal({
                   const st = stats as { views: number; likes: number; comments: number; clicks: number; reach: number }
                   const eng = st.reach > 0 ? (((st.likes + st.comments + st.clicks) / st.reach) * 100).toFixed(1) : '0'
                   return (
-                    <div key={platform} className="p-4 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)', borderLeft: `4px solid ${cfg.color}` }}>
+                    <div key={platform} className="p-4 rounded-lg" style={{ background: 'var(--bg-elevated)', borderLeft: `4px solid ${cfg.color}` }}>
                       <div className="flex items-center gap-2 mb-3">
                         <span className="text-xl">{cfg.icon}</span>
                         <span className="font-semibold" style={{ color: cfg.color }}>
@@ -724,7 +724,7 @@ function PostDetailModal({
               <h3 className="text-sm font-semibold mb-3 opacity-70">Commentaires ({post.comments_scraped.length})</h3>
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {(post.comments_scraped as any[]).map((comment, i) => (
-                  <div key={i} className="p-3 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                  <div key={i} className="p-3 rounded-lg" style={{ background: 'var(--bg-elevated)' }}>
                     {comment.author && <div className="font-semibold text-sm opacity-80 mb-1">{comment.author}</div>}
                     <p className="text-sm opacity-70">{comment.text}</p>
                   </div>
@@ -733,7 +733,7 @@ function PostDetailModal({
             </div>
           )}
 
-          <div className="flex gap-3 pt-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+          <div className="flex gap-3 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
             <button
               onClick={handleScrape}
               disabled={scraping}
@@ -830,14 +830,14 @@ function PublishProgress({ step, error }: { step: number; error: boolean }) {
             </div>
             {i < PUBLISH_STEPS.length - 1 && (
               <div className="h-0.5 w-full mx-1 rounded" style={{
-                background: i < step ? '#22c55e' : 'rgba(255,255,255,0.1)',
+                background: i < step ? '#22c55e' : 'var(--border)',
                 minWidth: '20px',
               }} />
             )}
           </div>
         ))}
       </div>
-      <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+      <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
         <div className="h-full rounded-full transition-all duration-700" style={{
           width: error ? '100%' : `${((step + 1) / PUBLISH_STEPS.length) * 100}%`,
           background: error ? '#ef4444' : 'linear-gradient(90deg, #3b82f6, #22c55e)',
@@ -928,7 +928,7 @@ function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
       onClick={loading ? undefined : onClose}>
       <div className="glass-card w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}
         style={{ background: 'var(--card-bg)' }}>
-        <div className="sticky top-0 flex items-center justify-between p-6 border-b" style={{ borderColor: 'rgba(255,255,255,0.08)', background: 'var(--card-bg)' }}>
+        <div className="sticky top-0 flex items-center justify-between p-6 border-b" style={{ borderColor: 'var(--border)', background: 'var(--card-bg)' }}>
           <h2 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Nouveau post</h2>
           <button onClick={onClose} disabled={loading} className="text-xl opacity-60 hover:opacity-100 transition-opacity">✕</button>
         </div>
@@ -985,9 +985,9 @@ function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
                 disabled={loading}
                 className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all"
                 style={{
-                  background: schedule === 'now' ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.05)',
-                  color: schedule === 'now' ? '#22c55e' : 'rgba(255,255,255,0.5)',
-                  border: `1px solid ${schedule === 'now' ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.1)'}`,
+                  background: schedule === 'now' ? 'rgba(34,197,94,0.2)' : 'var(--bg-elevated)',
+                  color: schedule === 'now' ? '#22c55e' : 'var(--text-muted)',
+                  border: `1px solid ${schedule === 'now' ? 'rgba(34,197,94,0.3)' : 'var(--border)'}`,
                 }}
               >
                 Publier maintenant
@@ -998,9 +998,9 @@ function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
                 disabled={loading}
                 className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all"
                 style={{
-                  background: schedule === 'queue' ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.05)',
-                  color: schedule === 'queue' ? '#818cf8' : 'rgba(255,255,255,0.5)',
-                  border: `1px solid ${schedule === 'queue' ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.1)'}`,
+                  background: schedule === 'queue' ? 'rgba(99,102,241,0.2)' : 'var(--bg-elevated)',
+                  color: schedule === 'queue' ? '#818cf8' : 'var(--text-muted)',
+                  border: `1px solid ${schedule === 'queue' ? 'rgba(99,102,241,0.3)' : 'var(--border)'}`,
                 }}
               >
                 Ajouter a la file
@@ -1040,7 +1040,7 @@ function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
           )}
         </div>
 
-        <div className="flex gap-3 p-6 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+        <div className="flex gap-3 p-6 border-t" style={{ borderColor: 'var(--border)' }}>
           <button className="flex-1 px-4 py-2 rounded-lg font-medium" onClick={onClose} disabled={loading}
             style={{ background: 'rgba(139,92,246,0.15)', color: '#a78bfa', border: '1px solid rgba(139,92,246,0.2)' }}>
             Annuler
@@ -1049,7 +1049,7 @@ function NewPostModal({ campaigns, selectedCampaignId, onClose, onPublished }: {
             disabled={loading || !text.trim()}
             style={{
               background: loading || !text.trim() ? 'rgba(100,100,100,0.2)' : 'rgba(34,197,94,0.3)',
-              color: loading || !text.trim() ? 'rgba(255,255,255,0.4)' : '#22c55e',
+              color: loading || !text.trim() ? 'var(--text-muted)' : '#22c55e',
               border: `1px solid ${loading || !text.trim() ? 'rgba(100,100,100,0.1)' : 'rgba(34,197,94,0.2)'}`,
             }}>
             {loading ? 'Publication en cours...' : 'Publier'}
@@ -1239,37 +1239,55 @@ export default function SocialPage() {
   }
 
   return (
-    <div className="flex min-h-screen" style={{ background: 'var(--bg)' }}>
+    <div className="flex min-h-screen" style={{ background: 'var(--bg-base)' }}>
       <Sidebar />
-      <main className="flex-1 p-6 ml-16 md:ml-56">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold" style={{ color: 'var(--text)' }}>Campagnes RS</h1>
-            <p className="text-sm opacity-60 mt-1">Calendrier des publications et statistiques</p>
+      <main className="lg:ml-16 flex-1 overflow-y-auto">
+        <header className="px-6 lg:px-8 pt-5 pb-5" style={{ borderBottom: '1px solid var(--border)' }}>
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.18em] mb-2" style={{ color: 'var(--text-muted)' }}>
+                Veille / Réseaux sociaux
+              </div>
+              <h1 className="font-serif text-3xl lg:text-4xl font-medium tracking-tight italic" style={{ color: 'var(--text)' }}>
+                Campagnes RS
+              </h1>
+              <p className="font-mono text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+                Calendrier des publications et statistiques
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-sm transition-colors hover:bg-ink-100"
+                onClick={() => setShowNewPost(true)}
+                style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+              >
+                Nouveau post
+              </button>
+              <button
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-sm transition-colors"
+                onClick={() => setShowNewCampaign(true)}
+                style={{ background: 'var(--accent-press)', color: '#fafafa', border: '1px solid var(--accent-press)' }}
+              >
+                + Nouvelle campagne
+              </button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <button className="btn-glass px-4 py-2 font-medium transition-all hover:scale-105" onClick={() => setShowNewPost(true)}
-              style={{ background: 'rgba(34,197,94,0.2)', color: '#22c55e' }}>
-              Nouveau post
-            </button>
-            <button className="btn-glass px-4 py-2 font-medium transition-all hover:scale-105" onClick={() => setShowNewCampaign(true)}
-              style={{ background: 'rgba(59,130,246,0.2)', color: '#3b82f6' }}>
-              + Nouvelle campagne
-            </button>
-          </div>
-        </div>
+        </header>
 
+        <div className="px-6 lg:px-8 py-6 max-w-[1700px] mx-auto space-y-5">
         {/* Tabs */}
-        <div className="flex gap-2 mb-5">
-          {(['calendrier', 'analyse', 'comparaison'] as const).map(tab => (
-            <button key={tab} className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
+        <div className="inline-flex" style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+          {(['calendrier', 'analyse', 'comparaison'] as const).map((tab, i) => (
+            <button
+              key={tab}
+              className="px-3 py-1.5 text-xs font-medium"
               style={{
-                background: view === tab ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.03)',
-                color: view === tab ? '#3b82f6' : 'var(--text)',
-                border: `1px solid ${view === tab ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.08)'}`
+                background: view === tab ? 'var(--bg-hover)' : 'var(--bg-surface)',
+                color: view === tab ? 'var(--text)' : 'var(--text-muted)',
+                borderLeft: i > 0 ? '1px solid var(--border)' : 'none',
               }}
-              onClick={() => setView(tab)}>
+              onClick={() => setView(tab)}
+            >
               {tab === 'calendrier' ? 'Calendrier' : tab === 'analyse' ? 'Analyse' : 'Comparaison'}
             </button>
           ))}
@@ -1300,16 +1318,16 @@ export default function SocialPage() {
 
         {/* Campaign tabs (horizontal) */}
         {!loading && campaigns.length > 0 && (
-          <div className="mb-5 pb-4 overflow-x-auto" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+          <div className="mb-5 pb-4 overflow-x-auto" style={{ borderBottom: '1px solid var(--border)' }}>
             <div className="flex gap-2 min-w-fit">
               {campaigns.map(c => (
                 <button
                   key={c._id}
                   className="px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all hover:scale-105"
                   style={{
-                    background: selectedCampaign?._id === c._id ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.03)',
+                    background: selectedCampaign?._id === c._id ? 'rgba(59,130,246,0.2)' : 'var(--bg-elevated)',
                     color: selectedCampaign?._id === c._id ? '#3b82f6' : 'var(--text)',
-                    border: `1px solid ${selectedCampaign?._id === c._id ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.08)'}`,
+                    border: `1px solid ${selectedCampaign?._id === c._id ? 'rgba(59,130,246,0.3)' : 'var(--border)'}`,
                   }}
                   onClick={() => selectCampaign(c)}
                 >
@@ -1455,7 +1473,7 @@ export default function SocialPage() {
                             <span className="text-4xl font-bold tabular-nums" style={{ color: sentColor }}>{score.toFixed(0)}</span>
                             <span className="text-sm pb-1" style={{ color: 'var(--text-muted)' }}>/ 100</span>
                           </div>
-                          <div className="w-full h-2 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                          <div className="w-full h-2 rounded-full" style={{ background: 'var(--bg-elevated)' }}>
                             <div className="h-full rounded-full transition-all duration-700"
                               style={{ width: `${Math.max(score, 3)}%`, background: `linear-gradient(90deg, ${sentColor}80, ${sentColor})` }} />
                           </div>
@@ -1720,6 +1738,7 @@ export default function SocialPage() {
             }}
           />
         )}
+        </div>
       </main>
     </div>
   )
