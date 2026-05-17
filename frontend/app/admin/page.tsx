@@ -49,7 +49,7 @@ const gravityColor = (g: number) => {
   if (g >= 0.75) return 'text-red-400'
   if (g >= 0.55) return 'text-amber-400'
   if (g >= 0.35) return 'text-blue-400'
-  return 'text-slate-400'
+  return 'text-ink-500'
 }
 
 const timeAgo = (iso: string) => {
@@ -349,8 +349,8 @@ export default function AdminPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
             </div>
-            <h2 className="text-lg font-semibold text-white mb-2">Accès restreint</h2>
-            <p className="text-sm mb-4" style={{ color: 'rgba(255,255,255,0.4)' }}>{authError || 'Connectez-vous pour accéder à cette page'}</p>
+            <h2 className="text-lg font-semibold text-ink-900 mb-2">Accès restreint</h2>
+            <p className="text-sm mb-4" style={{ color: 'var(--text-muted)' }}>{authError || 'Connectez-vous pour accéder à cette page'}</p>
             <a href="/auth/login" className="btn-primary inline-block px-5 py-2.5 text-sm">
               Se connecter
             </a>
@@ -374,11 +374,16 @@ export default function AdminPage() {
       <main className="lg:ml-16 flex-1 p-4 lg:p-6 min-h-screen">
         <div className="max-w-[1400px] mx-auto animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 pb-5" style={{ borderBottom: '1px solid var(--border)' }}>
         <div>
-          <h1 className="text-xl font-bold text-white tracking-tight">Administration</h1>
-          <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>
-            {user.name || user.email} · <span className="capitalize font-medium" style={{ color: '#60a5fa' }}>{user.role}</span>
+          <div className="font-mono text-[10px] uppercase tracking-[0.18em] mb-2" style={{ color: 'var(--text-muted)' }}>
+            Système / Administration
+          </div>
+          <h1 className="font-serif text-3xl font-medium tracking-tight italic" style={{ color: 'var(--text)' }}>
+            Administration
+          </h1>
+          <p className="font-mono text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+            {user.name || user.email} · <span className="capitalize font-medium" style={{ color: 'var(--accent-link)' }}>{user.role}</span>
           </p>
         </div>
         {actionMsg && (
@@ -389,7 +394,7 @@ export default function AdminPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 p-1 rounded-xl w-fit" style={{ background: 'rgba(255,255,255,0.03)' }}>
+      <div className="flex gap-1 mb-6 p-1 rounded-xl w-fit" style={{ background: 'var(--bg-elevated)' }}>
         {tabs.filter(t => !t.adminOnly || user.role === 'admin').map(t => (
           <button
             key={t.key}
@@ -397,7 +402,7 @@ export default function AdminPage() {
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
               tab === t.key
                 ? 'text-white'
-                : 'text-white/40 hover:text-white/70'
+                : 'text-ink-500 hover:text-ink-700'
             }`}
             style={tab === t.key ? { background: 'rgba(37,99,235,0.15)', color: '#a5b4fc' } : {}}
           >
@@ -416,21 +421,21 @@ export default function AdminPage() {
               <button
                 onClick={handleMerge}
                 disabled={selectedAffairs.size < 2}
-                className="px-3 py-1.5 bg-amber-600 text-white text-xs rounded-lg hover:bg-amber-500 disabled:opacity-40 transition"
+                className="px-3 py-1.5 bg-amber-600 text-ink-900 text-xs rounded-lg hover:bg-amber-500 disabled:opacity-40 transition"
               >
                 Fusionner
               </button>
               {selectedOrphan && selectedAffairs.size === 1 && (
                 <button
                   onClick={() => handleLinkOrphan(Array.from(selectedAffairs)[0])}
-                  className="px-3 py-1.5 bg-emerald-600 text-white text-xs rounded-lg hover:bg-emerald-500 transition"
+                  className="px-3 py-1.5 bg-emerald-600 text-ink-900 text-xs rounded-lg hover:bg-emerald-500 transition"
                 >
                   Lier l'orphelin sélectionné ici
                 </button>
               )}
               <button
                 onClick={() => setSelectedAffairs(new Set())}
-                className="ml-auto text-xs text-white/40 hover:text-white/60"
+                className="ml-auto text-xs text-ink-500 hover:text-ink-600"
               >
                 Désélectionner tout
               </button>
@@ -445,7 +450,7 @@ export default function AdminPage() {
                   className={`p-4 rounded-xl border transition-all cursor-pointer ${
                     selectedAffairs.has(affair._id)
                       ? 'bg-blue-500/10 border-blue-500/40'
-                      : 'bg-white/[0.025] border-white/[0.05] hover:bg-white/[0.04]'
+                      : 'bg-ink-100 border-ink-200 hover:bg-ink-100'
                   }`}
                 >
                   <div className="flex items-start gap-3">
@@ -468,15 +473,15 @@ export default function AdminPage() {
                         <span className={`text-xs font-mono ${gravityColor(affair.gravity_score)}`}>
                           {affair.gravity_score?.toFixed(2)}
                         </span>
-                        <span className="text-xs text-white/30">{affair.item_count} items</span>
-                        <span className="text-xs text-white/30">{affair.theme}</span>
+                        <span className="text-xs text-ink-400">{affair.item_count} items</span>
+                        <span className="text-xs text-ink-400">{affair.theme}</span>
                       </div>
-                      <h3 className="text-sm font-medium text-white mt-1 truncate">{affair.title}</h3>
+                      <h3 className="text-sm font-medium text-ink-900 mt-1 truncate">{affair.title}</h3>
                       <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                         {(affair.elected || affair.entities || []).slice(0, 3).map((e, i) => (
-                          <span key={i} className="text-[10px] px-2 py-0.5 bg-white/5 text-white/50 rounded-full">{e}</span>
+                          <span key={i} className="text-[10px] px-2 py-0.5 bg-ink-100 text-ink-500 rounded-full">{e}</span>
                         ))}
-                        <span className="text-[10px] text-white/20 ml-auto">{timeAgo(affair.last_activity)}</span>
+                        <span className="text-[10px] text-ink-400 ml-auto">{timeAgo(affair.last_activity)}</span>
                       </div>
                     </div>
 
@@ -490,14 +495,14 @@ export default function AdminPage() {
                             setEditTheme(affair.theme)
                             setEditPriority(affair.priority || 'minor')
                           }}
-                          className="p-1.5 rounded-lg hover:bg-white/10 text-white/30 hover:text-blue-400 transition"
+                          className="p-1.5 rounded-lg hover:bg-ink-100 text-ink-400 hover:text-blue-400 transition"
                           title="Modifier"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                         </button>
                         <button
                           onClick={() => handleShareLink(affair._id)}
-                          className="p-1.5 rounded-lg hover:bg-white/10 text-white/30 hover:text-emerald-400 transition"
+                          className="p-1.5 rounded-lg hover:bg-ink-100 text-ink-400 hover:text-emerald-400 transition"
                           title="Lien de consultation"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
@@ -511,14 +516,14 @@ export default function AdminPage() {
                               showMsg(`Erreur : ${e.message}`)
                             }
                           }}
-                          className="p-1.5 rounded-lg hover:bg-white/10 text-white/30 hover:text-cyan-400 transition"
+                          className="p-1.5 rounded-lg hover:bg-ink-100 text-ink-400 hover:text-cyan-400 transition"
                           title="Vérifier articles"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         </button>
                         <button
                           onClick={() => handleArchive(affair._id)}
-                          className="p-1.5 rounded-lg hover:bg-white/10 text-white/30 hover:text-red-400 transition"
+                          className="p-1.5 rounded-lg hover:bg-ink-100 text-ink-400 hover:text-red-400 transition"
                           title="Archiver"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
@@ -530,12 +535,12 @@ export default function AdminPage() {
 
                 {/* Expanded detail */}
                 {expandedAffair === affair._id && affairDetail && (
-                  <div className="ml-7 mt-1 mb-2 p-4 bg-white/[0.02] border border-white/[0.05] rounded-xl space-y-3">
-                    <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wide">Articles liés ({affairDetail.linked_articles.length})</h4>
+                  <div className="ml-7 mt-1 mb-2 p-4 bg-ink-100 border border-ink-200 rounded-xl space-y-3">
+                    <h4 className="text-xs font-semibold text-ink-600 uppercase tracking-wide">Articles liés ({affairDetail.linked_articles.length})</h4>
                     {affairDetail.linked_articles.map(art => (
-                      <div key={art._id} className="flex items-center gap-2 text-xs p-2 bg-white/[0.03] rounded-lg">
-                        <span className="flex-1 text-white/70 truncate">{art.title}</span>
-                        <span className="text-white/30">{art.source}</span>
+                      <div key={art._id} className="flex items-center gap-2 text-xs p-2 bg-ink-100 rounded-lg">
+                        <span className="flex-1 text-ink-700 truncate">{art.title}</span>
+                        <span className="text-ink-400">{art.source}</span>
                         <span className={`font-mono ${gravityColor(art.gravity_score || 0)}`}>{(art.gravity_score || 0).toFixed(2)}</span>
                         {isEditor && (
                           <button
@@ -550,9 +555,9 @@ export default function AdminPage() {
                     ))}
                     {affairDetail.linked_radio.length > 0 && (
                       <>
-                        <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wide mt-3">Radio ({affairDetail.linked_radio.length})</h4>
+                        <h4 className="text-xs font-semibold text-ink-600 uppercase tracking-wide mt-3">Radio ({affairDetail.linked_radio.length})</h4>
                         {affairDetail.linked_radio.map((r, i) => (
-                          <div key={i} className="text-xs p-2 bg-white/[0.03] rounded-lg text-white/50">
+                          <div key={i} className="text-xs p-2 bg-ink-100 rounded-lg text-ink-500">
                             <span className="text-amber-400/70">{r.radio}</span> — {r.topic_title || r.summary || r.text?.slice(0, 100)}
                           </div>
                         ))}
@@ -569,7 +574,7 @@ export default function AdminPage() {
       {/* ═══ TAB : ORPHELINS ═══ */}
       {tab === 'orphans' && (
         <div>
-          <p className="text-sm text-white/40 mb-4">
+          <p className="text-sm text-ink-500 mb-4">
             Articles enrichis non rattachés à une affaire. Sélectionnez-en un, puis allez dans "Affaires" pour le lier.
           </p>
           <div className="space-y-1">
@@ -580,20 +585,20 @@ export default function AdminPage() {
                 className={`p-3 rounded-xl border cursor-pointer transition-all ${
                   selectedOrphan === art._id
                     ? 'bg-emerald-500/10 border-emerald-500/30'
-                    : 'bg-white/[0.025] border-white/[0.05] hover:bg-white/[0.04]'
+                    : 'bg-ink-100 border-ink-200 hover:bg-ink-100'
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <div className="flex-1 min-w-0">
-                    <h4 className="text-sm text-white/80 truncate">{art.title}</h4>
+                    <h4 className="text-sm text-ink-700 truncate">{art.title}</h4>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[10px] text-white/30">{art.source}</span>
-                      <span className="text-[10px] text-white/30">{art.theme}</span>
+                      <span className="text-[10px] text-ink-400">{art.source}</span>
+                      <span className="text-[10px] text-ink-400">{art.theme}</span>
                       <span className={`text-[10px] font-mono ${gravityColor(art.gravity_score)}`}>{art.gravity_score?.toFixed(2)}</span>
                       {art.elected?.slice(0, 2).map((e, i) => (
-                        <span key={i} className="text-[10px] px-1.5 py-0.5 bg-white/5 text-white/40 rounded-full">{e}</span>
+                        <span key={i} className="text-[10px] px-1.5 py-0.5 bg-ink-100 text-ink-500 rounded-full">{e}</span>
                       ))}
-                      <span className="text-[10px] text-white/20 ml-auto">{timeAgo(art.scraped_at)}</span>
+                      <span className="text-[10px] text-ink-400 ml-auto">{timeAgo(art.scraped_at)}</span>
                     </div>
                   </div>
                   {selectedOrphan === art._id && (
@@ -603,7 +608,7 @@ export default function AdminPage() {
               </div>
             ))}
             {orphans.length === 0 && (
-              <p className="text-center text-white/30 text-sm py-8">Aucun article orphelin</p>
+              <p className="text-center text-ink-400 text-sm py-8">Aucun article orphelin</p>
             )}
           </div>
         </div>
@@ -613,48 +618,48 @@ export default function AdminPage() {
       {tab === 'users' && user.role === 'admin' && (
         <div className="space-y-6">
           {/* ── Créer un compte ── */}
-          <div className="p-5 bg-white/[0.03] border border-emerald-500/20 rounded-2xl">
+          <div className="p-5 bg-ink-100 border border-emerald-500/20 rounded-2xl">
             <h3 className="text-sm font-semibold text-emerald-400 mb-3 flex items-center gap-2">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
               Créer un compte
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] text-white/40 uppercase tracking-wider mb-1">Email *</label>
+                <label className="block text-[10px] text-ink-500 uppercase tracking-wider mb-1">Email *</label>
                 <input
                   type="email"
                   value={newUserEmail}
                   onChange={e => setNewUserEmail(e.target.value)}
                   placeholder="email@exemple.com"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  className="w-full bg-ink-100 border border-ink-200 rounded-lg px-3 py-2 text-sm text-ink-900 placeholder-ink-400 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
               </div>
               <div>
-                <label className="block text-[10px] text-white/40 uppercase tracking-wider mb-1">Mot de passe *</label>
+                <label className="block text-[10px] text-ink-500 uppercase tracking-wider mb-1">Mot de passe *</label>
                 <input
                   type="password"
                   value={newUserPassword}
                   onChange={e => setNewUserPassword(e.target.value)}
                   placeholder="6 caractères min."
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  className="w-full bg-ink-100 border border-ink-200 rounded-lg px-3 py-2 text-sm text-ink-900 placeholder-ink-400 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
               </div>
               <div>
-                <label className="block text-[10px] text-white/40 uppercase tracking-wider mb-1">Nom</label>
+                <label className="block text-[10px] text-ink-500 uppercase tracking-wider mb-1">Nom</label>
                 <input
                   type="text"
                   value={newUserName}
                   onChange={e => setNewUserName(e.target.value)}
                   placeholder="Nom affiché"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  className="w-full bg-ink-100 border border-ink-200 rounded-lg px-3 py-2 text-sm text-ink-900 placeholder-ink-400 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
               </div>
               <div>
-                <label className="block text-[10px] text-white/40 uppercase tracking-wider mb-1">Rôle</label>
+                <label className="block text-[10px] text-ink-500 uppercase tracking-wider mb-1">Rôle</label>
                 <select
                   value={newUserRole}
                   onChange={e => setNewUserRole(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  className="w-full bg-ink-100 border border-ink-200 rounded-lg px-3 py-2 text-sm text-ink-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 >
                   <option value="admin">admin</option>
                   <option value="editor">editor</option>
@@ -666,10 +671,10 @@ export default function AdminPage() {
             <button
               onClick={handleCreateUser}
               disabled={creatingUser || !newUserEmail || !newUserPassword}
-              className="mt-3 px-5 py-2 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-500 disabled:opacity-40 transition flex items-center gap-2"
+              className="mt-3 px-5 py-2 bg-emerald-600 text-ink-900 text-sm rounded-lg hover:bg-emerald-500 disabled:opacity-40 transition flex items-center gap-2"
             >
               {creatingUser ? (
-                <span className="animate-spin w-4 h-4 border-2 border-white/50 border-t-white rounded-full" />
+                <span className="animate-spin w-4 h-4 border-2 border-ink-2000 border-t-white rounded-full" />
               ) : (
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
               )}
@@ -679,29 +684,29 @@ export default function AdminPage() {
 
           {/* ── Liste des utilisateurs ── */}
           <div>
-            <p className="text-sm text-white/40 mb-3">
-              Rôles : <span className="text-red-400">admin</span> (tout), <span className="text-amber-400">editor</span> (pilotage), <span className="text-blue-400">viewer</span> (lecture), <span className="text-white/50">user</span> (standard).
+            <p className="text-sm text-ink-500 mb-3">
+              Rôles : <span className="text-red-400">admin</span> (tout), <span className="text-amber-400">editor</span> (pilotage), <span className="text-blue-400">viewer</span> (lecture), <span className="text-ink-500">user</span> (standard).
             </p>
             <div className="space-y-2">
               {users.map(u => (
-                <div key={u._id} className="flex items-center gap-4 p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
+                <div key={u._id} className="flex items-center gap-4 p-4 bg-ink-100 border border-white/[0.06] rounded-xl">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-white font-medium truncate">{u.name || u.email}</span>
+                      <span className="text-sm text-ink-900 font-medium truncate">{u.name || u.email}</span>
                       {u._id === user.id && (
                         <span className="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded-full">vous</span>
                       )}
                     </div>
-                    <span className="text-xs text-white/30">{u.email}</span>
+                    <span className="text-xs text-ink-400">{u.email}</span>
                     {u.created_at && (
-                      <span className="text-[10px] text-white/20 ml-2">inscrit {timeAgo(u.created_at)}</span>
+                      <span className="text-[10px] text-ink-400 ml-2">inscrit {timeAgo(u.created_at)}</span>
                     )}
                   </div>
                   <select
                     value={u.role}
                     onChange={(e) => handleRoleChange(u._id, e.target.value)}
                     disabled={u._id === user.id}
-                    className="bg-white/5 border border-white/10 text-white text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-30"
+                    className="bg-ink-100 border border-ink-200 text-ink-900 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-30"
                   >
                     <option value="admin">admin</option>
                     <option value="editor">editor</option>
@@ -711,7 +716,7 @@ export default function AdminPage() {
                   {u._id !== user.id && (
                     <button
                       onClick={() => handleDeleteUser(u._id, u.email)}
-                      className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/20 hover:text-red-400 transition"
+                      className="p-1.5 rounded-lg hover:bg-red-500/10 text-ink-400 hover:text-red-400 transition"
                       title="Supprimer ce compte"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
@@ -720,7 +725,7 @@ export default function AdminPage() {
                 </div>
               ))}
               {users.length === 0 && (
-                <p className="text-center text-white/30 text-sm py-8">Aucun utilisateur</p>
+                <p className="text-center text-ink-400 text-sm py-8">Aucun utilisateur</p>
               )}
             </div>
           </div>
@@ -732,27 +737,27 @@ export default function AdminPage() {
         <div>
           <div className="space-y-1">
             {activityLog.map(evt => (
-              <div key={evt._id} className="flex items-start gap-3 p-3 bg-white/[0.03] border border-white/[0.06] rounded-xl text-xs">
+              <div key={evt._id} className="flex items-start gap-3 p-3 bg-ink-100 border border-white/[0.06] rounded-xl text-xs">
                 <span className={`shrink-0 px-2 py-0.5 rounded-full font-medium ${
                   evt.event.includes('merge') ? 'bg-amber-500/20 text-amber-300' :
                   evt.event.includes('link') ? 'bg-emerald-500/20 text-emerald-300' :
                   evt.event.includes('archive') ? 'bg-red-500/20 text-red-300' :
                   evt.event.includes('reclassify') ? 'bg-blue-500/20 text-blue-300' :
-                  'bg-white/10 text-white/50'
+                  'bg-ink-100 text-ink-500'
                 }`}>
                   {evt.event.replace('manual_', '')}
                 </span>
-                <div className="flex-1 text-white/50">
+                <div className="flex-1 text-ink-500">
                   {evt.details?.by && <span className="text-blue-400">{String(evt.details.by)}</span>}
                   {evt.details?.merged_title && <span> a fusionné "{String(evt.details.merged_title)}"</span>}
                   {evt.details?.article_title && <span> a lié "{String(evt.details.article_title)}"</span>}
                   {evt.details?.changes && <span> a modifié {Object.keys(evt.details.changes as object).join(', ')}</span>}
                 </div>
-                <span className="text-white/20 shrink-0">{timeAgo(evt.timestamp)}</span>
+                <span className="text-ink-400 shrink-0">{timeAgo(evt.timestamp)}</span>
               </div>
             ))}
             {activityLog.length === 0 && (
-              <p className="text-center text-white/30 text-sm py-8">Aucune action manuelle enregistrée</p>
+              <p className="text-center text-ink-400 text-sm py-8">Aucune action manuelle enregistrée</p>
             )}
           </div>
         </div>
@@ -769,28 +774,28 @@ export default function AdminPage() {
             <>
               {/* Last operations */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
-                  <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Dernier scrape</h4>
-                  <p className="text-sm text-white">{healthData.health.last_scrape ? timeAgo(healthData.health.last_scrape) : 'Jamais'}</p>
+                <div className="p-4 bg-ink-100 border border-white/[0.06] rounded-xl">
+                  <h4 className="text-xs font-semibold text-ink-600 uppercase tracking-wide mb-2">Dernier scrape</h4>
+                  <p className="text-sm text-ink-900">{healthData.health.last_scrape ? timeAgo(healthData.health.last_scrape) : 'Jamais'}</p>
                 </div>
-                <div className="p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
-                  <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Dernier enrichissement</h4>
-                  <p className="text-sm text-white">{healthData.health.last_enrichment ? timeAgo(healthData.health.last_enrichment) : 'Jamais'}</p>
+                <div className="p-4 bg-ink-100 border border-white/[0.06] rounded-xl">
+                  <h4 className="text-xs font-semibold text-ink-600 uppercase tracking-wide mb-2">Dernier enrichissement</h4>
+                  <p className="text-sm text-ink-900">{healthData.health.last_enrichment ? timeAgo(healthData.health.last_enrichment) : 'Jamais'}</p>
                 </div>
-                <div className="p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
-                  <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Dernier scheduler</h4>
-                  <p className="text-sm text-white">{healthData.health.last_scheduler_run ? timeAgo(healthData.health.last_scheduler_run) : 'Jamais'}</p>
+                <div className="p-4 bg-ink-100 border border-white/[0.06] rounded-xl">
+                  <h4 className="text-xs font-semibold text-ink-600 uppercase tracking-wide mb-2">Dernier scheduler</h4>
+                  <p className="text-sm text-ink-900">{healthData.health.last_scheduler_run ? timeAgo(healthData.health.last_scheduler_run) : 'Jamais'}</p>
                 </div>
-                <div className="p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
-                  <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Dernier radio</h4>
-                  <p className="text-sm text-white">{healthData.health.last_radio_capture ? timeAgo(healthData.health.last_radio_capture) : 'Jamais'}</p>
+                <div className="p-4 bg-ink-100 border border-white/[0.06] rounded-xl">
+                  <h4 className="text-xs font-semibold text-ink-600 uppercase tracking-wide mb-2">Dernier radio</h4>
+                  <p className="text-sm text-ink-900">{healthData.health.last_radio_capture ? timeAgo(healthData.health.last_radio_capture) : 'Jamais'}</p>
                 </div>
-                <div className="p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
-                  <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Dernier rapport</h4>
-                  <p className="text-sm text-white">{healthData.health.last_daily_report ? timeAgo(healthData.health.last_daily_report) : 'Jamais'}</p>
+                <div className="p-4 bg-ink-100 border border-white/[0.06] rounded-xl">
+                  <h4 className="text-xs font-semibold text-ink-600 uppercase tracking-wide mb-2">Dernier rapport</h4>
+                  <p className="text-sm text-ink-900">{healthData.health.last_daily_report ? timeAgo(healthData.health.last_daily_report) : 'Jamais'}</p>
                 </div>
-                <div className="p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
-                  <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Erreurs 24h</h4>
+                <div className="p-4 bg-ink-100 border border-white/[0.06] rounded-xl">
+                  <h4 className="text-xs font-semibold text-ink-600 uppercase tracking-wide mb-2">Erreurs 24h</h4>
                   <p className={`text-sm font-medium ${healthData.health.recent_errors_24h > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                     {healthData.health.recent_errors_24h}
                   </p>
@@ -799,24 +804,24 @@ export default function AdminPage() {
 
               {/* Total counts */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                <div className="p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
-                  <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Articles</h4>
+                <div className="p-4 bg-ink-100 border border-white/[0.06] rounded-xl">
+                  <h4 className="text-xs font-semibold text-ink-600 uppercase tracking-wide mb-2">Articles</h4>
                   <p className="text-2xl font-bold text-blue-400">{healthData.counts.articles}</p>
                 </div>
-                <div className="p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
-                  <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Affaires</h4>
+                <div className="p-4 bg-ink-100 border border-white/[0.06] rounded-xl">
+                  <h4 className="text-xs font-semibold text-ink-600 uppercase tracking-wide mb-2">Affaires</h4>
                   <p className="text-2xl font-bold text-amber-400">{healthData.counts.affairs_active}</p>
                 </div>
-                <div className="p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
-                  <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Radio</h4>
+                <div className="p-4 bg-ink-100 border border-white/[0.06] rounded-xl">
+                  <h4 className="text-xs font-semibold text-ink-600 uppercase tracking-wide mb-2">Radio</h4>
                   <p className="text-2xl font-bold text-purple-400">{healthData.counts.radio_transcriptions}</p>
                 </div>
-                <div className="p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
-                  <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Réseaux</h4>
+                <div className="p-4 bg-ink-100 border border-white/[0.06] rounded-xl">
+                  <h4 className="text-xs font-semibold text-ink-600 uppercase tracking-wide mb-2">Réseaux</h4>
                   <p className="text-2xl font-bold text-pink-400">{healthData.counts.social_posts}</p>
                 </div>
-                <div className="p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
-                  <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Utilisateurs</h4>
+                <div className="p-4 bg-ink-100 border border-white/[0.06] rounded-xl">
+                  <h4 className="text-xs font-semibold text-ink-600 uppercase tracking-wide mb-2">Utilisateurs</h4>
                   <p className="text-2xl font-bold text-emerald-400">{healthData.counts.users}</p>
                 </div>
               </div>
@@ -833,7 +838,7 @@ export default function AdminPage() {
                       showMsg(`Erreur : ${e.message}`)
                     }
                   }}
-                  className="px-5 py-2.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-500 transition flex items-center gap-2"
+                  className="px-5 py-2.5 bg-blue-600 text-ink-900 text-sm rounded-lg hover:bg-blue-500 transition flex items-center gap-2"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   Générer bilan PDF
@@ -841,7 +846,7 @@ export default function AdminPage() {
                 <a
                   href={`/api/scheduler/daily-report/latest`}
                   download
-                  className="px-5 py-2.5 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-500 transition flex items-center gap-2"
+                  className="px-5 py-2.5 bg-emerald-600 text-ink-900 text-sm rounded-lg hover:bg-emerald-500 transition flex items-center gap-2"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -851,7 +856,7 @@ export default function AdminPage() {
               </div>
             </>
           ) : (
-            <p className="text-center text-white/30 text-sm py-8">Impossible de charger les données de santé</p>
+            <p className="text-center text-ink-400 text-sm py-8">Impossible de charger les données de santé</p>
           )}
         </div>
       )}
@@ -859,35 +864,35 @@ export default function AdminPage() {
       {/* ═══ MODAL EDIT ═══ */}
       {editingAffair && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setEditingAffair(null)}>
-          <div className="bg-[#1a1a2e] border border-white/10 rounded-2xl p-6 max-w-md w-full shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-semibold text-white mb-4">Modifier l'affaire</h3>
+          <div className="bg-[#1a1a2e] border border-ink-200 rounded-2xl p-6 max-w-md w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-ink-900 mb-4">Modifier l'affaire</h3>
 
-            <label className="block text-xs text-white/50 mb-1">Titre</label>
+            <label className="block text-xs text-ink-500 mb-1">Titre</label>
             <input
               value={editTitle}
               onChange={e => setEditTitle(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white mb-3 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full bg-ink-100 border border-ink-200 rounded-lg px-3 py-2 text-sm text-ink-900 mb-3 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
 
-            <label className="block text-xs text-white/50 mb-1">Thème</label>
+            <label className="block text-xs text-ink-500 mb-1">Thème</label>
             <select
               value={editTheme}
               onChange={e => setEditTheme(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white mb-3 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full bg-ink-100 border border-ink-200 rounded-lg px-3 py-2 text-sm text-ink-900 mb-3 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               {['politique', 'economie', 'social', 'securite', 'justice', 'environnement', 'sante', 'education', 'transport', 'culture', 'sport', 'general'].map(t => (
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>
 
-            <label className="block text-xs text-white/50 mb-1">Priorité</label>
+            <label className="block text-xs text-ink-500 mb-1">Priorité</label>
             <div className="flex gap-2 mb-4">
               {['hot', 'watch', 'minor'].map(p => (
                 <button
                   key={p}
                   onClick={() => setEditPriority(p)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition ${
-                    editPriority === p ? priorityBadge(p) : 'border-white/10 text-white/30'
+                    editPriority === p ? priorityBadge(p) : 'border-ink-200 text-ink-400'
                   }`}
                 >
                   {p.toUpperCase()}
@@ -896,10 +901,10 @@ export default function AdminPage() {
             </div>
 
             <div className="flex justify-end gap-2">
-              <button onClick={() => setEditingAffair(null)} className="px-4 py-2 text-sm text-white/50 hover:text-white transition">
+              <button onClick={() => setEditingAffair(null)} className="px-4 py-2 text-sm text-ink-500 hover:text-white transition">
                 Annuler
               </button>
-              <button onClick={handleSaveEdit} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-500 transition">
+              <button onClick={handleSaveEdit} className="px-4 py-2 bg-blue-600 text-ink-900 text-sm rounded-lg hover:bg-blue-500 transition">
                 Sauvegarder
               </button>
             </div>
