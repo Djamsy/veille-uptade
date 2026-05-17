@@ -7,101 +7,128 @@
 ---
 
 **Projet :** Veille Média Guadeloupe 971
-**Validé :** 2026-05-16
+**Validé :** 2026-05-16 (v2 — pivot)
 **Catégorie :** News / Media Monitoring / Political Watch
-**Direction :** Press éditoriale dark (Option A — choisie par le user)
+**Direction :** **Crème & encre — light editorial** (pivot depuis "press éditoriale dark")
 
 ---
 
 ## 1. Identité visuelle
 
-**Mood :** salle de rédaction moderne. Référence : Bloomberg Terminal × FT.com dark mode × Reuters Connect. Hiérarchie typographique forte, la donnée respire, sobriété éditoriale.
+**Mood :** journal en papier, salle de rédaction haut de gamme. Référence : The New York Times, Bloomberg print, FT Weekend. Hiérarchie typographique forte, blancs neutres zinc, encre noire, accents sémantiques mute.
 
-**Anti-référence :** dashboard SaaS générique (Linear, Vercel-clone), look "AI app" indigo/violet/pink, glassmorphism omniprésent.
+**Pourquoi light et pas dark :** un dashboard sombre c'est partout. Un produit qui ressemble à un journal en papier est immédiatement identifiable, plus distinctif pour une app de veille institutionnelle (cible élus + presse + comm 971).
+
+**Anti-référence :** dashboard SaaS dark générique, look "AI app" indigo/violet/pink, glassmorphism omniprésent, accents saturés type Linear/Vercel.
 
 ---
 
 ## 2. Palette de couleurs
 
-### Base (dark layers — conservées de l'existant v3)
+### Surfaces — blancs neutres zinc
 
 | Token | Hex | Usage |
 |---|---|---|
-| `--bg-base` | `#0a0a0f` | Fond global |
-| `--bg-surface` | `#0d0d14` | Sidebar, surfaces de niveau 1 |
-| `--bg-card` | `#12121a` | Cards |
-| `--bg-elevated` | `#1a1a24` | Cards survolées, dropdowns |
-| `--bg-hover` | `#1f1f2e` | Hover surfaces |
+| `--bg-base` | `#fafafa` | Fond global (zinc 50) |
+| `--bg-surface` | `#ffffff` | Cards, panels |
+| `--bg-card` | `#ffffff` | Cards |
+| `--bg-elevated` | `#f4f4f5` | Sidebar, surfaces de niveau 2 |
+| `--bg-hover` | `#f4f4f5` | Hover surfaces |
+| `--bg-sidebar` | `#f4f4f5` | Sidebar |
 
-### Accents (NOUVEAUX — remplacent indigo/violet)
-
-| Token | Hex | Usage |
-|---|---|---|
-| `--accent-press` | `#DC2626` | **Breaking / urgent / actif** — rouge presse, accent principal |
-| `--accent-alert` | `#F59E0B` | **Alertes, warnings, BMG medium** — ambre |
-| `--accent-link` | `#0369A1` | **Liens, CTA secondaires** — bleu lien |
-| `--accent-text` | `#F8FAFC` | Texte sur accent (contraste max) |
-
-### Tokens sémantiques (depuis `gpe.*` existants, repositionnés)
+### Bordures
 
 | Token | Hex | Usage |
 |---|---|---|
-| `--sentiment-positive` | `#16a34a` (gpe.green) | Sentiment +, status OK |
-| `--sentiment-neutral` | `#94a3b8` | Sentiment neutre |
-| `--sentiment-negative` | `#dc2626` (gpe.red) | Sentiment - |
-| `--bmg-low` | `#16a34a` | Gravité faible |
-| `--bmg-medium` | `#eab308` | Gravité moyenne |
-| `--bmg-high` | `#ef4444` | Gravité haute |
-| `--bmg-critical` | `#7f1d1d` | Gravité critique |
+| `--border` | `#e8e8eb` | Standard |
+| `--border-subtle` | `#e8e8eb` | Discret |
+| `--border-hover` | `#d4d4d8` | Hover |
+| `--border-strong` | `#a1a1aa` | Fort |
 
-### Texte
+### Texte — encre noire, gris neutres
 
 | Token | Hex | Usage |
 |---|---|---|
-| `--text` | `#f1f5f9` | Principal |
-| `--text-secondary` | `#cbd5e1` | Secondaire |
-| `--text-muted` | `#64748b` | Muted, labels |
+| `--text` | `#18181b` | Principal (encre noire = zinc 900) |
+| `--text-secondary` | `#3f3f46` | Secondaire (zinc 700) |
+| `--text-muted` | `#71717a` | Muted (zinc 500) |
+| `--text-disabled` | `#a1a1aa` | Disabled (zinc 400) |
 
-### À retirer (anti-tokens)
+### Accents — sobriété éditoriale
 
-- ❌ `#6366f1`, `#818cf8`, `#8b5cf6` (indigo/violet — palette générique)
-- ❌ Tous les `linear-gradient(135deg, #6366f1, #8b5cf6)` inline (Sidebar logo, user avatar, etc.)
-- ❌ `boxShadow: '0 4px 16px rgba(99,102,241,0.3)'` (glow indigo)
+| Token | Hex | Usage |
+|---|---|---|
+| `--accent-press` | `#18181b` | **CTA principal = encre noire** (boutons primary, focus, active) |
+| `--accent-press-light` | `#27272a` | Hover |
+| `--accent-alert` | `#b8632a` | Warning ambré désaturé (alertes BMG, urgences) |
+| `--accent-link` | `#3e6fa3` | Liens, info |
+
+### Tokens sémantiques (désaturés pour lecture sur fond clair)
+
+| Token | Hex | Usage |
+|---|---|---|
+| `--sentiment-positive` | `#4f8b56` | Sentiment + |
+| `--sentiment-negative` | `#c43850` | Sentiment - |
+| `--sentiment-neutral` | `#71717a` | Sentiment neutre |
+| `--sentiment-mixed` | `#b8632a` | Sentiment mixte |
+| `--bmg-low` | `#4f8b56` | Gravité faible |
+| `--bmg-medium` | `#a88820` | Gravité moyenne |
+| `--bmg-high` | `#b8632a` | Gravité haute |
+| `--bmg-critical` | `#c43850` | Gravité critique |
+
+### Soft backgrounds pour tags/badges (très pâle, texte foncé)
+
+| Token | Hex | Texte |
+|---|---|---|
+| `--crit-soft` | `#fdf2f4` | `#b02939` (crit) |
+| `--warn-soft` | `#fdf6f0` | `#9d551f` (warn) |
+| `--caution-soft` | `#fdfaf0` | `#8a7218` (caution) |
+| `--ok-soft` | `#f0f8f1` | `#3d6f44` (ok) |
+| `--info-soft` | `#f1f5fa` | `#2f5680` (info) |
+
+### Brand gradient (logo uniquement, version mute)
+
+```css
+--brand-gradient: linear-gradient(135deg, #4f8b56 0%, #a88820 50%, #c43850 100%);
+```
+Vert mute → ambré mute → rouge mute. Sobre, pas saturé.
+
+### À retirer
+
+- ❌ Toute la palette dark (indigo/violet déjà retirée, dark base à retirer aussi)
+- ❌ Glassmorphism par défaut (la base est solide, pas glass)
+- ❌ Glow boxshadows colorés
+- ❌ Tokens `--accent-press: #DC2626` (rouge presse) — remplacé par encre noire
 
 ---
 
 ## 3. Typographie
 
-### Pairing : News Editorial
+### Fonts
 
-- **Headings :** [Newsreader](https://fonts.google.com/specimen/Newsreader) — serif éditorial conçu pour la presse digitale. Conserve une vraie identité "news".
-- **Body / UI :** [Inter](https://fonts.google.com/specimen/Inter) — déjà en place, on garde pour la cohérence UI dense.
-- **Mono (données / IDs / timestamps) :** `ui-monospace, SFMono-Regular` (system) — pour les IDs d'articles, dates précises, métriques.
+- **Display (titres éditoriaux H1/H2, gros nombres KPI) :** [Newsreader](https://fonts.google.com/specimen/Newsreader) — serif éditorial, italique pour les sous-titres éditoriaux
+- **Body / UI :** [Inter](https://fonts.google.com/specimen/Inter) — conservé pour cohérence UI dense
+- **Mono (données / IDs / timestamps / KPI numbers) :** `ui-monospace, SFMono-Regular` (system) — privilégié pour data
 
 ```css
-@import url('https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600;6..72,700&family=Inter:wght@300;400;500;600;700&display=swap');
+--font-sans: var(--font-inter), 'Inter', system-ui, -apple-system, sans-serif;
+--font-serif: var(--font-newsreader), 'Newsreader', Georgia, serif;
+--font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 ```
 
-### Tailwind config
-
-```js
-fontFamily: {
-  serif: ['Newsreader', 'Georgia', 'serif'],
-  sans: ['Inter', 'system-ui', 'sans-serif'],
-  mono: ['ui-monospace', 'SFMono-Regular', 'monospace'],
-}
-```
-
-### Échelle
+### Échelle éditoriale
 
 | Usage | Classes | Notes |
 |---|---|---|
-| Page H1 | `font-serif text-4xl md:text-5xl font-semibold tracking-tight` | Newsreader, hiérarchie forte |
-| Section H2 | `font-serif text-2xl font-semibold` | |
-| Card title | `font-sans text-base font-semibold` | Inter, UI dense |
+| Page H1 éditorial (ex: "Édition du 16 mai") | `font-serif text-3xl md:text-4xl font-medium tracking-tight italic` | Style éditorial fort, italique signature |
+| Eyebrow (ex: "PILOTAGE / VUE D'ENSEMBLE") | `font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted` | Mono pour signal navigation |
+| Section H2 | `font-serif text-xl font-semibold tracking-tight` | Newsreader, hiérarchie forte |
+| Section title (widget) | `font-sans text-sm font-semibold` | Inter, UI dense |
+| KPI number | `font-serif text-3xl font-semibold tabular-nums` | Gros, lisible en 2s |
+| KPI label | `font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted` | Mono pour data |
+| Trend delta (↗ +4) | `font-mono text-xs` colored par signal | Mono tabular |
 | Body | `font-sans text-sm leading-relaxed` | |
-| Label/eyebrow | `font-sans text-[10px] uppercase tracking-[0.15em] text-text-muted` | |
-| Data/timestamp | `font-mono text-xs tabular-nums` | |
+| Timestamp | `font-mono text-xs text-text-muted tabular-nums` | |
 
 ---
 
@@ -109,101 +136,142 @@ fontFamily: {
 
 | Token | Valeur | Usage |
 |---|---|---|
-| `--space-xs` → `--space-3xl` | 4 → 64px | Échelle multiplicateur 1.5x |
-| `--radius-sm` | 8px | Boutons, badges |
-| `--radius` | 12px | Cards, inputs |
-| `--radius-lg` | 16px | Modals, hero |
-| `--shadow-card` | `0 1px 3px rgba(0,0,0,0.4)` | Cards mates (pas de glow) |
-| `--shadow-elevated` | `0 4px 16px rgba(0,0,0,0.5)` | Dropdowns, modals |
+| `--radius-sm` | 4px | Tags, badges (rayons fins éditoriaux) |
+| `--radius` | 6px | Panels, cards |
+| `--radius-lg` | 8px | Modals |
+| `--shadow-card` | `0 1px 2px rgba(0,0,0,0.04)` | Cards (très subtil sur fond clair) |
+| `--shadow-elevated` | `0 4px 12px rgba(0,0,0,0.08)` | Dropdowns, modals |
+
+**Note :** sur fond clair, les ombres doivent être TRÈS subtiles. Privilégier les bordures `#e8e8eb` pour délimiter.
 
 ---
 
 ## 5. Composants
 
-### Cards
-
-**MAT** par défaut — on a abandonné le glassmorphism systématique.
+### Cards / Panels
 
 ```css
-.card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
+.panel {
+  background: var(--bg-surface);       /* white */
+  border: 1px solid var(--border);     /* #e8e8eb */
+  border-radius: var(--radius);        /* 6px */
 }
-.card:hover { background: var(--bg-elevated); border-color: var(--border-hover); }
 ```
+**Pas d'ombre par défaut**, les bordures suffisent sur fond crème.
 
 ### Buttons
 
 ```css
-.btn-primary { background: var(--accent-press); color: var(--accent-text); }
-.btn-secondary { background: transparent; border: 1px solid var(--border-hover); color: var(--text); }
-.btn-ghost { background: transparent; color: var(--text-muted); }
-.btn-ghost:hover { background: var(--bg-hover); color: var(--text); }
+.btn-primary {
+  background: var(--accent-press);     /* #18181b ink black */
+  color: white;
+  border: 1px solid var(--accent-press);
+}
+.btn-secondary {
+  background: white;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
 ```
 
-Touch targets : **min 44x44px**. Focus ring : `outline: 2px solid var(--accent-link); outline-offset: 2px;`
+Focus ring : `outline: 2px solid var(--accent-press); outline-offset: 2px;`
+Touch targets : min 44x44px.
 
-### Status dots / badges
+### KPI cell (pattern signature)
 
-Utiliser les tokens sémantiques (`--sentiment-*`, `--bmg-*`) avec un dot 8px + label texte. **Ne jamais utiliser la couleur seule** (a11y).
+```jsx
+<div className="panel p-3">
+  <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">BMG moyen</span>
+  <div className="flex items-baseline gap-2 mt-1">
+    <span className="font-serif text-3xl font-semibold tabular-nums">42</span>
+    <span className="font-mono text-xs text-warn">↗ +4 pts</span>
+  </div>
+</div>
+```
 
-### Glassmorphism
+### Tags semantic (fond pâle, texte foncé)
 
-**Réservé exclusivement aux overlays sur cartes Mapbox** (PresenceMap, GuadeloupeMap, MapboxFullMap). Utiliser `--glass-heavy-bg` (existant). Partout ailleurs : cards mates.
+```css
+.tag-crit    { background: #fdf2f4; color: #b02939; border: 1px solid #f5d4d9; }
+.tag-warn    { background: #fdf6f0; color: #9d551f; border: 1px solid #f3dcc5; }
+.tag-caution { background: #fdfaf0; color: #8a7218; border: 1px solid #ecdfa9; }
+.tag-ok      { background: #f0f8f1; color: #3d6f44; border: 1px solid #cce5d0; }
+.tag-info    { background: #f1f5fa; color: #2f5680; border: 1px solid #d3dde9; }
+```
 
 ---
 
-## 6. Navigation (architecture validée)
+## 6. Layout signatures (Dashboard `/`)
+
+Le dashboard suit la structure éditoriale **3 colonnes** :
 
 ```
-VEILLE     → Articles | Radio | Réseaux sociaux
-TERRAIN    → Carte | Élus | Affaires
-ANALYSE    → Dashboard | Analytics | Briefing
-ADMIN      → Admin (role-gated)
+┌─ Sidebar (PILOTAGE + SYSTÈME) ─┬─ KPI strip (4 cells) ─────────────┬─ FLUX TEMPS RÉEL ──┐
+│                                ├─ Carte concentration 24h ─────────┤  - Personnalités   │
+│                                ├─ Barometre médiatique 7j (chart)  │  - Live ticker     │
+└────────────────────────────────┴───────────────────────────────────┴────────────────────┘
 ```
 
-- Sidebar : sections avec headers `text-[10px] uppercase tracking-widest text-text-muted`
-- Actif : barre verticale 2px `--accent-press` à gauche + texte `--text`
-- Mobile : `BottomNav` montre les 3 groupes principaux (Veille / Terrain / Analyse)
-- Élections : à arbitrer en cours de route (Terrain temporel ou Analyse selon usage)
+- **KPI strip** : 4 cells horizontales avec gros chiffres serif + trend
+- **Carte** : intégrée (pas plein écran), avec clusters annotés
+- **FLUX TEMPS RÉEL** : ticker live horodaté par source (RCI, France-Antilles, KaribInfo, etc.)
+- **H1 éditorial** au-dessus : "Édition du 16 mai" en serif italique + eyebrow `PILOTAGE / VUE D'ENSEMBLE`
 
 ---
 
-## 7. Anti-patterns (NE PAS faire)
+## 7. Navigation (architecture simplifiée — 2 sections)
 
-- ❌ Réintroduire l'indigo/violet (`#6366f1`, `#818cf8`, `#8b5cf6`)
-- ❌ Glassmorphism hors overlays carte
-- ❌ Emojis comme icônes UI (utiliser Heroicons / Lucide en SVG)
-- ❌ Gradients "AI" violet/rose/cyan
-- ❌ Couleur seule pour communiquer un état (toujours icône + texte)
+```
+PILOTAGE  → Vue d'ensemble | Affaires | Articles | Radio | Réseaux | Carte | Élections | Analytics | Briefing
+SYSTÈME   → Alertes | Admin | Paramètres
+```
+
+- Sidebar bg : `--bg-elevated` (`#f4f4f5` — un cran plus chaud que les surfaces)
+- Sections : eyebrow `font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted`
+- Item actif : barre verticale 2px gauche `--accent-press` (encre noire) + bg `--bg-hover`
+- Icônes : 17-18px, line-icons (heroicons outline ou similaire)
+
+---
+
+## 8. Anti-patterns
+
+- ❌ Dark mode par défaut
+- ❌ Glassmorphism par défaut (gardé seulement pour overlays carte, ou supprimé carrément)
+- ❌ Couleurs saturées brand (indigo/violet/rose) — tout passe en mute
+- ❌ Emojis comme icônes UI (SVG line uniquement)
+- ❌ Gradients colorés au-delà du logo
+- ❌ Ombres prononcées (bordures à la place)
+- ❌ Couleur seule pour communiquer un état (icône + texte)
 - ❌ `cursor: default` sur du cliquable
-- ❌ Hover qui shift le layout (`scale` sur card cliquable, pad qui bouge)
-- ❌ Transitions instantanées ou >300ms sur micro-interactions
 - ❌ Focus state invisible
 
 ---
 
-## 8. Checklist pré-livraison
+## 9. Checklist pré-livraison
 
-- [ ] Aucun indigo/violet réintroduit (`grep -i "6366f1\|818cf8\|8b5cf6"`)
-- [ ] Icônes SVG uniquement (pas d'emoji)
+- [ ] Aucun fond noir/dark introduit
+- [ ] Contraste texte ≥ 4.5:1 (encre `#18181b` sur `#fafafa` = 16:1, OK)
+- [ ] Icônes SVG line uniquement (pas d'emoji, pas de filled)
 - [ ] `cursor-pointer` sur tout cliquable
 - [ ] Focus ring visible 2-3px sur tout interactif
-- [ ] Contraste texte ≥ 4.5:1
-- [ ] `prefers-reduced-motion` respecté
+- [ ] Touch targets ≥ 44x44px
 - [ ] Responsive 375 / 768 / 1024 / 1440
 - [ ] Pas de scroll horizontal mobile
-- [ ] Touch targets ≥ 44x44px
+- [ ] Newsreader appliqué sur H1/H2 éditoriaux et gros chiffres KPI
+- [ ] Mono appliqué sur eyebrows, timestamps, IDs, nombres
 
 ---
 
-## 9. Phases de rollout
+## 10. Phases de rollout
 
-1. ✅ Direction validée + design system persisté (2026-05-16)
-2. ⏳ Découper `app/page.tsx` (1739 lignes) en sous-composants colocalisés
-3. ⏸ Refonte tokens CSS (globals.css) + Tailwind config (fonts, palette)
-4. ⏸ Refonte Sidebar + BottomNav (regroupement 4 sections)
-5. ⏸ Pages prioritaires : `/`, `/articles`, `/carte`
-6. ⏸ Le reste (Briefing, Analytics, Radio, Réseaux, Élections, Affaires, Admin)
+1. ✅ Direction "Press éditoriale dark" validée puis **pivot vers "Crème & encre"** (2026-05-16)
+2. ✅ Découpe `app/page.tsx` (1739 → 956 lignes) — fondation conservée
+3. ⏳ Token pivot light cream & ink (`globals.css` + `tailwind.config.js` + `layout.tsx`)
+4. ⏸ Refonte Sidebar simplifiée (2 sections PILOTAGE / SYSTÈME) + light
+5. ⏸ Refonte Dashboard structurel (KPI strip + carte intégrée + FLUX TEMPS RÉEL rail)
+6. ⏸ Pages prioritaires : Articles (comparaison sources) + Radio (waveforms + courbes)
+7. ⏸ Le reste : Briefing, Analytics, Affaires (table éditoriale), Social, Élections, Admin, Login

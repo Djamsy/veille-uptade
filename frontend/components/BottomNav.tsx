@@ -77,11 +77,8 @@ const BottomNav = () => {
     <nav
       className="fixed bottom-0 left-0 right-0 lg:hidden z-50 bottom-nav"
       style={{
-        background: 'rgba(10,10,15,0.85)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        borderTop: '1px solid rgba(255,255,255,0.06)',
-        boxShadow: '0 -4px 20px rgba(0,0,0,0.4)',
+        background: 'var(--bg-elevated)',
+        borderTop: '1px solid var(--border)',
       }}
       aria-label="Navigation rapide"
     >
@@ -101,7 +98,7 @@ const BottomNav = () => {
               className="flex flex-col items-center justify-center flex-1 text-link focus-visible:outline focus-visible:outline-2 focus-visible:outline-press"
               style={{
                 minHeight: '48px',
-                color: active ? '#DC2626' : '#64748b',
+                color: active ? '#18181b' : '#71717a',
                 transition: 'color 200ms ease-in-out',
               }}
               aria-current={active ? 'page' : undefined}
@@ -110,8 +107,8 @@ const BottomNav = () => {
                 className="flex items-center justify-center mb-0.5"
                 style={{
                   padding: '0.25rem',
-                  borderRadius: '10px',
-                  background: active ? 'rgba(220,38,38,0.12)' : 'transparent',
+                  borderRadius: '4px',
+                  background: active ? 'var(--bg-hover)' : 'transparent',
                   transition: 'background 200ms ease',
                 }}
               >

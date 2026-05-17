@@ -22,7 +22,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
-  themeColor: '#0a0a0f',
+  themeColor: '#fafafa',
 }
 
 export const metadata: Metadata = {
@@ -64,7 +64,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.css"
         />
       </head>
-      <body className="font-sans antialiased" style={{ background: '#0a0a0f', color: '#f1f5f9' }}>
+      <body className="font-sans antialiased" style={{ background: '#fafafa', color: '#18181b' }}>
         <ServiceWorkerRegistration />
         {/* Ambient gradient background */}
         <div className="ambient-bg">

@@ -111,10 +111,10 @@ const SECTIONS: NavSection[] = [
 
 function roleColor(role: string) {
   switch (role) {
-    case 'admin': return '#DC2626'
-    case 'editor': return '#F59E0B'
-    case 'viewer': return '#0369A1'
-    default: return '#16a34a'
+    case 'admin': return '#c43850'
+    case 'editor': return '#b8632a'
+    case 'viewer': return '#3e6fa3'
+    default: return '#4f8b56'
   }
 }
 
@@ -124,7 +124,7 @@ function NavLink({ item, isActive }: { item: NavItem; isActive: boolean }) {
       href={item.href}
       className="flex items-center gap-3 px-2.5 py-2.5 rounded-lg transition-all group focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-press"
       style={isActive ? {
-        background: 'rgba(220,38,38,0.12)',
+        background: 'var(--bg-hover)',
         color: 'var(--text)',
       } : {
         color: 'var(--text-muted)',
@@ -133,7 +133,7 @@ function NavLink({ item, isActive }: { item: NavItem; isActive: boolean }) {
     >
       <span
         className="transition-colors"
-        style={isActive ? { color: '#DC2626' } : undefined}
+        style={isActive ? { color: '#18181b' } : undefined}
       >
         {item.icon}
       </span>
@@ -141,7 +141,7 @@ function NavLink({ item, isActive }: { item: NavItem; isActive: boolean }) {
       {isActive && (
         <span
           className="nav-label ml-auto w-1.5 h-1.5 rounded-full shrink-0"
-          style={{ background: '#DC2626', boxShadow: '0 0 8px rgba(220,38,38,0.5)' }}
+          style={{ background: '#18181b' }}
         />
       )}
     </Link>
@@ -225,8 +225,7 @@ export default function Sidebar() {
           <div
             className="w-10 h-10 shrink-0 rounded-lg flex items-center justify-center"
             style={{
-              background: 'linear-gradient(135deg, #DC2626, #F59E0B)',
-              boxShadow: '0 4px 16px rgba(220,38,38,0.3)',
+              background: 'var(--brand-gradient)',
             }}
           >
             <span className="text-sm font-black text-white tracking-tighter">VM</span>
@@ -314,8 +313,7 @@ export default function Sidebar() {
           <div
             className="w-10 h-10 rounded-lg flex items-center justify-center"
             style={{
-              background: 'linear-gradient(135deg, #DC2626, #F59E0B)',
-              boxShadow: '0 4px 16px rgba(220,38,38,0.3)',
+              background: 'var(--brand-gradient)',
             }}
           >
             <span className="text-sm font-black text-white tracking-tighter">VM</span>
@@ -355,18 +353,18 @@ export default function Sidebar() {
                       href={item.href}
                       className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all"
                       style={active ? {
-                        background: 'rgba(220,38,38,0.12)',
+                        background: 'var(--bg-hover)',
                         color: 'var(--text)',
                       } : {
                         color: 'var(--text-muted)',
                       }}
                     >
-                      <span style={active ? { color: '#DC2626' } : undefined}>{item.icon}</span>
+                      <span style={active ? { color: '#18181b' } : undefined}>{item.icon}</span>
                       <span className="flex-1">{item.label}</span>
                       {active && (
                         <span
                           className="w-1.5 h-1.5 rounded-full"
-                          style={{ background: '#DC2626', boxShadow: '0 0 8px rgba(220,38,38,0.5)' }}
+                          style={{ background: '#18181b' }}
                         />
                       )}
                     </Link>

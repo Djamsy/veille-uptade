@@ -13,76 +13,92 @@
 
 :root {
   /* ══════════════════════════════════════════════════════
-     DESIGN SYSTEM V4 — "Press éditoriale dark"
+     DESIGN SYSTEM V5 — "Crème & encre" light editorial
      See: design-system/veille-media-guadeloupe/MASTER.md
      ══════════════════════════════════════════════════════ */
 
-  /* ── Accents éditoriaux (remplacent indigo/violet) ── */
-  --accent-press: #DC2626;        /* breaking / urgent / actif */
-  --accent-press-dark: #991B1B;
-  --accent-press-light: #EF4444;
-  --accent-alert: #F59E0B;        /* alertes, warnings, BMG medium */
-  --accent-alert-light: #FBBF24;
-  --accent-link: #0369A1;         /* liens, CTA secondaires */
-  --accent-link-light: #0EA5E9;
+  /* ── Surfaces — blancs neutres zinc ── */
+  --bg-base: #fafafa;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-elevated: #f4f4f5;
+  --bg-hover: #f4f4f5;
+  --bg-sidebar: #f4f4f5;
+  --bg-sunk: #f0f0f1;
 
-  /* ── Compat: --primary désormais = press red ── */
+  /* Compat ancien système */
+  --bg: #fafafa;
+  --bg-card-hover: #f4f4f5;
+
+  /* ── Texte — encre noire ── */
+  --text: #18181b;
+  --text-secondary: #3f3f46;
+  --text-muted: #71717a;
+  --text-disabled: #a1a1aa;
+
+  /* ── Bordures ── */
+  --border: #e8e8eb;
+  --border-subtle: #e8e8eb;
+  --border-hover: #d4d4d8;
+  --border-strong: #a1a1aa;
+  --border-accent: #18181b;
+
+  /* ── Accents — sobriété éditoriale ── */
+  --accent-press: #18181b;             /* CTA principal = encre noire */
+  --accent-press-dark: #000000;
+  --accent-press-light: #27272a;
+  --accent-alert: #b8632a;             /* warn ambré désaturé */
+  --accent-alert-light: #c5793f;
+  --accent-link: #3e6fa3;              /* bleu mute info */
+  --accent-link-light: #5887bc;
+
+  /* Compat: --primary désormais = encre noire */
   --primary: var(--accent-press);
   --primary-light: var(--accent-press-light);
   --primary-dark: var(--accent-press-dark);
   --accent: var(--accent-alert);
   --accent-light: var(--accent-alert-light);
 
-  /* ── Tokens sémantiques (sentiment, BMG, partis) ── */
-  --positive: #16a34a;
-  --positive-light: #6ee7b7;
-  --negative: #dc2626;
-  --negative-light: #fca5a5;
-  --neutral: #94a3b8;
-  --warning: #F59E0B;
-  --coral: #fb923c;
+  /* ── Tokens sémantiques (mute pour fond clair) ── */
+  --positive: #4f8b56;
+  --positive-light: #6ba572;
+  --negative: #c43850;
+  --negative-light: #d75b71;
+  --neutral: #71717a;
+  --warning: #b8632a;
+  --caution: #a88820;
+  --coral: #b8632a;
 
-  /* ── Couches de fond (dark depth — conservées) ── */
-  --bg-base: #0a0a0f;
-  --bg-surface: #0d0d14;
-  --bg-card: #12121a;
-  --bg-elevated: #1a1a24;
-  --bg-hover: #1f1f2e;
-  --bg-sidebar: #0d0d14;
+  /* Soft backgrounds pour tags */
+  --crit-soft: #fdf2f4;
+  --warn-soft: #fdf6f0;
+  --caution-soft: #fdfaf0;
+  --ok-soft: #f0f8f1;
+  --info-soft: #f1f5fa;
 
-  /* Compat ancien système */
-  --bg: #0a0a0f;
-  --bg-card-hover: #1f1f2e;
+  /* ── Glass (réservé overlays carte) — réajusté pour fond clair ── */
+  --glass-bg: rgba(255,255,255,0.85);
+  --glass-border: rgba(0,0,0,0.06);
+  --glass-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  --glass-heavy-bg: rgba(255,255,255,0.92);
+  --glass-heavy-border: rgba(0,0,0,0.10);
 
-  /* ── Textes ───────────────────────────────────── */
-  --text: #f1f5f9;
-  --text-secondary: #cbd5e1;
-  --text-muted: #64748b;
+  /* ── Shadow scale (très subtil sur fond clair) ── */
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-elevated: 0 4px 12px rgba(0,0,0,0.08);
 
-  /* ── Bordures ─────────────────────────────────── */
-  --border: rgba(255,255,255,0.05);
-  --border-hover: rgba(255,255,255,0.10);
-  --border-accent: rgba(220,38,38,0.25);  /* press red */
+  /* ── Radius (rayons fins éditoriaux) ── */
+  --radius: 6px;
+  --radius-sm: 4px;
+  --radius-lg: 8px;
 
-  /* ── Glass (réservé overlays carte) ─────────── */
-  --glass-bg: rgba(13,13,20,0.80);
-  --glass-border: rgba(255,255,255,0.06);
-  --glass-shadow: 0 4px 24px rgba(0,0,0,0.4);
-  --glass-heavy-bg: rgba(0,0,0,0.60);
-  --glass-heavy-border: rgba(255,255,255,0.10);
-
-  /* ── Shadow scale (cards mates — pas de glow) ── */
-  --shadow-card: 0 1px 3px rgba(0,0,0,0.4);
-  --shadow-elevated: 0 4px 16px rgba(0,0,0,0.5);
-
-  /* ── Radius ───────────────────────────────────── */
-  --radius: 12px;
-  --radius-sm: 8px;
-  --radius-lg: 16px;
-
-  /* ── Fonts (CSS vars exposed by next/font in layout.tsx) ── */
+  /* ── Fonts ── */
   --font-sans: var(--font-inter), 'Inter', system-ui, -apple-system, sans-serif;
   --font-serif: var(--font-newsreader), 'Newsreader', Georgia, serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, 'JetBrains Mono', monospace;
+
+  /* Brand gradient — version mute pour logo (vert→ambré→rouge) */
+  --brand-gradient: linear-gradient(135deg, #4f8b56 0%, #a88820 50%, #c43850 100%);
 }
 
 * { box-sizing: border-box; }
@@ -146,11 +162,11 @@ body {
   50% { transform: translate(30px, 20px); }
 }
 
-/* ── Scrollbar (dark) ──────────────────────────────── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
+/* ── Scrollbar (light) ─────────────────────────────── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 10px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
 
 /* ══════════════════════════════════════════════════════
    COMPOSANTS
@@ -166,16 +182,14 @@ body {
 .glass-card:hover {
   background: var(--bg-elevated);
   border-color: var(--border-hover);
-  box-shadow: 0 8px 28px rgba(0,0,0,0.3);
-  transform: translateY(-2px);
+  box-shadow: var(--shadow-elevated);
+  transform: translateY(-1px);
 }
 
 .glass-card-static {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
 }
 
 /* ── Glassmorphism overlay (pour carte) ─────────────── */
@@ -321,33 +335,29 @@ body {
 /* ── Buttons ─────────────────────────────────────────── */
 .btn-primary {
   background: var(--accent-press);
-  color: white;
-  border: none;
+  color: #fafafa;
+  border: 1px solid var(--accent-press);
   border-radius: var(--radius-sm);
   font-weight: 600;
-  transition: all 0.2s ease;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  transition: all 0.12s ease;
 }
 .btn-primary:hover {
   background: var(--accent-press-light);
-  box-shadow: 0 4px 12px rgba(220,38,38,0.3);
-  transform: translateY(-1px);
+  border-color: var(--accent-press-light);
 }
 .btn-primary:active { transform: translateY(0); }
 .btn-primary:disabled { opacity: 0.4; transform: none; box-shadow: none; }
 
 .btn-glass {
-  background: rgba(255,255,255,0.05);
+  background: var(--bg-surface);
   border: 1px solid var(--border);
   color: var(--text-secondary);
   border-radius: var(--radius-sm);
   font-weight: 500;
-  transition: all 0.2s ease;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  transition: all 0.12s ease;
 }
 .btn-glass:hover {
-  background: rgba(255,255,255,0.08);
+  background: var(--bg-hover);
   border-color: var(--border-hover);
   color: var(--text);
 }
@@ -375,33 +385,34 @@ body {
 .btn-green:hover { box-shadow: 0 4px 20px rgba(16,185,129,0.35); transform: translateY(-1px); }
 
 /* ── Progress bar ────────────────────────────────────── */
-.progress-bar-bg { background: rgba(255,255,255,0.06); border-radius: 999px; overflow: hidden; }
+.progress-bar-bg { background: var(--bg-elevated); border-radius: 999px; overflow: hidden; }
 
 /* ── Gradient text ───────────────────────────────────── */
 .stat-value {
-  background: linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.8) 100%);
+  background: linear-gradient(135deg, #18181b 0%, #52525b 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 .text-gradient-primary {
-  background: linear-gradient(135deg, #FCA5A5, #DC2626);
+  background: linear-gradient(135deg, #18181b, #52525b);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 .text-gradient-warm {
-  background: linear-gradient(135deg, #fbbf24, #f97316);
+  background: linear-gradient(135deg, #a88820, #b8632a);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* ── Flag stripe ─────────────────────────────────────── */
+/* ── Flag stripe (drapeau GP éditorialisé, version mute) ── */
 .flag-stripe {
   height: 2px;
-  background: linear-gradient(90deg, #10b981 33%, #f59e0b 33% 66%, #ef4444 66%);
+  background: linear-gradient(90deg, #4f8b56 33%, #a88820 33% 66%, #c43850 66%);
   border-radius: 2px;
+  opacity: 0.8;
 }
 
 /* ── Animations — légères et fluides ─────────────────── */
@@ -522,7 +533,7 @@ body {
 /* ── Section divider ─────────────────────────────────── */
 .section-divider {
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06) 50%, transparent);
+  background: linear-gradient(90deg, transparent, var(--border) 50%, transparent);
 }
 
 /* ── Gradient border ─────────────────────────────────── */
@@ -547,7 +558,7 @@ body {
 .glow-red { box-shadow: 0 0 20px rgba(239,68,68,0.12); }
 .glow-gold { box-shadow: 0 0 20px rgba(245,158,11,0.12); }
 
-::selection { background: rgba(220,38,38,0.3); color: #f1f5f9; }
+::selection { background: rgba(24,24,27,0.15); color: #18181b; }
 
 /* ══════════════════════════════════════════════════════
    MOBILE RESPONSIVE — iPhone & Samsung optimisé
