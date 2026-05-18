@@ -174,18 +174,15 @@ async def job_enrich():
                 f"{no_method} sans méthode"
             )
 
-            # Articles à enrichir : soit jamais enrichis, soit seulement pré-enrichis
-            # Fenêtre large (30j) pour rattraper le backlog, batch 200
+            # Articles à enrichir : jamais enrichis OU seulement pré-enrichis.
+            # rule_based_ultra_strict = méthode finale → ne pas re-traiter.
             cutoff_dt = datetime.now() - timedelta(days=30)
             cutoff_str = cutoff_dt.isoformat()
 
-            # Requête simple — chercher les articles à ré-enrichir
-            # On utilise $and explicite pour combiner les conditions proprement
             query = {"$and": [
                 {"$or": [
                     {"_analysis_method": {"$exists": False}},
                     {"_analysis_method": "rules_preliminary"},
-                    {"_analysis_method": "rule_based_ultra_strict"},
                 ]},
                 {"$or": [
                     {"scraped_at": {"$gte": cutoff_dt}},
@@ -326,10 +323,12 @@ async def job_enrich():
                                     "entity_canonical": r["entity_canonical"],
                                     "commune": r["commune"],
                                 }
-                                if presences_col.find_one(key):
-                                    continue
-                                presences_col.insert_one(r)
-                                pres_inserted += 1
+                                # upsert atomique — élimine la race find_one+insert_one
+                                res = presences_col.update_one(
+                                    key, {"$setOnInsert": r}, upsert=True
+                                )
+                                if res.upserted_id:
+                                    pres_inserted += 1
                         except Exception as e:
                             logger.debug(f"Presence extract: {e}")
                     if pres_total or pres_inserted:
