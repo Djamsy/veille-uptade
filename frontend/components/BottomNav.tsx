@@ -13,7 +13,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   {
     href: '/',
-    label: 'Dashboard',
+    label: 'Vue',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -117,9 +117,9 @@ const BottomNav = () => {
               <span
                 className="leading-tight"
                 style={{
-                  fontSize: '9px',
-                  fontWeight: active ? 700 : 500,
-                  letterSpacing: '0.02em',
+                  fontSize: '10.5px',
+                  fontWeight: active ? 600 : 500,
+                  letterSpacing: '0.01em',
                 }}
               >
                 {item.label}

@@ -74,20 +74,21 @@ const ICON = {
 
 const SECTIONS: NavSection[] = [
   {
-    id: 'veille',
-    label: 'Veille',
+    id: 'depeches',
+    label: 'Dépêches',
     items: [
+      { href: '/', label: 'Vue', icon: ICON.dashboard },
       { href: '/articles', label: 'Articles', icon: ICON.articles },
       { href: '/radio', label: 'Radio', icon: ICON.radio },
       { href: '/social', label: 'Réseaux', icon: ICON.social, adminOnly: true },
     ],
   },
   {
-    id: 'terrain',
-    label: 'Terrain',
+    id: 'suivi',
+    label: 'Suivi',
     items: [
-      { href: '/carte', label: 'Carte', icon: ICON.carte },
       { href: '/affairs', label: 'Affaires', icon: ICON.affairs },
+      { href: '/carte', label: 'Carte', icon: ICON.carte },
       { href: '/elections', label: 'Élections', icon: ICON.elections },
     ],
   },
@@ -95,14 +96,13 @@ const SECTIONS: NavSection[] = [
     id: 'analyse',
     label: 'Analyse',
     items: [
-      { href: '/', label: 'Dashboard', icon: ICON.dashboard },
       { href: '/analytics', label: 'Analytics', icon: ICON.analytics },
       { href: '/briefing', label: 'Briefing', icon: ICON.briefing },
     ],
   },
   {
-    id: 'admin',
-    label: 'Admin',
+    id: 'systeme',
+    label: 'Système',
     items: [
       { href: '/admin', label: 'Admin', icon: ICON.admin, adminOnly: true },
     ],
