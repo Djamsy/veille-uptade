@@ -17,9 +17,53 @@ from typing import List, Dict, Any, Optional
 from urllib.parse import urljoin, urlparse
 # SequenceMatcher supprimé - plus de matching V1
 
+import random
 import requests
 from bs4 import BeautifulSoup
 from pymongo import MongoClient
+from requests.adapters import HTTPAdapter
+try:
+    from urllib3.util.retry import Retry
+except ImportError:  # pragma: no cover — vieille urllib3
+    from urllib3.util import Retry  # type: ignore
+
+
+# ============================================================
+# HTTP fetch helper — pool requests + retry + SSRF guard
+# ============================================================
+_UA_POOL = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
+    "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0",
+]
+
+# Whitelist des hôtes autorisés au scraping (SSRF guard).
+# Toute URL hors de cette liste sera refusée par _safe_get.
+# Mettre à jour quand un nouveau site est ajouté à sites_config.
+_ALLOWED_HOSTS = {
+    "guadeloupe.franceantilles.fr", "www.guadeloupe.franceantilles.fr",
+    "rci.fm", "www.rci.fm",
+    "la1ere.francetvinfo.fr", "guadeloupe.la1ere.francetvinfo.fr",
+    "www.karibinfo.com", "karibinfo.com",
+    "outremers360.com", "www.outremers360.com",
+}
+
+
+def _is_allowed_url(url: str) -> bool:
+    """Vérifie que l'URL est http(s) et que le host est whitelisté.
+    Évite SSRF : un href malveillant dans le HTML scrappé ne peut pas faire
+    fetch un service interne (169.254.169.254, localhost, IP RFC1918, etc.).
+    """
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+    if parsed.scheme not in ("http", "https"):
+        return False
+    host = (parsed.hostname or "").lower()
+    if not host:
+        return False
+    return host in _ALLOWED_HOSTS
 
 # Import tags_index pour enrichissement
 try:
@@ -180,10 +224,38 @@ class GuadeloupeScraper:
         }
         
         self.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "fr-FR,fr;q=0.9",
         }
+
+        # Session HTTP avec connection pooling + retry sur erreurs transitoires.
+        # Pre: requests.get bare → 1 socket par appel, 0 retry → un 502 cassait le site.
+        self._session = requests.Session()
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1.5,  # 1.5s → 3s → 6s
+            status_forcelist=(429, 500, 502, 503, 504),
+            allowed_methods=frozenset(["GET", "HEAD"]),
+            respect_retry_after_header=True,
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy, pool_connections=10, pool_maxsize=20)
+        self._session.mount("https://", adapter)
+        self._session.mount("http://", adapter)
+
+    def _safe_get(self, url: str, connect_timeout: float = 10.0, read_timeout: float = 20.0) -> Optional[requests.Response]:
+        """GET avec garde SSRF, UA rotation, retry intégré (via session adapter).
+        Retourne None si l'URL est hors whitelist ou si toutes les tentatives ont échoué.
+        """
+        if not _is_allowed_url(url):
+            logger.warning(f"   🚫 URL refusée (hors whitelist): {url[:120]}")
+            return None
+        headers = dict(self.headers)
+        headers["User-Agent"] = random.choice(_UA_POOL)
+        try:
+            return self._session.get(url, headers=headers, timeout=(connect_timeout, read_timeout))
+        except requests.RequestException as e:
+            logger.warning(f"   ⚠️ HTTP fetch failed pour {url[:80]}: {e}")
+            return None
 
     @staticmethod
     def _clean_url(url: str) -> str:
@@ -208,8 +280,9 @@ class GuadeloupeScraper:
         Exclut : navigation, sidebar, footer, bylines auteur, publicités.
         """
         try:
-            response = requests.get(url, headers=self.headers, timeout=10)
-            response.raise_for_status()
+            response = self._safe_get(url, connect_timeout=10, read_timeout=15)
+            if response is None or not response.ok:
+                return ""
             soup = BeautifulSoup(response.content, 'html.parser')
 
             # 1. Supprimer les éléments non-éditoriaux AVANT extraction
@@ -289,9 +362,11 @@ class GuadeloupeScraper:
         
         try:
             logger.info(f"🔍 Scraping {config['name']}...")
-            response = requests.get(config['url'], headers=self.headers, timeout=15)
-            response.raise_for_status()
-            
+            response = self._safe_get(config['url'], connect_timeout=10, read_timeout=20)
+            if response is None or not response.ok:
+                logger.warning(f"   ⚠️ Échec scraping {config['name']} — site indisponible")
+                return []
+
             soup = BeautifulSoup(response.content, 'html.parser')
             links = []
             
