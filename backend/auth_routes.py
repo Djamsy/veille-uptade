@@ -3,7 +3,10 @@ from typing import Optional, Dict, Any
 import os
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+from collections import defaultdict, deque
+import time as _time
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Body
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -11,6 +14,40 @@ from pymongo import MongoClient
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["auth"])  # ✅ CORRECTION ICI
+
+# ── Rate-limit dédié au login (anti brute-force) ──────────────
+# Buckets séparés par IP et par email-cible. 10 essais / 15 min chacun.
+_LOGIN_WINDOW = 900        # 15 minutes
+_LOGIN_MAX_PER_IP = 10
+_LOGIN_MAX_PER_EMAIL = 10
+_login_ip_attempts: Dict[str, deque] = defaultdict(deque)
+_login_email_attempts: Dict[str, deque] = defaultdict(deque)
+
+# Hash factice pour neutraliser le timing-attack quand l'email n'existe pas.
+# bcrypt sur cette valeur prend ~250ms — même latence qu'une vraie comparaison.
+_DUMMY_HASH = "$2b$12$abcdefghijklmnopqrstuuMh7TyM5p9w6f3kKDjxhz1qP6c7K0vO."
+
+def _check_login_rate_limit(ip: str, email: str) -> None:
+    """Lève HTTPException 429 si trop d'essais récents pour cette IP ou cet email."""
+    now = _time.time()
+    cutoff = now - _LOGIN_WINDOW
+    for bucket, max_count, label in (
+        (_login_ip_attempts[ip], _LOGIN_MAX_PER_IP, "IP"),
+        (_login_email_attempts[email], _LOGIN_MAX_PER_EMAIL, "email"),
+    ):
+        while bucket and bucket[0] < cutoff:
+            bucket.popleft()
+        if len(bucket) >= max_count:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Trop de tentatives ({label}). Réessayer dans 15 minutes.",
+                headers={"Retry-After": str(_LOGIN_WINDOW)},
+            )
+
+def _record_login_attempt(ip: str, email: str) -> None:
+    now = _time.time()
+    _login_ip_attempts[ip].append(now)
+    _login_email_attempts[email].append(now)
 
 # Configuration
 SECRET_KEY = os.getenv("JWT_SECRET")
@@ -28,19 +65,26 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 120
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
+# Singleton MongoClient — évite le leak de connexions sous charge
+_mongo_client: Optional[MongoClient] = None
+
 def get_db():
-    """Connexion MongoDB"""
-    MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+    """Connexion MongoDB (singleton)."""
+    global _mongo_client
+    if _mongo_client is None:
+        MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+        _mongo_client = MongoClient(MONGO_URL)
     MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME", "veille_media")
-    
-    client = MongoClient(MONGO_URL)
-    return client[MONGO_DB_NAME]
+    return _mongo_client[MONGO_DB_NAME]
 
 def create_access_token(data: Dict[str, Any]) -> str:
-    """Créer un token JWT"""
+    """Créer un token JWT avec exp et iat."""
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
+    now = datetime.now(timezone.utc)
+    to_encode.update({
+        "exp": now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+        "iat": now,
+    })
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 @router.post("/register")
@@ -85,7 +129,19 @@ def register(user: Dict[str, Any] = Body(...)):
 
 @router.post("/init-admin")
 def init_admin(payload: Dict[str, Any] = Body(...)):
-    """Créer le premier compte admin. Ne fonctionne que s'il n'y a aucun admin en base."""
+    """Créer le premier compte admin. Ne fonctionne que s'il n'y a aucun admin en base.
+
+    Protection : exige le header X-Bootstrap-Token == os.getenv("BOOTSTRAP_TOKEN")
+    dès lors que BOOTSTRAP_TOKEN est défini. Empêche un attaquant de
+    revendiquer le rôle admin si la collection users est vide ou réinitialisée.
+    """
+    bootstrap_token_expected = os.getenv("BOOTSTRAP_TOKEN", "")
+    if bootstrap_token_expected:
+        provided = payload.get("bootstrap_token", "")
+        import hmac as _hmac
+        if not _hmac.compare_digest(provided, bootstrap_token_expected):
+            raise HTTPException(401, "Bootstrap token invalide")
+
     email = payload.get("email", "").strip().lower()
     password = payload.get("password", "")
     name = payload.get("name", "").strip()
@@ -132,16 +188,19 @@ def init_admin(payload: Dict[str, Any] = Body(...)):
     }
 
 @router.post("/login")
-def login(payload: Dict[str, Any] = Body(...)):
-    """Connexion utilisateur"""
+def login(payload: Dict[str, Any] = Body(...), request: Request = None):
+    """Connexion utilisateur — rate-limited + constant-time."""
     email = payload.get("email", "").strip().lower()
     password = payload.get("password", "")
-    
+
     if not email or not password:
         raise HTTPException(400, "Email et password requis")
 
-    # ✅ CORRECTION: Tronquer AVANT tout traitement
-    # Bcrypt a une limite stricte de 72 bytes
+    # Rate-limit dédié AVANT tout work (évite que le brute-force épuise le CPU bcrypt)
+    client_ip = (request.client.host if request and request.client else "unknown")
+    _check_login_rate_limit(client_ip, email)
+
+    # ✅ Tronquer AVANT tout traitement (bcrypt limite à 72 bytes)
     if isinstance(password, str):
         password_bytes = password.encode('utf-8')
         if len(password_bytes) > 72:
@@ -151,17 +210,19 @@ def login(payload: Dict[str, Any] = Body(...)):
     db = get_db()
     users_col = db["users"]
     user = users_col.find_one({"email": email})
-    
-    if not user:
-        raise HTTPException(401, "Identifiants invalides")
-    
-    # Vérifier le mot de passe
+
+    # ── Constant-time : toujours appeler pwd_context.verify ──
+    # Si l'utilisateur n'existe pas, on vérifie contre un hash factice
+    # pour ne pas révéler l'existence du compte par mesure de latence.
+    target_hash = user.get("password_hash") if user else _DUMMY_HASH
     try:
-        if not pwd_context.verify(password, user.get("password_hash", "")):
-            raise HTTPException(401, "Identifiants invalides")
+        password_ok = pwd_context.verify(password, target_hash)
     except ValueError as e:
-        # Si le hash en DB est corrompu, logger et refuser
         logger.error(f"Hash bcrypt invalide pour {email}: {e}")
+        password_ok = False
+
+    if not user or not password_ok:
+        _record_login_attempt(client_ip, email)
         raise HTTPException(401, "Identifiants invalides")
 
     user_role = user.get("role", "user")
@@ -183,7 +244,12 @@ def login(payload: Dict[str, Any] = Body(...)):
 async def me(token: str = Depends(oauth2_scheme)):
     """Informations utilisateur connecté"""
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM],
+            options={"require_exp": True, "require_sub": True, "verify_exp": True},
+        )
         email = payload.get("sub")
         
         db = get_db()
@@ -212,7 +278,12 @@ async def me(token: str = Depends(oauth2_scheme)):
 def _require_admin_auth(token: str = Depends(oauth2_scheme)):
     """Vérifie que l'appelant est admin."""
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM],
+            options={"require_exp": True, "require_sub": True, "verify_exp": True},
+        )
         email = payload.get("sub")
         role = payload.get("role", "user")
     except JWTError:

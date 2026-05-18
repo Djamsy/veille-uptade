@@ -189,11 +189,19 @@ else:
 # Regex pour autoriser tous les déploiements preview Vercel du projet :
 #   https://veille-uptade-<hash>-<org>.vercel.app
 #   https://veille-uptade-<branch>.vercel.app
-# Surcharge possible via CORS_ORIGIN_REGEX.
-_CORS_REGEX = os.environ.get(
-    "CORS_ORIGIN_REGEX",
-    r"^https://veille-uptade[a-z0-9\-]*\.vercel\.app$",
-)
+# ⚠️  Le default ci-dessous est permissif : n'importe quel projet Vercel
+# nommé `veille-uptade*` (y compris sur un compte attaquant) match. En prod,
+# DÉFINIR CORS_ORIGIN_REGEX avec votre team-slug Vercel, ex :
+#   ^https://veille-uptade-[a-z0-9]+-djamsys-projects\.vercel\.app$
+_CORS_REGEX_DEFAULT = r"^https://veille-uptade[a-z0-9\-]*\.vercel\.app$"
+_CORS_REGEX = os.environ.get("CORS_ORIGIN_REGEX", _CORS_REGEX_DEFAULT)
+if _CORS_REGEX == _CORS_REGEX_DEFAULT and os.environ.get("ENVIRONMENT", "").lower() in ("production", "prod"):
+    print(
+        "⚠️  CORS_ORIGIN_REGEX utilise le default permissif en PRODUCTION — "
+        "un projet Vercel d'un autre compte avec un nom similaire peut "
+        "obtenir l'accès. Définir CORS_ORIGIN_REGEX explicite.",
+        flush=True,
+    )
 
 app.add_middleware(
     CORSMiddleware,
@@ -1372,7 +1380,7 @@ async def crosscheck_stale_active_endpoint(admin: dict = Depends(require_admin))
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/articles/classify-communes")
-async def classify_communes_endpoint(background_tasks: BackgroundTasks):
+async def classify_communes_endpoint(background_tasks: BackgroundTasks, admin: dict = Depends(require_admin)):
     """Re-classifie tous les articles sans commune par regex + IA fallback."""
     try:
         from backend.affair_lifecycle_service import classify_article_commune
@@ -1444,7 +1452,7 @@ async def trigger_scraping(
     return {"message": "Scraping lancé en arrière-plan"}
 
 @app.post("/api/analyze")
-async def analyze_text(request: Request):
+async def analyze_text(request: Request, admin: dict = Depends(require_admin)):
     """Analyser un texte"""
     try:
         data = await request.json()
@@ -1513,7 +1521,7 @@ else:
 
 
 @app.get("/api/debug/scheduler")
-async def debug_scheduler():
+async def debug_scheduler(admin: dict = Depends(require_admin)):
     """Diagnostic scheduler — toujours disponible même si le scheduler a crashé"""
     import importlib
     diag = {
@@ -2049,7 +2057,7 @@ async def list_campaigns(status: str = Query(None)):
 
 
 @app.post("/api/campaigns")
-async def create_campaign_endpoint(request: Request):
+async def create_campaign_endpoint(request: Request, admin: dict = Depends(require_admin)):
     """Crée une nouvelle campagne."""
     try:
         from backend.campaign_service import create_campaign
@@ -2084,7 +2092,7 @@ async def get_campaign_detail(campaign_id: str):
 
 
 @app.put("/api/campaigns/{campaign_id}")
-async def update_campaign_endpoint(campaign_id: str, request: Request):
+async def update_campaign_endpoint(campaign_id: str, request: Request, admin: dict = Depends(require_admin)):
     """Met à jour une campagne."""
     try:
         from backend.campaign_service import update_campaign
@@ -2096,7 +2104,7 @@ async def update_campaign_endpoint(campaign_id: str, request: Request):
 
 
 @app.post("/api/campaigns/{campaign_id}/analyze")
-async def analyze_campaign_endpoint(campaign_id: str):
+async def analyze_campaign_endpoint(campaign_id: str, admin: dict = Depends(require_admin)):
     """Lance l'analyse IA d'une campagne."""
     try:
         from backend.campaign_service import analyze_campaign
@@ -2131,7 +2139,7 @@ async def get_analysis_history(campaign_id: str, limit: int = Query(10, ge=1, le
 
 
 @app.post("/api/campaigns/compare")
-async def compare_campaigns_endpoint(request: Request):
+async def compare_campaigns_endpoint(request: Request, admin: dict = Depends(require_admin)):
     """Compare deux campagnes."""
     try:
         from backend.campaign_service import compare_campaigns
@@ -2157,7 +2165,7 @@ async def list_campaign_posts(campaign_id: str, limit: int = Query(50, ge=1, le=
 
 # ── Publication Web (formulaire dashboard) ──
 @app.post("/api/publish")
-async def publish_from_web(request: Request):
+async def publish_from_web(request: Request, admin: dict = Depends(require_admin)):
     """Publie un post depuis le dashboard web (formulaire).
 
     Attend un multipart/form-data avec :
@@ -2336,7 +2344,7 @@ async def publish_from_web(request: Request):
 
 # ── Buffer Debug ──
 @app.get("/api/buffer/debug")
-async def buffer_debug():
+async def buffer_debug(admin: dict = Depends(require_admin)):
     """Debug complet de la connexion Buffer API — teste chaque étape."""
     import urllib.request, urllib.error
     token = os.getenv("BUFFER_ACCESS_TOKEN", "")
@@ -2439,7 +2447,7 @@ async def buffer_debug():
 
 
 @app.get("/api/debug/buffer-enums")
-async def debug_buffer_enums():
+async def debug_buffer_enums(admin: dict = Depends(require_admin)):
     """Introspection des enums Buffer pour schedulingType et mode."""
     try:
         from backend.campaign_service import _buffer_graphql
@@ -2467,7 +2475,21 @@ async def debug_buffer_enums():
 # ── Bot Publication Webhook ──
 @app.post("/api/publication-bot/webhook")
 async def publication_bot_webhook(request: Request):
-    """Webhook Telegram pour le bot de publication."""
+    """Webhook Telegram pour le bot de publication.
+
+    Vérifie l'en-tête X-Telegram-Bot-Api-Secret-Token si TELEGRAM_WEBHOOK_SECRET
+    est défini. Sans secret configuré, l'endpoint refuse toute requête
+    (fail-closed) — empêche un attaquant de forger des updates Telegram.
+    """
+    expected_secret = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
+    if not expected_secret:
+        logger.warning("TELEGRAM_WEBHOOK_SECRET non configuré — webhook refusé")
+        raise HTTPException(503, "Webhook non configuré")
+    provided_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    # Comparaison constant-time pour neutraliser les timing-attacks
+    import hmac as _hmac
+    if not _hmac.compare_digest(provided_secret, expected_secret):
+        raise HTTPException(401, "Secret webhook invalide")
     try:
         from backend.publication_bot import handle_webhook
         update = await request.json()
@@ -2509,13 +2531,21 @@ async def publication_bot_status():
 
 
 @app.post("/api/publication-bot/register-webhook")
-async def publication_bot_register_webhook():
-    """Enregistre le webhook Telegram pour le bot de publication."""
+async def publication_bot_register_webhook(admin: dict = Depends(require_admin)):
+    """Enregistre le webhook Telegram pour le bot de publication.
+
+    Inclut le secret_token TELEGRAM_WEBHOOK_SECRET dans setWebhook pour que
+    Telegram envoie l'en-tête X-Telegram-Bot-Api-Secret-Token sur chaque update.
+    """
     import urllib.request as _urllib_req
     try:
         from backend.publication_bot import PUBLICATION_BOT_TOKEN, is_configured
         if not is_configured():
             return {"ok": False, "error": "Bot non configure (PUBLICATION_BOT_TOKEN manquant)"}
+
+        webhook_secret = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
+        if not webhook_secret:
+            return {"ok": False, "error": "TELEGRAM_WEBHOOK_SECRET manquant — requis pour sécuriser le webhook"}
 
         # Détecter l'URL du serveur
         base_url = os.getenv("RENDER_EXTERNAL_URL", "https://veille-api-ubrw.onrender.com")
@@ -2527,7 +2557,7 @@ async def publication_bot_register_webhook():
 
         # Appel direct avec meilleur diagnostic
         try:
-            payload = json.dumps({"url": webhook_url}).encode()
+            payload = json.dumps({"url": webhook_url, "secret_token": webhook_secret}).encode()
             req = _urllib_req.Request(tg_url, data=payload, headers={"Content-Type": "application/json"})
             with _urllib_req.urlopen(req, timeout=15) as resp:
                 result = json.loads(resp.read())

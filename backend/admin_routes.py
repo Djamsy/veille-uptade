@@ -36,8 +36,12 @@ except ImportError:
         _tg_unlinked = None
 
 # ── Auth ──────────────────────────────────────────────────────
-SECRET_KEY = os.getenv("JWT_SECRET", "dev-secret-change-me")
-ALGORITHM = "HS256"
+# Single source of truth — reuse the validated secret from auth_routes
+# (which raises RuntimeError on missing/default values).
+try:
+    from backend.auth_routes import SECRET_KEY, ALGORITHM
+except ImportError:
+    from auth_routes import SECRET_KEY, ALGORITHM  # type: ignore
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 _service = None
@@ -55,17 +59,23 @@ def _svc():
 
 
 def _get_db():
-    from pymongo import MongoClient
-    MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
-    MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME", "veille_media")
-    client = MongoClient(MONGO_URL)
-    return client[MONGO_DB_NAME]
+    """Réutilise le singleton MongoClient d'auth_routes — évite le leak de connexions."""
+    try:
+        from backend.auth_routes import get_db as _shared_get_db
+    except ImportError:
+        from auth_routes import get_db as _shared_get_db  # type: ignore
+    return _shared_get_db()
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> Dict[str, Any]:
     """Décode le JWT et retourne l'utilisateur."""
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM],
+            options={"require_exp": True, "require_sub": True, "verify_exp": True},
+        )
         email = payload.get("sub")
         if not email:
             raise HTTPException(401, "Token invalide")
