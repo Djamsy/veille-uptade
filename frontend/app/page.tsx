@@ -31,14 +31,11 @@ import {
   type MediaSummary,
 } from '../lib/api'
 import { TopPersonalities } from './_components/dashboard/TopPersonalities'
-import { GravityDonut } from './_components/dashboard/GravityDonut'
 import { MapboxFullMap } from './_components/dashboard/MapboxFullMap'
 import { DashboardTopbar } from './_components/dashboard/DashboardTopbar'
 import { KpiStrip } from './_components/dashboard/KpiStrip'
 import { LiveFeed } from './_components/dashboard/LiveFeed'
 import { BarometreCard } from './_components/dashboard/BarometreCard'
-import { SentimentBar } from './_components/dashboard/SentimentBar'
-import { RadioCapturesPanel } from './_components/dashboard/RadioCapturesPanel'
 import {
   MOCK_AFFAIRS,
   MOCK_ENTITIES,
@@ -278,166 +275,46 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <div className="px-6 lg:px-8 py-6 grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-5 max-w-[1700px] mx-auto">
-          {/* ── COLONNE CENTRALE ── */}
-          <section className="flex flex-col gap-4 min-w-0">
-            {loading ? (
-              <div className="h-64 flex items-center justify-center text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
-                Chargement…
-              </div>
-            ) : (
-              <BarometreCard
-                avgBmg={liveBmg}
-                articlesDelta={liveArticlesDelta}
-                activity={liveActivity}
-                sentimentDist={liveSentiment}
-                isMock={isMockKpis}
-              />
-            )}
+        <div className="px-6 lg:px-8 py-6 max-w-[1700px] mx-auto flex flex-col gap-5">
+          {/* ── KPI STRIP — vue scannable en 2 sec ── */}
+          <KpiStrip
+            isMock={isMockKpis}
+            kpis={[
+              {
+                label: 'Affaires actives',
+                value: stats?.affairs_active ?? MOCK_KPIS.affairs_active,
+                trend: isMockKpis ? { delta: MOCK_KPIS.affairs_delta_pct, period: '%' } : undefined,
+              },
+              {
+                label: 'Urgentes ≥70',
+                value: priorityCounts?.hot ?? MOCK_KPIS.urgents,
+                trend: isMockKpis ? { delta: MOCK_KPIS.urgents_delta_pct, period: '%' } : undefined,
+                severity: ((priorityCounts?.hot ?? MOCK_KPIS.urgents) > 0) ? 'crit' : 'neutral',
+              },
+              {
+                label: 'Articles · 7j',
+                value: coverage?.total_articles_7d ?? MOCK_KPIS.articles_7d,
+                goodDirection: 'up',
+                trend: trends?.articles_trend_pct != null
+                  ? { delta: Math.round(trends.articles_trend_pct), period: '%' }
+                  : isMockKpis
+                    ? { delta: MOCK_KPIS.articles_delta_pct, period: '%' }
+                    : undefined,
+              },
+              {
+                label: 'Captures radio · 24h',
+                value: radioToday.count > 0
+                  ? `${radioToday.count}/${radioHealth.length || 0}`
+                  : `${MOCK_KPIS.radio_today}/${MOCK_KPIS.radio_total}`,
+                goodDirection: 'up',
+              },
+            ]}
+          />
 
-            <KpiStrip
-              isMock={isMockKpis}
-              kpis={[
-                {
-                  label: 'Affaires actives',
-                  value: stats?.affairs_active ?? MOCK_KPIS.affairs_active,
-                  trend: isMockKpis ? { delta: MOCK_KPIS.affairs_delta_pct, period: '%' } : undefined,
-                },
-                {
-                  label: 'Urgentes ≥70',
-                  value: priorityCounts?.hot ?? MOCK_KPIS.urgents,
-                  trend: isMockKpis ? { delta: MOCK_KPIS.urgents_delta_pct, period: '%' } : undefined,
-                  severity: ((priorityCounts?.hot ?? MOCK_KPIS.urgents) > 0) ? 'crit' : 'neutral',
-                },
-                {
-                  label: 'Articles · 7j',
-                  value: coverage?.total_articles_7d ?? MOCK_KPIS.articles_7d,
-                  goodDirection: 'up',
-                  trend: trends?.articles_trend_pct != null
-                    ? { delta: Math.round(trends.articles_trend_pct), period: '%' }
-                    : isMockKpis
-                      ? { delta: MOCK_KPIS.articles_delta_pct, period: '%' }
-                      : undefined,
-                },
-                {
-                  label: 'Captures radio · 24h',
-                  value: radioToday.count > 0
-                    ? `${radioToday.count}/${radioHealth.length || 0}`
-                    : `${MOCK_KPIS.radio_today}/${MOCK_KPIS.radio_total}`,
-                  goodDirection: 'up',
-                },
-              ]}
-            />
-
-            {/* ── Carte des événements ── */}
-            <div
-              style={{
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius)',
-              }}
-            >
-              <div
-                className="flex items-center justify-between px-4 py-3"
-                style={{ borderBottom: '1px solid var(--border-subtle)' }}
-              >
-                <span
-                  className="font-mono text-[10px] uppercase tracking-[0.14em]"
-                  style={{ color: 'var(--text-muted)' }}
-                >
-                  Carte des événements · 24h
-                </span>
-                <span
-                  className="font-mono text-[10px]"
-                  style={{ color: 'var(--text-muted)' }}
-                >
-                  {Object.keys(mapBgData || {}).length} communes
-                </span>
-              </div>
-              <div className="relative" style={{ height: 480 }}>
-                <MapboxFullMap communes={mapBgData} onSelectCommune={setSelectedCommune} />
-              </div>
-            </div>
-          </section>
-
-          {/* ── RIGHT RAIL ── */}
-          <aside className="flex flex-col gap-4 min-w-0">
-            <div
-              className="flex flex-col"
-              style={{
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius)',
-              }}
-            >
-              <div
-                className="flex items-center justify-between px-3.5 py-3"
-                style={{ borderBottom: '1px solid var(--border-subtle)' }}
-              >
-                <span
-                  className="font-mono text-[10px] uppercase tracking-[0.14em]"
-                  style={{ color: 'var(--text-muted)' }}
-                >
-                  Personnalités clés
-                </span>
-                <Link
-                  href="/affairs"
-                  className="text-[10px] font-medium hover:underline"
-                  style={{ color: 'var(--accent-link)' }}
-                >
-                  Voir tout
-                </Link>
-              </div>
-              <div className="p-3.5">
-                <TopPersonalities
-                  entities={livePeople}
-                  meta={isMockPeople ? MOCK_ENTITY_META : undefined}
-                />
-              </div>
-            </div>
-
-            <LiveFeed affairs={liveAffairs} isMock={isMockFeed} />
-
-            <div
-              style={{
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius)',
-              }}
-            >
-              <div
-                className="flex items-center justify-between px-3.5 py-3"
-                style={{ borderBottom: '1px solid var(--border-subtle)' }}
-              >
-                <div className="flex items-center gap-2">
-                  <span
-                    className="font-mono text-[10px] uppercase tracking-[0.14em]"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    Sentiment du jour
-                  </span>
-                  {isMockKpis && (
-                    <span
-                      className="font-mono text-[9px] uppercase tracking-[0.12em] px-1 py-0.5 rounded-sm"
-                      style={{ background: 'var(--warn-soft)', color: '#9d551f', border: '1px solid #f3dcc5' }}
-                    >
-                      Aperçu
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="px-3.5 py-3.5">
-                <SentimentBar sentimentDist={liveSentiment} />
-              </div>
-            </div>
-
-            <RadioCapturesPanel
-              todayCount={radioToday.count}
-              totalCount={radioHealth.length}
-              isMock={radioToday.count === 0}
-            />
-
-            {gravityDist && (
+          {/* ── 2-COL : Carte+Baromètre / Flux+Personnalités ── */}
+          <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-5">
+            <section className="flex flex-col gap-5 min-w-0">
+              {/* Carte — élément signature, 600px de haut */}
               <div
                 style={{
                   background: 'var(--bg-surface)',
@@ -446,22 +323,82 @@ export default function DashboardPage() {
                 }}
               >
                 <div
-                  className="px-3.5 py-3"
+                  className="flex items-center justify-between px-4 py-3"
                   style={{ borderBottom: '1px solid var(--border-subtle)' }}
                 >
                   <span
                     className="font-mono text-[10px] uppercase tracking-[0.14em]"
                     style={{ color: 'var(--text-muted)' }}
                   >
-                    Gravité des affaires
+                    971 · Carte des événements
+                  </span>
+                  <span
+                    className="font-mono text-[10px]"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    {Object.keys(mapBgData || {}).length} communes actives
                   </span>
                 </div>
-                <div className="p-4">
-                  <GravityDonut distribution={gravityDist} />
+                <div className="relative" style={{ height: 600 }}>
+                  <MapboxFullMap communes={mapBgData} onSelectCommune={setSelectedCommune} />
                 </div>
               </div>
-            )}
-          </aside>
+
+              {/* Baromètre sous la carte — moins de poids visuel */}
+              {loading ? (
+                <div className="h-48 flex items-center justify-center text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
+                  Chargement…
+                </div>
+              ) : (
+                <BarometreCard
+                  avgBmg={liveBmg}
+                  articlesDelta={liveArticlesDelta}
+                  activity={liveActivity}
+                  sentimentDist={liveSentiment}
+                  isMock={isMockKpis}
+                />
+              )}
+            </section>
+
+            {/* ── RIGHT RAIL : Flux + Personnalités ── */}
+            <aside className="flex flex-col gap-5 min-w-0">
+              <LiveFeed affairs={liveAffairs} isMock={isMockFeed} />
+
+              <div
+                className="flex flex-col"
+                style={{
+                  background: 'var(--bg-surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)',
+                }}
+              >
+                <div
+                  className="flex items-center justify-between px-3.5 py-3"
+                  style={{ borderBottom: '1px solid var(--border-subtle)' }}
+                >
+                  <span
+                    className="font-mono text-[10px] uppercase tracking-[0.14em]"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    Personnalités clés
+                  </span>
+                  <Link
+                    href="/affairs"
+                    className="text-[10px] font-medium hover:underline"
+                    style={{ color: 'var(--accent-link)' }}
+                  >
+                    Voir tout
+                  </Link>
+                </div>
+                <div className="p-3.5">
+                  <TopPersonalities
+                    entities={livePeople}
+                    meta={isMockPeople ? MOCK_ENTITY_META : undefined}
+                  />
+                </div>
+              </div>
+            </aside>
+          </div>
         </div>
 
         {/* ── Notifications toast ── */}
