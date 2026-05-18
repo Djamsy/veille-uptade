@@ -1,7 +1,16 @@
 # backend/bmg_routes.py
 """
-Routes API pour le Bruit Médiatique Guadeloupe (BMG)
-Calcule l'intensité de couverture médiatique par thème/entité
+Routes API pour le Bruit Médiatique Guadeloupe (BMG) — VUE GLOBALE.
+
+⚠️  Ne pas confondre avec le BMG **par affaire** calculé dans
+   `affair_lifecycle_service.AffairLifecycleService.calculate_bmg()`, qui
+   est la source utilisée par le dashboard et la liste des affaires (champ
+   `affair.bmg` ∈ [0,1]).
+
+Ces routes calculent un buzz global agrégé sur tous les articles d'une
+période (concentration top-thème + diversité), retourné en échelle 0-100.
+Conservé pour cas d'usage analytiques mais NON utilisé pour le tri/affichage
+des affaires. Le frontend lit `affair.bmg * 100`, pas cet endpoint.
 """
 
 import logging
@@ -77,8 +86,14 @@ def calculate_media_buzz(
         entities = list(articles_coll.aggregate(entity_pipeline))
         
         # Calcul du score BMG global (0-100)
+        # scraped_at peut être stocké en datetime ou en string ISO selon le scraper
+        # — interroger les 2 formats pour éviter total_articles=0 silencieux.
+        cutoff_str = cutoff.isoformat()
         total_articles = articles_coll.count_documents({
-            "scraped_at": {"$gte": cutoff}
+            "$or": [
+                {"scraped_at": {"$gte": cutoff}},
+                {"scraped_at": {"$gte": cutoff_str}},
+            ]
         })
         
         # Score basé sur la concentration et la diversité

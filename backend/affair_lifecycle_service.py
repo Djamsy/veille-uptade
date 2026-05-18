@@ -1594,17 +1594,19 @@ class AffairLifecycleService:
                 logger.debug(f"BMG social: {e}")
 
         # Calculer BNP par canal
-        # NOUVEAU : le BNP intègre un facteur de volume (log)
-        # 1 article = base, 3 articles = +50%, 7 articles = +100%
+        # Le BNP intègre un facteur de volume (log) borné pour préserver la
+        # granularité du tri en haut de classement. Sans cap, log2(count+1)
+        # combiné aux boosts multi-canal saturait à 1.0 dès 3 canaux × 4 articles
+        # et tout le top 10 finissait avec un BMG identique.
         import math
+        VOLUME_FACTOR_CAP = 2.0  # ≈ 7 articles donne le boost max
         bnp_by_canal = {}
         for canal, data in canal_data.items():
             if data["weight_sum"] > 0:
                 base_bnp = data["score_sum"] / data["weight_sum"]
-                # Facteur volume : log2(count+1) pour que chaque doublement de sources
-                # ajoute un boost significatif (1→1.0, 2→1.58, 4→2.32, 8→3.17)
-                volume_factor = math.log2(data["count"] + 1)
-                # Normaliser : 1 source = facteur 1.0, 5 sources = ~2.6
+                # Facteur volume : log2(count+1), borné à 2.0
+                # (1→1.0, 2→1.58, 4→2.0, 7→2.0, 16→2.0)
+                volume_factor = min(math.log2(data["count"] + 1), VOLUME_FACTOR_CAP)
                 bnp_by_canal[canal] = min(1.0, base_bnp * volume_factor)
             else:
                 bnp_by_canal[canal] = 0
@@ -2099,14 +2101,21 @@ class AffairLifecycleService:
                 # Notification Telegram fusion auto
                 if _telegram_ok and _tg_merged:
                     try:
+                        # Construire un "reason" cohérent selon la méthode de match utilisée
+                        if ai_match_used:
+                            merge_reason = "Match IA sémantique"
+                        elif 'best_ratio' in locals() and best_ratio:
+                            merge_reason = f"Titre similaire (ratio={best_ratio:.2f})"
+                        else:
+                            merge_reason = ""
                         _tg_merged(
                             best_match,
                             {"title": art.get("title", ""), "gravity_score": gravity, "item_count": 1},
                             merge_type="auto",
-                            reason=f"Score matching: {best_score}" if best_score else "",
+                            reason=merge_reason,
                         )
-                    except Exception:
-                        pass
+                    except Exception as _tg_err:
+                        logger.debug(f"Telegram notify_affair_merged error: {_tg_err}")
             else:
                 # Créer une nouvelle affaire
                 # NOUVEAU SEUIL : gravity >= 0.35 (on crée plus facilement car GPT décide des fusions)
@@ -5043,17 +5052,40 @@ class AffairLifecycleService:
         return alerts_sent
 
     def _recalculate_active_bmg(self):
-        """Recalcule le BMG de toutes les affaires actives."""
+        """Recalcule le BMG de toutes les affaires actives.
+
+        Respecte la hiérarchie GPT > formule :
+        - Si l'affaire a un ai_context.bruit_score, le BMG GPT est la source
+          de vérité ; on n'écrit que bmg_formula et bmg_details.
+        - Sinon, le BMG formulaic est écrit en bmg ET bmg_formula.
+        """
         active = list(self.affairs.find({"status": "active"}))
         for aff in active:
             try:
                 bmg = self.calculate_bmg(aff)
+                formula_value = bmg["bmg"]
+
+                ai_ctx = aff.get("ai_context") or {}
+                has_gpt_bmg = isinstance(ai_ctx, dict) and ai_ctx.get("bruit_score") is not None
+
+                set_fields: Dict[str, Any] = {
+                    "bmg_formula": formula_value,
+                    "bmg_details": bmg,
+                }
+                if not has_gpt_bmg:
+                    # Pas de BMG GPT → la formule reste la source de vérité
+                    set_fields["bmg"] = formula_value
+
                 self.affairs.update_one(
                     {"_id": aff["_id"]},
                     {
-                        "$set": {"bmg": bmg["bmg"], "bmg_details": bmg},
+                        "$set": set_fields,
                         "$push": {"bmg_history": {
-                            "$each": [{"bmg": bmg["bmg"], "at": datetime.utcnow().isoformat()}],
+                            "$each": [{
+                                "bmg": aff.get("bmg") if has_gpt_bmg else formula_value,
+                                "bmg_formula": formula_value,
+                                "at": datetime.utcnow().isoformat(),
+                            }],
                             "$slice": -30,
                         }},
                     }
@@ -5609,17 +5641,12 @@ class AffairLifecycleService:
         return 0.3
 
     def _parse_date(self, val: Any) -> Optional[datetime]:
-        if val is None:
-            return None
-        if isinstance(val, datetime):
-            return val
-        if isinstance(val, str):
-            for fmt in ["%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]:
-                try:
-                    return datetime.strptime(val[:len(fmt)+2], fmt)
-                except (ValueError, IndexError):
-                    continue
-        return None
+        """Délégué à _parse_dt qui gère correctement Z/+00:00 (cf. audit C5/S10).
+        L'ancienne implémentation tronquait `val[:len(fmt)+2]` et ignorait
+        complètement les suffixes timezone — toutes les dates ISO+TZ
+        tombaient en None.
+        """
+        return self._parse_dt(val)
 
     # ============================================================
     # SANTÉ
