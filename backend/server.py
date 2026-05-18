@@ -17,7 +17,7 @@ import logging
 import traceback
 import hashlib
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # Assurer que le dossier parent est dans sys.path pour les imports "from backend.xxx"
 _parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -963,12 +963,28 @@ async def root():
 
 @app.get("/health")
 async def health():
-    """Vérification de santé"""
-    db_status = "connected" if mongo_client else "disconnected"
-    
+    """Vérification de santé — ping réel de Mongo avec timeout court.
+
+    Retourne :
+    - 200 + {status: healthy} si Mongo répond < 2s
+    - 200 + {status: degraded} si Mongo timeout / erreur (le process est UP
+      mais ne peut pas servir les requêtes dépendantes de la DB)
+    """
+    db_status = "disconnected"
+    db_latency_ms = None
+    if mongo_client:
+        try:
+            t0 = _time.time()
+            mongo_client.admin.command("ping", serverSelectionTimeoutMS=2000)
+            db_latency_ms = round((_time.time() - t0) * 1000, 1)
+            db_status = "connected"
+        except Exception as e:
+            db_status = f"error: {type(e).__name__}"
+
     return {
         "status": "healthy" if db_status == "connected" else "degraded",
         "database": db_status,
+        "database_latency_ms": db_latency_ms,
         "services": {
             "enrichment": enrichment_service is not None,
             "ai_service": ai_service is not None,
@@ -977,9 +993,73 @@ async def health():
             "radio": radio_service is not None,
             "summary": summary_service is not None
         },
-        "mode": "no_ollama",
         "timestamp": datetime.now().isoformat()
     }
+
+@app.get("/api/health/detailed")
+async def health_detailed(admin: dict = Depends(require_admin)):
+    """Diagnostic détaillé pour l'opérateur — admin only.
+
+    Inclut :
+    - Ping Mongo + dbStats résumé
+    - Locks distribués actifs (Mongo _distributed_locks)
+    - Volumes 24h (articles, transcriptions, affaires actives)
+    - Dernière activité scheduler
+    """
+    out: Dict[str, Any] = {"timestamp": datetime.now(timezone.utc).isoformat()}
+
+    # Mongo ping + stats
+    if mongo_client is None or db is None:
+        out["database"] = {"status": "disconnected"}
+        return out
+    try:
+        t0 = _time.time()
+        mongo_client.admin.command("ping", serverSelectionTimeoutMS=2000)
+        out["database"] = {
+            "status": "connected",
+            "latency_ms": round((_time.time() - t0) * 1000, 1),
+        }
+    except Exception as e:
+        out["database"] = {"status": "error", "error": str(e)[:200]}
+        return out
+
+    # Volumes 24h
+    try:
+        cutoff_24h = datetime.utcnow() - timedelta(hours=24)
+        cutoff_24h_str = cutoff_24h.isoformat()
+        out["volumes_24h"] = {
+            "articles": db["articles_guadeloupe"].count_documents({
+                "$or": [{"scraped_at": {"$gte": cutoff_24h}},
+                        {"scraped_at": {"$gte": cutoff_24h_str}}]
+            }),
+            "transcriptions": db["radio_transcriptions"].count_documents({
+                "$or": [{"captured_at": {"$gte": cutoff_24h}},
+                        {"captured_at": {"$gte": cutoff_24h_str}}]
+            }),
+            "affairs_active": db["affairs"].count_documents({"status": "active"}),
+            "affairs_stale": db["affairs"].count_documents({"status": "stale"}),
+            "affairs_archived": db["affairs"].count_documents({"status": "archived"}),
+        }
+    except Exception as e:
+        out["volumes_24h"] = {"error": str(e)[:200]}
+
+    # Locks distribués actifs
+    try:
+        now = datetime.now(timezone.utc)
+        active_locks = []
+        for lock in db["_distributed_locks"].find({"expires_at": {"$gte": now}}).limit(20):
+            active_locks.append({
+                "name": lock.get("_id"),
+                "holder": lock.get("holder"),
+                "acquired_at": lock.get("acquired_at").isoformat() if hasattr(lock.get("acquired_at"), "isoformat") else None,
+                "expires_at": lock.get("expires_at").isoformat() if hasattr(lock.get("expires_at"), "isoformat") else None,
+            })
+        out["distributed_locks"] = active_locks
+    except Exception as e:
+        out["distributed_locks"] = {"error": str(e)[:200]}
+
+    return out
+
 
 @app.get("/api/storage")
 async def get_storage():
