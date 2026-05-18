@@ -166,8 +166,17 @@ async def list_affairs(
 
 
 @router.get("/detail/{affair_id}")
-async def get_affair_detail(affair_id: str, user: Dict = Depends(_require_authenticated)):
-    """Détail complet d'une affaire avec timeline, BMG et items liés."""
+async def get_affair_detail(
+    affair_id: str,
+    live: bool = Query(False, description="Recalculer le BMG en live (3 queries Mongo). False par défaut = sert bmg_details persisté."),
+    user: Dict = Depends(_require_authenticated),
+):
+    """Détail complet d'une affaire avec timeline, BMG et items liés.
+
+    Par défaut sert le `bmg_details` déjà persisté (recalculé en background
+    par _recalculate_active_bmg toutes les 30 min). Passer `?live=1` pour
+    forcer un recalcul à la demande (3 queries Mongo + agrégation).
+    """
     svc = _svc()
     try:
         affair = svc.affairs.find_one({"_id": ObjectId(affair_id)})
@@ -281,9 +290,19 @@ async def get_affair_detail(affair_id: str, user: Dict = Depends(_require_authen
         if hasattr(t.get("timestamp"), "isoformat"):
             t["timestamp"] = t["timestamp"].isoformat()
 
-    # ── BMG live ────────────────────────────────────────────
-    raw_affair = svc.affairs.find_one({"_id": ObjectId(affair_id)})
-    bmg_live = svc.calculate_bmg(raw_affair) if raw_affair else {}
+    # ── BMG : persisté par défaut, live si ?live=1 ───────────
+    if live:
+        # Recalcul fresh — 3 queries Mongo (presse/radio/social) + agrégation
+        raw_affair = svc.affairs.find_one({"_id": ObjectId(affair_id)})
+        bmg_live = svc.calculate_bmg(raw_affair) if raw_affair else {}
+    else:
+        # Sert le bmg_details déjà persisté (mis à jour toutes les 30 min)
+        bmg_live = affair.get("bmg_details") or {
+            "bmg": affair.get("bmg", 0),
+            "bnp_by_canal": {},
+            "active_canals": 0,
+            "stale": True,  # signal au client : data >30min potentiellement
+        }
 
     return {
         "affair": affair,
@@ -488,21 +507,25 @@ async def affairs_dashboard(user: Dict = Depends(_require_authenticated)):
     """
     svc = _svc()
 
-    # Top affaires par BMG
-    top_affairs = list(
-        svc.affairs
-        .find({"status": "active"})
-        .sort("bmg", -1)
-        .limit(10)
-    )
-    for a in top_affairs:
+    def _serialize(a):
         a["_id"] = str(a["_id"])
         for k in ("created_at", "last_activity"):
             if k in a and hasattr(a[k], "isoformat"):
                 a[k] = a[k].isoformat()
+        return a
 
-    # Alertes (BMG élevé)
-    critical = [a for a in top_affairs if a.get("bmg", 0) >= 0.55]
+    # Top 10 affaires actives par BMG
+    top_affairs = [_serialize(a) for a in svc.affairs
+                   .find({"status": "active"})
+                   .sort("bmg", -1)
+                   .limit(10)]
+
+    # Alertes : toutes les affaires actives avec BMG ≥ 0.55, pas seulement
+    # parmi le top 10. Pre: si 12 affaires critiques existent, on en ratait 2.
+    critical = [_serialize(a) for a in svc.affairs
+                .find({"status": "active", "bmg": {"$gte": 0.55}})
+                .sort("bmg", -1)
+                .limit(25)]
 
     # Stats
     health = svc.health_check()

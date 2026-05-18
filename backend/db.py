@@ -200,14 +200,36 @@ def ensure_api_indexes(db=None):
                 logger.warning(f"⚠️ Index unique content_hash: {e}")
 
         # ── TTL : suppression automatique des vieux articles (120 jours) ──
-        # Réduit le stockage Atlas Flex qui grossit à l'infini
+        # Réduit le stockage Atlas Flex qui grossit à l'infini.
+        # IMPORTANT: filtre partiel pour PROTÉGER les articles liés à une affaire
+        # (sinon les affaires stale/archivées ont des refs ObjectId dangling).
+        # On supprime SEULEMENT les articles sans _affair_id (orphelins).
+        #
+        # L'ancien index sans partialFilterExpression doit être supprimé pour
+        # créer le nouveau (Mongo refuse de re-créer un TTL avec options changées).
         try:
-            articles.create_index(
-                [("scraped_at", ASCENDING)],
-                name="idx_articles_ttl_120d",
-                expireAfterSeconds=120 * 24 * 3600,  # 120 jours
-            )
-            logger.info("✅ TTL 120j créé sur articles_guadeloupe.scraped_at")
+            existing_indexes = {idx.get("name") for idx in articles.list_indexes()}
+            if "idx_articles_ttl_120d" in existing_indexes:
+                # Vérifier si l'index existant a déjà le partialFilterExpression
+                needs_recreate = True
+                for idx in articles.list_indexes():
+                    if idx.get("name") == "idx_articles_ttl_120d":
+                        if idx.get("partialFilterExpression"):
+                            needs_recreate = False
+                        break
+                if needs_recreate:
+                    logger.info("🔧 TTL articles: drop + recreate avec partialFilterExpression (protège FK affaires)")
+                    articles.drop_index("idx_articles_ttl_120d")
+                    existing_indexes.discard("idx_articles_ttl_120d")
+
+            if "idx_articles_ttl_120d" not in existing_indexes:
+                articles.create_index(
+                    [("scraped_at", ASCENDING)],
+                    name="idx_articles_ttl_120d",
+                    expireAfterSeconds=120 * 24 * 3600,  # 120 jours
+                    partialFilterExpression={"_affair_id": {"$exists": False}},
+                )
+                logger.info("✅ TTL 120j créé sur articles orphelins (sans _affair_id)")
         except Exception as e:
             if "already exists" not in str(e).lower():
                 logger.warning(f"⚠️ TTL articles: {e}")

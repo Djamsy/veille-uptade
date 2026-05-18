@@ -1794,10 +1794,31 @@ class AffairLifecycleService:
         2. Consolide : cherche dans les 24h si d'autres sources parlent du même sujet
         3. Met à jour le lifecycle (stale/archive)
         4. Recalcule BMG
+
+        Protégé par un lock distribué Mongo — si un autre replica/process tient
+        déjà le lock, on retourne immédiatement (skip ce tick).
         """
         if self.db is None:
             return {"error": "no_db"}
 
+        # Lock distribué — TTL 30 min (un cycle complet ne devrait jamais excéder).
+        # Évite que 2 workers Render exécutent le cycle en parallèle et écrivent
+        # des affaires en double que le _merge_duplicate_affairs ne rattrape pas
+        # toujours (cf. audit C8).
+        try:
+            from backend.distributed_lock import distributed_lock
+        except ImportError:
+            from distributed_lock import distributed_lock  # type: ignore
+
+        with distributed_lock("affair_simple_cycle", ttl_seconds=1800) as acquired:
+            if not acquired:
+                logger.info("🔒 run_simple_cycle: lock détenu ailleurs, skip")
+                return {"method": "simple_cycle", "skipped": "locked"}
+            return self._run_simple_cycle_inner()
+
+    def _run_simple_cycle_inner(self) -> Dict[str, Any]:
+        """Implémentation réelle de run_simple_cycle (sans lock — appelée
+        seulement après acquisition par run_simple_cycle)."""
         logger.info("=" * 50)
         logger.info("🔄 CYCLE SIMPLIFIÉ (créer → consolider)")
         logger.info("=" * 50)

@@ -16,6 +16,7 @@ Optimisations coût :
 import os
 import logging
 import hashlib
+import time
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from zoneinfo import ZoneInfo
@@ -153,6 +154,11 @@ class ApifySocialScraper:
     # Run un Actor Apify
     # =========================
     def _run_actor(self, actor_id: str, run_input: dict, timeout_secs: int = 300) -> List[Dict]:
+        """Lance un actor Apify avec retry exponentiel sur erreurs transitoires.
+
+        Retry sur : 429 (rate limit), 5xx (server errors), network timeouts.
+        PAS de retry sur : 401 (token), 402 (billing), 400/404 (input error).
+        """
         if not APIFY_TOKEN:
             logger.warning("⚠️ APIFY_TOKEN non configuré")
             return []
@@ -162,54 +168,93 @@ class ApifySocialScraper:
         params = {"token": APIFY_TOKEN, "timeout": timeout_secs}
         headers = {"Content-Type": "application/json"}
 
-        try:
-            logger.info(f"🚀 Actor {actor_id}")
-            resp = requests.post(url, json=run_input, params=params,
-                                 headers=headers, timeout=timeout_secs + 30)
+        max_attempts = 3
+        # Backoff exponentiel : 2s, 8s, 32s. Le rate limit Apify se réinitialise
+        # généralement en moins d'une minute.
+        backoff_base = 2.0
 
-            if resp.status_code == 200:
-                try:
-                    data = resp.json()
-                except Exception:
-                    logger.error(f"❌ {actor_id}: réponse non-JSON")
+        for attempt in range(1, max_attempts + 1):
+            try:
+                if attempt == 1:
+                    logger.info(f"🚀 Actor {actor_id}")
+                else:
+                    logger.info(f"🔁 Actor {actor_id} (tentative {attempt}/{max_attempts})")
+
+                resp = requests.post(
+                    url, json=run_input, params=params,
+                    headers=headers,
+                    timeout=(10, timeout_secs + 30),  # (connect, read)
+                )
+
+                if resp.status_code == 200:
+                    try:
+                        data = resp.json()
+                    except Exception:
+                        logger.error(f"❌ {actor_id}: réponse non-JSON")
+                        return []
+                    if isinstance(data, list):
+                        logger.info(f"✅ {actor_id}: {len(data)} résultats")
+                        return data
+                    if isinstance(data, dict):
+                        items = data.get("items") or data.get("data") or []
+                        if items:
+                            logger.info(f"✅ {actor_id}: {len(items)} résultats")
+                            return items
+                        if data.get("error") or data.get("status") == "FAILED":
+                            logger.error(f"❌ {actor_id}: échoué — {str(data)[:300]}")
                     return []
 
-                if isinstance(data, list):
-                    logger.info(f"✅ {actor_id}: {len(data)} résultats")
-                    return data
-                elif isinstance(data, dict):
-                    items = data.get("items") or data.get("data") or []
-                    if items:
-                        logger.info(f"✅ {actor_id}: {len(items)} résultats")
-                        return items
-                    if data.get("error") or data.get("status") == "FAILED":
-                        logger.error(f"❌ {actor_id}: échoué — {str(data)[:300]}")
+                # Erreurs définitives — pas de retry
+                if resp.status_code == 401:
+                    logger.error(
+                        f"🔐 {actor_id}: ERREUR 401 — Token Apify invalide ou expiré.\n"
+                        f"   Token utilisé: {APIFY_TOKEN[:12]}...\n"
+                        f"   → Vérifiez APIFY_API_TOKEN dans vos variables d'environnement.\n"
+                        f"   → Régénérez le token sur https://console.apify.com/account#/integrations"
+                    )
+                    return []
+                if resp.status_code == 402:
+                    logger.error(f"💰 {actor_id}: crédits insuffisants (402) — rechargez sur https://console.apify.com/billing")
+                    return []
+                if resp.status_code in (400, 404):
+                    logger.error(f"❌ {actor_id}: HTTP {resp.status_code} (input error) — {resp.text[:300]}")
+                    return []
+
+                # Erreurs transitoires — retry
+                if resp.status_code == 429:
+                    retry_after = resp.headers.get("Retry-After")
+                    delay = float(retry_after) if retry_after and retry_after.replace(".", "").isdigit() else backoff_base * (4 ** (attempt - 1))
+                    logger.warning(f"⏳ {actor_id}: rate limit 429, retry dans {delay:.1f}s ({attempt}/{max_attempts})")
+                    if attempt < max_attempts:
+                        time.sleep(delay)
+                        continue
+                    return []
+
+                if 500 <= resp.status_code < 600 or resp.status_code == 408:
+                    delay = backoff_base * (4 ** (attempt - 1))
+                    logger.warning(f"⚠️ {actor_id}: HTTP {resp.status_code}, retry dans {delay:.1f}s ({attempt}/{max_attempts})")
+                    if attempt < max_attempts:
+                        time.sleep(delay)
+                        continue
+                    return []
+
+                # Autres codes — log et abandon
+                logger.error(f"❌ {actor_id}: HTTP {resp.status_code} — {resp.text[:200]}")
                 return []
 
-            elif resp.status_code == 401:
-                logger.error(
-                    f"🔐 {actor_id}: ERREUR 401 — Token Apify invalide ou expiré.\n"
-                    f"   Token utilisé: {APIFY_TOKEN[:12]}...\n"
-                    f"   → Vérifiez APIFY_API_TOKEN dans vos variables d'environnement.\n"
-                    f"   → Régénérez le token sur https://console.apify.com/account#/integrations\n"
-                    f"   Réponse Apify: {resp.text[:300]}"
-                )
-            elif resp.status_code == 402:
-                logger.error(f"💰 {actor_id}: crédits insuffisants (402) — rechargez sur https://console.apify.com/billing")
-            elif resp.status_code == 429:
-                logger.error(f"⏳ {actor_id}: rate limit Apify (429) — trop de requêtes, réessayez plus tard")
-            elif resp.status_code in (400, 404, 408):
-                logger.error(f"❌ {actor_id}: HTTP {resp.status_code} — {resp.text[:300]}")
-            else:
-                logger.error(f"❌ {actor_id}: HTTP {resp.status_code} — {resp.text[:200]}")
-            return []
+            except (requests.Timeout, requests.ConnectionError) as e:
+                delay = backoff_base * (4 ** (attempt - 1))
+                if attempt < max_attempts:
+                    logger.warning(f"⏰ {actor_id}: {type(e).__name__}, retry dans {delay:.1f}s ({attempt}/{max_attempts})")
+                    time.sleep(delay)
+                    continue
+                logger.error(f"⏰ {actor_id}: {type(e).__name__} après {max_attempts} tentatives")
+                return []
+            except Exception as e:
+                logger.error(f"💥 {actor_id}: {e}")
+                return []
 
-        except requests.Timeout:
-            logger.error(f"⏰ {actor_id}: timeout {timeout_secs}s")
-            return []
-        except Exception as e:
-            logger.error(f"💥 {actor_id}: {e}")
-            return []
+        return []
 
     # =========================
     # Batch upsert — remplace les N × update_one par un bulk_write
