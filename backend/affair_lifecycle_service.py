@@ -280,7 +280,11 @@ CLUSTER_SIMILARITY_BROAD_THEME = 0.50  # Seuil rehaussé pour thèmes larges (re
 CLUSTER_MERGE_THRESHOLD = 0.55         # Seuil pour fusionner deux clusters (relevé de 0.50)
 
 # Thèmes trop larges qui regroupent des événements sans lien
-BROAD_THEMES = {"securite_justice", "sante_social", "general", "culture_patrimoine", "environnement", "economie"}
+BROAD_THEMES = {
+    "securite_justice", "sante_social", "general",
+    "culture_patrimoine", "politique_institutions",
+    "eau_env", "economie_emploi", "energie_transports",
+}
 
 # --- Promotion en affaire ---
 PROMOTION_MIN_SOURCES = 1              # Au moins 1 source (assoupli, était 2)
