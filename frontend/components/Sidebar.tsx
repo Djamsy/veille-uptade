@@ -190,11 +190,9 @@ export default function Sidebar() {
         onClick={() => setMobileOpen(true)}
         className="lg:hidden fixed top-4 left-4 z-50 p-2.5 rounded-xl transition-all active:scale-95"
         style={{
-          background: 'var(--glass-heavy-bg)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          border: '1px solid var(--border-hover)',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border)',
+          boxShadow: 'var(--shadow-card)',
         }}
         aria-label="Ouvrir le menu"
       >
@@ -232,8 +230,8 @@ export default function Sidebar() {
           </div>
           <div className="nav-label flex-1 min-w-0">
             <h1 className="font-serif text-base font-semibold leading-tight tracking-tight" style={{ color: 'var(--text)' }}>Veille Média</h1>
-            <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-gradient-warm">
-              Guadeloupe 971
+            <p className="font-serif text-[11px] italic leading-tight" style={{ color: 'var(--text-secondary)' }}>
+              Guadeloupe · 971
             </p>
           </div>
         </Link>
@@ -284,10 +282,12 @@ export default function Sidebar() {
             </div>
             <button
               onClick={logout}
-              className="p-1.5 rounded-lg transition-all hover:bg-red-500/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-press"
+              className="p-1.5 rounded-lg transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-press"
               style={{ color: 'var(--text-muted)' }}
               title="Se déconnecter"
               aria-label="Se déconnecter"
+              onMouseEnter={e => { e.currentTarget.style.color = 'var(--negative)'; e.currentTarget.style.background = 'var(--crit-soft)' }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
@@ -320,13 +320,15 @@ export default function Sidebar() {
           </div>
           <div className="flex-1 min-w-0">
             <h1 className="font-serif text-base font-semibold leading-tight tracking-tight" style={{ color: 'var(--text)' }}>Veille Média</h1>
-            <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-gradient-warm">Guadeloupe 971</p>
+            <p className="font-serif text-[11px] italic leading-tight" style={{ color: 'var(--text-secondary)' }}>Guadeloupe · 971</p>
           </div>
           <button
             onClick={() => setMobileOpen(false)}
-            className="p-1.5 rounded-lg transition-colors hover:bg-white/5"
+            className="p-1.5 rounded-lg transition-colors"
             style={{ color: 'var(--text-muted)' }}
             aria-label="Fermer le menu"
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -394,9 +396,11 @@ export default function Sidebar() {
               </div>
               <button
                 onClick={logout}
-                className="p-2 rounded-lg transition-all hover:bg-red-500/15"
+                className="p-2 rounded-lg transition-colors"
                 style={{ color: 'var(--text-muted)' }}
                 aria-label="Se déconnecter"
+                onMouseEnter={e => { e.currentTarget.style.color = 'var(--negative)'; e.currentTarget.style.background = 'var(--crit-soft)' }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />

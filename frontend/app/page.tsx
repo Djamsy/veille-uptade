@@ -73,18 +73,6 @@ export default function DashboardPage() {
   const [searching, setSearching] = useState(false)
   const searchTimeout = useRef<NodeJS.Timeout | null>(null)
 
-  // ── Mobile panel toggle (carte vs panneau) ──
-  const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
-
-  // ── Theme mode ──
-  const [themeMode, setThemeMode] = useState<'dark' | 'light'>('light')
-
-  useEffect(() => {
-    const saved = localStorage.getItem('veille-theme') || 'light'
-    setThemeMode(saved as 'dark' | 'light')
-    document.documentElement.setAttribute('data-theme', saved)
-  }, [])
-
   // ── Summary state ──
   const [summaryOpen, setSummaryOpen] = useState(false)
   const [summaryData, setSummaryData] = useState<SummaryResponse | null>(null)
@@ -118,13 +106,6 @@ export default function DashboardPage() {
       setSummaryLoading(false)
     }
   }, [])
-
-  const toggleTheme = useCallback(() => {
-    const next = themeMode === 'dark' ? 'light' : 'dark'
-    setThemeMode(next)
-    document.documentElement.setAttribute('data-theme', next)
-    localStorage.setItem('veille-theme', next)
-  }, [themeMode])
 
   // ── Radio state ──
   const [radioHealth, setRadioHealth] = useState<Array<{ key: string; name: string; status: string; latency_ms: number }>>([])
@@ -204,26 +185,6 @@ export default function DashboardPage() {
       setError((e as Error).message || 'Erreur de connexion')
     } finally { setLoading(false) }
   }, [data, addNotification])
-
-  // Rendre le body + html transparent pour que la carte Mapbox soit visible
-  useEffect(() => {
-    document.documentElement.style.background = 'transparent'
-    document.body.classList.add('map-dashboard-mode')
-    document.body.style.background = 'transparent'
-    // Aussi forcer le parent Next.js
-    const nextRoot = document.getElementById('__next')
-    if (nextRoot) nextRoot.style.background = 'transparent'
-    // Forcer le wrapper z-10 du layout à être transparent
-    const zWrapper = document.querySelector('.relative.z-10') as HTMLElement
-    if (zWrapper) zWrapper.style.background = 'transparent'
-    return () => {
-      document.documentElement.style.background = ''
-      document.body.classList.remove('map-dashboard-mode')
-      document.body.style.background = ''
-      if (nextRoot) nextRoot.style.background = ''
-      if (zWrapper) zWrapper.style.background = ''
-    }
-  }, [])
 
   useEffect(() => {
     loadData()

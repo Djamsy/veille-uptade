@@ -66,15 +66,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="font-sans antialiased" style={{ background: '#fafafa', color: '#18181b' }}>
         <ServiceWorkerRegistration />
-        {/* Ambient gradient background */}
-        <div className="ambient-bg">
-          <div className="ambient-orb-3" />
-          <div className="noise-overlay" />
-        </div>
-        {/* Content */}
-        <div className="relative z-10">
-          <ClientLayout>{children}</ClientLayout>
-        </div>
+        <ClientLayout>{children}</ClientLayout>
       </body>
     </html>
   )
