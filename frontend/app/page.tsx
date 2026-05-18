@@ -5,30 +5,12 @@ import Link from 'next/link'
 import Sidebar from '../components/Sidebar'
 import {
   fetchEnrichedDashboard,
-  fetchAffairsByCommune,
-  fetchStorageStats,
   fetchMapData,
-  fetchSearch,
-  runFullCycle,
-  runReaffiliate,
-  runScrapeNow,
-  runBulkEnrich,
   fetchSummary,
   fetchRadioHealth,
   fetchRadioToday,
-  triggerRadioCapture,
   type EnrichedDashboardData,
-  type Affair,
-  type DailyActivity,
-  type TopEntity,
-  type TopSource,
-  type OrphanArticle,
-  type TimelineEvent,
-  type StorageStats,
-  type MapResponse,
-  type SearchResult,
   type SummaryResponse,
-  type MediaSummary,
 } from '../lib/api'
 import { TopPersonalities } from './_components/dashboard/TopPersonalities'
 import { MapboxFullMap } from './_components/dashboard/MapboxFullMap'
@@ -52,33 +34,14 @@ export default function DashboardPage() {
   const [data, setData] = useState<EnrichedDashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [cycleRunning, setCycleRunning] = useState(false)
-  const [scraping, setScraping] = useState(false)
-  const [reaffiliating, setReaffiliating] = useState(false)
-  const [bulkEnriching, setBulkEnriching] = useState(false)
-  const [bulkMsg, setBulkMsg] = useState('')
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
-  const [communeMapData, setCommuneMapData] = useState<Record<string, { count: number; maxGravity: number; affairs: Array<{ _id: string; title: string; gravity_score: number; sentiment: string; theme: string }> }>>({})
-  const [selectedCommune, setSelectedCommune] = useState<string | null>(null)
-  const [storageStats, setStorageStats] = useState<StorageStats | null>(null)
   const [mapBgData, setMapBgData] = useState<Record<string, { stats: { total_items: number; max_gravity: number } }>>({})
-
-  // ── Search state ──
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<SearchResult | null>(null)
-  const [searchOpen, setSearchOpen] = useState(false)
-  const [searching, setSearching] = useState(false)
-  const searchTimeout = useRef<NodeJS.Timeout | null>(null)
 
   // ── Summary state ──
   const [summaryOpen, setSummaryOpen] = useState(false)
   const [summaryData, setSummaryData] = useState<SummaryResponse | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [summaryPeriod, setSummaryPeriod] = useState<'journalier' | 'hebdomadaire'>('journalier')
-
-  // ── Map filters ──
-  const [mapFilterTheme, setMapFilterTheme] = useState<string>('all')
-  const [mapFilterGravity, setMapFilterGravity] = useState<string>('all')
 
   // ── Notifications ──
   const [notifications, setNotifications] = useState<Array<{ id: number; text: string; type: 'hot' | 'info' | 'success' }>>([])
@@ -104,12 +67,9 @@ export default function DashboardPage() {
     }
   }, [])
 
-  // ── Radio state ──
+  // ── Radio state (read-only — capture handlers vivent sur /radio) ──
   const [radioHealth, setRadioHealth] = useState<Array<{ key: string; name: string; status: string; latency_ms: number }>>([])
   const [radioToday, setRadioToday] = useState<{ count: number; cards: Array<Record<string, unknown>> }>({ count: 0, cards: [] })
-  const [radioCapturing, setRadioCapturing] = useState<string | null>(null)
-  const [radioPanelOpen, setRadioPanelOpen] = useState(false)
-  const [radioCaptureDuration, setRadioCaptureDuration] = useState(60)
 
   const loadRadioStatus = useCallback(async () => {
     try {
@@ -122,66 +82,33 @@ export default function DashboardPage() {
     } catch { /* silent */ }
   }, [])
 
-  const handleRadioCapture = useCallback(async (streamKey: string) => {
-    setRadioCapturing(streamKey)
-    try {
-      await triggerRadioCapture(streamKey, radioCaptureDuration)
-      await loadRadioStatus()
-    } catch (e) {
-      console.error('Radio capture error:', e)
-    } finally {
-      setRadioCapturing(null)
-    }
-  }, [loadRadioStatus, radioCaptureDuration])
-
   useEffect(() => { loadRadioStatus() }, [loadRadioStatus])
 
-  const handleSearch = useCallback((q: string) => {
-    setSearchQuery(q)
-    if (searchTimeout.current) clearTimeout(searchTimeout.current)
-    if (!q.trim() || q.trim().length < 2) {
-      setSearchResults(null)
-      setSearchOpen(false)
-      return
-    }
-    setSearching(true)
-    searchTimeout.current = setTimeout(async () => {
-      try {
-        const res = await fetchSearch(q.trim())
-        setSearchResults(res)
-        setSearchOpen(true)
-      } catch { setSearchResults(null) }
-      finally { setSearching(false) }
-    }, 400)
-  }, [])
+  // hotCount évite la closure stale sur `data` qui forçait loadData à se recréer
+  // à chaque setData (recréait le setInterval à chaque tick, cf. ancien S5).
+  const prevHotCountRef = useRef(0)
 
   const loadData = useCallback(async () => {
     try {
-      const [result, mapRes, storageRes, mapBgRes] = await Promise.all([
+      const [result, mapBgRes] = await Promise.all([
         fetchEnrichedDashboard(),
-        fetchAffairsByCommune().catch(() => ({ communes: {} })),
-        fetchStorageStats().catch(() => null),
         fetchMapData(7).catch(() => null),
       ])
       setData(result)
-      setCommuneMapData(mapRes.communes || {})
-      if (storageRes) setStorageStats(storageRes)
       if (mapBgRes?.communes) setMapBgData(mapBgRes.communes as any)
       setError('')
       setLastRefresh(new Date())
 
-      // Check for new hot affairs
-      if (data && result) {
-        const oldHot = data.top_affairs?.filter((a: any) => a.priority === 'hot').length || 0
-        const newHot = result.top_affairs?.filter((a: any) => a.priority === 'hot').length || 0
-        if (newHot > oldHot) {
-          addNotification(`${newHot - oldHot} nouvelle(s) affaire(s) urgente(s) détectée(s)`, 'hot')
-        }
+      // Détection des nouvelles affaires urgentes via ref (pas de dep cycliques)
+      const newHot = result?.top_affairs?.filter((a: any) => a.priority === 'hot').length || 0
+      if (newHot > prevHotCountRef.current) {
+        addNotification(`${newHot - prevHotCountRef.current} nouvelle(s) affaire(s) urgente(s) détectée(s)`, 'hot')
       }
+      prevHotCountRef.current = newHot
     } catch (e: unknown) {
       setError((e as Error).message || 'Erreur de connexion')
     } finally { setLoading(false) }
-  }, [data, addNotification])
+  }, [addNotification])
 
   useEffect(() => {
     loadData()
@@ -189,49 +116,11 @@ export default function DashboardPage() {
     return () => clearInterval(interval)
   }, [loadData])
 
-  const handleRunCycle = async () => {
-    setCycleRunning(true)
-    try { await runFullCycle(); await loadData(); addNotification('Cycle terminé avec succès', 'success') }
-    catch (e: unknown) { console.error('Cycle error:', e) }
-    finally { setCycleRunning(false) }
-  }
-
-  const handleScrape = async () => {
-    setScraping(true)
-    try { await runScrapeNow(); await loadData(); addNotification('Scraping terminé', 'success') }
-    catch (e: unknown) { console.error('Scrape error:', e) }
-    finally { setScraping(false) }
-  }
-
-  const handleReaffiliate = async () => {
-    setReaffiliating(true)
-    try { await runReaffiliate(); await loadData() }
-    catch (e: unknown) { console.error('Reaffiliate error:', e) }
-    finally { setReaffiliating(false) }
-  }
-
-  const handleBulkEnrich = async () => {
-    setBulkEnriching(true)
-    setBulkMsg('')
-    try {
-      const res = await runBulkEnrich(200, 90)
-      setBulkMsg(res.message || `${res.enriched} enrichis`)
-      await loadData()
-    } catch (e: unknown) { console.error('Bulk enrich error:', e); setBulkMsg('Erreur') }
-    finally { setBulkEnriching(false) }
-  }
-
   const topAffairs = data?.top_affairs || []
-  const criticals = data?.critical_alerts || []
   const stats = data?.stats
   const coverage = data?.coverage
-  const themes = data?.themes_distribution || {}
   const entities = data?.top_entities || []
   const activity = data?.daily_activity || []
-  const orphans = data?.orphan_articles || []
-  const timeline = data?.recent_timeline || []
-  const sources = data?.top_sources || []
-  const gravityDist = data?.gravity_distribution
   const sentimentDist = data?.sentiment_distribution || {}
   const priorityCounts = data?.priority_counts || {}
   const trends = data?.trends
@@ -340,7 +229,7 @@ export default function DashboardPage() {
                   </span>
                 </div>
                 <div className="relative" style={{ height: 600 }}>
-                  <MapboxFullMap communes={mapBgData} onSelectCommune={setSelectedCommune} />
+                  <MapboxFullMap communes={mapBgData} />
                 </div>
               </div>
 
