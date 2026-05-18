@@ -416,22 +416,38 @@ class GuadeloupeScraper:
                 articles = self.scrape_site(site_key, cfg)
 
                 # ⚡ Batch insert au lieu de N × insert_one (÷N ops MongoDB)
+                saved = 0
+                inserted_articles: List[Dict[str, Any]] = []
                 if articles:
                     try:
                         insert_result = self.articles_collection.insert_many(
                             articles, ordered=False  # continue même si un doublon
                         )
                         saved = len(insert_result.inserted_ids)
+                        inserted_articles = articles  # tous OK
                     except Exception as e:
-                        # BulkWriteError si doublons — compter les succès
-                        if hasattr(e, 'details'):
-                            saved = e.details.get('nInserted', 0)
+                        # BulkWriteError : extraire les INDICES en erreur puis
+                        # garder uniquement les articles dont l'index N'EST PAS
+                        # dans writeErrors. L'ancien `articles[:saved]` était faux
+                        # car avec ordered=False les succès ne sont PAS forcément
+                        # les N premiers — c'était n'importe quel sous-ensemble.
+                        if hasattr(e, 'details') and isinstance(e.details, dict):
+                            saved = int(e.details.get('nInserted', 0) or 0)
+                            err_indices = {
+                                we.get('index') for we in e.details.get('writeErrors', [])
+                                if isinstance(we, dict)
+                            }
+                            inserted_articles = [
+                                a for i, a in enumerate(articles) if i not in err_indices
+                            ]
+                            # Cohérence saved / liste reconstituée
+                            if not saved:
+                                saved = len(inserted_articles)
                         else:
                             saved = 0
+                            inserted_articles = []
                             logger.warning(f"   ⚠️ Erreur batch insert: {e}")
-                    all_articles.extend(articles[:saved] if saved else [])
-                else:
-                    saved = 0
+                    all_articles.extend(inserted_articles)
 
                 results["articles_by_site"][site_key] = saved
                 results["sites_scraped"] += 1

@@ -1,7 +1,16 @@
-# backend/enhanced_scheduler_service.py
+# backend/enhanced_scheduler.py
 """
-Service de planification amélioré avec analyse de sentiment et bruit médiatique
-Tâches automatisées pour maintenir les analyses à jour
+⚠️  LEGACY SCHEDULER — ne plus l'utiliser pour de nouveaux jobs.
+
+Le scheduler ACTIF est `scheduler_service.py` (cf. server.py qui appelle
+`scheduler_service.attach_scheduler`). Ce module survit uniquement parce que
+`server.py` y récupère `telegram_morning_digest_job` (fonction autonome).
+
+À long terme : extraire cette fonction dans `telegram_digest_service.py`
+puis supprimer ce fichier en entier.
+
+L'import historique `from backend.enhanced_scraper import create_enhanced_scraper`
+référait à un symbole qui n'existait plus → supprimé.
 """
 
 import os
@@ -16,15 +25,14 @@ from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR
 from fastapi import APIRouter, HTTPException
 import pytz
 
-# Import des services
+# Imports legacy — gardés pour compat des jobs (la plupart inutilisés)
 try:
-    from backend.enhanced_scraper import create_enhanced_scraper
     from backend.sentiment_analysis_service import SentimentAnalysisService
     from backend.media_noise_service import MediaNoiseService
 except ImportError:
-    create_enhanced_scraper = None
     SentimentAnalysisService = None
     MediaNoiseService = None
+create_enhanced_scraper = None  # legacy alias, scraping actif est dans scraper_service.py
 
 logger = logging.getLogger("enhanced_scheduler")
 

@@ -10,10 +10,19 @@ import logging
 import requests
 import time
 import json
+import hashlib
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from pymongo import MongoClient
 import certifi
+
+
+def _stable_text_hash(text: str) -> str:
+    """Hash stable cross-process (md5 8 chars). Python's built-in hash() is
+    randomized per-process (PYTHONHASHSEED), so deux workers produiraient
+    des IDs différents pour le même post → doublons en base.
+    """
+    return hashlib.md5((text or "").encode("utf-8")).hexdigest()[:12]
 
 logger = logging.getLogger(__name__)
 
@@ -317,7 +326,7 @@ class ApifySocialService:
         """Formate un post Facebook au format standard"""
         try:
             return {
-                "id": f"facebook_{item.get('postId', hash(item.get('text', '')))}",
+                "id": f"facebook_{item.get('postId') or _stable_text_hash(item.get('text', ''))}",
                 "platform": "facebook",
                 "content": item.get("text", ""),
                 "author": item.get("authorName", ""),
@@ -345,7 +354,7 @@ class ApifySocialService:
         """Formate un tweet au format standard"""
         try:
             return {
-                "id": f"twitter_{item.get('id', hash(item.get('text', '')))}",
+                "id": f"twitter_{item.get('id') or _stable_text_hash(item.get('text', ''))}",
                 "platform": "twitter",
                 "content": item.get("text", ""),
                 "author": item.get("author", {}).get("userName", ""),
@@ -373,7 +382,7 @@ class ApifySocialService:
         """Formate un post Instagram au format standard"""
         try:
             return {
-                "id": f"instagram_{item.get('id', hash(item.get('caption', '')))}",
+                "id": f"instagram_{item.get('id') or _stable_text_hash(item.get('caption', ''))}",
                 "platform": "instagram",
                 "content": item.get("caption", ""),
                 "author": item.get("ownerUsername", ""),
