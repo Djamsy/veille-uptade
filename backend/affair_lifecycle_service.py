@@ -3007,15 +3007,48 @@ class AffairLifecycleService:
                 title_b = self._normalize_title(affair_b.get("title", ""))
                 seq_ratio = SequenceMatcher(None, title_a, title_b).ratio()
 
-                # FUSION INTER-AFFAIRES v3 : TITRE UNIQUEMENT
-                # On fusionne seulement si les titres sont très similaires (>=0.70)
-                # Plus de matching par entités/embeddings/thème (trop de faux positifs)
+                # FUSION INTER-AFFAIRES v4 : titre similaire >=0.70 ET au moins 1
+                # entité spécifique commune (élu nommé OU institution spécifique).
+                # Sinon, deux faits divers homonymes ("Meurtre aux Abymes" avec
+                # 2 victimes différentes, ou 2 réunions municipales d'agendas
+                # différents) peuvent fusionner à tort.
                 should_merge = False
                 reason = ""
 
                 if seq_ratio >= 0.70:
-                    should_merge = True
-                    reason = f"titres_similaires={seq_ratio:.2f}"
+                    elected_a = {
+                        e.lower().strip() for e in (affair_a.get("elected", []) or [])
+                        if e and len(e) > 3 and e.lower().strip() not in self.GENERIC_ELECTED
+                    }
+                    elected_b = {
+                        e.lower().strip() for e in (affair_b.get("elected", []) or [])
+                        if e and len(e) > 3 and e.lower().strip() not in self.GENERIC_ELECTED
+                    }
+                    inst_a = {
+                        e.lower().strip() for e in (affair_a.get("institutions", []) or [])
+                        if e and len(e) > 3 and e.lower().strip() not in self.GENERIC_INSTITUTIONS
+                    }
+                    inst_b = {
+                        e.lower().strip() for e in (affair_b.get("institutions", []) or [])
+                        if e and len(e) > 3 and e.lower().strip() not in self.GENERIC_INSTITUTIONS
+                    }
+                    has_specific_overlap = bool(elected_a & elected_b) or bool(inst_a & inst_b)
+
+                    if has_specific_overlap:
+                        should_merge = True
+                        reason = f"titres_similaires={seq_ratio:.2f}+entité_commune"
+                    elif seq_ratio >= 0.92:
+                        # Très haute similarité titre (≥0.92) : on accepte sans
+                        # entité commune (cas typique : titres quasi-identiques
+                        # d'un même événement reformulé par 2 sources).
+                        should_merge = True
+                        reason = f"titres_quasi_identiques={seq_ratio:.2f}"
+                    else:
+                        logger.debug(
+                            f"🚫 FUSION inter-affaires REFUSÉE (titre {seq_ratio:.2f} mais "
+                            f"aucune entité spécifique en commun): "
+                            f"'{affair_a.get('title', '?')[:40]}' vs '{affair_b.get('title', '?')[:40]}'"
+                        )
 
                 # ── Filtre anti boule de neige ──
                 if should_merge:
@@ -3515,7 +3548,9 @@ class AffairLifecycleService:
                 {"$or": [
                     {"_affair_processed": {"$exists": False}},
                     {"_affair_processed": False},
-                    {"_affair_ignored": True, "_affair_attempts": {"$lt": 3}},
+                    {"_affair_ignored": True, "_match_attempts": {"$lt": MAX_MATCH_ATTEMPTS}},
+                    # Compat docs anciens (avant unification des compteurs)
+                    {"_affair_ignored": True, "_affair_attempts": {"$lt": MAX_MATCH_ATTEMPTS}},
                 ]},
                 {"$or": [
                     {"scraped_at": {"$gte": cutoff_24h_dt}},
@@ -3572,7 +3607,7 @@ class AffairLifecycleService:
                                 f"'{_art_title[:50]}' ↛ '{_aff_title[:40]}'")
                     self.articles.update_one(
                         {"_id": art["_id"]},
-                        {"$inc": {"_affair_attempts": 1}}
+                        {"$inc": {"_match_attempts": 1}}
                     )
                     continue
 
@@ -3584,7 +3619,7 @@ class AffairLifecycleService:
                                 f"'{_art_title[:50]}' ↛ '{_aff_title[:40]}'")
                     self.articles.update_one(
                         {"_id": art["_id"]},
-                        {"$inc": {"_affair_attempts": 1}}
+                        {"$inc": {"_match_attempts": 1}}
                     )
                     continue
 
@@ -3610,7 +3645,7 @@ class AffairLifecycleService:
                                     f"score={best_score}<12): '{_art_title[:50]}' ↛ '{_aff_title[:40]}'")
                         self.articles.update_one(
                             {"_id": art["_id"]},
-                            {"$inc": {"_affair_attempts": 1}}
+                            {"$inc": {"_match_attempts": 1}}
                         )
                         continue
 
@@ -3629,7 +3664,7 @@ class AffairLifecycleService:
                             logger.info(f"   🚫 GPT REJET consolidation: '{art.get('title', '?')[:50]}'")
                             self.articles.update_one(
                                 {"_id": art["_id"]},
-                                {"$inc": {"_affair_attempts": 1}}
+                                {"$inc": {"_match_attempts": 1}}
                             )
                             continue
                     except Exception as e:
@@ -4882,7 +4917,8 @@ class AffairLifecycleService:
                 stats["expired"] += 1
 
         # 5d. Marquer les items ignorés — NE PAS les bloquer définitivement
-        # On incrémente un compteur de tentatives. Après 3 tentatives, on les marque processed.
+        # On incrémente le compteur de tentatives unifié (_match_attempts).
+        # Après MAX_MATCH_ATTEMPTS tentatives, on les marque processed.
         for ign_idx in ai_result.get("ignored_articles", []):
             real_idx = ign_idx - 1
             if 0 <= real_idx < len(all_items_for_ai):
@@ -4890,20 +4926,23 @@ class AffairLifecycleService:
                 is_radio = ignored_item.get("_is_radio_topic", False)
                 col = self.transcriptions if is_radio else self.articles
                 doc = col.find_one({"_id": ignored_item["_id"]})
-                attempts = (doc.get("_affair_attempts", 0) if doc else 0) + 1
-                if attempts >= 3:
-                    # 3 tentatives : on abandonne
+                # Lit prioritairement _match_attempts, fallback _affair_attempts pour les docs anciens
+                prev_attempts = 0
+                if doc:
+                    prev_attempts = doc.get("_match_attempts") or doc.get("_affair_attempts") or 0
+                attempts = prev_attempts + 1
+                if attempts >= MAX_MATCH_ATTEMPTS:
                     col.update_one(
                         {"_id": ignored_item["_id"]},
                         {"$set": {"_affair_processed": True, "_affair_ignored": True,
-                                  "_affair_attempts": attempts}}
+                                  "_match_attempts": attempts},
+                         "$unset": {"_affair_attempts": ""}}
                     )
                 else:
-                    # Pas encore 3 tentatives : laisser une chance au prochain cycle
                     col.update_one(
                         {"_id": ignored_item["_id"]},
-                        {"$set": {"_affair_ignored": True, "_affair_attempts": attempts},
-                         "$unset": {"_affair_processed": ""}}
+                        {"$set": {"_affair_ignored": True, "_match_attempts": attempts},
+                         "$unset": {"_affair_processed": "", "_affair_attempts": ""}}
                     )
                 stats["ignored"] += 1
 

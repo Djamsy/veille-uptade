@@ -31,7 +31,8 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from functools import lru_cache
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("entity_presence_service")
 
@@ -44,13 +45,15 @@ except ImportError:  # pragma: no cover
     from entity_aliases import ELECTED_ALIASES, _normalize  # type: ignore
 
 try:
-    from backend.elus_database import get_mandat_commune  # type: ignore
+    from backend.elus_database import get_mandat_commune, get_mandat_communes_all  # type: ignore
 except ImportError:  # pragma: no cover
     try:
-        from elus_database import get_mandat_commune  # type: ignore
+        from elus_database import get_mandat_commune, get_mandat_communes_all  # type: ignore
     except ImportError:
         def get_mandat_commune(name: str):  # fallback no-op
             return None
+        def get_mandat_communes_all(name: str):  # fallback no-op
+            return []
 
 try:
     from backend.ai_groq_service import _call_ai, is_available as ai_is_available  # type: ignore
@@ -89,6 +92,14 @@ _GENERIC_ALIAS_DENYLIST = {
     "le ministre", "la ministre", "le député", "la députée",
     "le depute", "la deputee", "le sénateur", "la sénatrice",
     "le senateur", "la senatrice",
+    # Alias institutionnels — multiples élus du même conseil ont ces alias
+    # générés par elus_database._generate_aliases. Ne pas les utiliser pour
+    # l'identification (sinon une mention de "président de la région"
+    # matche tous les conseillers régionaux avec "président" dans leur rôle).
+    "president du conseil regional", "président du conseil régional",
+    "president de la region", "président de la région",
+    "president du conseil departemental", "président du conseil départemental",
+    "president du departement", "président du département",
 }
 
 # Longueur minimale pour qu'un alias soit utilisé au pré-filtre (drop "jp", "mc"…)
@@ -160,27 +171,58 @@ def _is_useful_alias(alias_norm: str) -> bool:
     return True
 
 
-def _quick_match_elected(text: str) -> List[str]:
-    """Détection rapide regex : retourne les noms canoniques d'élus mentionnés.
+@lru_cache(maxsize=1)
+def _build_quick_match_index() -> Tuple[Optional[re.Pattern], Dict[str, str]]:
+    """Pre-compile une seule regex d'alternation pour tous les alias utiles.
 
-    Bypass complet de l'IA si aucun match → économie d'API.
-    Drop les alias génériques (« le maire ») et trop courts (< 5 chars).
+    Pre: O(96 élus × 12 alias) re.search par article = ~1150 ops par texte.
+    Post: 1 re.findall sur une regex unique → ~50× plus rapide en pratique.
+
+    Retourne (pattern, form_to_canonical). Pattern None si aucun alias valide.
     """
-    if not text:
-        return []
-    norm = _normalize(text)
-    found = []
+    form_to_canonical: Dict[str, str] = {}
     for canonical, aliases in ELECTED_ALIASES.items():
-        # Match sur la forme canonique normalisée + chaque alias non-générique
         all_forms = [_normalize(canonical)] + [_normalize(a) for a in aliases]
         for form in all_forms:
             if not _is_useful_alias(form):
                 continue
-            # Word boundaries pour éviter les faux positifs (« losbar » dans « losbartholomew »)
-            pattern = r"\b" + re.escape(form) + r"\b"
-            if re.search(pattern, norm):
-                found.append(canonical)
-                break
+            # Garder la 1re occurrence — un même alias mappé à 2 canoniques
+            # est traité par ordre d'apparition (acceptable car les alias
+            # devraient être uniques après dedup).
+            if form not in form_to_canonical:
+                form_to_canonical[form] = canonical
+
+    if not form_to_canonical:
+        return None, {}
+
+    # Trier par longueur DESC pour que la regex matche le plus long en premier
+    # (regex alternation est non-greedy par défaut sur l'ordre, donc l'ordre
+    # importe). Ex: "ary chalus" avant "chalus".
+    sorted_forms = sorted(form_to_canonical.keys(), key=len, reverse=True)
+    pattern = r"\b(?:" + "|".join(re.escape(f) for f in sorted_forms) + r")\b"
+    return re.compile(pattern), form_to_canonical
+
+
+def _quick_match_elected(text: str) -> List[str]:
+    """Détection rapide regex : retourne les noms canoniques d'élus mentionnés.
+
+    Bypass complet de l'IA si aucun match → économie d'API.
+    Drop les alias génériques (« le maire ») et trop courts (< _MIN_ALIAS_LENGTH).
+    """
+    if not text:
+        return []
+    pattern, form_to_canonical = _build_quick_match_index()
+    if pattern is None:
+        return []
+    norm = _normalize(text)
+    # Préserver l'ordre de découverte + dédupliquer les canoniques
+    found: List[str] = []
+    seen = set()
+    for match in pattern.finditer(norm):
+        canonical = form_to_canonical.get(match.group(0))
+        if canonical and canonical not in seen:
+            seen.add(canonical)
+            found.append(canonical)
     return found
 
 
@@ -412,12 +454,16 @@ def extract_presences_from_article(article: Dict[str, Any]) -> List[Dict[str, An
         if event_kind not in ACCEPTED_EVENT_KINDS:
             event_kind = "presence"
 
-        # Flag de cohérence mandat : la commune assignée correspond-elle à la
-        # commune de mandat de l'élu ? (purement informatif, ne bloque pas)
-        mandat_commune = get_mandat_commune(p["entity"])
-        commune_in_mandat = (
-            mandat_commune is not None
-            and _normalize(mandat_commune) == _normalize(commune_canon)
+        # Flag de cohérence mandat : la commune assignée correspond-elle à
+        # **une** des communes de mandat de l'élu ? Gère le cumul (17 élus
+        # ont plusieurs mandats — ex: conseiller départemental + maire).
+        mandat_commune = get_mandat_commune(p["entity"])  # principale (compat)
+        all_mandat_communes = get_mandat_communes_all(p["entity"]) or (
+            [mandat_commune] if mandat_commune else []
+        )
+        commune_norm = _normalize(commune_canon)
+        commune_in_mandat = any(
+            _normalize(c) == commune_norm for c in all_mandat_communes
         )
 
         out.append({

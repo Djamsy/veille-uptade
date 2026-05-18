@@ -20,7 +20,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 
 logger = logging.getLogger("presence_routes")
 
@@ -209,48 +209,99 @@ def presence_feed(
     return {"items": out, "count": len(out)}
 
 
+# État partagé pour suivre le dernier backfill (un seul à la fois)
+_backfill_state: Dict[str, Any] = {
+    "running": False,
+    "started_at": None,
+    "finished_at": None,
+    "days": None,
+    "limit": None,
+    "processed": 0,
+    "inserted": 0,
+    "skipped_no_match": 0,
+    "errors": 0,
+}
+
+
+def _run_backfill(days: int, limit: int) -> None:
+    """Exécution réelle du backfill — appelée depuis BackgroundTasks."""
+    global _backfill_state
+    _backfill_state.update({
+        "running": True,
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "finished_at": None,
+        "days": days,
+        "limit": limit,
+        "processed": 0, "inserted": 0, "skipped_no_match": 0, "errors": 0,
+    })
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        cursor = _articles_col().find({
+            "$or": [
+                {"published_at": {"$gte": cutoff}},
+                {"date": {"$gte": cutoff}},
+                {"scraped_at": {"$gte": cutoff}},
+            ]
+        }).limit(limit)
+        for art in cursor:
+            _backfill_state["processed"] += 1
+            try:
+                records = extract_presences_from_article(art)
+                if not records:
+                    _backfill_state["skipped_no_match"] += 1
+                    continue
+                _backfill_state["inserted"] += _insert_presences(records)
+            except Exception as e:
+                logger.warning("backfill error sur article %s: %s", art.get("article_id"), e)
+                _backfill_state["errors"] += 1
+    finally:
+        _backfill_state["running"] = False
+        _backfill_state["finished_at"] = datetime.now(timezone.utc).isoformat()
+        logger.info(
+            "✅ Backfill presence terminé: %d traités, %d insérés, %d sans match, %d erreurs",
+            _backfill_state["processed"], _backfill_state["inserted"],
+            _backfill_state["skipped_no_match"], _backfill_state["errors"],
+        )
+
+
 @router.post("/backfill")
 def backfill(
+    background_tasks: BackgroundTasks,
     days: int = Query(30, ge=1, le=365, description="Profondeur du backfill en jours."),
     limit: int = Query(500, ge=1, le=5000, description="Nombre max d'articles à traiter."),
     admin: dict = Depends(require_admin),
 ):
-    """Relance l'extraction sur les articles récents (idempotent)."""
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-    cursor = _articles_col().find({
-        "$or": [
-            {"published_at": {"$gte": cutoff}},
-            {"date": {"$gte": cutoff}},
-            {"scraped_at": {"$gte": cutoff}},
-        ]
-    }).limit(limit)
+    """Lance un backfill **en arrière-plan** (la route retourne immédiatement).
 
-    processed = 0
-    inserted = 0
-    skipped_no_match = 0
-    errors = 0
+    Le backfill LLM peut prendre plusieurs minutes pour 500 articles — l'ancien
+    endpoint synchrone garantissait un timeout request côté Render/Vercel. Le
+    suivi se fait via GET /api/presence/backfill/status.
 
-    for art in cursor:
-        processed += 1
-        try:
-            records = extract_presences_from_article(art)
-            if not records:
-                skipped_no_match += 1
-                continue
-            inserted += _insert_presences(records)
-        except Exception as e:
-            logger.warning("backfill error sur article %s: %s", art.get("article_id"), e)
-            errors += 1
-
+    Un seul backfill peut tourner à la fois (renvoie 409 si déjà en cours).
+    """
+    if _backfill_state.get("running"):
+        raise HTTPException(409, {
+            "error": "Un backfill est déjà en cours",
+            "started_at": _backfill_state.get("started_at"),
+            "progress": {
+                "processed": _backfill_state.get("processed", 0),
+                "inserted": _backfill_state.get("inserted", 0),
+            },
+        })
+    background_tasks.add_task(_run_backfill, days, limit)
     return {
         "ok": True,
+        "scheduled": True,
         "days": days,
         "limit": limit,
-        "processed": processed,
-        "inserted": inserted,
-        "skipped_no_match": skipped_no_match,
-        "errors": errors,
+        "status_endpoint": "/api/presence/backfill/status",
     }
+
+
+@router.get("/backfill/status")
+def backfill_status(admin: dict = Depends(require_admin)):
+    """Statut du dernier backfill (en cours ou terminé)."""
+    return _backfill_state
 
 
 @router.post("/extract/{article_id}")

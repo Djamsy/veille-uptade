@@ -176,8 +176,9 @@ def build_aliases_index() -> Dict[str, List[str]]:
 def build_mandat_communes() -> Dict[str, Optional[str]]:
     """
     Mappe chaque élu (canonical name) à sa commune de mandat principale.
-    Pour les conseillers départementaux : la commune chef-lieu du canton.
-    Pour les conseillers régionaux : None (mandat régional).
+    Cumul : la PREMIÈRE commune trouvée (généralement municipal).
+    Pour le check « élu présent dans sa commune de mandat », utiliser plutôt
+    `build_mandat_communes_all()` qui retourne la liste complète.
     """
     elus = load_elus()
     out: Dict[str, Optional[str]] = {}
@@ -192,6 +193,30 @@ def build_mandat_communes() -> Dict[str, Optional[str]]:
                 out[canonical] = commune
         else:
             out[canonical] = commune
+    return out
+
+
+@lru_cache(maxsize=1)
+def build_mandat_communes_all() -> Dict[str, List[str]]:
+    """
+    Mappe chaque élu (canonical name) à TOUTES ses communes de mandat.
+    Indispensable pour le cumul : 17 élus de la base ont plusieurs mandats
+    (ex: conseiller départemental + maire). `build_mandat_communes` retourne
+    seulement la première — utiliser cette fonction pour le check
+    `commune in mandats` (cf. entity_presence_service).
+    """
+    elus = load_elus()
+    out: Dict[str, List[str]] = {}
+    for e in elus:
+        canonical = e.get("canonical")
+        if not canonical:
+            continue
+        commune = e.get("commune")
+        if not commune:
+            continue
+        bucket = out.setdefault(canonical, [])
+        if commune not in bucket:
+            bucket.append(commune)
     return out
 
 
@@ -223,14 +248,25 @@ def build_elu_metadata() -> Dict[str, Dict[str, Any]]:
 
 
 def get_mandat_commune(entity_canonical: str) -> Optional[str]:
-    """Helper : retourne la commune de mandat d'un élu (None si régional ou inconnu)."""
+    """Helper : retourne la commune de mandat **principale** d'un élu
+    (None si régional/national/inconnu). Utiliser `get_mandat_communes_all`
+    pour le check « la commune est-elle UNE de ses communes de mandat »
+    (gère le cumul).
+    """
     return build_mandat_communes().get(entity_canonical)
+
+
+def get_mandat_communes_all(entity_canonical: str) -> List[str]:
+    """Toutes les communes où l'élu détient un mandat (cumul-aware)."""
+    return list(build_mandat_communes_all().get(entity_canonical, []))
 
 
 __all__ = [
     "load_elus",
     "build_aliases_index",
     "build_mandat_communes",
+    "build_mandat_communes_all",
     "build_elu_metadata",
     "get_mandat_commune",
+    "get_mandat_communes_all",
 ]
