@@ -45,25 +45,24 @@ module.exports = {
           light: '#5887bc',
           soft: '#f1f5fa',
         },
-        // ── Semantic tokens (mute, lisibles sur fond clair) ──
+        // ── Tokens topographie GPE (désaturés, lisibles sur clair) ──
         gpe: {
-          green: '#4f8b56',
-          yellow: '#a88820',
-          red: '#c43850',
+          green: '#4a7b56',  // mangrove
+          yellow: '#b89030', // canne mûre
+          red: '#a8324a',    // Soufrière
           blue: '#3e6fa3',
           coral: '#b8632a',
         },
         bmg: {
-          low: '#4f8b56',
-          medium: '#a88820',
-          high: '#b8632a',
-          critical: '#c43850',
+          low: '#4a7b56',      // mangrove
+          medium: '#b89030',   // canne mûre
+          high: '#8d4628',     // terre volcanique
+          critical: '#a8324a', // Soufrière
         },
         sentiment: {
-          positive: '#4f8b56',
+          positive: '#4a7b56',
           neutral: '#71717a',
-          negative: '#c43850',
-          mixed: '#b8632a',
+          negative: '#a8324a',
         },
         // Soft backgrounds for tags
         'crit-soft': '#fdf2f4',

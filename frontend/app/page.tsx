@@ -312,6 +312,7 @@ export default function DashboardPage() {
                 {
                   label: 'Articles · 7j',
                   value: coverage?.total_articles_7d ?? MOCK_KPIS.articles_7d,
+                  goodDirection: 'up',
                   trend: trends?.articles_trend_pct != null
                     ? { delta: Math.round(trends.articles_trend_pct), period: '%' }
                     : isMockKpis
@@ -323,6 +324,7 @@ export default function DashboardPage() {
                   value: radioToday.count > 0
                     ? `${radioToday.count}/${radioHealth.length || 0}`
                     : `${MOCK_KPIS.radio_today}/${MOCK_KPIS.radio_total}`,
+                  goodDirection: 'up',
                 },
               ]}
             />

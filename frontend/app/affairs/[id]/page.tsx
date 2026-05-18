@@ -18,36 +18,15 @@ import {
   type LinkedSocial,
 } from '../../../lib/api'
 import { timeAgo, themeLabel } from '../../../lib/formatters'
+import { gravityColor, sentimentBucket, SENTIMENT_STYLE } from '../../../lib/scales'
+
+const SENT_STYLE = SENTIMENT_STYLE
+const sentimentKind = sentimentBucket
 
 function formatDate(s: string): string {
   try {
     return new Date(s).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
   } catch { return s }
-}
-
-function gravityColor(pct: number): string {
-  if (pct >= 70) return 'var(--negative)'
-  if (pct >= 50) return 'var(--warning)'
-  if (pct >= 25) return 'var(--caution)'
-  return 'var(--positive)'
-}
-
-type SentimentKind = 'crit' | 'warn' | 'caution' | 'ok' | 'neutral'
-function sentimentKind(s?: string): SentimentKind {
-  const l = (s || '').toLowerCase()
-  if (l.startsWith('très négatif') || l.startsWith('tres negatif')) return 'crit'
-  if (l.includes('négatif') || l.includes('negatif')) return 'warn'
-  if (l.includes('mitigé') || l.includes('mixte')) return 'caution'
-  if (l.includes('positif')) return 'ok'
-  return 'neutral'
-}
-
-const SENT_STYLE: Record<SentimentKind, { bg: string; color: string; border: string }> = {
-  crit:    { bg: 'var(--crit-soft)',   color: '#b02939', border: '#f5d4d9' },
-  warn:    { bg: 'var(--warn-soft)',   color: '#9d551f', border: '#f3dcc5' },
-  caution: { bg: 'var(--caution-soft)',color: '#8a7218', border: '#ecdfa9' },
-  ok:      { bg: 'var(--ok-soft)',     color: '#3d6f44', border: '#cce5d0' },
-  neutral: { bg: 'var(--bg-elevated)', color: 'var(--text-muted)', border: 'var(--border)' },
 }
 
 function CanalBar({ canal, value, max }: { canal: string; value: number; max: number }) {

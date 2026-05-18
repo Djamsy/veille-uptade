@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Sidebar from '../../components/Sidebar'
 import { fetchAffairs, type Affair } from '../../lib/api'
 import { timeAgo, themeLabel } from '../../lib/formatters'
+import { gravityColor, gravityLabel, sentimentBucket, SENTIMENT_STYLE } from '../../lib/scales'
 
 type Priority = 'hot' | 'watch' | 'minor'
 type StatusFilter = 'all' | 'active' | 'stale' | 'archived'
@@ -17,37 +18,8 @@ const PRIORITY_META: Record<Priority, { label: string; color: string }> = {
   minor: { label: 'Mineures',     color: 'var(--positive)' },
 }
 
-function scoreColor(bmg: number): string {
-  if (bmg >= 70) return 'var(--negative)'
-  if (bmg >= 50) return 'var(--warning)'
-  if (bmg >= 25) return 'var(--caution)'
-  return 'var(--positive)'
-}
-
-function sevLabel(bmg: number): string {
-  if (bmg >= 70) return 'CRITIQUE'
-  if (bmg >= 50) return 'ÉLEVÉ'
-  if (bmg >= 25) return 'MODÉRÉ'
-  return 'FAIBLE'
-}
-
-type SentimentKind = 'crit' | 'warn' | 'caution' | 'ok' | 'neutral'
-function sentimentKind(s?: string): SentimentKind {
-  const l = (s || '').toLowerCase()
-  if (l.startsWith('très négatif') || l.startsWith('tres negatif')) return 'crit'
-  if (l.includes('négatif') || l.includes('negatif')) return 'warn'
-  if (l.includes('mitigé') || l.includes('mixte')) return 'caution'
-  if (l.includes('positif')) return 'ok'
-  return 'neutral'
-}
-
-const SENTIMENT_STYLE: Record<SentimentKind, { bg: string; color: string; border: string }> = {
-  crit:    { bg: 'var(--crit-soft)',   color: '#b02939', border: '#f5d4d9' },
-  warn:    { bg: 'var(--warn-soft)',   color: '#9d551f', border: '#f3dcc5' },
-  caution: { bg: 'var(--caution-soft)',color: '#8a7218', border: '#ecdfa9' },
-  ok:      { bg: 'var(--ok-soft)',     color: '#3d6f44', border: '#cce5d0' },
-  neutral: { bg: 'var(--bg-elevated)', color: 'var(--text-muted)', border: 'var(--border)' },
-}
+const scoreColor = gravityColor
+const sevLabel = gravityLabel
 
 function getAffairPriority(a: Affair): Priority {
   if (a.priority === 'hot' || a.priority === 'watch' || a.priority === 'minor') return a.priority
@@ -64,7 +36,7 @@ function getAffairPriority(a: Affair): Priority {
 function AffaireCard({ a }: { a: Affair }) {
   const bmg = Math.round((a.bmg || 0) * 100)
   const c = scoreColor(bmg)
-  const sentS = SENTIMENT_STYLE[sentimentKind(a.sentiment)]
+  const sentS = SENTIMENT_STYLE[sentimentBucket(a.sentiment)]
   const loc = a.primary_entity || a.institutions?.[0] || '—'
   const tags = [...(a.elected || []), ...(a.institutions || [])].slice(0, 3)
 

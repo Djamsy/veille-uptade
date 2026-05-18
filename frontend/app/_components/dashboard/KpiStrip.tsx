@@ -3,14 +3,19 @@ type Kpi = {
   value: number | string
   trend?: { delta: number; period?: string }
   severity?: 'neutral' | 'crit' | 'warn' | 'ok'
+  // Direction sémantique du delta. 'up' = monter est bon (ex: articles, captures),
+  // 'down' = monter est mauvais (ex: affaires urgentes), 'either' = neutre.
+  // Si absent, défaut = 'down' (alerte si ça monte).
+  goodDirection?: 'up' | 'down' | 'either'
 }
 
-function trendColor(delta: number, severity?: Kpi['severity']) {
+function trendColor(delta: number, severity?: Kpi['severity'], goodDirection: Kpi['goodDirection'] = 'down') {
   if (severity === 'crit') return 'var(--negative)'
   if (severity === 'warn') return 'var(--warning)'
   if (severity === 'ok') return 'var(--positive)'
-  // Neutral: up = warn (more = worse for most metrics), down = ok
-  return delta > 0 ? 'var(--warning)' : delta < 0 ? 'var(--positive)' : 'var(--text-muted)'
+  if (delta === 0 || goodDirection === 'either') return 'var(--text-muted)'
+  const isPositiveOutcome = (delta > 0 && goodDirection === 'up') || (delta < 0 && goodDirection === 'down')
+  return isPositiveOutcome ? 'var(--positive)' : 'var(--warning)'
 }
 
 function trendArrow(delta: number) {
@@ -47,7 +52,7 @@ function Cell({ kpi }: { kpi: Kpi }) {
         {kpi.trend && (
           <span
             className="font-mono text-xs tabular-nums"
-            style={{ color: trendColor(kpi.trend.delta, kpi.severity) }}
+            style={{ color: trendColor(kpi.trend.delta, kpi.severity, kpi.goodDirection) }}
           >
             {trendArrow(kpi.trend.delta)} {kpi.trend.delta > 0 ? '+' : ''}{kpi.trend.delta}{kpi.trend.period ? ` ${kpi.trend.period}` : ''}
           </span>
