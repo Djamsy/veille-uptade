@@ -450,12 +450,13 @@ export default function DashboardPage() {
               >
                 <div>
                   <div
-                    className="font-mono text-[10px] uppercase tracking-[0.18em] mb-1"
+                    className="font-mono text-[10px] uppercase tracking-[0.18em] mb-1 cursor-help"
                     style={{ color: 'var(--text-muted)' }}
+                    title="Jou-la (kréyol gwadloupéyen) — aujourd'hui"
                   >
-                    Brief
+                    Jou-la · Brief
                   </div>
-                  <h2 className="font-serif text-xl font-semibold" style={{ color: 'var(--text)' }}>
+                  <h2 className="font-serif text-xl italic font-medium" style={{ color: 'var(--text)' }}>
                     Résumé {summaryPeriod === 'journalier' ? 'du jour' : 'de la semaine'}
                   </h2>
                 </div>

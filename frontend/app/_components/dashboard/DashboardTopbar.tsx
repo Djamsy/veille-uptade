@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { GuadeloupeMark } from '../../../components/GuadeloupeMark'
 
 type Props = {
   lastRefresh: Date
@@ -30,17 +31,31 @@ export function DashboardTopbar({ lastRefresh, onRefresh, onOpenBrief, refreshin
 
   return (
     <header
-      className="px-6 lg:px-8 pt-5 pb-5"
+      className="relative px-6 lg:px-8 pt-5 pb-5 overflow-hidden"
       style={{ borderBottom: '1px solid var(--border)' }}
     >
-      <div className="flex items-start justify-between gap-4">
+      {/* Signature visuelle — silhouette du papillon en filigrane */}
+      <GuadeloupeMark
+        className="hidden lg:block pointer-events-none absolute -right-8 -top-4 w-[280px] h-auto"
+        stroke="#18181b"
+        style={{ opacity: 0.035 }}
+      />
+      <div className="relative flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <div className="flex items-center gap-3 mb-2">
+          <div className="flex items-center gap-2 mb-2">
+            <span
+              className="font-mono text-[10px] uppercase tracking-[0.18em] font-semibold"
+              style={{ color: 'var(--text)' }}
+              aria-label="Indicatif Guadeloupe"
+            >
+              971
+            </span>
+            <span className="font-mono text-[10px]" style={{ color: 'var(--text-muted)' }}>·</span>
             <span
               className="font-mono text-[10px] uppercase tracking-[0.18em]"
               style={{ color: 'var(--text-muted)' }}
             >
-              Pilotage / Vue d&rsquo;ensemble
+              Pilotage · Vue d&rsquo;ensemble
             </span>
           </div>
           <h1
