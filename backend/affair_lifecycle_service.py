@@ -32,6 +32,7 @@ import os
 import re
 import logging
 import hashlib
+import unicodedata
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Tuple, Set
 from collections import Counter, defaultdict
@@ -2434,14 +2435,20 @@ class AffairLifecycleService:
 
     def _detect_event_category(self, text: str) -> Optional[str]:
         """Détecte la catégorie d'événement à partir du titre/description.
+        Utilise normalize() (sans accents) pour rester robuste aux variantes orthographiques.
         Retourne le nom de la catégorie ou None si non classifiable."""
         if not text:
             return None
-        text_lower = text.lower()
+        t = text.lower()
+        text_norm = "".join(ch for ch in unicodedata.normalize("NFKD", t) if not unicodedata.combining(ch))
         best_cat = None
         best_score = 0
         for cat_name, keywords in self.EVENT_CATEGORIES.items():
-            score = sum(1 for kw in keywords if kw in text_lower)
+            score = 0
+            for kw in keywords:
+                kw_norm = "".join(ch for ch in unicodedata.normalize("NFKD", kw.lower()) if not unicodedata.combining(ch))
+                if kw_norm in text_norm:
+                    score += 1
             if score > best_score:
                 best_score = score
                 best_cat = cat_name
@@ -2818,14 +2825,11 @@ class AffairLifecycleService:
 
     @staticmethod
     def _normalize_title(title: str) -> str:
-        """Normalise un titre pour le matching : retire tirets, accents partiels, ponctuation."""
-        import unicodedata
+        """Normalise un titre pour le matching : retire accents, tirets, ponctuation."""
         t = title.lower().strip()
-        # Remplacer tirets par espaces (Petit-Pérou → Petit Pérou)
+        t = "".join(ch for ch in unicodedata.normalize("NFKD", t) if not unicodedata.combining(ch))
         t = t.replace("-", " ").replace("–", " ").replace("—", " ")
-        # Retirer la ponctuation
         t = re.sub(r"[«»\"'\[\]\(\):;,\.!\?…]", " ", t)
-        # Compacter les espaces
         t = re.sub(r"\s+", " ", t).strip()
         return t
 
@@ -2901,9 +2905,7 @@ class AffairLifecycleService:
         # Calcul des intersections
         common_elected_exact = art_elected & aff_elected
         common_institutions_exact = art_institutions_filtered & aff_institutions
-        same_theme = (art_theme == aff_theme and art_theme not in (
-            "", "general", "sante_social", "securite_justice"
-        ))
+        same_theme = (art_theme == aff_theme and art_theme not in BROAD_THEMES and art_theme != "")
         common_title = art_title_words_strict & aff_title_words
 
         # ── Fuzzy entity matching ──
@@ -4463,10 +4465,8 @@ class AffairLifecycleService:
                 common_institutions = post_institutions & aff_institutions
                 score += len(common_institutions) * 3
 
-                # Thème = bonus faible, seulement si entité commune
-                same_theme = (post_theme == aff_theme and post_theme not in (
-                    "", "general", "sante_social", "securite_justice"
-                ))
+                # Thème = bonus faible, seulement si entité commune (et thème spécifique)
+                same_theme = (post_theme == aff_theme and post_theme not in BROAD_THEMES and post_theme != "")
                 if same_theme and (common_elected or common_institutions):
                     score += 1
 
@@ -5231,7 +5231,7 @@ class AffairLifecycleService:
                 # Institutions en commun
                 score += len(common - common_elected) * 1
                 # Bonus même thème (hors général)
-                if art_theme == aff_theme and art_theme != "general":
+                if art_theme == aff_theme and art_theme not in BROAD_THEMES and art_theme != "":
                     score += 2
 
                 # Seuil : au moins 3 points
@@ -5397,7 +5397,7 @@ class AffairLifecycleService:
                 )
                 common = art_entities & aff_entities
                 common_elected = art_elected & aff_elected
-                same_theme = (art_theme == affair.get("theme", "") and art_theme not in ("", "general"))
+                same_theme = (art_theme == affair.get("theme", "") and art_theme not in BROAD_THEMES and art_theme != "")
 
                 score = len(common_elected) * 3 + len(common - common_elected) + (2 if same_theme else 0)
                 if score >= 3 and score > best_score:
