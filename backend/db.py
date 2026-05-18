@@ -227,7 +227,16 @@ def ensure_api_indexes(db=None):
         _safe_index(presences, [("entity_canonical", ASCENDING), ("published_at", DESCENDING)], "idx_presence_entity_date")
         _safe_index(presences, [("commune", ASCENDING), ("published_at", DESCENDING)], "idx_presence_commune_date")
         _safe_index(presences, [("published_at", DESCENDING)], "idx_presence_date")
-        _safe_index(presences, [("article_id", ASCENDING), ("entity_canonical", ASCENDING), ("commune", ASCENDING)], "idx_presence_dedup")
+        # Dedup UNIQUE : empêche les doublons (article × entity × commune)
+        # sous backfill concurrent. Sparse pour tolérer les anciennes lignes
+        # qui n'auraient pas tous ces champs.
+        _safe_index(
+            presences,
+            [("article_id", ASCENDING), ("entity_canonical", ASCENDING), ("commune", ASCENDING)],
+            "idx_presence_dedup",
+            unique=True,
+            sparse=True,
+        )
 
         _indexes_created = True
         logger.info("✅ Tous les index API créés avec succès")
@@ -235,12 +244,16 @@ def ensure_api_indexes(db=None):
         logger.error(f"❌ Erreur création index API: {e}")
 
 
-def _safe_index(collection, keys, name):
+def _safe_index(collection, keys, name, unique=False, sparse=False):
     """Crée un index en ignorant les erreurs (déjà existant, etc.)."""
     try:
-        collection.create_index(keys, name=name, background=True)
-    except Exception:
-        pass  # index déjà existant ou en cours de construction
+        collection.create_index(
+            keys, name=name, background=True, unique=unique, sparse=sparse,
+        )
+    except Exception as e:
+        # Index déjà existant avec des options différentes → log + continue
+        logger.debug(f"Index {name} skip: {e}")
+        pass
 
 
 # ── Cache en mémoire simple pour les stats dashboard ──

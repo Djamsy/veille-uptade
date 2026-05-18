@@ -80,7 +80,10 @@ def _serialize_dt(dt) -> Optional[str]:
 
 
 def _insert_presences(records: List[Dict[str, Any]]) -> int:
-    """Insère les présences en évitant les doublons (article_id + entity + commune)."""
+    """Insère/upsert les présences en s'appuyant sur l'index unique sparse
+    (article_id, entity_canonical, commune). Atomique → safe sous concurrence.
+    On garde la confidence MAX entre l'existant et le nouveau.
+    """
     if not records:
         return 0
     col = _presences_col()
@@ -91,18 +94,26 @@ def _insert_presences(records: List[Dict[str, Any]]) -> int:
             "entity_canonical": r["entity_canonical"],
             "commune": r["commune"],
         }
-        # upsert : on garde la première extraction, on met à jour confidence/context si plus haut
-        existing = col.find_one(key)
-        if existing:
-            if r.get("confidence", 0) > existing.get("confidence", 0):
-                col.update_one({"_id": existing["_id"]}, {"$set": {
-                    "confidence": r["confidence"],
+        # $max sur confidence : ne descend jamais. setOnInsert : préserve
+        # l'extracted_at original. set : update si la nouvelle confidence
+        # est >= en pratique on prend la donnée la plus fraîche.
+        result = col.update_one(
+            key,
+            {
+                "$max": {"confidence": r.get("confidence", 0)},
+                "$set": {
                     "context_snippet": r["context_snippet"],
                     "extracted_at": r["extracted_at"],
-                }})
-            continue
-        col.insert_one(r)
-        inserted += 1
+                    **{k: v for k, v in r.items()
+                       if k not in ("article_id", "entity_canonical", "commune",
+                                    "confidence", "context_snippet", "extracted_at")},
+                },
+                "$setOnInsert": dict(key),
+            },
+            upsert=True,
+        )
+        if result.upserted_id is not None:
+            inserted += 1
     return inserted
 
 

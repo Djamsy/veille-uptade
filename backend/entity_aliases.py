@@ -638,11 +638,20 @@ def resolve_entity(entity_name: str) -> str:
     if normalized in _ALIAS_INDEX:
         return _ALIAS_INDEX[normalized]
 
-    # 2. Correspondance partielle (le nom est contenu dans un alias)
+    # 2. Correspondance partielle stricte : matching par tokens entiers,
+    # pas par sous-chaîne brute. Évite que "elisabeth" matche "elisabeth*"
+    # ou "lurel" matche dans "perdurel". On exige que l'alias (ou le nom)
+    # soit présent comme séquence de tokens dans l'autre.
+    normalized_tokens = set(normalized.split())
     for alias, canonical in _ALIAS_INDEX.items():
-        if len(alias) > 5 and alias in normalized:
+        if len(alias) <= 5:
+            continue
+        alias_tokens = set(alias.split())
+        # L'alias est entièrement contenu dans les tokens du nom à résoudre
+        if alias_tokens and alias_tokens.issubset(normalized_tokens):
             return canonical
-        if len(normalized) > 5 and normalized in alias:
+        # Ou réciproquement (le nom est entièrement contenu dans l'alias)
+        if len(normalized) > 5 and normalized_tokens and normalized_tokens.issubset(alias_tokens):
             return canonical
 
     return entity_name

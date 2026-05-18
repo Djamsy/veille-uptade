@@ -40,14 +40,46 @@ _DATA_FILE = os.path.join(os.path.dirname(__file__), "data", "elus_guadeloupe.js
 
 
 def _normalize(s: str) -> str:
-    """Minuscule, sans accents, espaces collapsés."""
+    """Minuscule, sans accents, espaces collapsés.
+    Normalise aussi les apostrophes courbes (' → ') pour matcher entity_aliases.
+    """
     if not s:
         return ""
+    s = s.replace("’", "'").replace("‘", "'")
     s = unicodedata.normalize("NFKD", s)
     s = "".join(c for c in s if not unicodedata.combining(c))
     s = s.lower()
     s = " ".join(s.split())
     return s
+
+
+def _commune_maire_variants(commune: str) -> List[str]:
+    """Génère les alias "maire de/des/du <commune>" grammaticalement corrects.
+
+    Exemples :
+      "Les Abymes"   → ["maire des Abymes"]
+      "Le Gosier"    → ["maire du Gosier"]
+      "La Désirade"  → ["maire de la Désirade"]
+      "L'Anse-Bertrand" → ["maire de l'anse-bertrand"]
+      "Saint-Claude" → ["maire de Saint-Claude"]
+    """
+    if not commune:
+        return []
+    c = commune.strip()
+    low = c.lower()
+    if low.startswith("les "):
+        body = c[4:].strip()
+        return [f"maire des {body}"]
+    if low.startswith("le "):
+        body = c[3:].strip()
+        return [f"maire du {body}"]
+    if low.startswith("la "):
+        body = c[3:].strip()
+        return [f"maire de la {body}"]
+    if low.startswith("l'"):
+        body = c[2:].strip()
+        return [f"maire de l'{body.lower()}"]
+    return [f"maire de {c}"]
 
 
 @lru_cache(maxsize=1)
@@ -78,8 +110,10 @@ def _generate_aliases(elu: Dict[str, Any]) -> List[str]:
     # Forme canonique
     aliases.add(f"{first} {last}".lower())
 
-    # Nom seul (si suffisamment long pour limiter les faux positifs)
-    if len(last) >= 5:
+    # Nom seul — seuil 4 (au lieu de 5) pour inclure Lurel, Joab, Otto, Maes,
+    # Mado, Adhel, Dulac, Baron, Lapin. Risque de faux positifs limité car
+    # la regex utilise des \b word-boundaries.
+    if len(last) >= 4:
         aliases.add(last.lower())
 
     # Civilité + nom
@@ -92,11 +126,11 @@ def _generate_aliases(elu: Dict[str, Any]) -> List[str]:
     if first:
         aliases.add(f"{first[0]}. {last}".lower())
 
-    # Spécifique au mandat
+    # Spécifique au mandat — gère les communes prefixées (Les Abymes → des
+    # Abymes, Le Gosier → du Gosier, L'Anse-Bertrand → de l'anse-bertrand)
     if scope == "municipal" and commune:
-        aliases.add(f"maire de {commune}".lower())
-        aliases.add(f"maire des {commune}".lower())  # « maire des Abymes »
-        aliases.add(f"maire du {commune}".lower())   # « maire du Gosier »
+        for v in _commune_maire_variants(commune):
+            aliases.add(v.lower())
         aliases.add(f"le maire {last}".lower())
         aliases.add(f"la maire {last}".lower())
     elif scope == "regional" and "président" in role.lower():
