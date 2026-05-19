@@ -564,19 +564,23 @@ async def enriched_dashboard(user: Dict = Depends(_require_authenticated)):
                 a[k] = a[k].isoformat()
 
     # ── Stats de couverture (7 jours) ──
+    # $facet : 3 counts articles en 1 seul aller-retour Mongo (était 3 appels séparés)
     cutoff_7d = (now - timedelta(days=7)).isoformat()
-    total_articles_7d = svc.articles.count_documents({"scraped_at": {"$gte": cutoff_7d}})
-    enriched_articles_7d = svc.articles.count_documents({
-        "scraped_at": {"$gte": cutoff_7d},
-        "_analysis_method": {"$exists": True},
-    })
-    affiliated_articles_7d = svc.articles.count_documents({
-        "scraped_at": {"$gte": cutoff_7d},
-        "_affair_processed": True,
-    })
-    total_transcriptions_7d = svc.transcriptions.count_documents({
-        "captured_at": {"$gte": cutoff_7d}
-    })
+    coverage_res = list(svc.articles.aggregate([
+        {"$match": {"scraped_at": {"$gte": cutoff_7d}}},
+        {"$facet": {
+            "total":      [{"$count": "n"}],
+            "enriched":   [{"$match": {"_analysis_method": {"$exists": True}}}, {"$count": "n"}],
+            "affiliated": [{"$match": {"_affair_processed": True}},             {"$count": "n"}],
+        }},
+    ]))
+    _cov = coverage_res[0] if coverage_res else {}
+    total_articles_7d      = (_cov.get("total")      or [{"n": 0}])[0].get("n", 0)
+    enriched_articles_7d   = (_cov.get("enriched")   or [{"n": 0}])[0].get("n", 0)
+    affiliated_articles_7d = (_cov.get("affiliated") or [{"n": 0}])[0].get("n", 0)
+
+    # Transcriptions (2 counts séparés — collection différente, pas de $facet commun)
+    total_transcriptions_7d = svc.transcriptions.count_documents({"captured_at": {"$gte": cutoff_7d}})
     processed_transcriptions_7d = svc.transcriptions.count_documents({
         "captured_at": {"$gte": cutoff_7d},
         "_affair_processed": True,
@@ -612,24 +616,41 @@ async def enriched_dashboard(user: Dict = Depends(_require_authenticated)):
     top_entities = [{"name": name, "count": count} for name, count in entity_counter.most_common(15)]
 
     # ── Activité par jour (7 derniers jours) ──
-    daily_activity = []
-    for i in range(7):
-        day = now - timedelta(days=6 - i)
-        day_start = day.replace(hour=0, minute=0, second=0).isoformat()
-        day_end = day.replace(hour=23, minute=59, second=59).isoformat()
-        articles_count = svc.articles.count_documents({
-            "scraped_at": {"$gte": day_start, "$lte": day_end}
-        })
-        events_count = svc.timeline.count_documents({
-            "timestamp": {"$gte": datetime(day.year, day.month, day.day),
-                          "$lt": datetime(day.year, day.month, day.day) + timedelta(days=1)}
-        })
-        daily_activity.append({
-            "date": day.strftime("%Y-%m-%d"),
-            "label": day.strftime("%a %d"),
-            "articles": articles_count,
-            "events": events_count,
-        })
+    # 2 agrégations $group au lieu de 14 count_documents séparés (7j × 2 collections).
+    _day_art = {
+        doc["_id"]: doc["count"]
+        for doc in svc.articles.aggregate([
+            {"$match": {"scraped_at": {"$gte": cutoff_7d}}},
+            {"$addFields": {"_d": {
+                "$cond": {
+                    "if": {"$eq": [{"$type": "$scraped_at"}, "string"]},
+                    "then": {"$substrCP": ["$scraped_at", 0, 10]},
+                    "else": {"$dateToString": {"format": "%Y-%m-%d", "date": "$scraped_at"}},
+                }
+            }}},
+            {"$group": {"_id": "$_d", "count": {"$sum": 1}}},
+        ])
+    }
+    _cutoff_7d_dt = now - timedelta(days=7)
+    _day_evt = {
+        doc["_id"]: doc["count"]
+        for doc in svc.timeline.aggregate([
+            {"$match": {"timestamp": {"$gte": _cutoff_7d_dt}}},
+            {"$group": {
+                "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$timestamp"}},
+                "count": {"$sum": 1},
+            }},
+        ])
+    }
+    daily_activity = [
+        {
+            "date": (now - timedelta(days=6 - i)).strftime("%Y-%m-%d"),
+            "label": (now - timedelta(days=6 - i)).strftime("%a %d"),
+            "articles": _day_art.get((now - timedelta(days=6 - i)).strftime("%Y-%m-%d"), 0),
+            "events":   _day_evt.get((now - timedelta(days=6 - i)).strftime("%Y-%m-%d"), 0),
+        }
+        for i in range(7)
+    ]
 
     # ── Articles récents non affiliés (orphelins) ──
     orphan_articles = list(
@@ -681,14 +702,16 @@ async def enriched_dashboard(user: Dict = Depends(_require_authenticated)):
             source_counter[src] += 1
     top_sources = [{"name": n, "count": c} for n, c in source_counter.most_common(8)]
 
-    # ── Distribution de gravité des articles (7j) ──
+    # ── Distribution de gravité + avg_gravity en un seul scan (était 2 requêtes) ──
     gravity_distribution = {"low": 0, "medium": 0, "high": 0, "critical": 0}
     sentiment_counter = Counter()
+    _gravity_sum = 0.0
+    _gravity_n = 0
     for art in svc.articles.find(
         {"scraped_at": {"$gte": cutoff_7d}, "_analysis_method": {"$exists": True}},
         {"gravity_score": 1, "sentiment": 1}
     ).limit(1000):
-        g = art.get("gravity_score", 0)
+        g = art.get("gravity_score") or 0
         if g < 0.25:
             gravity_distribution["low"] += 1
         elif g < 0.50:
@@ -697,18 +720,13 @@ async def enriched_dashboard(user: Dict = Depends(_require_authenticated)):
             gravity_distribution["high"] += 1
         else:
             gravity_distribution["critical"] += 1
+        if g:
+            _gravity_sum += g
+            _gravity_n += 1
         sent = art.get("sentiment", "neutre")
         if sent:
             sentiment_counter[sent] += 1
-    avg_gravity = 0
-    enriched_with_gravity = list(svc.articles.find(
-        {"scraped_at": {"$gte": cutoff_7d}, "gravity_score": {"$exists": True}},
-        {"gravity_score": 1}
-    ).limit(500))
-    if enriched_with_gravity:
-        avg_gravity = round(
-            sum(a.get("gravity_score", 0) for a in enriched_with_gravity) / len(enriched_with_gravity), 3
-        )
+    avg_gravity = round(_gravity_sum / _gravity_n, 3) if _gravity_n else 0
 
     # ── Priority counts des affaires actives ──
     priority_counts = Counter()
