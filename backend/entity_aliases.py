@@ -266,10 +266,14 @@ INSTITUTION_ALIASES: Dict[str, List[str]] = {
     "Conseil Départemental": [
         "conseil départemental", "conseil departemental",
         "département de la guadeloupe", "departement",
+        "conseil général de guadeloupe", "conseil general de guadeloupe",
+        "cd 971", "cd971",
     ],
     "Conseil Régional": [
         "conseil régional", "conseil regional",
         "région guadeloupe", "region guadeloupe",
+        "cr 971", "cr971",
+        "région de guadeloupe", "region de guadeloupe",
     ],
     "Rectorat de Guadeloupe": [
         "rectorat de guadeloupe", "rectorat", "académie",

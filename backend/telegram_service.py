@@ -462,6 +462,52 @@ def notify_affair_unlinked(
 
 # ── Notification résumé fusions (anti boule de neige) ──────
 
+def notify_propagation_spike(affair: Dict[str, Any]) -> bool:
+    """Alerte quand une affaire entre en phase de viralisation (spike propagation détecté).
+
+    Spike = velocity_j7 > 3× velocity_j30 et velocity_j7 > 1 article/j.
+    Anti-doublon : une seule alerte par affaire par fenêtre de 6h.
+    """
+    if not is_configured():
+        return False
+
+    affair_id = str(affair.get("_id", ""))
+    # Anti-doublon : une alerte par affaire toutes les 6h
+    cache_key = f"spike_6h_{affair_id}"
+    if _is_already_sent("spike", cache_key):
+        return False
+
+    title    = affair.get("title", "Sans titre")[:120]
+    gravity  = affair.get("gravity_score", 0)
+    prop     = affair.get("propagation") or {}
+    velocity = prop.get("velocity") or {}
+    vecteurs = prop.get("vecteurs") or {}
+    score    = prop.get("score", 0)
+    v_j7     = velocity.get("j7", 0)
+    v_j30    = velocity.get("j30", 0)
+    nb_src   = prop.get("nb_sources", 0)
+
+    vecteurs_str = " · ".join(
+        f"{k} ({v})" for k, v in vecteurs.items() if v > 0
+    ) or "presse"
+
+    text = (
+        f"🔥 <b>VIRALISATION DÉTECTÉE</b>\n\n"
+        f"📋 <b>{title}</b>\n\n"
+        f"📈 Vélocité : <b>{v_j7:.1f} art/j</b> (vs {v_j30:.1f} j30)\n"
+        f"📡 Vecteurs : {vecteurs_str}\n"
+        f"🗞️ Sources : {nb_src} distinctes\n"
+        f"📊 Score propagation : {score:.0%}\n"
+        f"⚡ Gravité : {gravity:.0%}\n\n"
+        f"Cette affaire s'emballe — à surveiller en priorité."
+    )
+
+    sent = send_message(text)
+    if sent:
+        _mark_as_sent("spike", cache_key)
+    return sent
+
+
 def notify_snowball_alert(
     affair: Dict[str, Any],
     merge_count_recent: int,

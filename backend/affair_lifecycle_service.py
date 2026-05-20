@@ -47,6 +47,7 @@ try:
         notify_affair_merged as _tg_merged,
         notify_affair_unlinked as _tg_unlinked,
         notify_snowball_alert as _tg_snowball,
+        notify_propagation_spike as _tg_spike,
     )
     _telegram_ok = True
 except ImportError:
@@ -56,6 +57,7 @@ except ImportError:
             notify_affair_merged as _tg_merged,
             notify_affair_unlinked as _tg_unlinked,
             notify_snowball_alert as _tg_snowball,
+            notify_propagation_spike as _tg_spike,
         )
         _telegram_ok = True
     except ImportError:
@@ -64,6 +66,7 @@ except ImportError:
         _tg_merged = None
         _tg_unlinked = None
         _tg_snowball = None
+        _tg_spike = None
 # Notifications Push (optionnel)
 try:
     from backend.push_service import notify_new_affair as _push_notify
@@ -5421,6 +5424,20 @@ class AffairLifecycleService:
                     f"🔥 SPIKE détecté — affaire {affair_id_str[:8]}… "
                     f"velocity_j7={velocity_j7:.1f}/j vs j30={velocity_j30:.1f}/j"
                 )
+                # Alerte Telegram — enrichir l'objet affair avec les données fraîches
+                if _telegram_ok and _tg_spike:
+                    try:
+                        affair_full = dict(affair)
+                        affair_full.setdefault("propagation", {})
+                        affair_full["propagation"]["velocity"] = {
+                            "j7": velocity_j7, "j30": velocity_j30, "spike": True
+                        }
+                        affair_full["propagation"]["score"] = score
+                        affair_full["propagation"]["vecteurs"] = vecteurs
+                        affair_full["propagation"]["nb_sources"] = nb_sources
+                        _tg_spike(affair_full)
+                    except Exception as _spike_err:
+                        logger.debug(f"Telegram spike: {_spike_err}")
             updated += 1
 
         logger.info(f"📡 Propagation recalculée: {updated} affaires, "
