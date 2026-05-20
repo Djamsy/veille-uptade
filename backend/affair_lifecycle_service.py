@@ -727,7 +727,11 @@ class AffairLifecycleService:
             ),
             "title": title[:200],
             "context_tokens": list(context_tokens),
-            "entities": item.get("elected") or item.get("entities") or [],
+            # Union elected + entities pour ne rien perdre (un champ peut manquer
+            # selon la source : Groq remplit 'elected', tags_index remplit 'entities')
+            "entities": list(dict.fromkeys(
+                (item.get("elected") or []) + (item.get("entities") or [])
+            )),
             "institutions": item.get("institutions") or [],
             "theme": item.get("theme", "general"),
             "keywords": item.get("keywords_found") or [],
