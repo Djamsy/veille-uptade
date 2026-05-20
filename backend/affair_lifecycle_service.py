@@ -1239,7 +1239,7 @@ class AffairLifecycleService:
                 "keywords": cluster.get("all_tokens", [])[:20],
                 "theme": cluster.get("dominant_theme", "general"),
                 "gravity_score": cluster.get("max_gravity", 0),
-                "affair_type": self._classify_affair_type(cluster),
+                "affair_type": self._classify_affair_type_cluster(cluster),
                 "status": "active",
                 "articles": article_ids,
                 "radio_transcriptions": transcription_ids,
@@ -1830,8 +1830,8 @@ class AffairLifecycleService:
 
         now = datetime.utcnow()
         # Fenêtre large (14j) pour rattraper le backlog d'articles enrichis
-        cutoff_3d_dt = now - timedelta(days=14)
-        cutoff_3d_str = cutoff_3d_dt.isoformat()
+        cutoff_14d_dt = now - timedelta(days=14)
+        cutoff_14d_str = cutoff_14d_dt.isoformat()
         stats = {
             "method": "simple_cycle",
             "created": 0,
@@ -1862,8 +1862,8 @@ class AffairLifecycleService:
                     {"_match_last_attempt": {"$lte": cooldown_before}},
                 ]},
                 {"$or": [
-                    {"scraped_at": {"$gte": cutoff_3d_dt}},
-                    {"scraped_at": {"$gte": cutoff_3d_str}},
+                    {"scraped_at": {"$gte": cutoff_14d_dt}},
+                    {"scraped_at": {"$gte": cutoff_14d_str}},
                 ]},
             ]
         }).sort("gravity_score", -1).limit(200))
@@ -1882,20 +1882,20 @@ class AffairLifecycleService:
         if len(unprocessed) == 0 and total_enriched > 0:
             # Diagnostic : pourquoi aucun article non traité ?
             recent_enriched = self.articles.count_documents({"$or": [
-                {"scraped_at": {"$gte": cutoff_3d_dt}, "_analysis_method": {"$exists": True}},
-                {"scraped_at": {"$gte": cutoff_3d_str}, "_analysis_method": {"$exists": True}},
+                {"scraped_at": {"$gte": cutoff_14d_dt}, "_analysis_method": {"$exists": True}},
+                {"scraped_at": {"$gte": cutoff_14d_str}, "_analysis_method": {"$exists": True}},
             ]})
             recent_not_processed = self.articles.count_documents({"$and": [
                 {"_analysis_method": {"$exists": True}},
                 {"$or": [{"_affair_processed": {"$exists": False}}, {"_affair_processed": False}]},
-                {"$or": [{"scraped_at": {"$gte": cutoff_3d_dt}}, {"scraped_at": {"$gte": cutoff_3d_str}}]},
+                {"$or": [{"scraped_at": {"$gte": cutoff_14d_dt}}, {"scraped_at": {"$gte": cutoff_14d_str}}]},
             ]})
             logger.warning(f"⚠️ Diagnostic 0 articles: {recent_enriched} enrichis en 3j, "
                           f"{recent_not_processed} non traités parmi eux")
             # Examiner un exemple
             sample = self.articles.find_one({
                 "_analysis_method": {"$exists": True},
-                "$or": [{"scraped_at": {"$gte": cutoff_3d_dt}}, {"scraped_at": {"$gte": cutoff_3d_str}}],
+                "$or": [{"scraped_at": {"$gte": cutoff_14d_dt}}, {"scraped_at": {"$gte": cutoff_14d_str}}],
             })
             if sample:
                 logger.warning(f"   Exemple: scraped_at={sample.get('scraped_at')} "
@@ -2190,7 +2190,7 @@ class AffairLifecycleService:
                         "theme": art_theme,
                         "event_structured": art.get("event_structured", {}),
                         "gravity_score": round(gravity, 3),
-                        "affair_type": self._classify_affair_type_by_gravity(gravity),
+                        "affair_type": self._classify_affair_type(art),
                         "priority": self.compute_priority(gravity, sentiment=art_sentiment),
                         "sentiment": art_sentiment,
                         "sentiment_history": [art_sentiment],
@@ -4157,6 +4157,16 @@ class AffairLifecycleService:
             if not trans_entities:
                 continue
 
+            # Normaliser les entités STT via entity_aliases (correct les noms mal transcrits)
+            if _entity_aliases_ok and _correct_entities and trans_entities:
+                try:
+                    _corrected = _correct_entities(list(trans_entities))
+                    trans_entities = set(
+                        e.lower().strip() for e in _corrected if e and len(e) > 3
+                    )
+                except Exception:
+                    pass  # Normalisation optionnelle — on continue avec les entités brutes
+
             for affair in active_affairs:
                 aff_elected = set(
                     e.lower().strip() for e in (affair.get("elected", []) or []) if e and len(e) > 3
@@ -5322,6 +5332,38 @@ class AffairLifecycleService:
         else:
             return "sujet_suivi"
 
+    def _classify_affair_type(self, art: dict) -> str:
+        """Classifie le type d'affaire depuis le contenu de l'article.
+        Priorité : affair_type Groq > mapping thème > catégorie détectée > fallback gravité.
+        """
+        # Priorité 1 : affair_type explicite fourni par Groq à l'enrichissement
+        art_affair_type = (art.get("affair_type") or "").strip()
+        if art_affair_type and art_affair_type not in ("general", "sujet_suivi", "sujet_local", ""):
+            return art_affair_type
+
+        # Priorité 2 : mapping theme Groq → type sémantique
+        THEME_TO_TYPE = {
+            "securite_justice": "affaire_judiciaire",
+            "politique_institutions": "affaire_politique",
+            "sante_social": "crise_sanitaire",
+            "economie_emploi": "affaire_economique",
+            "energie_transports": "incident_infrastructure",
+            "eau_env": "crise_environnementale",
+            "culture_patrimoine": "evenement_culturel",
+        }
+        theme = (art.get("theme") or "general").strip()
+        if theme in THEME_TO_TYPE:
+            return THEME_TO_TYPE[theme]
+
+        # Priorité 3 : catégorie d'événement détectée dans titre + résumé
+        text = f"{art.get('title', '')} {art.get('ai_summary', '')}".strip()
+        cat = self._detect_event_category(text)
+        if cat:
+            return cat
+
+        # Fallback : classification par gravité (ancienne méthode)
+        return self._classify_affair_type_by_gravity(art.get("gravity_score", 0))
+
     # ============================================================
     # JOB COMBINÉ — À appeler par le scheduler
     # ============================================================
@@ -5693,7 +5735,7 @@ class AffairLifecycleService:
             date_b=cl_b.get("last_activity") or cl_b.get("created_at"),
         )
 
-    def _classify_affair_type(self, cluster: Dict) -> str:
+    def _classify_affair_type_cluster(self, cluster: Dict) -> str:
         g = cluster.get("max_gravity", 0)
         if g >= 0.85:
             return "crise_majeure"

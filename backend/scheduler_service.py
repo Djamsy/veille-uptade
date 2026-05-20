@@ -613,6 +613,28 @@ async def job_update_affairs():
                             }]}}
                         }
                     )
+                    # ── Marquer les articles liés comme traités ──
+                    # Empêche simple_cycle de les retraiter et créer des doublons d'affaires.
+                    if new_article_ids:
+                        try:
+                            from bson import ObjectId as _ObjId
+                            _obj_ids = []
+                            for _aid in new_article_ids:
+                                try:
+                                    _obj_ids.append(_ObjId(_aid))
+                                except Exception:
+                                    pass
+                            if _obj_ids:
+                                articles_col.update_many(
+                                    {"_id": {"$in": _obj_ids}},
+                                    {"$set": {
+                                        "_affair_processed": True,
+                                        "_affair_id": str(affair["_id"]),
+                                        "_affair_match_method": "entity_intersection",
+                                    }}
+                                )
+                        except Exception as _mark_err:
+                            logger.debug(f"Mark articles processed: {_mark_err}")
                     updated_count += 1
                     logger.info(f"📈 MAJ: {affair.get('title', '?')} (+{len(updates)} via entités)")
 
