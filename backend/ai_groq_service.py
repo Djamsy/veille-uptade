@@ -119,6 +119,64 @@ def is_available() -> bool:
     return bool(OPENAI_API_KEY and _get_client())
 
 
+def _safe_parse_json(raw: Optional[str]) -> Dict[str, Any]:
+    """Parse JSON robuste — gère les cas pathologiques rencontrés en prod:
+    - raw est None / vide
+    - Balises markdown (```json ... ```)
+    - Données extra après le JSON valide ("Extra data" → JSONDecodeError)
+    - Réponse qui est une liste au lieu d'un dict
+
+    Retourne toujours un dict (vide {} si le parsing échoue), pour que les
+    appels result.get("key", default) fonctionnent sans garde None partout.
+    """
+    if not raw:
+        return {}
+
+    # 1. Retirer les balises markdown code-fence
+    text = raw.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\s*```$", "", text)
+        text = text.strip()
+
+    # 2. Tentative directe
+    try:
+        result = json.loads(text)
+        if isinstance(result, dict):
+            return result
+        if isinstance(result, list) and result and isinstance(result[0], dict):
+            # La réponse est une liste — prendre le premier élément
+            logger.debug("_safe_parse_json: réponse était une liste, premier élément utilisé")
+            return result[0]
+        logger.warning(f"_safe_parse_json: type inattendu {type(result).__name__}, réponse ignorée")
+        return {}
+    except json.JSONDecodeError:
+        pass
+
+    # 3. "Extra data" — extraire le premier objet JSON complet avec scan accolades
+    try:
+        depth = 0
+        start = text.find("{")
+        if start != -1:
+            for i, ch in enumerate(text[start:], start=start):
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        candidate = text[start: i + 1]
+                        result = json.loads(candidate)
+                        if isinstance(result, dict):
+                            logger.debug("_safe_parse_json: extrait le premier objet JSON (Extra data ignoré)")
+                            return result
+                        break
+    except (json.JSONDecodeError, Exception):
+        pass
+
+    logger.warning(f"_safe_parse_json: échec total pour raw={raw[:120]!r}")
+    return {}
+
+
 def _normalize_entity_name(name: str) -> str:
     """
     Normalise un nom d'entité:
@@ -304,7 +362,7 @@ def enrich_article_with_groq(article: Dict[str, Any]) -> Optional[Dict[str, Any]
         )
         if raw is None:
             return None
-        result = json.loads(raw)
+        result = _safe_parse_json(raw)
 
         # === STRICT VALIDATION ===
 
@@ -468,7 +526,7 @@ def analyze_sentiment_groq(text: str) -> Optional[Dict[str, Any]]:
         )
         if raw is None:
             return None
-        result = json.loads(raw)
+        result = _safe_parse_json(raw)
         return {
             "sentiment": result.get("sentiment", "neutre"),
             "score": float(result.get("score", 0.0)),
@@ -679,7 +737,7 @@ def manage_affairs_with_ai(
         if raw is None:
             return None
 
-        result = json.loads(raw)
+        result = _safe_parse_json(raw)
 
         # Valider la structure
         assignments = result.get("assignments", [])
@@ -832,7 +890,7 @@ def split_radio_transcription(
         if raw is None:
             return None
 
-        result = json.loads(raw)
+        result = _safe_parse_json(raw)
         topics = result.get("topics", [])
 
         if not topics:
@@ -948,7 +1006,7 @@ def cluster_articles_with_ai(
         )
         if raw is None:
             return None
-        result = json.loads(raw)
+        result = _safe_parse_json(raw)
 
         groups = result.get("groups", [])
         isolates = result.get("isolates", [])
@@ -1074,7 +1132,7 @@ def enrich_social_posts_batch(posts: List[Dict[str, Any]], batch_size: int = 15)
         if raw is None:
             return []
 
-        result = json.loads(raw)
+        result = _safe_parse_json(raw)
         ai_posts = result.get("posts", [])
 
         # Résolution d'alias
@@ -1255,7 +1313,7 @@ def detect_duplicate_affairs(affairs: List[Dict[str, Any]]) -> Optional[List[Dic
         if raw is None:
             return None
 
-        result = json.loads(raw)
+        result = _safe_parse_json(raw)
         duplicates = result.get("duplicates", [])
 
         if not duplicates:
@@ -1359,7 +1417,7 @@ def rewrite_affair_title(
         if raw is None:
             return None
 
-        result = json.loads(raw)
+        result = _safe_parse_json(raw)
         new_title = result.get("title", "").strip()
 
         if new_title and len(new_title) > 5:
@@ -1434,7 +1492,7 @@ def validate_article_affair_relevance(
         if raw is None:
             return None
 
-        result = json.loads(raw)
+        result = _safe_parse_json(raw)
         relevant = result.get("relevant", None)
         reason = result.get("reason", "")
 
@@ -1572,7 +1630,7 @@ def detect_stale_active_matches(
         if raw is None:
             return None
 
-        result = json.loads(raw)
+        result = _safe_parse_json(raw)
         matches = result.get("matches", [])
 
         if not matches:
@@ -1670,7 +1728,7 @@ def analyze_trends_predictive(affairs: List[Dict[str, Any]]) -> Optional[Dict[st
         if raw is None:
             return None
 
-        result = json.loads(raw)
+        result = _safe_parse_json(raw)
         logger.info(f"🔮 Analyse prédictive: {len(result.get('tendances', []))} tendances, "
                     f"{len(result.get('anticipations', []))} anticipations")
         return result
@@ -1782,7 +1840,7 @@ Pour chaque personne, donne son vrai nom, sa fonction et ton degré de certitude
         corrections = {}
         if step1_raw:
             try:
-                step1 = json.loads(step1_raw)
+                step1 = _safe_parse_json(step1_raw)
                 # Construire un résumé des personnes identifiées pour l'étape 2
                 personnes = step1.get("personnes_identifiees", [])
                 if personnes:
@@ -1894,7 +1952,7 @@ Ne te base pas sur des scores pré-calculés — évalue par toi-même en te bas
         if not raw:
             return None
 
-        result = json.loads(raw)
+        result = _safe_parse_json(raw)
 
         # Valider les champs essentiels
         required = ["contexte", "enjeux", "bruit_score", "sentiment_ia"]
@@ -1995,7 +2053,7 @@ Retourne un JSON:
         return None
 
     try:
-        result = json.loads(raw)
+        result = _safe_parse_json(raw)
         keep_ids = result.get("keep", [])
         unlink_ids = result.get("unlink", [])
         reasons = result.get("reasons", {})
@@ -2127,7 +2185,7 @@ def match_article_to_affairs(
         if raw is None:
             return None
 
-        result = json.loads(raw)
+        result = _safe_parse_json(raw)
         match_id = result.get("match", "no_match")
         confidence = result.get("confidence", "medium")
         reason = result.get("reason", "")
@@ -2214,7 +2272,7 @@ def detect_commune_ai(title: str, summary: str = "", content: str = "") -> Optio
         if raw is None:
             return None
 
-        result = json.loads(raw)
+        result = _safe_parse_json(raw)
         communes = result.get("communes", [])
         reason = result.get("reason", "")
 
@@ -2311,7 +2369,7 @@ def generate_summary(affairs: List[Dict], articles: List[Dict], period: str = "j
     if not raw:
         return None
     try:
-        return json.loads(raw)
+        return _safe_parse_json(raw)
     except json.JSONDecodeError:
         logger.error(f"❌ Résumé IA — JSON invalide")
         return None

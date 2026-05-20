@@ -11,6 +11,7 @@ orjson>=3.10
 # --- Authentification & Sécurité ---
 python-jose[cryptography]==3.3.0
 passlib[argon2]==1.7.4
+bcrypt>=3.2.2,<4.0.0
 certifi>=2024.2.2
 
 # --- OpenAI (client HTTP uniquement, pas de modèles locaux) ---

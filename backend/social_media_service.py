@@ -37,6 +37,15 @@ DEFAULT_YT_URLS = [
     "https://www.youtube.com/@ericdamaseau320",  # La Pause Sans Filtre
 ]
 
+# Table de correspondance handle → channel_id pour les chaînes dont YouTube
+# bloque la résolution dynamique (scraping HTML non fiable depuis 2024).
+# Pour trouver l'ID: ouvrir la page YouTube → F12 → Réseau → chercher "channelId"
+# ou utiliser https://www.youtube.com/feeds/videos.xml?channel_id=UC...
+_YOUTUBE_KNOWN_CHANNEL_IDS: Dict[str, str] = {
+    # "CD971": "UCxxxxxxxxxxxxxxxxxxxxxxxx",          # Conseil Départemental 971
+    # "ericdamaseau320": "UCxxxxxxxxxxxxxxxxxxxxxxxx", # La Pause Sans Filtre
+}
+
 DEFAULT_NITTERS = [
     "https://nitter.net",
     "https://nitter.fdn.fr",
@@ -130,7 +139,9 @@ class SocialMediaScraper:
                 self.youtube_feeds.append(rss_url)
                 logger.info(f"✅ YouTube feed: {url} -> {rss_url}")
             else:
-                logger.warning(f"⚠️ Impossible de résoudre: {url}")
+                # Réduction du bruit log : YouTube bloque la résolution @handle depuis 2024.
+                # Ajouter l'ID dans _YOUTUBE_KNOWN_CHANNEL_IDS pour contourner.
+                logger.debug(f"ℹ️ YouTube handle non résolu (normal si bloqué): {url}")
 
     def _get_youtube_rss_from_url(self, url: str) -> Optional[str]:
         """
@@ -162,19 +173,46 @@ class SocialMediaScraper:
         return None
 
     def _resolve_handle_to_rss(self, handle: str) -> Optional[str]:
-        """Résout @handle vers RSS via scraping léger de la page chaîne"""
+        """Résout @handle vers RSS.
+        Stratégie:
+        1. Table _YOUTUBE_KNOWN_CHANNEL_IDS (instantané, pas de réseau)
+        2. API oembed YouTube (plus stable que le scraping HTML)
+        3. Scraping HTML de la page chaîne (fallback)
+        """
+        # 1. Table de correspondance pré-renseignée
+        if handle in _YOUTUBE_KNOWN_CHANNEL_IDS:
+            channel_id = _YOUTUBE_KNOWN_CHANNEL_IDS[handle]
+            return f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
+
+        # 2. oembed — ne nécessite pas d'API key et est moins agressif que le scraping
+        try:
+            oembed_url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/@{handle}&format=json"
+            resp = self.session.get(oembed_url, timeout=REQ_TIMEOUT)
+            if resp.status_code == 200:
+                data = resp.json()
+                author_url = data.get("author_url", "")
+                # author_url = "https://www.youtube.com/channel/UCxxxxxx"
+                m = re.search(r"/channel/([A-Za-z0-9_-]+)", author_url)
+                if m:
+                    channel_id = m.group(1)
+                    logger.info(f"✅ YouTube oembed résolu: @{handle} -> {channel_id}")
+                    return f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
+        except Exception:
+            pass
+
+        # 3. Scraping HTML (fallback — souvent bloqué par YouTube depuis 2024)
         try:
             url = f"https://www.youtube.com/@{handle}"
             resp = self.session.get(url, timeout=REQ_TIMEOUT)
-            if resp.status_code != 200 or not resp.text:
-                return None
-            m = re.search(r'"channelId"\s*:\s*"([^"]+)"', resp.text)
-            if not m:
-                return None
-            channel_id = m.group(1)
-            return f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
+            if resp.status_code == 200 and resp.text:
+                m = re.search(r'"channelId"\s*:\s*"([^"]+)"', resp.text)
+                if m:
+                    channel_id = m.group(1)
+                    return f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
         except Exception:
-            return None
+            pass
+
+        return None
 
     def _resolve_custom_name_to_rss(self, custom_name: str) -> Optional[str]:
         """Résout /c/CustomName vers RSS"""

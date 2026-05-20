@@ -46,7 +46,17 @@ _ALLOWED_HOSTS = {
     "la1ere.francetvinfo.fr", "guadeloupe.la1ere.francetvinfo.fr",
     "www.karibinfo.com", "karibinfo.com",
     "outremers360.com", "www.outremers360.com",
+    "cg971.fr", "www.cg971.fr",
 }
+
+# Hôtes avec certificat SSL expiré / auto-signé connus.
+# Seuls les hôtes DÉJÀ dans _ALLOWED_HOSTS peuvent être ici.
+# verify=False désactive uniquement la vérification du certificat, pas le chiffrement.
+# À supprimer dès que le cert est renouvelé côté serveur.
+_SSL_UNVERIFIED_HOSTS: frozenset = frozenset({
+    "cg971.fr",
+    "www.cg971.fr",
+})
 
 
 def _is_allowed_url(url: str) -> bool:
@@ -245,14 +255,21 @@ class GuadeloupeScraper:
     def _safe_get(self, url: str, connect_timeout: float = 10.0, read_timeout: float = 20.0) -> Optional[requests.Response]:
         """GET avec garde SSRF, UA rotation, retry intégré (via session adapter).
         Retourne None si l'URL est hors whitelist ou si toutes les tentatives ont échoué.
+        Pour les hôtes dans _SSL_UNVERIFIED_HOSTS (cert expiré connu), verify=False.
         """
         if not _is_allowed_url(url):
             logger.warning(f"   🚫 URL refusée (hors whitelist): {url[:120]}")
             return None
         headers = dict(self.headers)
         headers["User-Agent"] = random.choice(_UA_POOL)
+        host = (urlparse(url).hostname or "").lower()
+        verify = host not in _SSL_UNVERIFIED_HOSTS
+        if not verify:
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            logger.debug(f"   ⚠️ SSL non vérifié pour hôte connu cert expiré: {host}")
         try:
-            return self._session.get(url, headers=headers, timeout=(connect_timeout, read_timeout))
+            return self._session.get(url, headers=headers, timeout=(connect_timeout, read_timeout), verify=verify)
         except requests.RequestException as e:
             logger.warning(f"   ⚠️ HTTP fetch failed pour {url[:80]}: {e}")
             return None
