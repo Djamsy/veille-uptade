@@ -33,6 +33,107 @@ function getAffairPriority(a: Affair): Priority {
   return 'minor'
 }
 
+// ── Icônes vecteurs de propagation ──────────────────────────────
+function IconPresse() {
+  return (
+    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+    </svg>
+  )
+}
+function IconRadio() {
+  return (
+    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
+    </svg>
+  )
+}
+function IconSocial() {
+  return (
+    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+    </svg>
+  )
+}
+function IconNational() {
+  return (
+    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+function PropagationBar({ a }: { a: Affair }) {
+  const prop = a.propagation
+  if (!prop) return null
+
+  const score = Math.round(prop.score * 100)
+  const vect = prop.vecteurs
+  const spike = prop.velocity?.spike
+
+  const activeVecteurs: Array<{ icon: React.ReactNode; label: string; count: number }> = [
+    { icon: <IconPresse />, label: 'Presse', count: vect.presse },
+    { icon: <IconRadio />, label: 'Radio', count: vect.radio },
+    { icon: <IconSocial />, label: 'Social', count: vect.social },
+    { icon: <IconNational />, label: 'National', count: vect.national },
+  ].filter(v => v.count > 0)
+
+  return (
+    <div
+      className="pl-[18px] pr-4 pb-2.5 flex items-center justify-between gap-2 flex-wrap"
+      style={{ borderTop: '1px solid var(--border-subtle)' }}
+    >
+      {/* Vecteurs actifs */}
+      <div className="flex items-center gap-1.5 pt-2">
+        {activeVecteurs.map(v => (
+          <span
+            key={v.label}
+            title={`${v.label} · ${v.count}`}
+            className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-sm"
+            style={{
+              background: 'var(--bg-elevated)',
+              color: 'var(--text-secondary)',
+              border: '1px solid var(--border)',
+            }}
+          >
+            {v.icon}
+            <span>{v.count}</span>
+          </span>
+        ))}
+        {activeVecteurs.length === 0 && (
+          <span className="text-[10px]" style={{ color: 'var(--text-disabled)' }}>Aucun vecteur</span>
+        )}
+      </div>
+
+      {/* Score + badge spike */}
+      <div className="flex items-center gap-1.5 pt-2">
+        {spike && (
+          <span
+            className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-sm"
+            style={{
+              background: 'var(--warn-soft)',
+              color: 'var(--warning)',
+              border: '1px solid color-mix(in srgb, var(--warning) 25%, transparent)',
+            }}
+          >
+            🔥 Viral
+          </span>
+        )}
+        <span
+          className="font-mono text-[10px] font-medium px-1.5 py-0.5 rounded-sm"
+          style={{
+            background: 'var(--bg-elevated)',
+            color: 'var(--text-muted)',
+            border: '1px solid var(--border)',
+          }}
+        >
+          {score}% prop.
+        </span>
+      </div>
+    </div>
+  )
+}
+
 function AffaireCard({ a }: { a: Affair }) {
   const bmg = Math.round((a.bmg || 0) * 100)
   const c = scoreColor(bmg)
@@ -63,6 +164,18 @@ function AffaireCard({ a }: { a: Affair }) {
               <span className="font-mono text-[11px]" style={{ color: 'var(--text-muted)' }}>
                 {themeLabel(a.theme)}
               </span>
+              {a.propagation?.velocity?.spike && (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-sm"
+                  style={{
+                    background: 'var(--warn-soft)',
+                    color: 'var(--warning)',
+                    border: '1px solid color-mix(in srgb, var(--warning) 25%, transparent)',
+                  }}
+                >
+                  🔥 Viral
+                </span>
+              )}
             </div>
             <h3
               className="font-serif text-[15px] font-semibold leading-snug tracking-tight"
@@ -107,6 +220,8 @@ function AffaireCard({ a }: { a: Affair }) {
             </span>
           ))}
         </div>
+
+        <PropagationBar a={a} />
 
         <div
           className="mt-auto flex items-center justify-between pl-[18px] pr-4 py-2.5 font-mono text-[11px]"
