@@ -562,6 +562,49 @@ _INSTITUTION_COMPILED: List[Tuple[str, List[re.Pattern], bool]] = [
     for name, info in INSTITUTIONS.items()
 ]
 
+# ── Enrichissement depuis elus_database (956 élus officiels) ──────────────
+# Ajoute dans _PERSONALITY_COMPILED tous les élus de la base officielle
+# qui ne sont pas déjà couverts par PERSONALITIES (dict manuel plus strict).
+# Permet à detect_entities() de retrouver n'importe quel élu officiel
+# même quand OpenAI/Groq est indisponible.
+def _load_elus_patterns() -> None:
+    try:
+        try:
+            from backend.elus_database import build_aliases_index  # type: ignore
+        except ImportError:
+            from elus_database import build_aliases_index  # type: ignore
+        existing_canonicals = {name for name, _ in _PERSONALITY_COMPILED}
+        added = 0
+        for canonical, aliases in build_aliases_index().items():
+            if canonical in existing_canonicals:
+                continue
+            # Construire des patterns depuis les aliases suffisamment longs
+            pats: List[re.Pattern] = []
+            for alias in aliases:
+                # Ignorer les alias trop courts ou trop génériques (M., Mme, etc.)
+                if len(alias) < 5 or alias.startswith(("m. ", "mme ", "monsieur ", "madame ")):
+                    continue
+                # Normaliser l'alias (sans accents) pour matcher le texte normalisé
+                alias_norm = normalize(alias)
+                try:
+                    pats.append(re.compile(
+                        r"(?<![a-z0-9])" + re.escape(alias_norm) + r"(?![a-z0-9])"
+                    ))
+                except re.error:
+                    pass
+            if pats:
+                _PERSONALITY_COMPILED.append((canonical, pats))
+                added += 1
+        import logging as _log
+        _log.getLogger("tags_index").info(
+            f"✅ elus_database: {added} élus ajoutés aux patterns detect_entities"
+        )
+    except Exception as _e:
+        import logging as _log
+        _log.getLogger("tags_index").warning(f"⚠️ elus_database non chargé: {_e}")
+
+_load_elus_patterns()
+
 # Sentiment — module-level pour éviter la recréation à chaque appel
 _SENTIMENT_POSITIVE = [
     "succes", "reussite", "victoire", "amelioration",

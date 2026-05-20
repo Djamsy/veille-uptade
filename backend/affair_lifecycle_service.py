@@ -2437,6 +2437,27 @@ class AffairLifecycleService:
             f"{ignored_count} ignorées (gravity<0.30 ou seuil création)"
         )
         logger.info(f"📊 Bilan: {len(active_affairs)} affaires actives maintenant")
+
+        # ── Métriques structurées JSON (parsables par monitoring externe) ──
+        import json as _json
+        _cycle_metrics = {
+            "ts":                 datetime.utcnow().isoformat(),
+            "created":            stats.get("created", 0),
+            "merged":             stats.get("merged", 0),
+            "ignored":            ignored_count,
+            "consolidated":       stats.get("consolidated", 0),
+            "radio_linked":       stats.get("radio_linked", 0),
+            "radio_created":      stats.get("radio_created", 0),
+            "social_linked":      stats.get("social_linked", 0),
+            "ai_deduped":         stats.get("ai_deduped", 0),
+            "geo_cleaned":        stats.get("geo_cleaned", 0),
+            "lifecycle_archived": stats.get("lifecycle", {}).get("archived", 0) if isinstance(stats.get("lifecycle"), dict) else 0,
+            "propagation_spikes": stats.get("propagation_updated", 0),
+            "snowball_alerts":    stats.get("snowball_alerts", 0),
+            "active_affairs":     len(active_affairs),
+        }
+        logger.info(f"CYCLE_METRICS {_json.dumps(_cycle_metrics)}")
+
         return stats
 
     # Institutions trop génériques — présentes dans beaucoup d'articles
