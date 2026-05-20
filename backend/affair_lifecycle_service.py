@@ -133,6 +133,25 @@ except ImportError:
 
 logger = logging.getLogger("affair_lifecycle")
 
+
+def _canon_entity(e: str) -> str:
+    """Canonicalise une entité via entity_aliases (resolve_entity).
+
+    Retourne la forme canonique en minuscules pour comparaison uniforme :
+      "CHALUS" → "ary chalus", "m. jalton" → "eric jalton".
+    Fallback sur `e.lower().strip()` si entity_aliases indisponible.
+    """
+    if not e:
+        return ""
+    if _entity_aliases_ok and _resolve_entity:
+        try:
+            resolved = _resolve_entity(e)
+            return resolved.lower().strip()
+        except Exception:
+            pass
+    return e.lower().strip()
+
+
 # ============================================================
 # CLASSIFICATION PAR COMMUNE — REGEX + IA FALLBACK
 # ============================================================
@@ -2047,11 +2066,13 @@ class AffairLifecycleService:
                 logger.debug(f"   ⏭️ Ignoré (gravity={gravity:.2f} < 0.30): {art.get('title', '?')[:60]}")
                 continue
 
+            # Canonicaliser les entités : "CHALUS" → "ary chalus", "m. jalton" → "eric jalton"
+            # _canon_entity est défini au niveau module (après le bloc import entity_aliases).
             art_elected = set(
-                e.lower().strip() for e in (art.get("elected", []) or []) if e and len(e) > 3
+                _canon_entity(e) for e in (art.get("elected", []) or []) if e and len(e) > 3
             )
             art_institutions = set(
-                e.lower().strip() for e in (art.get("institutions", []) or []) if e and len(e) > 3
+                _canon_entity(e) for e in (art.get("institutions", []) or []) if e and len(e) > 3
             )
             art_entities = art_elected | art_institutions
             art_theme = art.get("theme", "general")
@@ -3704,10 +3725,10 @@ class AffairLifecycleService:
         for art in candidates:
             art_id = str(art["_id"])
             art_elected = set(
-                e.lower().strip() for e in (art.get("elected", []) or []) if e and len(e) > 3
+                _canon_entity(e) for e in (art.get("elected", []) or []) if e and len(e) > 3
             )
             art_institutions = set(
-                e.lower().strip() for e in (art.get("institutions", []) or []) if e and len(e) > 3
+                _canon_entity(e) for e in (art.get("institutions", []) or []) if e and len(e) > 3
             )
             art_entities = art_elected | art_institutions
             art_theme = art.get("theme", "general")
@@ -4016,10 +4037,10 @@ class AffairLifecycleService:
 
             # Extraire les entités de l'article
             art_elected = set(
-                e.lower().strip() for e in (art.get("elected", []) or []) if e and len(e) > 3
+                _canon_entity(e) for e in (art.get("elected", []) or []) if e and len(e) > 3
             )
             art_institutions = set(
-                e.lower().strip() for e in (art.get("institutions", []) or []) if e and len(e) > 3
+                _canon_entity(e) for e in (art.get("institutions", []) or []) if e and len(e) > 3
             )
             art_entities = art_elected | art_institutions
             art_title_words = set(
@@ -5313,10 +5334,10 @@ class AffairLifecycleService:
 
         for art in orphans:
             art_elected = set(
-                e.lower().strip() for e in (art.get("elected", []) or []) if e and len(e) > 3
+                _canon_entity(e) for e in (art.get("elected", []) or []) if e and len(e) > 3
             )
             art_institutions = set(
-                e.lower().strip() for e in (art.get("institutions", []) or []) if e and len(e) > 3
+                _canon_entity(e) for e in (art.get("institutions", []) or []) if e and len(e) > 3
             )
             art_entities = art_elected | art_institutions
             art_theme = art.get("theme", "general")
@@ -5531,10 +5552,10 @@ class AffairLifecycleService:
         for art in unprocessed:
             art_id = str(art["_id"])
             art_elected = set(
-                e.lower().strip() for e in (art.get("elected", []) or []) if e and len(e) > 3
+                _canon_entity(e) for e in (art.get("elected", []) or []) if e and len(e) > 3
             )
             art_institutions = set(
-                e.lower().strip() for e in (art.get("institutions", []) or []) if e and len(e) > 3
+                _canon_entity(e) for e in (art.get("institutions", []) or []) if e and len(e) > 3
             )
             art_entities = art_elected | art_institutions
             art_theme = art.get("theme", "general")
