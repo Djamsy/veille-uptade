@@ -7,7 +7,7 @@ services:
       uvicorn backend.server:app
       --host=0.0.0.0
       --port=10000
-      --workers=2
+      --workers=1
       --loop=uvloop
       --limit-concurrency=100
       --timeout-keep-alive=30

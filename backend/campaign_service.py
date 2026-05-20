@@ -28,6 +28,11 @@ from typing import Optional, Dict, Any, List
 
 logger = logging.getLogger("veille.campaigns")
 
+# ── Circuit-breaker Buffer sentPosts ──────────────────────────────────────────
+# Mis à True dès qu'on détecte que le schéma Buffer a changé (ex. sentPosts
+# supprimé). Évite de logger 10 ERRORs par run pour un problème connu.
+_BUFFER_SENT_POSTS_SCHEMA_BROKEN = False
+
 # ── Configuration ──────────────────────────────────────────
 BUFFER_ACCESS_TOKEN = os.getenv("BUFFER_ACCESS_TOKEN", "")
 CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME", "")
@@ -252,7 +257,16 @@ def _buffer_graphql(query: str, variables: Dict = None) -> Optional[Dict]:
             logger.info(f"📡 Buffer GraphQL response: {str(raw[:800])}")
             if result.get("errors"):
                 err_msgs = [e.get("message", str(e)) for e in result["errors"]]
-                logger.error(f"Buffer GraphQL errors: {err_msgs}")
+                # Erreurs de schéma (type/champ inconnu) → WARNING, pas ERROR
+                # Ce sont des dérives API connues, pas des bugs opérationnels
+                _schema_errs = [m for m in err_msgs if
+                                "Unknown type" in m or
+                                "Cannot query field" in m or
+                                "Unknown argument" in m]
+                if _schema_errs:
+                    logger.warning(f"Buffer API schema drift: {_schema_errs[0]}")
+                else:
+                    logger.error(f"Buffer GraphQL errors: {err_msgs}")
                 # Retourner les erreurs au lieu de None pour debug
                 return {"_errors": result["errors"], "_data": result.get("data")}
             return result.get("data")
@@ -584,12 +598,32 @@ def fetch_buffer_stats(post_id: str) -> Optional[Dict]:
     }
 
 
+def _is_schema_error(data: Optional[Dict]) -> bool:
+    """Renvoie True si la réponse Buffer contient une erreur de schéma (API drift)."""
+    if not data or not isinstance(data, dict):
+        return False
+    errors = data.get("_errors", [])
+    for e in errors:
+        msg = e.get("message", "")
+        if "Unknown type" in msg or "Cannot query field" in msg or "Unknown argument" in msg:
+            return True
+    return False
+
+
 def fetch_buffer_sent_posts(channel_id: str = None, limit: int = 30) -> List[Dict]:
     """Liste les posts envoyés (publiés) via Buffer avec leurs stats.
 
-    Utilise la query 'sentPosts' du GraphQL Buffer pour chaque channel.
-    Beaucoup plus fiable qu'Apify et ne consomme pas de tokens.
+    Tente plusieurs requêtes GraphQL en cascade.
+    Si le schéma Buffer a changé (sentPosts supprimé), active le circuit-breaker
+    et retourne [] sans spammer les logs d'erreurs.
     """
+    global _BUFFER_SENT_POSTS_SCHEMA_BROKEN
+
+    # Circuit-breaker : si on sait que le schéma est cassé, ne pas retenter
+    if _BUFFER_SENT_POSTS_SCHEMA_BROKEN:
+        logger.debug("Buffer sentPosts: circuit-breaker actif — schema drift détecté")
+        return []
+
     channels = get_buffer_channels()
     if not channels:
         return []
@@ -603,28 +637,14 @@ def fetch_buffer_sent_posts(channel_id: str = None, limit: int = 30) -> List[Dic
         cid = ch.get("id", "")
         service = (ch.get("service", "") or "").lower()
 
-        # Query sentPosts pour ce channel
+        # ── Tentative 1 : query root sentPosts (legacy, supprimé en mai 2026) ──
         query = """
         query GetSentPosts($input: SentPostsInput!) {
           sentPosts(input: $input) {
-            id
-            text
-            createdAt
-            scheduledAt
-            sentAt
-            status
-            assets {
-              images { url }
-              videos { url }
-            }
+            id text createdAt scheduledAt sentAt status
+            assets { images { url } videos { url } }
             statistics {
-              impressions
-              reach
-              clicks
-              likes
-              comments
-              shares
-              engagements
+              impressions reach clicks likes comments shares engagements
             }
           }
         }
@@ -632,35 +652,44 @@ def fetch_buffer_sent_posts(channel_id: str = None, limit: int = 30) -> List[Dic
         variables = {"input": {"channelId": cid, "limit": limit}}
         data = _buffer_graphql(query, variables)
 
+        if _is_schema_error(data):
+            # Schema drift → activer circuit-breaker, loguer une seule fois
+            _BUFFER_SENT_POSTS_SCHEMA_BROKEN = True
+            logger.warning(
+                "Buffer API: les champs 'sentPosts' / 'SentPostsInput' ne sont plus dans "
+                "le schéma. sync_buffer_stats désactivé jusqu'au prochain redémarrage. "
+                "Mettre à jour fetch_buffer_sent_posts() avec le nouveau schéma Buffer."
+            )
+            return []
+
         if not data or not data.get("sentPosts"):
-            # Essayer avec la pagination directe
+            # ── Tentative 2 : channel(id:) { sentPosts } (supprimé aussi en mai 2026) ──
             query2 = """
             query GetSentPosts($channelId: ID!, $limit: Int) {
               channel(id: $channelId) {
                 sentPosts(limit: $limit) {
-                  id
-                  text
-                  createdAt
-                  scheduledAt
-                  sentAt
-                  status
+                  id text createdAt scheduledAt sentAt status
                   statistics {
-                    impressions
-                    reach
-                    clicks
-                    likes
-                    comments
-                    shares
+                    impressions reach clicks likes comments shares
                   }
                 }
               }
             }
             """
             data2 = _buffer_graphql(query2, {"channelId": cid, "limit": limit})
+
+            if _is_schema_error(data2):
+                _BUFFER_SENT_POSTS_SCHEMA_BROKEN = True
+                logger.warning(
+                    "Buffer API: 'channel(id:) { sentPosts }' également absent du schéma. "
+                    "sync_buffer_stats désactivé. Mettre à jour avec le nouveau schéma Buffer."
+                )
+                return []
+
             if data2 and data2.get("channel"):
                 posts = data2["channel"].get("sentPosts", []) or []
             else:
-                logger.warning(f"Buffer: pas de sentPosts pour channel {ch.get('name', cid)}")
+                logger.info(f"Buffer: aucun post trouvé pour channel {ch.get('name', cid)}")
                 continue
         else:
             posts = data.get("sentPosts", []) or []

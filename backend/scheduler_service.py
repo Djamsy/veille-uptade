@@ -179,15 +179,22 @@ async def job_enrich():
             cutoff_dt = datetime.now() - timedelta(days=30)
             cutoff_str = cutoff_dt.isoformat()
 
-            query = {"$and": [
-                {"$or": [
-                    {"_analysis_method": {"$exists": False}},
+            # ── Requête split : 2 sous-requêtes pour éviter d'exclure le backlog ──
+            # Les articles sans _analysis_method (backlog de 5 700+) n'ont PAS de
+            # contrainte de date : ils doivent être enrichis quelle que soit leur ancienneté.
+            # Les articles rules_preliminary, eux, gardent la fenêtre 30j pour éviter
+            # de re-traiter d'anciens contenus déjà partiellement enrichis.
+            query = {"$or": [
+                # Cas A : jamais enrichis du tout — pas de filtre date (rattraper le backlog)
+                {"_analysis_method": {"$exists": False}},
+                # Cas B : pré-enrichis — limité aux 30 derniers jours
+                {"$and": [
                     {"_analysis_method": "rules_preliminary"},
+                    {"$or": [
+                        {"scraped_at": {"$gte": cutoff_dt}},
+                        {"scraped_at": {"$gte": cutoff_str}},
+                    ]}
                 ]},
-                {"$or": [
-                    {"scraped_at": {"$gte": cutoff_dt}},
-                    {"scraped_at": {"$gte": cutoff_str}},
-                ]}
             ]}
 
             articles = list(articles_col.find(query).sort("scraped_at", -1).limit(200))
@@ -798,8 +805,32 @@ async def job_campaign_auto_analysis():
 # JOB combiné : Scrape → Enrich → Cycle affaires
 # ============================================================
 
+def _acquire_pipeline_slot(slot_id: str) -> bool:
+    """Distributed lock via MongoDB — renvoie True si ce worker a gagné le slot.
+    Protège contre l'exécution simultanée quand uvicorn tourne avec --workers>1."""
+    if _db is None:
+        return True  # pas de DB → pas de lock possible, on laisse passer
+    try:
+        locks_col = _db["scheduler_locks"]
+        # TTL index (idempotent — MongoDB ignore si déjà existant)
+        locks_col.create_index("ts", expireAfterSeconds=600, background=True)
+        # insert_one échoue avec DuplicateKeyError si un autre worker a déjà le slot
+        locks_col.insert_one({"_id": slot_id, "ts": datetime.now()})
+        return True
+    except Exception:
+        # DuplicateKeyError → un autre worker a gagné le slot → on skip
+        return False
+
+
 async def job_full_pipeline():
-    """Pipeline complet : scraping → enrichissement → affaires + notif Telegram"""
+    """Pipeline complet : scraping → enrichissement → affaires + notif Telegram
+    Distributer-safe : un seul worker s'exécute par slot de 5 min via MongoDB lock."""
+    # Slot unique par fenêtre de 5 minutes → un seul worker gagne
+    slot_id = f"pipeline_{datetime.now().strftime('%Y%m%d%H%M')}"  # tranche 1min = 1 exécution max
+    if not _acquire_pipeline_slot(slot_id):
+        logger.debug(f"⏭️ Pipeline slot {slot_id} déjà pris par un autre worker — skip")
+        return {}
+
     logger.info("🚀 Pipeline complet démarré")
 
     # 1. Scraping

@@ -1945,6 +1945,20 @@ class AffairLifecycleService:
             art_id = str(art["_id"])
             gravity = art.get("gravity_score", 0)
 
+            # ── Filtre titre vide ──
+            # Les transcriptions radio sans titre enrichi arrivent avec title=None ou title='?'.
+            # Envoyer '?' à GPT est inutile et coûteux — on marque définitivement processed.
+            _art_title = (art.get("title") or "").strip()
+            if not _art_title or _art_title in {"?", "-", "unknown", "sans titre", "untitled", "n/a"}:
+                self.articles.update_one(
+                    {"_id": art["_id"]},
+                    {"$set": {"_affair_processed": True, "_affair_ignored": True,
+                              "_ignore_reason": "no_title"}}
+                )
+                ignored_count += 1
+                logger.debug(f"   ⏭️ Ignoré (titre vide/invalide): {art_id}")
+                continue
+
             # ── SÉCURITÉ ANTI-FUSION : cooldown + max tentatives ──
             match_attempts = art.get("_match_attempts", 0)
             if match_attempts >= MAX_MATCH_ATTEMPTS:
@@ -2655,7 +2669,20 @@ class AffairLifecycleService:
         3. Champs sémantiques exclusifs (agriculture ≠ esclavage)
 
         Retourne (is_coherent: bool, reason: str).
+
+        Fast-path : si les titres sont ≥90 % identiques (SequenceMatcher), on
+        passe TOUS les blockers. Des titres quasi-identiques sont la preuve la
+        plus forte possible que les deux affaires parlent du même événement,
+        quelle que soit la catégorie ou la zone géographique détectée.
         """
+        from difflib import SequenceMatcher
+        t_a = (title_a or "").strip().lower()
+        t_b = (title_b or "").strip().lower()
+        if t_a and t_b:
+            ratio = SequenceMatcher(None, t_a, t_b).ratio()
+            if ratio >= 0.90:
+                return (True, "")   # titres quasi-identiques → même événement, skip all blockers
+
         # ── Check 1 : géographie ──
         geo_ok, geo_reason = self._locations_are_coherent(title_a, title_b, desc_a, desc_b)
         if not geo_ok:
