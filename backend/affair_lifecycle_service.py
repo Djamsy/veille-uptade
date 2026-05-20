@@ -2213,6 +2213,9 @@ class AffairLifecycleService:
                 # Ajouter les communes de l'article à l'affaire
                 art_communes = art.get("communes", [])
 
+                prop_updates = self._propagation_merge_update(
+                    best_match, art.get("source", ""), "article"
+                )
                 update_ops = {
                     "$addToSet": {
                         "articles": art_id,
@@ -2220,8 +2223,12 @@ class AffairLifecycleService:
                     },
                     "$push": {"sentiment_history": merge_sentiment},
                     "$inc": {"item_count": 1},
-                    "$set": {"last_activity": now, "priority": new_priority,
-                             "sentiment": dominant_sentiment},
+                    "$set": {
+                        "last_activity": now,
+                        "priority": new_priority,
+                        "sentiment": dominant_sentiment,
+                        **prop_updates,
+                    },
                     "$max": {"gravity_score": gravity},
                 }
                 if art_communes:
@@ -2310,6 +2317,7 @@ class AffairLifecycleService:
                         "last_activity": now,
                         "promoted_at": now,
                         **self._provisional_bmg(art.get("source", ""), "article"),
+                        **self._propagation_init(art.get("source", ""), "article"),
                         "founding_elected": list(art_elected)[:10],
                         "founding_institutions": list(art_institutions)[:10],
                         "communes": art.get("communes", []),
@@ -2401,6 +2409,9 @@ class AffairLifecycleService:
 
         # ── ÉTAPE 7 : Recalculer BMG ──
         self._recalculate_active_bmg()
+
+        # ── ÉTAPE 7b : Recalculer propagation / détecter spikes ──
+        stats["propagation_updated"] = self._recalculate_propagation_velocity()
 
         # ── ÉTAPE 8 : Lifecycle ──
         stats["lifecycle"] = self.update_affair_lifecycle()
@@ -5258,6 +5269,163 @@ class AffairLifecycleService:
         if alerts_sent > 0:
             logger.info(f"⚠️ {alerts_sent} alertes boule de neige envoyées")
         return alerts_sent
+
+    # ═══════════════════════════════════════════════════════════════════
+    # PROPAGATION / VIRALITÉ
+    # ═══════════════════════════════════════════════════════════════════
+
+    # Sources nationales (métropolitaines / internationales)
+    _NATIONAL_SOURCES = {
+        "rfi", "france 24", "france24", "afp", "le monde", "l'obs", "l'obs",
+        "le figaro", "bfm", "bfmtv", "france inter", "france info", "franceinfo",
+        "liberation", "libération", "20 minutes", "the guardian", "reuters",
+        "la croix", "le parisien",
+    }
+    # Mots-clés signalant un média radio
+    _RADIO_KEYWORDS = {"rci", "la 1ère", "la 1ere", "nrj", "trace fm", "radio"}
+
+    def _propagation_source_type(self, source_name: str, item_source_type: str = "article") -> str:
+        """Catégorise une source en presse / radio / social / national."""
+        if item_source_type in ("transcription", "radio"):
+            return "radio"
+        if item_source_type == "social":
+            return "social"
+        low = (source_name or "").lower()
+        if any(n in low for n in self._NATIONAL_SOURCES):
+            return "national"
+        if any(r in low for r in self._RADIO_KEYWORDS):
+            return "radio"
+        return "presse"
+
+    @staticmethod
+    def _propagation_score(vecteurs: dict, nb_sources: int, velocity_j7: float = 0.0) -> float:
+        """Score de propagation 0–1 sur 3 axes.
+
+        - vecteur_score  (40 %) : combien de types de média couvrent l'affaire
+        - source_diversity (35 %) : diversité des sources indépendantes (plafonné à 5)
+        - velocity_score  (25 %) : vitesse d'accumulation articles/jour sur 7j (plafond 10/j)
+        """
+        nb_types = sum(1 for v in vecteurs.values() if v > 0)
+        vecteur_score    = nb_types / 4
+        source_diversity = min(nb_sources / 5, 1.0)
+        velocity_score   = min(velocity_j7 / 10, 1.0)
+        score = (
+            0.40 * vecteur_score +
+            0.35 * source_diversity +
+            0.25 * velocity_score
+        )
+        return round(score, 3)
+
+    def _propagation_init(self, source_name: str, item_source_type: str = "article") -> dict:
+        """Construit le bloc propagation initial (1 seule source, pas encore de velocity)."""
+        stype = self._propagation_source_type(source_name, item_source_type)
+        vecteurs = {"presse": 0, "radio": 0, "social": 0, "national": 0}
+        vecteurs[stype] = 1
+        score = self._propagation_score(vecteurs, nb_sources=1)
+        return {
+            "propagation": {
+                "score": score,
+                "vecteurs": vecteurs,
+                "nb_sources": 1,
+                "sources_uniques": [source_name] if source_name else [],
+                "velocity": {"j7": 0.0, "j30": 0.0, "spike": False},
+                "last_computed": datetime.utcnow().isoformat(),
+            }
+        }
+
+    def _propagation_merge_update(
+        self,
+        affair: dict,
+        new_source: str,
+        item_source_type: str = "article",
+    ) -> dict:
+        """Retourne les ops $set/$inc à ajouter à l'update_ops lors d'un merge.
+
+        Incrémente le bon vecteur, met à jour nb_sources et score.
+        La velocity est mise à jour par le job _recalculate_propagation_velocity().
+        """
+        prop = affair.get("propagation") or {}
+        vecteurs = prop.get("vecteurs") or {"presse": 0, "radio": 0, "social": 0, "national": 0}
+        existing_sources = set(prop.get("sources_uniques") or [])
+
+        stype = self._propagation_source_type(new_source, item_source_type)
+        vecteurs = dict(vecteurs)  # copie mutable
+        vecteurs[stype] = vecteurs.get(stype, 0) + 1
+
+        if new_source:
+            existing_sources.add(new_source)
+        nb_sources = len(existing_sources)
+
+        velocity_j7 = (prop.get("velocity") or {}).get("j7", 0.0)
+        score = self._propagation_score(vecteurs, nb_sources, velocity_j7)
+
+        return {
+            "propagation.score": score,
+            "propagation.vecteurs": vecteurs,
+            "propagation.nb_sources": nb_sources,
+            "propagation.sources_uniques": sorted(existing_sources),
+            "propagation.last_computed": datetime.utcnow().isoformat(),
+        }
+
+    def _recalculate_propagation_velocity(self) -> int:
+        """Job : recalcule la velocity et détecte les spikes pour les affaires actives.
+
+        Velocity = nb articles rattachés sur fenêtre glissante (7j / 30j).
+        Spike = velocity_j7 > 3 × velocity_j30 et velocity_j7 > 1.
+        Appelé une fois par cycle, après _recalculate_active_bmg.
+        """
+        now = datetime.utcnow()
+        cutoff_7d  = now - timedelta(days=7)
+        cutoff_30d = now - timedelta(days=30)
+        updated = 0
+
+        affairs = list(self.affairs.find(
+            {"status": "active"},
+            {"_id": 1, "propagation": 1, "item_count": 1, "created_at": 1}
+        ))
+
+        for affair in affairs:
+            affair_id_str = str(affair["_id"])
+
+            # Compter articles liés sur 7j et 30j
+            n_j7 = self.articles.count_documents({
+                "_affair_id": affair_id_str,
+                "scraped_at": {"$gte": cutoff_7d},
+            })
+            n_j30 = self.articles.count_documents({
+                "_affair_id": affair_id_str,
+                "scraped_at": {"$gte": cutoff_30d},
+            })
+
+            velocity_j7  = round(n_j7 / 7, 2)
+            velocity_j30 = round(n_j30 / 30, 2)
+            spike = (velocity_j7 > 1.0) and (velocity_j30 > 0) and (velocity_j7 > 3 * velocity_j30)
+
+            prop = affair.get("propagation") or {}
+            vecteurs   = prop.get("vecteurs") or {"presse": 0, "radio": 0, "social": 0, "national": 0}
+            nb_sources = prop.get("nb_sources") or 1
+            score = self._propagation_score(vecteurs, nb_sources, velocity_j7)
+
+            self.affairs.update_one(
+                {"_id": affair["_id"]},
+                {"$set": {
+                    "propagation.velocity.j7":      velocity_j7,
+                    "propagation.velocity.j30":     velocity_j30,
+                    "propagation.velocity.spike":   spike,
+                    "propagation.score":            score,
+                    "propagation.last_computed":    now.isoformat(),
+                }},
+            )
+            if spike:
+                logger.info(
+                    f"🔥 SPIKE détecté — affaire {affair_id_str[:8]}… "
+                    f"velocity_j7={velocity_j7:.1f}/j vs j30={velocity_j30:.1f}/j"
+                )
+            updated += 1
+
+        logger.info(f"📡 Propagation recalculée: {updated} affaires, "
+                    f"{sum(1 for a in affairs if a.get('propagation', {}).get('velocity', {}).get('spike'))} spikes")
+        return updated
 
     def _recalculate_active_bmg(self):
         """Recalcule le BMG de toutes les affaires actives.
