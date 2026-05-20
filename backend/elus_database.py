@@ -128,21 +128,27 @@ def _generate_aliases(elu: Dict[str, Any]) -> List[str]:
 
     # Spécifique au mandat — gère les communes prefixées (Les Abymes → des
     # Abymes, Le Gosier → du Gosier, L'Anse-Bertrand → de l'anse-bertrand)
-    if scope == "municipal" and commune:
+    # NB : les alias "maire de X" ne sont générés QUE si le rôle est bien "Maire"
+    # (pas pour un conseiller municipal en cumul de mandat).
+    is_mayor = "maire" in role.lower() and "adjoint" not in role.lower()
+    if scope == "municipal" and commune and is_mayor:
         for v in _commune_maire_variants(commune):
             aliases.add(v.lower())
         aliases.add(f"le maire {last}".lower())
         aliases.add(f"la maire {last}".lower())
     elif scope == "regional" and "président" in role.lower():
-        aliases.add("président du conseil régional")
-        aliases.add("president du conseil regional")
-        aliases.add("président de la région")
+        # "le président X" pour tous les VP ; aliases génériques seulement pour le président en titre
         aliases.add(f"le président {last}".lower())
+        if "vice" not in role.lower():
+            aliases.add("président du conseil régional")
+            aliases.add("president du conseil regional")
+            aliases.add("président de la région")
     elif scope == "departemental" and "président" in role.lower():
-        aliases.add("président du conseil départemental")
-        aliases.add("president du conseil departemental")
-        aliases.add("président du département")
         aliases.add(f"le président {last}".lower())
+        if "vice" not in role.lower():
+            aliases.add("président du conseil départemental")
+            aliases.add("president du conseil departemental")
+            aliases.add("président du département")
 
     # On retire les vides
     return sorted(a for a in aliases if a and len(a) >= 3)
