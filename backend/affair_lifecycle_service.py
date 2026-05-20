@@ -628,6 +628,57 @@ class AffairLifecycleService:
                 return sent
         return counter.most_common(1)[0][0]
 
+    def _provisional_bmg(self, source_name: str, source_type: str = "article") -> dict:
+        """Calcule un BMG provisoire à la création depuis la source de l'article fondateur.
+        Sera recalculé correctement par _recalculate_active_bmg() au cycle suivant.
+        """
+        source_lower = (source_name or "").lower()
+
+        # Pondérations presse (même ordre que PRESSE_WEIGHTS)
+        press_lookup = {
+            "france-antilles": 1.0, "france antilles": 1.0,
+            "rci": 0.9, "la 1ère": 0.7, "la 1ere": 0.7,
+            "outremers360": 0.8, "karibinfo": 0.65,
+            "guadeloupe la 1ère": 0.7, "gwada": 0.5,
+        }
+
+        # Pondérations radio
+        radio_lookup = {
+            "rci": 1.0, "guadeloupe la 1ère": 0.8,
+            "nrj antilles": 0.4, "trace fm": 0.35,
+        }
+
+        canal = "presse"
+        source_weight = 0.2  # source inconnue → poids faible
+
+        if source_type in ("transcription", "radio"):
+            canal = "radio"
+            for key, w in radio_lookup.items():
+                if key in source_lower:
+                    source_weight = w
+                    break
+        else:
+            for key, w in press_lookup.items():
+                if key in source_lower:
+                    source_weight = w
+                    break
+
+        canal_weight = CANAL_WEIGHTS.get(canal, 0.25)
+        bmg_value = round(canal_weight * source_weight, 3)
+
+        return {
+            "bmg": bmg_value,
+            "bmg_details": {
+                "bmg": bmg_value,
+                "niveau_alerte": "vert" if bmg_value < 0.25 else "orange",
+                "contributions": [{"canal": canal, "source": source_name,
+                                   "weight": source_weight, "contribution": bmg_value}],
+                "provisional": True,
+                "note": "BMG provisoire (1 source) — recalculé après consolidation",
+            },
+            "bmg_history": [{"bmg": bmg_value, "at": datetime.utcnow().isoformat(), "provisional": True}],
+        }
+
     # ============================================================
     # ÉTAPE 1 : INGESTION — Enregistrer un candidat
     # ============================================================
@@ -1941,6 +1992,9 @@ class AffairLifecycleService:
         # ── ÉTAPE 2 : Pour chaque article → COMPARAISON IA INDIVIDUELLE ──
         # NOUVEAU FLOW : 1 article = 1 affaire d'abord, puis match IA contre existantes
         ignored_count = 0
+        # Compteur de fusions par affaire dans ce cycle (anti boule de neige)
+        _affair_merge_counts: dict = {}
+        MAX_MERGES_PER_CYCLE = 5  # max fusions auto par affaire et par cycle
         for art in unprocessed:
             art_id = str(art["_id"])
             gravity = art.get("gravity_score", 0)
@@ -2092,6 +2146,23 @@ class AffairLifecycleService:
                     logger.info(f"      📊 Fallback TITRE: ratio={best_ratio:.2f} → fusion avec '{best_match.get('title', '?')[:50]}'")
 
             if best_match:
+                # ── Cap anti boule de neige ──
+                _mid = str(best_match.get("_id", ""))
+                _item_count = best_match.get("item_count", 0)
+                if _item_count >= SNOWBALL_MAX_ITEMS:
+                    logger.warning(
+                        f"      🌀 Boule de neige détectée: '{best_match.get('title', '?')[:40]}' "
+                        f"a déjà {_item_count} items — fusion automatique suspendue"
+                    )
+                    best_match = None
+                elif _affair_merge_counts.get(_mid, 0) >= MAX_MERGES_PER_CYCLE:
+                    logger.warning(
+                        f"      🔒 Cap cycle ({MAX_MERGES_PER_CYCLE}) atteint pour "
+                        f"'{best_match.get('title', '?')[:40]}' — skip ce cycle"
+                    )
+                    best_match = None
+
+            if best_match:
                 # ── Filtre anti boule de neige ──
                 coherent, block_reason = self._titles_are_coherent(
                     art.get("title", ""), best_match.get("title", ""),
@@ -2137,6 +2208,9 @@ class AffairLifecycleService:
                     {"$set": {"_affair_processed": True, "_affair_id": str(best_match["_id"])}}
                 )
                 stats["merged"] += 1
+                # Incrémenter le compteur de fusions pour cette affaire
+                _affair_merge_counts[str(best_match["_id"])] = \
+                    _affair_merge_counts.get(str(best_match["_id"]), 0) + 1
 
                 # Notification Telegram fusion auto
                 if _telegram_ok and _tg_merged:
@@ -2168,12 +2242,18 @@ class AffairLifecycleService:
                     # de l'affaire et non seulement à son titre (évite les fusions erronées).
                     ref_summary = (art.get("ai_summary", "") or "").strip()
                     ref_content = (art.get("content", "") or art.get("full_text", "") or "").strip()
-                    reference_text = f"{title}. {ref_summary}"
-                    if ref_content:
-                        # Limiter à ~1500 chars pour contenir les tokens
-                        reference_text = f"{reference_text} {ref_content}"[:1800]
-                    else:
-                        reference_text = reference_text[:1800]
+                    # reference_text structuré : champs explicites pour meilleur matching IA
+                    art_communes_str = ", ".join(art.get("communes", [])[:3]) or "non précisé"
+                    reference_text = (
+                        f"TITRE: {title}\n"
+                        f"CATÉGORIE: {self._classify_affair_type(art)}\n"
+                        f"THÈME: {art_theme}\n"
+                        f"ÉLUS: {', '.join(list(art_elected)[:5]) or 'aucun'}\n"
+                        f"INSTITUTIONS: {', '.join(list(art_institutions)[:5]) or 'aucune'}\n"
+                        f"COMMUNES: {art_communes_str}\n"
+                        f"RÉSUMÉ: {ref_summary[:400]}\n"
+                        f"CONTENU: {ref_content[:500]}"
+                    )[:1800]
                     new_affair = {
                         "title": title,
                         "description": (art.get("ai_summary", "") or "")[:300],
@@ -2204,7 +2284,9 @@ class AffairLifecycleService:
                         "created_at": now,
                         "last_activity": now,
                         "promoted_at": now,
-                        "bmg": 0, "bmg_details": {}, "bmg_history": [],
+                        **self._provisional_bmg(art.get("source", ""), "article"),
+                        "founding_elected": list(art_elected)[:10],
+                        "founding_institutions": list(art_institutions)[:10],
                         "communes": art.get("communes", []),
                         "ai_managed": True,
                         "_creation_method": "simple_cycle_v2",

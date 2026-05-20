@@ -534,14 +534,26 @@ async def job_update_affairs():
             }
 
             for affair in active:
-                # Entités de l'affaire — UNIQUEMENT elected + institutions d'ORIGINE
-                # PAS le champ "entities" accumulé (effet boule de neige)
+                # Entités FONDATRICES figées — utilisées pour éviter l'effet boule de neige.
+                # founding_elected/founding_institutions sont figés à la création de l'affaire
+                # et ne changent pas même si de nouveaux articles sont fusionnés.
+                # Fallback sur elected/institutions si founding_* absent (anciens docs).
                 affair_elected = set(
-                    e.lower().strip() for e in affair.get("elected", []) if e and len(e) > 3
+                    e.lower().strip() for e in
+                    affair.get("founding_elected", affair.get("elected", []))
+                    if e and len(e) > 3
                 )
                 affair_institutions = set(
-                    e.lower().strip() for e in affair.get("institutions", []) if e and len(e) > 3
+                    e.lower().strip() for e in
+                    affair.get("founding_institutions", affair.get("institutions", []))
+                    if e and len(e) > 3
                 ) - GENERIC_INSTITUTIONS
+
+                # Skip si affaire déjà trop grosse (boule de neige)
+                if affair.get("item_count", 0) >= 25:
+                    logger.debug(f"   ⏭️ Affaire '{affair.get('title', '?')[:40]}' saturée "
+                                 f"({affair.get('item_count', 0)} items) — MAJ auto suspendue")
+                    continue
 
                 if not affair_elected and not affair_institutions:
                     logger.debug(f"   ⏭️ Affaire '{affair.get('title', '?')[:40]}' sans entités spécifiques, skip")

@@ -13,6 +13,7 @@ Deux niveaux :
 import re
 import unicodedata
 import logging
+from difflib import SequenceMatcher
 from typing import Dict, Set, Optional, List, Tuple
 
 logger = logging.getLogger("entity_aliases")
@@ -657,6 +658,55 @@ def resolve_entity(entity_name: str) -> str:
     return entity_name
 
 
+def resolve_entity_fuzzy(entity_name: str, threshold: float = 0.82) -> str:
+    """Résout un alias par similarité fuzzy (fallback si résolution exacte échoue).
+
+    Utilise SequenceMatcher sur les noms canoniques connus.
+    Seuil 0.82 = assez strict pour éviter les faux positifs sur des noms courts.
+    Retourne le nom canonique si trouvé, sinon retourne entity_name tel quel.
+    """
+    if not entity_name or len(entity_name) < 4:
+        return entity_name
+
+    # Résolution exacte d'abord
+    exact = resolve_entity(entity_name)
+    if exact != entity_name:
+        return exact  # déjà résolu
+
+    normalized_input = _normalize(entity_name)
+    if not normalized_input:
+        return entity_name
+
+    best_canonical = None
+    best_score = 0.0
+
+    # Chercher parmi les élus connus
+    for canonical in list(ELECTED_ALIASES.keys()):
+        norm_can = _normalize(canonical)
+        if not norm_can:
+            continue
+        score = SequenceMatcher(None, normalized_input, norm_can).ratio()
+        if score > best_score and score >= threshold:
+            best_score = score
+            best_canonical = canonical
+
+    # Chercher parmi les institutions connues
+    for canonical in list(INSTITUTION_ALIASES.keys()):
+        norm_can = _normalize(canonical)
+        if not norm_can:
+            continue
+        score = SequenceMatcher(None, normalized_input, norm_can).ratio()
+        if score > best_score and score >= threshold:
+            best_score = score
+            best_canonical = canonical
+
+    if best_canonical:
+        logger.debug(f"✏️ Fuzzy entity: '{entity_name}' → '{best_canonical}' (score={best_score:.2f})")
+        return best_canonical
+
+    return entity_name
+
+
 def resolve_entities(entities: List[str]) -> List[str]:
     """
     Résout une liste d'entités et déduplique.
@@ -770,7 +820,7 @@ def correct_entities_list(entities: List[str]) -> List[str]:
     """
     Corrige et résout une liste d'entités:
     1. Applique les corrections STT sur chaque nom
-    2. Résout les alias
+    2. Résout les alias (exact, puis fuzzy en fallback)
     3. Déduplique
     """
     corrected = set()
@@ -779,7 +829,10 @@ def correct_entities_list(entities: List[str]) -> List[str]:
             continue
         # D'abord corriger le STT
         fixed = correct_text_stt(e)
-        # Puis résoudre l'alias
+        # Puis résoudre l'alias exact
         canonical = resolve_entity(fixed)
+        if canonical == fixed:
+            # Exact match raté → essayer fuzzy
+            canonical = resolve_entity_fuzzy(fixed)
         corrected.add(canonical)
     return sorted(corrected)
