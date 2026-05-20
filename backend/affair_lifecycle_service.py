@@ -4339,13 +4339,18 @@ class AffairLifecycleService:
                     logger.info(f"   📻 Radio '{trans.get('station', '?')}' → "
                                f"affaire '{affair.get('title', '?')[:40]}' "
                                f"(entités communes: {list(common)[:3]})")
+                    prop_set = self._propagation_merge_update(
+                        affair,
+                        trans.get("radio") or trans.get("source_name", ""),
+                        "transcription",
+                    )
                     self.affairs.update_one(
                         {"_id": affair["_id"]},
                         {
                             "$addToSet": {"radio_transcriptions": trans_id,
                                           "source_types": "transcription"},
                             "$inc": {"item_count": 1},
-                            "$set": {"last_activity": now},
+                            "$set": {"last_activity": now, **prop_set},
                         }
                     )
                     self.transcriptions.update_one(
@@ -4658,12 +4663,17 @@ class AffairLifecycleService:
 
                 logger.info(f"   📱 Post '{post.get('ai_summary', post.get('text', '?'))[:50]}' → "
                            f"affaire '{best_affair.get('title', '?')[:40]}' (score={best_score})")
+                prop_set_social = self._propagation_merge_update(
+                    best_affair,
+                    post.get("source") or post.get("platform") or "social",
+                    "social",
+                )
                 self.affairs.update_one(
                     {"_id": best_affair["_id"]},
                     {
                         "$addToSet": {"social_posts": post_id, "source_types": "social"},
                         "$inc": {"item_count": 1},
-                        "$set": {"last_activity": now},
+                        "$set": {"last_activity": now, **prop_set_social},
                     }
                 )
                 linked += 1
