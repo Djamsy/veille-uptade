@@ -2049,6 +2049,30 @@ class AffairLifecycleService:
                 if best_match:
                     logger.info(f"      📊 Fallback TITRE: ratio={best_ratio:.2f} → fusion avec '{best_match.get('title', '?')[:50]}'")
 
+            # [FUSION-DEBUG] verrou #1 : si l'IA a tranché no_match, on calcule
+            # quand même le meilleur ratio titre des candidats pour repérer les
+            # cas où le titre était proche mais GPT a refusé (potentiel suivi raté).
+            if ai_match_used and best_match is None and candidate_affairs:
+                art_title_norm = self._normalize_title(art.get("title", ""))
+                debug_best_ratio = 0.0
+                debug_best_affair = None
+                for affair in candidate_affairs:
+                    aff_title_norm = self._normalize_title(affair.get("title", ""))
+                    if not aff_title_norm or not art_title_norm:
+                        continue
+                    ratio = SequenceMatcher(None, art_title_norm, aff_title_norm).ratio()
+                    if ratio > debug_best_ratio:
+                        debug_best_ratio = ratio
+                        debug_best_affair = affair
+                if debug_best_affair is not None and debug_best_ratio >= 0.40:
+                    logger.warning(
+                        f"      [FUSION-DEBUG] verrou#1 IA=no_match mais titre proche: "
+                        f"ratio={debug_best_ratio:.2f} "
+                        f"art='{art.get('title', '?')[:60]}' "
+                        f"vs affaire='{debug_best_affair.get('title', '?')[:60]}' "
+                        f"(affair_id={str(debug_best_affair.get('_id', '?'))})"
+                    )
+
             if best_match:
                 # ── Filtre anti boule de neige ──
                 coherent, block_reason = self._titles_are_coherent(
@@ -3007,6 +3031,17 @@ class AffairLifecycleService:
                 if seq_ratio >= 0.70:
                     should_merge = True
                     reason = f"titres_similaires={seq_ratio:.2f}"
+                elif seq_ratio >= 0.40:
+                    # [FUSION-DEBUG] verrou #2 : paire near-miss du heuristique titre.
+                    # Diagnostic : ces paires ne fusionnent pas mais pourraient être
+                    # des suivis du même fait (cf. ticket fusion suivis/interpellations).
+                    logger.warning(
+                        f"      [FUSION-DEBUG] verrou#2 near-miss titre: "
+                        f"ratio={seq_ratio:.2f} (<0.70) "
+                        f"a='{affair_a.get('title', '?')[:60]}' "
+                        f"vs b='{affair_b.get('title', '?')[:60]}' "
+                        f"(ids={str(affair_a.get('_id', '?'))}, {str(affair_b.get('_id', '?'))})"
+                    )
 
                 # ── Filtre anti boule de neige ──
                 if should_merge:
@@ -3274,7 +3309,16 @@ class AffairLifecycleService:
                             f"cat={cat_a}/{cat_b}, "
                             f"('{keep_affair.get('title', '?')[:40]}' ≠ '{absorb_affair.get('title', '?')[:40]}')"
                         )
-                        logger.warning(f"🚫 FUSION IA BLOQUÉE: {block_reason}")
+                        # [FUSION-DEBUG] verrou #4 : on dump les entités pour
+                        # comprendre si l'absence de match est due à des entités
+                        # vides (suivis sans noms répétés) ou réellement à des
+                        # entités différentes (vraies affaires distinctes).
+                        logger.warning(
+                            f"🚫 FUSION IA BLOQUÉE: {block_reason} "
+                            f"[FUSION-DEBUG] verrou#4 entities_a={sorted(ent_a | el_a)[:5]} "
+                            f"entities_b={sorted(ent_b | el_b)[:5]} "
+                            f"ids={str(keep_affair.get('_id','?'))}, {str(absorb_affair.get('_id','?'))}"
+                        )
                         if _telegram_ok and _tg_merged:
                             try:
                                 _tg_merged(

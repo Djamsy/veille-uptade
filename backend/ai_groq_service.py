@@ -13,6 +13,7 @@ import os
 import json
 import logging
 import time
+from difflib import SequenceMatcher
 from typing import Dict, Any, Optional, List
 
 logger = logging.getLogger("ai_groq_service")
@@ -1260,6 +1261,32 @@ def detect_duplicate_affairs(affairs: List[Dict[str, Any]]) -> Optional[List[Dic
 
         if not duplicates:
             logger.info("🔍 Dédup IA: aucun doublon détecté")
+            # [FUSION-DEBUG] verrou #3 : surfacer les paires titre-proches que GPT
+            # n'a pas flaguées (le prompt ne reçoit que les titres, donc il rate
+            # les suivis quand le vocabulaire diffère — ex. "interpellation" vs
+            # "avancée dans l'affaire").
+            try:
+                near_pairs = []
+                for i in range(len(affairs_to_check)):
+                    t_i = (affairs_to_check[i].get("title") or "").lower()
+                    for j in range(i + 1, len(affairs_to_check)):
+                        t_j = (affairs_to_check[j].get("title") or "").lower()
+                        if not t_i or not t_j:
+                            continue
+                        r = SequenceMatcher(None, t_i, t_j).ratio()
+                        if r >= 0.40:
+                            near_pairs.append((r, affairs_to_check[i], affairs_to_check[j]))
+                near_pairs.sort(key=lambda x: x[0], reverse=True)
+                for r, a, b in near_pairs[:5]:
+                    logger.warning(
+                        f"[FUSION-DEBUG] verrou#3 GPT-dedup a ignoré: "
+                        f"ratio={r:.2f} "
+                        f"a='{(a.get('title') or '')[:60]}' "
+                        f"vs b='{(b.get('title') or '')[:60]}' "
+                        f"(ids={str(a.get('_id', '?'))}, {str(b.get('_id', '?'))})"
+                    )
+            except Exception as e:
+                logger.debug(f"[FUSION-DEBUG] verrou#3 logging error: {e}")
             return []
 
         # Valider que les IDs existent dans la liste
