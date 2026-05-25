@@ -90,9 +90,15 @@ export function LiveFeed({ affairs, isMock }: { affairs: Affair[]; isMock?: bool
       </div>
       <div className="flex-1">
         {items.length === 0 && (
-          <p className="text-xs text-center py-8" style={{ color: 'var(--text-muted)' }}>
-            Aucune activité récente
-          </p>
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <div className="flag-stripe w-8 mb-3 opacity-60" />
+            <p className="font-serif text-sm italic" style={{ color: 'var(--text-secondary)' }}>
+              Aucune activité récente
+            </p>
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] mt-1.5" style={{ color: 'var(--text-muted)' }}>
+              Le fil se met à jour automatiquement
+            </p>
+          </div>
         )}
         {items.map((item, i) => {
           const inner = (

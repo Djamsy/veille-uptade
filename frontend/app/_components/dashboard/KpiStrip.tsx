@@ -44,7 +44,7 @@ function Cell({ kpi }: { kpi: Kpi }) {
       </div>
       <div className="flex items-baseline gap-2.5">
         <span
-          className="font-serif text-3xl font-semibold tabular-nums leading-none"
+          className="font-serif text-4xl lg:text-5xl font-semibold tabular-data leading-none"
           style={{ color: isCrit ? 'var(--negative)' : 'var(--text)' }}
         >
           {kpi.value}

@@ -166,6 +166,7 @@ export default function DashboardPage() {
 
         <div className="px-6 lg:px-8 py-6 max-w-[1700px] mx-auto flex flex-col gap-5">
           {/* ── KPI STRIP — vue scannable en 2 sec ── */}
+          <div className="reveal reveal-3">
           <KpiStrip
             isMock={isMockKpis}
             kpis={[
@@ -199,9 +200,10 @@ export default function DashboardPage() {
               },
             ]}
           />
+          </div>
 
           {/* ── 2-COL : Carte+Baromètre / Flux+Personnalités ── */}
-          <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-5">
+          <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-5 reveal reveal-4">
             <section className="flex flex-col gap-5 min-w-0">
               {/* Carte — élément signature, 600px de haut */}
               <div

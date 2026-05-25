@@ -42,29 +42,31 @@ export function DashboardTopbar({ lastRefresh, onRefresh, onOpenBrief, refreshin
       />
       <div className="relative flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-3 reveal reveal-1">
             <span
-              className="font-mono text-[10px] uppercase tracking-[0.18em] font-semibold"
+              className="font-mono text-[11px] uppercase tracking-[0.2em] font-semibold"
               style={{ color: 'var(--text)' }}
               aria-label="Indicatif Guadeloupe"
             >
               971
             </span>
-            <span className="font-mono text-[10px]" style={{ color: 'var(--text-muted)' }}>·</span>
+            <span className="font-mono text-[11px]" style={{ color: 'var(--text-muted)' }}>·</span>
             <span
-              className="font-mono text-[10px] uppercase tracking-[0.18em]"
+              className="font-mono text-[11px] uppercase tracking-[0.2em]"
               style={{ color: 'var(--text-muted)' }}
             >
               Pilotage · Vue d&rsquo;ensemble
             </span>
           </div>
           <h1
-            className="font-serif text-3xl lg:text-4xl font-medium tracking-tight italic"
+            className="masthead text-4xl sm:text-5xl lg:text-6xl font-medium reveal reveal-2"
             style={{ color: 'var(--text)' }}
           >
             Édition du {formatDateLong(lastRefresh)}
           </h1>
-          <div className="flex items-center gap-3 mt-2.5 font-mono text-xs" style={{ color: 'var(--text-muted)' }}>
+          {/* Signature 971 — drapeau GP éditorialisé, marqueur d'identité délibéré */}
+          <div className="flag-stripe w-24 mt-3.5 reveal reveal-2" />
+          <div className="flex items-center gap-3 mt-3 font-mono text-xs reveal reveal-3" style={{ color: 'var(--text-muted)' }}>
             <span>{now ? formatTime(now) : '--:--'} GMT-4</span>
             <span aria-hidden>·</span>
             <span>cycle #{cycleId ?? '—'}</span>

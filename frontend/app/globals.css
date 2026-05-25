@@ -89,6 +89,10 @@
 
   /* Brand gradient — version mute pour logo (vert→ambré→rouge) */
   --brand-gradient: linear-gradient(135deg, #4a7b56 0%, #b89030 50%, #a8324a 100%);
+
+  /* ── Easing (courbes custom — jamais ease/linear par défaut) ── */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);        /* expo out */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);  /* quart out */
 }
 
 * { box-sizing: border-box; }
@@ -108,6 +112,34 @@ body {
   font-family: var(--font-serif);
   letter-spacing: -0.01em;
 }
+
+/* Masthead — la Une : grand serif optique, tracking resserré à grande taille */
+.masthead {
+  font-family: var(--font-serif);
+  font-style: italic;
+  letter-spacing: -0.025em;
+  line-height: 0.95;
+  text-wrap: balance;
+  font-feature-settings: 'liga' 1, 'dlig' 1;
+}
+/* Chiffres data — alignés, sans liga, lecture en colonne */
+.tabular-data { font-variant-numeric: tabular-nums lining-nums; letter-spacing: -0.01em; }
+/* Titres équilibrés (pas d'orphelin) */
+h1, h2 { text-wrap: balance; }
+
+/* ── Load choreography — révélation éditoriale sobre ── */
+@keyframes editorialReveal {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.reveal {
+  opacity: 0;
+  animation: editorialReveal 0.55s var(--ease-out) both;
+}
+.reveal-1 { animation-delay: 0.04s; }
+.reveal-2 { animation-delay: 0.12s; }
+.reveal-3 { animation-delay: 0.20s; }
+.reveal-4 { animation-delay: 0.28s; }
 
 /* ── Utilitaires ─────────────────────────────────────── */
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
@@ -238,7 +270,7 @@ html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.animate-fade-in { animation: fadeIn 0.3s ease-out; }
+.animate-fade-in { animation: fadeIn 0.3s var(--ease-out); }
 
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(16px); }
@@ -250,7 +282,7 @@ html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.stagger-cards > * { animation: staggerIn 0.3s ease-out both; }
+.stagger-cards > * { animation: staggerIn 0.3s var(--ease-out) both; }
 .stagger-cards > *:nth-child(1) { animation-delay: 0.03s; }
 .stagger-cards > *:nth-child(2) { animation-delay: 0.06s; }
 .stagger-cards > *:nth-child(3) { animation-delay: 0.09s; }
