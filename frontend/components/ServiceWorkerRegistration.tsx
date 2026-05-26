@@ -55,6 +55,13 @@ export default function ServiceWorkerRegistration() {
     setPushSupported(true)
     setPushPermission(Notification.permission)
 
+    // En développement, NE PAS enregistrer le SW : son cache agressif sert
+    // des chunks périmés et empoisonne le hot-reload / les previews.
+    if (process.env.NODE_ENV !== 'production') {
+      navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()))
+      return
+    }
+
     // Enregistrer le service worker
     navigator.serviceWorker.register('/sw.js').then(async (registration) => {
       console.log('SW registered')

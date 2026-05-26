@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { fetchAffairsByInstitution, type Affair } from '../../../lib/api'
+import { MOCK_AFFAIRS } from './mocks'
 
 type Institution = 'departement' | 'region'
 
@@ -62,6 +63,7 @@ export function CollectiviteHero({ avgBmg, trendPct, sentimentDist, isMock }: Pr
   const [maxGravity, setMaxGravity] = useState(0)
   const [loading, setLoading] = useState(true)
   const [errored, setErrored] = useState(false)
+  const [isMockData, setIsMockData] = useState(false)
 
   // Restaure le choix de collectivité
   useEffect(() => {
@@ -77,6 +79,7 @@ export function CollectiviteHero({ avgBmg, trendPct, sentimentDist, isMock }: Pr
   const load = useCallback(async () => {
     setLoading(true)
     setErrored(false)
+    setIsMockData(false)
     try {
       const res = await fetchAffairsByInstitution(institution)
       const all = Object.values(res.groups || {}).flatMap(g => g.affairs || [])
@@ -86,9 +89,12 @@ export function CollectiviteHero({ avgBmg, trendPct, sentimentDist, isMock }: Pr
       setTotalMatched(res.total_matched ?? all.length)
       setMaxGravity(maxG)
     } catch {
-      setErrored(true)
-      setAffairs([])
-      setTotalMatched(0)
+      // Fallback démo (pas de backend dispo) — cohérent avec les autres widgets
+      const mock = MOCK_AFFAIRS
+      setAffairs(mock)
+      setTotalMatched(mock.length)
+      setMaxGravity(mock.reduce((m, a) => Math.max(m, a.gravity_score || 0), 0))
+      setIsMockData(true)
     } finally {
       setLoading(false)
     }
@@ -116,9 +122,19 @@ export function CollectiviteHero({ avgBmg, trendPct, sentimentDist, isMock }: Pr
         style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}
       >
         <div className="flex items-center justify-between gap-3 mb-4">
-          <span className="font-mono text-[10px] uppercase tracking-[0.18em]" style={{ color: 'var(--text-muted)' }}>
-            On parle de vous
-          </span>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em]" style={{ color: 'var(--text-muted)' }}>
+              On parle de vous
+            </span>
+            {isMockData && (
+              <span
+                className="font-mono text-[9px] uppercase tracking-[0.12em] px-1 py-0.5 rounded-sm shrink-0"
+                style={{ background: 'var(--warn-soft)', color: '#9d551f', border: '1px solid #f3dcc5' }}
+              >
+                Aperçu
+              </span>
+            )}
+          </div>
           {/* Switch collectivité — les deux tuyaux existent */}
           <div className="flex items-center gap-1 p-0.5 rounded-sm" style={{ background: 'var(--bg-elevated)' }}>
             {(['departement', 'region'] as Institution[]).map(v => (
