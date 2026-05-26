@@ -517,3 +517,30 @@ html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
   border: 1.5px solid currentColor;
   animation: markerPulse 2.4s var(--ease-out) infinite;
 }
+
+/* Mapbox — popups & contrôles au thème Carte vivante */
+.theme-carte .mapboxgl-popup-content {
+  background: transparent !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+.theme-carte .mapboxgl-popup-tip {
+  border-top-color: rgba(2, 6, 23, 0.92) !important;
+  border-bottom-color: rgba(2, 6, 23, 0.92) !important;
+}
+.theme-carte .mapboxgl-popup-close-button {
+  color: rgba(255, 255, 255, 0.6) !important;
+  font-size: 18px !important;
+  padding: 2px 8px !important;
+}
+.theme-carte .mapboxgl-ctrl-group {
+  background: var(--glass-bg) !important;
+  border: 1px solid var(--glass-border) !important;
+  backdrop-filter: blur(12px);
+}
+.theme-carte .mapboxgl-ctrl-group button + button {
+  border-top: 1px solid var(--border) !important;
+}
+.theme-carte .mapboxgl-ctrl button .mapboxgl-ctrl-icon {
+  filter: invert(1) brightness(1.4);
+}

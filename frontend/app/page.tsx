@@ -252,8 +252,8 @@ export default function DashboardPage() {
               <div className="font-mono text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>Carte en direct</div>
             </div>
 
-            {/* Fondu vers la partie 2 + indice de scroll */}
-            <div className="absolute bottom-0 left-0 right-0 h-28 pointer-events-none z-10" style={{ background: 'linear-gradient(to bottom, transparent, var(--bg-base))' }} />
+            {/* Fondu vers la partie 2 — haut et marqué pour dissoudre visiblement la carte */}
+            <div className="absolute bottom-0 left-0 right-0 h-64 pointer-events-none z-10" style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(10,26,36,0.55) 45%, var(--bg-base) 88%)' }} />
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center scroll-cue pointer-events-none">
               <span className="font-mono text-[10px] uppercase tracking-[0.16em] mb-1" style={{ color: 'var(--text-muted)' }}>Le détail</span>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" style={{ color: 'var(--text-secondary)' }}>
@@ -370,8 +370,8 @@ export default function DashboardPage() {
                 className="animate-slide-up rounded-sm px-4 py-2.5 text-xs font-medium flex items-center gap-2 shadow-md"
                 style={{
                   background: n.type === 'hot' ? 'var(--crit-soft)' : n.type === 'success' ? 'var(--ok-soft)' : 'var(--info-soft)',
-                  color: n.type === 'hot' ? '#b02939' : n.type === 'success' ? '#3d6f44' : '#2f5680',
-                  border: `1px solid ${n.type === 'hot' ? '#f5d4d9' : n.type === 'success' ? '#cce5d0' : '#d3dde9'}`,
+                  color: n.type === 'hot' ? 'var(--negative)' : n.type === 'success' ? 'var(--positive)' : 'var(--accent-link)',
+                  border: '1px solid var(--border)',
                 }}
               >
                 <span>{n.text}</span>

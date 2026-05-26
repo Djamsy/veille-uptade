@@ -173,7 +173,7 @@ export function MapboxFullMap({
           </div>
           ${affairsHTML ? `<div style="max-height:180px; overflow-y:auto;">${affairsHTML}</div>` : `<div style="padding:10px 12px; color:rgba(255,255,255,0.4); font-size:11px;">Aucune affaire</div>`}
           <div style="padding:8px 12px; border-top:1px solid rgba(255,255,255,0.1); text-align:center;">
-            <button style="background:#DC2626; color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; transition:background 0.2s;">Voir tout</button>
+            <button style="background:#1FB6A6; color:#0A1A24; border:none; padding:6px 12px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; transition:background 0.2s;">Voir tout</button>
           </div>
         </div>
       `
