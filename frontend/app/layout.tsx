@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter, Newsreader } from 'next/font/google'
+import { Inter, Newsreader, Space_Grotesk, IBM_Plex_Mono } from 'next/font/google'
 import './globals.css'
 import ClientLayout from '../components/ClientLayout'
 import ServiceWorkerRegistration from '../components/ServiceWorkerRegistration'
@@ -15,6 +15,21 @@ const newsreader = Newsreader({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
   variable: '--font-newsreader',
+  display: 'swap',
+})
+
+// ── Thème « Carte vivante » : grotesk UI + mono data ──
+const grotesk = Space_Grotesk({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-grotesk',
+  display: 'swap',
+})
+
+const plexMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-mono-data',
   display: 'swap',
 })
 
@@ -47,7 +62,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr" className={`${inter.variable} ${newsreader.variable}`}>
+    <html lang="fr" className={`${inter.variable} ${newsreader.variable} ${grotesk.variable} ${plexMono.variable}`}>
       <head>
         {/* Preconnect Mapbox CDN — réduit la latence de 200-500ms */}
         <link rel="preconnect" href="https://api.mapbox.com" />

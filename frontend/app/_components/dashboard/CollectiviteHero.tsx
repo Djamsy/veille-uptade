@@ -118,7 +118,7 @@ export function CollectiviteHero({ avgBmg, trendPct, sentimentDist, isMock }: Pr
     <section className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] gap-5 reveal reveal-2">
       {/* ════ ON PARLE DE VOUS — bloc prioritaire ════ */}
       <article
-        className="flex flex-col p-5"
+        className="flex flex-col p-5 backdrop-blur-md"
         style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderLeft: `3px solid ${gravityColor(maxGravity)}`, borderRadius: 'var(--radius)' }}
       >
         <div className="flex items-center justify-between gap-3 mb-4">
@@ -224,7 +224,7 @@ export function CollectiviteHero({ avgBmg, trendPct, sentimentDist, isMock }: Pr
 
       {/* ════ CLIMAT MÉDIA — verdict honnête ════ */}
       <article
-        className="relative flex flex-col p-5"
+        className="relative flex flex-col p-5 backdrop-blur-md"
         style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}
       >
         {isMock && (

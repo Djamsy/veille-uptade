@@ -392,3 +392,120 @@ html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ══════════════════════════════════════════════════════
+   THÈME « CARTE VIVANTE » — territoire-interface immersif
+   Scopé via .theme-carte : redéfinit les tokens, donc les
+   composants existants (var(--*)) se re-thématisent seuls.
+   ══════════════════════════════════════════════════════ */
+.theme-carte {
+  /* Surfaces — mer profonde + glass */
+  --bg-base: #0A1A24;
+  --bg-surface: rgba(14, 34, 46, 0.62);
+  --bg-card: rgba(14, 34, 46, 0.62);
+  --bg-elevated: rgba(22, 48, 62, 0.72);
+  --bg-hover: rgba(31, 182, 166, 0.12);
+  --bg-sidebar: rgba(7, 20, 28, 0.88);
+  --bg-sunk: rgba(6, 18, 25, 0.55);
+  --bg: #0A1A24;
+  --bg-card-hover: rgba(22, 48, 62, 0.72);
+
+  /* Texte — clair sur mer */
+  --text: #EAF4F2;
+  --text-secondary: #A7C4C9;
+  --text-muted: #6E8B92;
+  --text-disabled: #46606A;
+
+  /* Bordures */
+  --border: rgba(255, 255, 255, 0.10);
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-hover: rgba(31, 182, 166, 0.45);
+  --border-strong: rgba(255, 255, 255, 0.22);
+  --border-accent: #1FB6A6;
+
+  /* Accents — turquoise signal + volcan */
+  --accent-press: #1FB6A6;
+  --accent-press-light: #2FD0BD;
+  --accent-press-dark: #169B8D;
+  --accent-alert: #E8743B;
+  --accent-alert-light: #f08e5b;
+  --accent-link: #5FD0E0;
+  --primary: #1FB6A6;
+  --primary-light: #2FD0BD;
+  --accent: #E8743B;
+
+  /* Sémantiques — topographie 971 sur fond sombre */
+  --positive: #38C172;     /* mangrove */
+  --positive-light: #5fd690;
+  --negative: #E54B5A;     /* Soufrière */
+  --negative-light: #ef7079;
+  --neutral: #6E8B92;
+  --warning: #F0A93B;      /* terre volcanique */
+  --caution: #F0C93B;      /* canne mûre */
+  --coral: #E8743B;
+
+  --crit-soft: rgba(229, 75, 90, 0.16);
+  --warn-soft: rgba(240, 169, 59, 0.16);
+  --caution-soft: rgba(240, 201, 59, 0.14);
+  --ok-soft: rgba(56, 193, 114, 0.16);
+  --info-soft: rgba(95, 208, 224, 0.14);
+
+  --glass-bg: rgba(14, 34, 46, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.10);
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.35);
+  --shadow-elevated: 0 14px 44px rgba(0, 0, 0, 0.5);
+
+  /* Typo — grotesk partout, mono pour data ; pas de serif ici */
+  --font-sans: var(--font-grotesk), 'Space Grotesk', system-ui, sans-serif;
+  --font-serif: var(--font-grotesk), 'Space Grotesk', system-ui, sans-serif;
+  --font-mono: var(--font-mono-data), ui-monospace, 'IBM Plex Mono', monospace;
+
+  background: var(--bg-base);
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+/* La masthead n'est plus italique en Carte vivante (Space Grotesk n'a pas d'italique) */
+.theme-carte .masthead { font-style: normal; letter-spacing: -0.03em; }
+
+/* Panneau verre flottant */
+.glass-panel {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  backdrop-filter: blur(16px) saturate(1.25);
+  -webkit-backdrop-filter: blur(16px) saturate(1.25);
+  box-shadow: var(--shadow-elevated);
+}
+
+/* Fond carte + fallback on-brand (dégradé mer) si pas de carte */
+.carte-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: radial-gradient(125% 85% at 72% 18%, #114559 0%, #0A1A24 52%, #06121A 100%);
+}
+/* Nappe de climat ambiante (couleur pilotée par --climate-wash) */
+.carte-wash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(65% 55% at 50% 38%, var(--climate-wash, rgba(31, 182, 166, 0.12)) 0%, transparent 72%);
+  transition: background 0.8s var(--ease-out);
+}
+
+/* Marqueurs vivants */
+@keyframes markerPulse {
+  0% { transform: scale(1); opacity: 0.9; }
+  70% { transform: scale(2.4); opacity: 0; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+.marker-pulse { position: relative; }
+.marker-pulse::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  animation: markerPulse 2.4s var(--ease-out) infinite;
+}

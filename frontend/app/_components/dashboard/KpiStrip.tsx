@@ -60,7 +60,7 @@ function Cell({ kpi, last }: { kpi: Kpi; last?: boolean }) {
 export function KpiStrip({ kpis, isMock }: { kpis: Kpi[]; isMock?: boolean }) {
   return (
     <div
-      className="relative flex flex-wrap items-stretch overflow-hidden"
+      className="relative flex flex-wrap items-stretch overflow-hidden backdrop-blur-md"
       style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}
     >
       {kpis.map((k, i) => <Cell key={k.label} kpi={k} last={i === kpis.length - 1} />)}

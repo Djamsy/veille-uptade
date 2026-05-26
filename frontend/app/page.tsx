@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import Sidebar from '../components/Sidebar'
+import { GuadeloupeMark } from '../components/GuadeloupeMark'
 import {
   fetchEnrichedDashboard,
   fetchMapData,
@@ -143,29 +144,54 @@ export default function DashboardPage() {
     handleGenerateSummary(summaryPeriod)
   }
 
+  // Nappe de climat ambiante sur la carte — couleur selon le BMG réel
+  const climateWash =
+    liveBmg >= 0.6 ? 'rgba(229, 75, 90, 0.18)'   // tendu (Soufrière)
+    : liveBmg >= 0.4 ? 'rgba(240, 169, 59, 0.15)' // surveillé (volcan)
+    : 'rgba(31, 182, 166, 0.14)'                  // apaisé (turquoise)
+
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: 'var(--bg-base)' }}>
+    <div className="theme-carte flex h-screen overflow-hidden" style={{ background: 'var(--bg-base)' }}>
       <Sidebar />
 
-      <main className="lg:ml-16 flex-1 overflow-y-auto">
-        <DashboardTopbar
-          lastRefresh={lastRefresh}
-          onRefresh={loadData}
-          onOpenBrief={openBrief}
-          refreshing={loading}
-          cycleId={cycleId}
-        />
-
-        {error && (
-          <div
-            className="mx-6 lg:mx-8 mt-4 px-4 py-3 text-xs"
-            style={{ background: 'var(--crit-soft)', color: 'var(--negative)', border: '1px solid #f5d4d9', borderRadius: 'var(--radius-sm)' }}
-          >
-            {error}
+      <main className="lg:ml-16 flex-1 relative overflow-hidden">
+        {/* ── FOND : carte Guadeloupe plein écran + nappe de climat ── */}
+        <div className="carte-bg">
+          <div className="absolute inset-0">
+            <MapboxFullMap communes={mapBgData} />
           </div>
-        )}
+          {/* Papillon — signature + fallback on-brand si pas de carte */}
+          <GuadeloupeMark
+            className="hidden md:block absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[58vw] max-w-[860px] h-auto pointer-events-none"
+            stroke="#1FB6A6"
+            style={{ opacity: 0.06 }}
+          />
+          {/* Nappe de climat (couleur = BMG réel) */}
+          <div className="carte-wash" style={{ ['--climate-wash' as string]: climateWash } as React.CSSProperties} />
+          {/* Scrim pour lisibilité du contenu flottant */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{ background: 'linear-gradient(180deg, rgba(6,18,25,0.62) 0%, rgba(6,18,25,0.10) 20%, transparent 46%, rgba(6,18,25,0.34) 100%)' }}
+          />
+        </div>
 
-        <div className="px-6 lg:px-8 py-6 max-w-[1700px] mx-auto flex flex-col gap-5">
+        {/* ── CONTENU flottant au-dessus de la carte ── */}
+        <div className="relative z-10 h-full overflow-y-auto">
+          <DashboardTopbar
+            lastRefresh={lastRefresh}
+            onRefresh={loadData}
+            onOpenBrief={openBrief}
+            refreshing={loading}
+            cycleId={cycleId}
+          />
+
+          {error && (
+            <div className="mx-6 lg:mx-8 mt-4 px-4 py-3 text-xs glass-panel" style={{ color: 'var(--negative)' }}>
+              {error}
+            </div>
+          )}
+
+          <div className="px-6 lg:px-8 pb-10 pt-2 max-w-[1700px] mx-auto flex flex-col gap-5">
           {/* ── COLLECTIVITÉ + CLIMAT — réponse prioritaire au job ── */}
           <CollectiviteHero
             avgBmg={liveBmg}
@@ -214,39 +240,9 @@ export default function DashboardPage() {
           {/* ── 2-COL : Carte+Baromètre / Flux+Personnalités ── */}
           <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-5 reveal reveal-4">
             <section className="flex flex-col gap-5 min-w-0">
-              {/* Carte — élément signature, 600px de haut */}
-              <div
-                style={{
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)',
-                }}
-              >
-                <div
-                  className="flex items-center justify-between px-4 py-3"
-                  style={{ borderBottom: '1px solid var(--border-subtle)' }}
-                >
-                  <span
-                    className="font-mono text-[10px] uppercase tracking-[0.14em]"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    971 · Carte des événements
-                  </span>
-                  <span
-                    className="font-mono text-[10px]"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    {Object.keys(mapBgData || {}).length} communes actives
-                  </span>
-                </div>
-                <div className="relative" style={{ height: 440 }}>
-                  <MapboxFullMap communes={mapBgData} />
-                </div>
-              </div>
-
-              {/* Baromètre sous la carte — moins de poids visuel */}
+              {/* La carte est désormais le FOND plein écran. Ici : le baromètre. */}
               {loading ? (
-                <div className="h-48 flex items-center justify-center text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
+                <div className="glass-panel h-48 flex items-center justify-center text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
                   Chargement…
                 </div>
               ) : (
@@ -264,14 +260,7 @@ export default function DashboardPage() {
             <aside className="flex flex-col gap-5 min-w-0">
               <LiveFeed affairs={liveAffairs} isMock={isMockFeed} />
 
-              <div
-                className="flex flex-col"
-                style={{
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)',
-                }}
-              >
+              <div className="glass-panel flex flex-col">
                 <div
                   className="flex items-center justify-between px-3.5 py-3"
                   style={{ borderBottom: '1px solid var(--border-subtle)' }}
@@ -299,6 +288,7 @@ export default function DashboardPage() {
               </div>
             </aside>
           </div>
+        </div>
         </div>
 
         {/* ── Notifications toast ── */}
