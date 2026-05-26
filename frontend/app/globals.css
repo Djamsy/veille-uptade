@@ -383,7 +383,7 @@ html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
 /* Contenu décalé de la largeur de la sidebar persistante (≥1024px) —
    la sidebar étant fixed, le contenu doit l'éviter pour ne pas passer dessous. */
 @media (min-width: 1024px) {
-  .lg\:ml-16 { margin-left: 220px; }
+  .lg\:ml-16 { margin-left: 220px !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {
