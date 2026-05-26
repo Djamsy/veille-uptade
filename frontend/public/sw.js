@@ -1,4 +1,4 @@
-const CACHE_NAME = 'veille-media-v2'
+const CACHE_NAME = 'veille-media-v3'
 const APP_SHELL = [
   '/',
   '/manifest.json',

@@ -118,7 +118,10 @@ body {
   font-family: var(--font-serif);
   font-style: italic;
   letter-spacing: -0.025em;
-  line-height: 0.95;
+  /* 1.1 (pas 0.95) : un serif italique accentué (É, descendantes) se fait
+     rogner en line-height trop serré, surtout sous un parent overflow-hidden. */
+  line-height: 1.1;
+  padding-bottom: 0.04em;
   text-wrap: balance;
   font-feature-settings: 'liga' 1, 'dlig' 1;
 }
