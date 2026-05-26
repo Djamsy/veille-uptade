@@ -181,6 +181,17 @@ export default function DashboardPage() {
   // Vraie carte 3D Mapbox si token présent, sinon carte SVG vectorielle (token-free)
   const hasMapbox = !!process.env.NEXT_PUBLIC_MAPBOX_TOKEN
 
+  // Fallback démo pour la vraie carte : marqueurs vivants par gravité
+  const MOCK_MAP_COMMUNES = {
+    'Pointe-à-Pitre': { stats: { total_items: 14, max_gravity: 0.78, article_count: 12, transcription_count: 2, affair_count: 3 } },
+    'Baie-Mahault': { stats: { total_items: 9, max_gravity: 0.58, article_count: 7, transcription_count: 1, affair_count: 2 } },
+    'Basse-Terre': { stats: { total_items: 7, max_gravity: 0.66, article_count: 5, transcription_count: 2, affair_count: 2 } },
+    'Le Moule': { stats: { total_items: 4, max_gravity: 0.5, article_count: 4, transcription_count: 0, affair_count: 1 } },
+    'Le Gosier': { stats: { total_items: 5, max_gravity: 0.42, article_count: 4, transcription_count: 1, affair_count: 1 } },
+    'Sainte-Anne': { stats: { total_items: 3, max_gravity: 0.32, article_count: 3, transcription_count: 0, affair_count: 1 } },
+  }
+  const liveMapData = Object.keys(mapBgData || {}).length > 0 ? mapBgData : (MOCK_MAP_COMMUNES as typeof mapBgData)
+
   return (
     <div className="theme-carte flex h-screen overflow-hidden" style={{ background: 'var(--bg-base)' }}>
       <Sidebar />
@@ -213,7 +224,7 @@ export default function DashboardPage() {
             {/* Carte : vraie 3D Mapbox si token présent, sinon SVG vectoriel (token-free) */}
             {hasMapbox ? (
               <div className="absolute inset-0 rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-                <MapboxFullMap communes={mapBgData} />
+                <MapboxFullMap communes={liveMapData} />
               </div>
             ) : (
               <div className="absolute inset-0 flex items-center justify-center px-4">
@@ -239,6 +250,15 @@ export default function DashboardPage() {
                 <span className="font-mono text-[10px] uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>communes actives</span>
               </div>
               <div className="font-mono text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>Carte en direct</div>
+            </div>
+
+            {/* Fondu vers la partie 2 + indice de scroll */}
+            <div className="absolute bottom-0 left-0 right-0 h-28 pointer-events-none z-10" style={{ background: 'linear-gradient(to bottom, transparent, var(--bg-base))' }} />
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center scroll-cue pointer-events-none">
+              <span className="font-mono text-[10px] uppercase tracking-[0.16em] mb-1" style={{ color: 'var(--text-muted)' }}>Le détail</span>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" style={{ color: 'var(--text-secondary)' }}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
             </div>
           </div>
 

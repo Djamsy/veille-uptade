@@ -57,6 +57,7 @@ export function MapboxFullMap({
           antialias: true,
           attributionControl: false,
           failIfMajorPerformanceCaveat: false,
+          scrollZoom: false, // le scroll de la page ne zoome plus la carte
         })
 
         map.on('load', () => {
@@ -132,7 +133,9 @@ export function MapboxFullMap({
       const size = Math.min(44, Math.max(16, 10 + cData.stats.total_items * 2))
 
       const el = document.createElement('div')
-      el.style.cssText = `width:${size}px;height:${size}px;cursor:pointer;background:radial-gradient(circle,${color}cc 0%,${color}44 50%,transparent 100%);border:2px solid ${color}aa;border-radius:50%;box-shadow:0 0 ${size * 1.5}px ${color}66;transition:transform 0.2s;`
+      el.style.cssText = `width:${size}px;height:${size}px;cursor:pointer;color:${color};background:radial-gradient(circle,${color}cc 0%,${color}44 50%,transparent 100%);border:2px solid ${color}aa;border-radius:50%;box-shadow:0 0 ${size * 1.5}px ${color}66;transition:transform 0.2s;`
+      // Marqueur vivant : pulse pour les communes à gravité élevée
+      if (g >= 0.5) el.classList.add('marker-pulse')
       el.title = `${name} — ${cData.stats.total_items} items`
       el.onmouseenter = () => { el.style.transform = 'scale(1.3)' }
       el.onmouseleave = () => { el.style.transform = 'scale(1)' }
