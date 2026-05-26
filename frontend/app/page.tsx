@@ -178,6 +178,9 @@ export default function DashboardPage() {
   const liveCommuneData = Object.keys(communeData).length > 0 ? communeData : MOCK_COMMUNES
   const communesActives = Object.keys(liveCommuneData).length
 
+  // Vraie carte 3D Mapbox si token présent, sinon carte SVG vectorielle (token-free)
+  const hasMapbox = !!process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+
   return (
     <div className="theme-carte flex h-screen overflow-hidden" style={{ background: 'var(--bg-base)' }}>
       <Sidebar />
@@ -206,27 +209,36 @@ export default function DashboardPage() {
 
           <div className="px-6 lg:px-8 pb-10 pt-2 max-w-[1500px] mx-auto flex flex-col gap-5">
           {/* ═══ HERO : LE TERRITOIRE EST LE DASHBOARD (plein écran immersif) ═══ */}
-          <div className="relative reveal reveal-2 flex items-center justify-center" style={{ minHeight: 'calc(100vh - 150px)' }}>
-            <div className="relative mx-auto w-full" style={{ maxWidth: 1080 }}>
-              <GuadeloupeMap communeData={liveCommuneData} />
-              {/* Climat — overlay sur l'océan, coin haut-gauche */}
-              <div className="glass-panel absolute top-3 left-3 p-3.5 w-[42%] max-w-[240px]">
-                <div className="font-mono text-[10px] uppercase tracking-[0.16em]" style={{ color: 'var(--text-muted)' }}>Climat média · 7j</div>
-                <div className="text-base font-semibold mt-1.5 leading-tight" style={{ color: verdict.c }}>{verdict.t}</div>
-                <div className="flex items-baseline gap-2 mt-1">
-                  <span className="text-3xl font-semibold tabular-data leading-none" style={{ color: 'var(--text)' }}>{bmg100}</span>
-                  <span className="font-mono text-[10px] uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>BMG moyen</span>
+          <div className="relative reveal reveal-2" style={{ minHeight: 'calc(100vh - 150px)' }}>
+            {/* Carte : vraie 3D Mapbox si token présent, sinon SVG vectoriel (token-free) */}
+            {hasMapbox ? (
+              <div className="absolute inset-0 rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                <MapboxFullMap communes={mapBgData} />
+              </div>
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center px-4">
+                <div className="relative w-full" style={{ maxWidth: 1080 }}>
+                  <GuadeloupeMap communeData={liveCommuneData} />
                 </div>
               </div>
-              {/* Territoire — overlay coin haut-droit */}
-              <div className="glass-panel absolute top-3 right-3 p-3.5 w-[42%] max-w-[240px] text-right">
-                <div className="font-mono text-[10px] uppercase tracking-[0.16em]" style={{ color: 'var(--text-muted)' }}>971 · Territoire</div>
-                <div className="flex items-baseline gap-2 mt-1 justify-end">
-                  <span className="text-3xl font-semibold tabular-data leading-none" style={{ color: 'var(--text)' }}>{communesActives}</span>
-                  <span className="font-mono text-[10px] uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>communes actives</span>
-                </div>
-                <div className="font-mono text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>Carte en direct</div>
+            )}
+
+            {/* Overlays — flottent sur la carte (Mapbox ou SVG) */}
+            <div className="glass-panel absolute top-6 left-6 p-3.5 w-[44%] max-w-[240px] z-10">
+              <div className="font-mono text-[10px] uppercase tracking-[0.16em]" style={{ color: 'var(--text-muted)' }}>Climat média · 7j</div>
+              <div className="text-base font-semibold mt-1.5 leading-tight" style={{ color: verdict.c }}>{verdict.t}</div>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className="text-3xl font-semibold tabular-data leading-none" style={{ color: 'var(--text)' }}>{bmg100}</span>
+                <span className="font-mono text-[10px] uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>BMG moyen</span>
               </div>
+            </div>
+            <div className="glass-panel absolute top-6 right-6 p-3.5 w-[44%] max-w-[240px] text-right z-10">
+              <div className="font-mono text-[10px] uppercase tracking-[0.16em]" style={{ color: 'var(--text-muted)' }}>971 · Territoire</div>
+              <div className="flex items-baseline gap-2 mt-1 justify-end">
+                <span className="text-3xl font-semibold tabular-data leading-none" style={{ color: 'var(--text)' }}>{communesActives}</span>
+                <span className="font-mono text-[10px] uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>communes actives</span>
+              </div>
+              <div className="font-mono text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>Carte en direct</div>
             </div>
           </div>
 
