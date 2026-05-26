@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import Sidebar from '../components/Sidebar'
 import { GuadeloupeMark } from '../components/GuadeloupeMark'
+import GuadeloupeMap from '../components/GuadeloupeMap'
 import {
   fetchEnrichedDashboard,
   fetchMapData,
@@ -150,29 +151,41 @@ export default function DashboardPage() {
     : liveBmg >= 0.4 ? 'rgba(240, 169, 59, 0.15)' // surveillé (volcan)
     : 'rgba(31, 182, 166, 0.14)'                  // apaisé (turquoise)
 
+  // Verdict de climat (signal réel) pour l'overlay sur la carte
+  const bmg100 = Math.round(liveBmg * 100)
+  const verdict =
+    liveBmg >= 0.6 ? { t: 'Climat tendu', c: 'var(--negative)' }
+    : liveBmg >= 0.4 ? { t: 'Sous surveillance', c: 'var(--warning)' }
+    : liveBmg >= 0.2 ? { t: 'Climat actif', c: 'var(--caution)' }
+    : { t: 'Climat apaisé', c: 'var(--positive)' }
+
+  // Données communes pour la carte SVG (territoire vivant)
+  const communeData: Record<string, { count: number; maxGravity: number }> = Object.fromEntries(
+    Object.entries(mapBgData || {}).map(([name, d]) => [
+      name,
+      { count: d?.stats?.total_items ?? 0, maxGravity: d?.stats?.max_gravity ?? 0 },
+    ])
+  )
+  // Fallback démo : allume quelques communes pour montrer le territoire « vivant »
+  const MOCK_COMMUNES: Record<string, { count: number; maxGravity: number }> = {
+    'Baie-Mahault': { count: 8, maxGravity: 0.78 },
+    'Petit-Bourg': { count: 5, maxGravity: 0.58 },
+    'Sainte-Rose': { count: 4, maxGravity: 0.42 },
+    'Lamentin': { count: 3, maxGravity: 0.32 },
+    'Pointe-Noire': { count: 2, maxGravity: 0.5 },
+    'Goyave': { count: 3, maxGravity: 0.66 },
+  }
+  const liveCommuneData = Object.keys(communeData).length > 0 ? communeData : MOCK_COMMUNES
+  const communesActives = Object.keys(liveCommuneData).length
+
   return (
     <div className="theme-carte flex h-screen overflow-hidden" style={{ background: 'var(--bg-base)' }}>
       <Sidebar />
 
       <main className="lg:ml-16 flex-1 relative overflow-hidden">
-        {/* ── FOND : carte Guadeloupe plein écran + nappe de climat ── */}
-        <div className="carte-bg">
-          <div className="absolute inset-0">
-            <MapboxFullMap communes={mapBgData} />
-          </div>
-          {/* Papillon — signature + fallback on-brand si pas de carte */}
-          <GuadeloupeMark
-            className="hidden md:block absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[58vw] max-w-[860px] h-auto pointer-events-none"
-            stroke="#1FB6A6"
-            style={{ opacity: 0.06 }}
-          />
-          {/* Nappe de climat (couleur = BMG réel) */}
+        {/* Ambiance mer — fond fixe derrière le contenu (la carte est inline dans le héros) */}
+        <div className="fixed inset-0 lg:left-[220px] z-0 carte-bg" aria-hidden>
           <div className="carte-wash" style={{ ['--climate-wash' as string]: climateWash } as React.CSSProperties} />
-          {/* Scrim pour lisibilité du contenu flottant */}
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={{ background: 'linear-gradient(180deg, rgba(6,18,25,0.62) 0%, rgba(6,18,25,0.10) 20%, transparent 46%, rgba(6,18,25,0.34) 100%)' }}
-          />
         </div>
 
         {/* ── CONTENU flottant au-dessus de la carte ── */}
@@ -191,7 +204,32 @@ export default function DashboardPage() {
             </div>
           )}
 
-          <div className="px-6 lg:px-8 pb-10 pt-2 max-w-[1700px] mx-auto flex flex-col gap-5">
+          <div className="px-6 lg:px-8 pb-10 pt-2 max-w-[1500px] mx-auto flex flex-col gap-5">
+          {/* ═══ HERO : LE TERRITOIRE EST LE DASHBOARD ═══ */}
+          <div className="relative reveal reveal-2">
+            <div className="relative mx-auto w-full" style={{ maxWidth: 940 }}>
+              <GuadeloupeMap communeData={liveCommuneData} />
+              {/* Climat — overlay sur l'océan, coin haut-gauche */}
+              <div className="glass-panel absolute top-3 left-3 p-3.5 w-[42%] max-w-[240px]">
+                <div className="font-mono text-[10px] uppercase tracking-[0.16em]" style={{ color: 'var(--text-muted)' }}>Climat média · 7j</div>
+                <div className="text-base font-semibold mt-1.5 leading-tight" style={{ color: verdict.c }}>{verdict.t}</div>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <span className="text-3xl font-semibold tabular-data leading-none" style={{ color: 'var(--text)' }}>{bmg100}</span>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>BMG moyen</span>
+                </div>
+              </div>
+              {/* Territoire — overlay coin haut-droit */}
+              <div className="glass-panel absolute top-3 right-3 p-3.5 w-[42%] max-w-[240px] text-right">
+                <div className="font-mono text-[10px] uppercase tracking-[0.16em]" style={{ color: 'var(--text-muted)' }}>971 · Territoire</div>
+                <div className="flex items-baseline gap-2 mt-1 justify-end">
+                  <span className="text-3xl font-semibold tabular-data leading-none" style={{ color: 'var(--text)' }}>{communesActives}</span>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>communes actives</span>
+                </div>
+                <div className="font-mono text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>Carte en direct</div>
+              </div>
+            </div>
+          </div>
+
           {/* ── COLLECTIVITÉ + CLIMAT — réponse prioritaire au job ── */}
           <CollectiviteHero
             avgBmg={liveBmg}

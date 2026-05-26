@@ -455,9 +455,9 @@ html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
   --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.35);
   --shadow-elevated: 0 14px 44px rgba(0, 0, 0, 0.5);
 
-  /* Typo — grotesk partout, mono pour data ; pas de serif ici */
-  --font-sans: var(--font-grotesk), 'Space Grotesk', system-ui, sans-serif;
-  --font-serif: var(--font-grotesk), 'Space Grotesk', system-ui, sans-serif;
+  /* Typo — Inter (UI/display, propre) + IBM Plex Mono pour la data */
+  --font-sans: var(--font-inter), 'Inter', system-ui, sans-serif;
+  --font-serif: var(--font-inter), 'Inter', system-ui, sans-serif;
   --font-mono: var(--font-mono-data), ui-monospace, 'IBM Plex Mono', monospace;
 
   background: var(--bg-base);
