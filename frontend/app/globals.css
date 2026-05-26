@@ -452,8 +452,10 @@ html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
 
   --glass-bg: rgba(14, 34, 46, 0.55);
   --glass-border: rgba(255, 255, 255, 0.10);
-  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.35);
-  --shadow-elevated: 0 14px 44px rgba(0, 0, 0, 0.5);
+  /* Ombres multi-couches (ambiante + portée) pensées pour le dark */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 4px 14px rgba(0, 0, 0, 0.38);
+  --shadow-elevated: 0 2px 6px rgba(0, 0, 0, 0.5), 0 12px 30px rgba(0, 0, 0, 0.45), 0 30px 72px rgba(0, 0, 0, 0.5);
+  --rim-light: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 
   /* Typo — Manrope (UI/display) + IBM Plex Mono pour la data */
   --font-sans: var(--font-manrope), 'Manrope', system-ui, sans-serif;
@@ -474,8 +476,17 @@ html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
   border-radius: 14px;
   backdrop-filter: blur(16px) saturate(1.25);
   -webkit-backdrop-filter: blur(16px) saturate(1.25);
-  box-shadow: var(--shadow-elevated), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  box-shadow: var(--shadow-elevated), var(--rim-light);
   transition: transform 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out), border-color 0.25s var(--ease-out);
+}
+
+/* Carte de contenu (page 2) — élévation douce + rim-light */
+.elev-card {
+  box-shadow: var(--shadow-card), var(--rim-light);
+  transition: transform 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out), border-color 0.25s var(--ease-out);
+}
+.elev-card:hover {
+  box-shadow: var(--shadow-elevated), var(--rim-light);
 }
 
 /* Indice de scroll — chevron qui invite à descendre vers la partie 2 */

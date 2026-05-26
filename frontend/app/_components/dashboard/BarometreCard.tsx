@@ -68,7 +68,7 @@ export function BarometreCard({ avgBmg, articlesDelta = 0, activity, sentimentDi
 
   return (
     <div
-      className="p-5 lg:p-6"
+      className="p-5 lg:p-6 backdrop-blur-md elev-card"
       style={{
         background: 'var(--bg-surface)',
         border: '1px solid var(--border)',

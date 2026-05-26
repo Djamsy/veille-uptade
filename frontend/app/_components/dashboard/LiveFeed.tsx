@@ -50,7 +50,7 @@ export function LiveFeed({ affairs, isMock }: { affairs: Affair[]; isMock?: bool
 
   return (
     <div
-      className="flex flex-col"
+      className="flex flex-col backdrop-blur-md elev-card"
       style={{
         background: 'var(--bg-surface)',
         border: '1px solid var(--border)',
