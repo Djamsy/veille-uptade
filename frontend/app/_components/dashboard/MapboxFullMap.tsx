@@ -145,56 +145,14 @@ export function MapboxFullMap({
       el.onmouseenter = () => { dot.style.transform = 'scale(1.3)' }
       el.onmouseleave = () => { dot.style.transform = 'scale(1)' }
 
-      const affairsList = (cData.affairs || []).slice(0, 3)
-      const affairsHTML = affairsList.map((a: any) => {
-        const gravityColor = (a.gravity_score || 0) >= 0.7 ? '#ef4444' : (a.gravity_score || 0) >= 0.5 ? '#f97316' : (a.gravity_score || 0) >= 0.3 ? '#eab308' : '#22c55e'
-        return `<div style="padding:6px; border-bottom:1px solid rgba(255,255,255,0.08); font-size:11px;">
-          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:6px; margin-bottom:3px;">
-            <span style="font-weight:600; color:#fff; flex:1;">${a.title || 'Sans titre'}</span>
-            <span style="color:${gravityColor}; font-weight:700; flex-shrink:0;">${Math.round((a.gravity_score || 0) * 100)}%</span>
-          </div>
-          <div style="font-size:9px; color:rgba(255,255,255,0.6);">${a.theme || 'N/A'}</div>
-        </div>`
-      }).join('')
-
-      const popupHTML = `
-        <div style="background:rgba(2,6,23,0.92); backdrop-filter:blur(20px); border:1px solid rgba(255,255,255,0.1); border-radius:12px; color:#fff; font-family:system-ui,-apple-system,sans-serif; padding:0; min-width:240px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.3);">
-          <div style="padding:10px 12px; border-bottom:1px solid rgba(255,255,255,0.1);">
-            <div style="font-weight:700; font-size:13px; margin-bottom:8px;">${name}</div>
-            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; text-align:center; font-size:11px;">
-              <div>
-                <div style="font-weight:700; color:#60a5fa; font-size:14px;">${cData.stats.article_count || 0}</div>
-                <div style="color:rgba(255,255,255,0.5); font-size:9px; text-transform:uppercase;">Articles</div>
-              </div>
-              <div>
-                <div style="font-weight:700; color:#a78bfa; font-size:14px;">${cData.stats.transcription_count || 0}</div>
-                <div style="color:rgba(255,255,255,0.5); font-size:9px; text-transform:uppercase;">Radios</div>
-              </div>
-              <div>
-                <div style="font-weight:700; color:#fbbf24; font-size:14px;">${cData.stats.affair_count || 0}</div>
-                <div style="color:rgba(255,255,255,0.5); font-size:9px; text-transform:uppercase;">Affaires</div>
-              </div>
-            </div>
-          </div>
-          ${affairsHTML ? `<div style="max-height:180px; overflow-y:auto;">${affairsHTML}</div>` : `<div style="padding:10px 12px; color:rgba(255,255,255,0.4); font-size:11px;">Aucune affaire</div>`}
-          <div style="padding:8px 12px; border-top:1px solid rgba(255,255,255,0.1); text-align:center;">
-            <button style="background:#1FB6A6; color:#0A1A24; border:none; padding:6px 12px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; transition:background 0.2s;">Voir tout</button>
-          </div>
-        </div>
-      `
-
-      const popup = new mapboxgl.Popup({
-        closeButton: true,
-        closeOnClick: false,
-        maxWidth: '280px',
-      }).setHTML(popupHTML)
-
+      // Pas de popup sur la carte (buggé/encombrant) : le détail vit sur la page 2.
+      // Clic sur un marqueur = zoom doux sur la commune + notifie le parent.
       el.onclick = () => {
         if (onSelectCommune) onSelectCommune(name)
-        mapRef.current?.flyTo({ center: coords, zoom: 13, pitch: 60, duration: 1500 })
+        mapRef.current?.flyTo({ center: coords, zoom: 12.5, pitch: 55, duration: 1400 })
       }
 
-      const marker = new mapboxgl.Marker({ element: el }).setLngLat(coords).setPopup(popup).addTo(mapRef.current)
+      const marker = new mapboxgl.Marker({ element: el }).setLngLat(coords).addTo(mapRef.current)
       markersRef.current.push(marker)
     }
   }, [communes, ready, onSelectCommune])

@@ -192,8 +192,29 @@ export default function DashboardPage() {
   }
   const liveMapData = Object.keys(mapBgData || {}).length > 0 ? mapBgData : (MOCK_MAP_COMMUNES as typeof mapBgData)
 
-  // Bascule carte ↔ détail en FONDU (au lieu d'un scroll narratif)
+  // Bascule carte ↔ détail en FONDU, déclenchée au SCROLL (molette) + boutons
   const [view, setView] = useState<'carte' | 'detail'>('carte')
+  const detailRef = useRef<HTMLDivElement | null>(null)
+  const scrollLockRef = useRef(false)
+  useEffect(() => {
+    const onWheel = (e: WheelEvent) => {
+      if (scrollLockRef.current) return
+      if (view === 'carte' && e.deltaY > 24) {
+        scrollLockRef.current = true
+        setView('detail')
+        setTimeout(() => { scrollLockRef.current = false }, 1000)
+      } else if (view === 'detail' && e.deltaY < -24) {
+        const d = detailRef.current
+        if (!d || d.scrollTop <= 2) {
+          scrollLockRef.current = true
+          setView('carte')
+          setTimeout(() => { scrollLockRef.current = false }, 1000)
+        }
+      }
+    }
+    window.addEventListener('wheel', onWheel, { passive: true })
+    return () => window.removeEventListener('wheel', onWheel)
+  }, [view])
 
   return (
     <div className="theme-carte flex h-screen overflow-hidden" style={{ background: 'var(--bg-base)' }}>
@@ -269,7 +290,7 @@ export default function DashboardPage() {
           </div>
 
           {/* ═══ PAGE 2 — LE DÉTAIL (couche en fondu) ═══ */}
-          <div className={`absolute inset-0 overflow-y-auto transition-opacity duration-700 ${view === 'detail' ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+          <div ref={detailRef} className={`absolute inset-0 overflow-y-auto transition-opacity duration-700 ${view === 'detail' ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
           <div className={`px-6 lg:px-8 py-10 max-w-[1500px] mx-auto flex flex-col gap-5 reveal-page ${view === 'detail' ? 'in-view' : ''}`}>
           <button onClick={() => setView('carte')} className="self-start inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-sm glass-panel cursor-pointer" style={{ color: 'var(--text-secondary)' }}>
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
