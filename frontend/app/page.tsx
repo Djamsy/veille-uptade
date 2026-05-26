@@ -192,6 +192,19 @@ export default function DashboardPage() {
   }
   const liveMapData = Object.keys(mapBgData || {}).length > 0 ? mapBgData : (MOCK_MAP_COMMUNES as typeof mapBgData)
 
+  // Anime la page 2 (détail) quand elle entre dans le viewport (scroll narratif)
+  const page2Ref = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    const el = page2Ref.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) el.classList.add('in-view') },
+      { threshold: 0.12 }
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+
   return (
     <div className="theme-carte flex h-screen overflow-hidden" style={{ background: 'var(--bg-base)' }}>
       <Sidebar />
@@ -203,39 +216,42 @@ export default function DashboardPage() {
         </div>
 
         {/* ── CONTENU flottant au-dessus de la carte ── */}
-        <div className="relative z-10 h-full overflow-y-auto">
-          <DashboardTopbar
-            lastRefresh={lastRefresh}
-            onRefresh={loadData}
-            onOpenBrief={openBrief}
-            refreshing={loading}
-            cycleId={cycleId}
-          />
+        <div className="snap-y relative z-10 h-full overflow-y-auto">
 
-          {error && (
-            <div className="mx-6 lg:mx-8 mt-4 px-4 py-3 text-xs glass-panel" style={{ color: 'var(--negative)' }}>
-              {error}
+          {/* ═══ PAGE 1 — LE TERRITOIRE (plein écran) ═══ */}
+          <section className="snap-page relative h-screen overflow-hidden">
+            {/* Scrim haut pour lisibilité de la topbar */}
+            <div className="absolute top-0 inset-x-0 h-44 pointer-events-none z-20" style={{ background: 'linear-gradient(180deg, rgba(6,18,25,0.9) 0%, rgba(6,18,25,0.3) 55%, transparent 100%)' }} />
+            {/* Topbar flottante sur la carte */}
+            <div className="absolute top-0 inset-x-0 z-30">
+              <DashboardTopbar
+                lastRefresh={lastRefresh}
+                onRefresh={loadData}
+                onOpenBrief={openBrief}
+                refreshing={loading}
+                cycleId={cycleId}
+              />
             </div>
-          )}
-
-          <div className="px-6 lg:px-8 pb-10 pt-2 max-w-[1500px] mx-auto flex flex-col gap-5">
-          {/* ═══ HERO : LE TERRITOIRE EST LE DASHBOARD (plein écran immersif) ═══ */}
-          <div className="relative reveal reveal-2" style={{ minHeight: 'calc(100vh - 150px)' }}>
-            {/* Carte : vraie 3D Mapbox si token présent, sinon SVG vectoriel (token-free) */}
+            {error && (
+              <div className="absolute top-44 left-6 z-30 px-4 py-2.5 text-xs glass-panel" style={{ color: 'var(--negative)' }}>
+                {error}
+              </div>
+            )}
+            {/* Carte plein écran : vraie 3D Mapbox si token, sinon SVG vectoriel (token-free) */}
             {hasMapbox ? (
-              <div className="absolute inset-0 rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+              <div className="absolute inset-0">
                 <MapboxFullMap communes={liveMapData} />
               </div>
             ) : (
-              <div className="absolute inset-0 flex items-center justify-center px-4">
-                <div className="relative w-full" style={{ maxWidth: 1080 }}>
+              <div className="absolute inset-0 flex items-center justify-center px-4 pt-20">
+                <div className="relative w-full" style={{ maxWidth: 1200 }}>
                   <GuadeloupeMap communeData={liveCommuneData} />
                 </div>
               </div>
             )}
 
             {/* Overlays — flottent sur la carte (Mapbox ou SVG) */}
-            <div className="glass-panel absolute top-6 left-6 p-3.5 w-[44%] max-w-[240px] z-10">
+            <div className="glass-panel absolute top-[150px] left-6 p-3.5 w-[44%] max-w-[240px] z-10 reveal reveal-2">
               <div className="font-mono text-[10px] uppercase tracking-[0.16em]" style={{ color: 'var(--text-muted)' }}>Climat média · 7j</div>
               <div className="text-base font-semibold mt-1.5 leading-tight" style={{ color: verdict.c }}>{verdict.t}</div>
               <div className="flex items-baseline gap-2 mt-1">
@@ -243,7 +259,7 @@ export default function DashboardPage() {
                 <span className="font-mono text-[10px] uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>BMG moyen</span>
               </div>
             </div>
-            <div className="glass-panel absolute top-6 right-6 p-3.5 w-[44%] max-w-[240px] text-right z-10">
+            <div className="glass-panel absolute top-[150px] right-6 p-3.5 w-[44%] max-w-[240px] text-right z-10 reveal reveal-2">
               <div className="font-mono text-[10px] uppercase tracking-[0.16em]" style={{ color: 'var(--text-muted)' }}>971 · Territoire</div>
               <div className="flex items-baseline gap-2 mt-1 justify-end">
                 <span className="text-3xl font-semibold tabular-data leading-none" style={{ color: 'var(--text)' }}>{communesActives}</span>
@@ -260,9 +276,10 @@ export default function DashboardPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
               </svg>
             </div>
-          </div>
+          </section>
 
-          {/* ── COLLECTIVITÉ + CLIMAT — réponse prioritaire au job ── */}
+          {/* ═══ PAGE 2 — LE DÉTAIL (animé à l'entrée dans le viewport) ═══ */}
+          <section ref={page2Ref} className="snap-page reveal-page min-h-screen px-6 lg:px-8 py-14 max-w-[1500px] mx-auto flex flex-col gap-5">
           <CollectiviteHero
             avgBmg={liveBmg}
             trendPct={trends?.articles_trend_pct != null ? Math.round(trends.articles_trend_pct) : undefined}
@@ -271,7 +288,7 @@ export default function DashboardPage() {
           />
 
           {/* ── KPI STRIP — opérationnel, scannable (secondaire) ── */}
-          <div className="reveal reveal-3">
+          <div>
           <KpiStrip
             isMock={isMockKpis}
             kpis={[
@@ -307,8 +324,8 @@ export default function DashboardPage() {
           />
           </div>
 
-          {/* ── 2-COL : Carte+Baromètre / Flux+Personnalités ── */}
-          <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-5 reveal reveal-4">
+          {/* ── 2-COL : Baromètre / Flux+Personnalités ── */}
+          <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-5">
             <section className="flex flex-col gap-5 min-w-0">
               {/* La carte est désormais le FOND plein écran. Ici : le baromètre. */}
               {loading ? (
@@ -358,7 +375,7 @@ export default function DashboardPage() {
               </div>
             </aside>
           </div>
-        </div>
+          </section>
         </div>
 
         {/* ── Notifications toast ── */}
