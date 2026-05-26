@@ -261,23 +261,7 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Overlays — flottent sur la carte (Mapbox ou SVG) */}
-            <div className="glass-panel absolute top-[150px] left-6 p-3.5 w-[44%] max-w-[240px] z-10 reveal reveal-2">
-              <div className="font-mono text-[10px] uppercase tracking-[0.16em]" style={{ color: 'var(--text-muted)' }}>Climat média · 7j</div>
-              <div className="text-base font-semibold mt-1.5 leading-tight" style={{ color: verdict.c }}>{verdict.t}</div>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-3xl font-semibold tabular-data leading-none" style={{ color: 'var(--text)' }}>{bmg100}</span>
-                <span className="font-mono text-[10px] uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>BMG moyen</span>
-              </div>
-            </div>
-            <div className="glass-panel absolute top-[150px] right-6 p-3.5 w-[44%] max-w-[240px] text-right z-10 reveal reveal-2">
-              <div className="font-mono text-[10px] uppercase tracking-[0.16em]" style={{ color: 'var(--text-muted)' }}>971 · Territoire</div>
-              <div className="flex items-baseline gap-2 mt-1 justify-end">
-                <span className="text-3xl font-semibold tabular-data leading-none" style={{ color: 'var(--text)' }}>{communesActives}</span>
-                <span className="font-mono text-[10px] uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>communes actives</span>
-              </div>
-              <div className="font-mono text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>Carte en direct</div>
-            </div>
+            {/* (Climat / BMG moyen + Territoire / communes actives → déplacés sur la page 2) */}
 
             {/* Fondu vers la partie 2 — haut et marqué pour dissoudre visiblement la carte */}
             <div className="absolute bottom-0 left-0 right-0 h-64 pointer-events-none z-10" style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(10,26,36,0.55) 45%, var(--bg-base) 88%)' }} />
@@ -296,6 +280,27 @@ export default function DashboardPage() {
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
             Retour à la carte
           </button>
+
+          {/* ── Synthèse territoire (déplacée depuis la carte) ── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div className="elev-card p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+              <div className="font-mono text-[10px] uppercase tracking-[0.16em]" style={{ color: 'var(--text-muted)' }}>Climat média · 7j</div>
+              <div className="text-lg font-semibold mt-1.5 leading-tight" style={{ color: verdict.c }}>{verdict.t}</div>
+              <div className="flex items-baseline gap-2 mt-2">
+                <span className="text-4xl font-semibold tabular-data leading-none" style={{ color: 'var(--text)' }}>{bmg100}</span>
+                <span className="font-mono text-[10px] uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>BMG moyen</span>
+              </div>
+            </div>
+            <div className="elev-card p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+              <div className="font-mono text-[10px] uppercase tracking-[0.16em]" style={{ color: 'var(--text-muted)' }}>971 · Territoire</div>
+              <div className="flex items-baseline gap-2 mt-2">
+                <span className="text-4xl font-semibold tabular-data leading-none" style={{ color: 'var(--text)' }}>{communesActives}</span>
+                <span className="font-mono text-[10px] uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>communes actives</span>
+              </div>
+              <div className="font-mono text-[10px] mt-2" style={{ color: 'var(--text-muted)' }}>Carte en direct</div>
+            </div>
+          </div>
+
           <CollectiviteHero
             avgBmg={liveBmg}
             trendPct={trends?.articles_trend_pct != null ? Math.round(trends.articles_trend_pct) : undefined}
