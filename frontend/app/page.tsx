@@ -223,7 +223,7 @@ export default function DashboardPage() {
               />
             </div>
             {error && (
-              <div className="absolute top-44 left-6 z-30 px-4 py-2.5 text-xs glass-panel" style={{ color: 'var(--negative)' }}>
+              <div className="absolute top-[150px] left-1/2 -translate-x-1/2 z-30 px-4 py-2.5 text-xs glass-panel max-w-[36%] text-center" style={{ color: 'var(--negative)' }}>
                 {error}
               </div>
             )}
