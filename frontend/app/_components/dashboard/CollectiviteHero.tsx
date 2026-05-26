@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { fetchAffairsByInstitution, type Affair } from '../../../lib/api'
 import { MOCK_AFFAIRS } from './mocks'
@@ -41,6 +41,16 @@ function isNegative(s?: string): boolean {
   return !!s && /neg|négat|negative/i.test(s)
 }
 
+// Entités citées par une affaire (entités + élus + institutions + entité principale)
+function affairEntities(a: Affair): string[] {
+  return Array.from(new Set([
+    ...(a.entities || []),
+    ...(a.elected || []),
+    ...(a.institutions || []),
+    ...(a.primary_entity ? [a.primary_entity] : []),
+  ].filter(Boolean)))
+}
+
 // ── Verdict climat — calculé sur du signal RÉEL ─────────────
 function climatVerdict(avgBmg: number): { text: string; color: string } {
   if (avgBmg >= 0.6) return { text: 'Climat tendu', color: 'var(--negative)' }
@@ -64,6 +74,7 @@ export function CollectiviteHero({ avgBmg, trendPct, sentimentDist, isMock }: Pr
   const [loading, setLoading] = useState(true)
   const [errored, setErrored] = useState(false)
   const [isMockData, setIsMockData] = useState(false)
+  const [selectedEntity, setSelectedEntity] = useState<string | null>(null)
 
   // Restaure le choix de collectivité
   useEffect(() => {
@@ -80,6 +91,7 @@ export function CollectiviteHero({ avgBmg, trendPct, sentimentDist, isMock }: Pr
     setLoading(true)
     setErrored(false)
     setIsMockData(false)
+    setSelectedEntity(null)
     try {
       const res = await fetchAffairsByInstitution(institution)
       const all = Object.values(res.groups || {}).flatMap(g => g.affairs || [])
@@ -103,9 +115,24 @@ export function CollectiviteHero({ avgBmg, trendPct, sentimentDist, isMock }: Pr
   useEffect(() => { load() }, [load])
 
   const meta = INSTITUTION_META[institution]
-  const negCount = affairs.filter(a => isNegative(a.sentiment)).length
   const verdict = climatVerdict(avgBmg)
   const bmg100 = Math.round(avgBmg * 100)
+
+  // Entités citées (top 6 par fréquence) → chips de filtre
+  const entityCounts = useMemo(() => {
+    const m = new Map<string, number>()
+    affairs.forEach(a => affairEntities(a).forEach(e => m.set(e, (m.get(e) || 0) + 1)))
+    return [...m.entries()].sort((x, y) => y[1] - x[1]).slice(0, 6)
+  }, [affairs])
+
+  // Filtrage par entité sélectionnée
+  const filteredAffairs = selectedEntity
+    ? affairs.filter(a => affairEntities(a).includes(selectedEntity))
+    : affairs
+  const displayCount = selectedEntity ? filteredAffairs.length : totalMatched
+  const negCount = filteredAffairs.filter(a => isNegative(a.sentiment)).length
+  const filteredMaxG = filteredAffairs.reduce((mx, a) => Math.max(mx, a.gravity_score || 0), 0)
+  const effMaxG = selectedEntity ? filteredMaxG : maxGravity
 
   // Répartition sentiment (réelle) pour la barre
   const sTotal = Object.values(sentimentDist).reduce((s, n) => s + (n || 0), 0) || 1
@@ -119,7 +146,7 @@ export function CollectiviteHero({ avgBmg, trendPct, sentimentDist, isMock }: Pr
       {/* ════ ON PARLE DE VOUS — bloc prioritaire ════ */}
       <article
         className="flex flex-col p-5 backdrop-blur-md elev-card"
-        style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderLeft: `3px solid ${gravityColor(maxGravity)}`, borderRadius: 'var(--radius)' }}
+        style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderLeft: `3px solid ${gravityColor(effMaxG)}`, borderRadius: 'var(--radius)' }}
       >
         <div className="flex items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2 min-w-0">
@@ -169,17 +196,17 @@ export function CollectiviteHero({ avgBmg, trendPct, sentimentDist, isMock }: Pr
         ) : (
           <>
             <div className="flex items-end gap-3 flex-wrap">
-              <span className="font-serif text-5xl lg:text-6xl font-semibold tabular-data leading-none" style={{ color: gravityColor(maxGravity) }}>
-                {totalMatched}
+              <span className="font-serif text-5xl lg:text-6xl font-semibold tabular-data leading-none" style={{ color: gravityColor(effMaxG) }}>
+                {displayCount}
               </span>
               <span className="font-mono text-[11px] uppercase tracking-[0.12em] pb-1.5" style={{ color: 'var(--text-muted)' }}>
-                affaires vous<br />concernant
+                {selectedEntity ? <>affaires citant<br />cette entité</> : <>affaires vous<br />concernant</>}
               </span>
               <span
                 className="ml-auto font-mono text-[10px] uppercase tracking-[0.12em] px-2 py-1 rounded-sm self-end"
-                style={{ background: 'var(--bg-elevated)', color: gravityColor(maxGravity), border: `1px solid var(--border)` }}
+                style={{ background: 'var(--bg-elevated)', color: gravityColor(effMaxG), border: `1px solid var(--border)` }}
               >
-                Gravité max · {gravityLabel(maxGravity)}
+                Gravité max · {gravityLabel(effMaxG)}
               </span>
             </div>
 
@@ -189,9 +216,47 @@ export function CollectiviteHero({ avgBmg, trendPct, sentimentDist, isMock }: Pr
               </p>
             )}
 
-            {/* Dernières citations */}
+            {/* Filtre par entité (élus, institutions, personnalités citées) */}
+            {entityCounts.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 mt-4">
+                <span className="font-mono text-[9px] uppercase tracking-[0.14em] mr-0.5 shrink-0" style={{ color: 'var(--text-muted)' }}>
+                  Entité
+                </span>
+                <button
+                  onClick={() => setSelectedEntity(null)}
+                  className="font-mono text-[10px] px-2 py-0.5 rounded-sm transition-colors cursor-pointer"
+                  style={{
+                    background: !selectedEntity ? 'var(--accent-press)' : 'var(--bg-elevated)',
+                    color: !selectedEntity ? 'var(--on-accent)' : 'var(--text-secondary)',
+                    border: '1px solid var(--border)',
+                  }}
+                >
+                  Toutes
+                </button>
+                {entityCounts.map(([e, n]) => {
+                  const active = selectedEntity === e
+                  return (
+                    <button
+                      key={e}
+                      onClick={() => setSelectedEntity(s => (s === e ? null : e))}
+                      title={`${e} — ${n} affaire(s)`}
+                      className="font-mono text-[10px] px-2 py-0.5 rounded-sm transition-colors truncate max-w-[150px] cursor-pointer"
+                      style={{
+                        background: active ? 'var(--accent-press)' : 'var(--bg-elevated)',
+                        color: active ? 'var(--on-accent)' : 'var(--text-secondary)',
+                        border: '1px solid var(--border)',
+                      }}
+                    >
+                      {e} · {n}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Dernières citations (filtrées) */}
             <div className="mt-4 pt-4 space-y-2.5" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-              {affairs.slice(0, 3).map(a => (
+              {filteredAffairs.slice(0, 3).map(a => (
                 <Link key={a._id} href={`/affairs/${a._id}`} className="flex gap-2.5 group">
                   <span className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background: gravityColor(a.gravity_score) }} />
                   <span className="flex-1 min-w-0">
@@ -204,9 +269,9 @@ export function CollectiviteHero({ avgBmg, trendPct, sentimentDist, isMock }: Pr
                   </span>
                 </Link>
               ))}
-              {affairs.length === 0 && (
+              {filteredAffairs.length === 0 && (
                 <p className="font-serif text-sm italic py-1" style={{ color: 'var(--text-secondary)' }}>
-                  Aucune affaire ne mentionne votre collectivité sur la période.
+                  {selectedEntity ? 'Aucune affaire pour cette entité.' : 'Aucune affaire ne mentionne votre collectivité sur la période.'}
                 </p>
               )}
             </div>
