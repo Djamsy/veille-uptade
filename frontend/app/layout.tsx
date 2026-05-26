@@ -37,7 +37,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
-  themeColor: '#fafafa',
+  themeColor: '#0A1A24',
 }
 
 export const metadata: Metadata = {
@@ -79,7 +79,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.css"
         />
       </head>
-      <body className="font-sans antialiased" style={{ background: '#fafafa', color: '#18181b' }}>
+      <body className="theme-carte font-sans antialiased" style={{ background: '#0A1A24', color: '#EAF4F2' }}>
         <ServiceWorkerRegistration />
         <ClientLayout>{children}</ClientLayout>
       </body>
