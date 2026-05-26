@@ -82,39 +82,47 @@ const ICON = {
   ),
 }
 
+// IA orientée JOB (pas par type de données) :
+// Surveiller (le pouls) → Ma collectivité (le job n°1) → Sources → Partager → Système
 const SECTIONS: NavSection[] = [
   {
-    id: 'veille',
-    label: 'Veille',
+    id: 'surveiller',
+    label: 'Surveiller',
     items: [
-      { href: '/', label: 'Dashboard', icon: ICON.dashboard },
+      { href: '/', label: 'Vue d’ensemble', icon: ICON.dashboard },
+      { href: '/affairs', label: 'Affaires', icon: ICON.affairs },
+      { href: '/carte', label: 'Carte', icon: ICON.carte },
+      { href: '/elections', label: 'Élections', icon: ICON.elections },
+    ],
+  },
+  {
+    id: 'collectivite',
+    label: 'Ma collectivité',
+    items: [
+      { href: '/departement', label: 'Département', icon: ICON.departement },
+      { href: '/region', label: 'Région', icon: ICON.region },
+    ],
+  },
+  {
+    id: 'sources',
+    label: 'Sources',
+    items: [
       { href: '/articles', label: 'Articles', icon: ICON.articles },
       { href: '/radio', label: 'Radio', icon: ICON.radio },
       { href: '/social', label: 'Réseaux sociaux', icon: ICON.social, adminOnly: true },
     ],
   },
   {
-    id: 'territoire',
-    label: 'Territoire',
+    id: 'partager',
+    label: 'Analyser & partager',
     items: [
-      { href: '/carte', label: 'Carte', icon: ICON.carte },
-      { href: '/elections', label: 'Élections', icon: ICON.elections },
-      { href: '/departement', label: 'Département', icon: ICON.departement },
-      { href: '/region', label: 'Région', icon: ICON.region },
-    ],
-  },
-  {
-    id: 'analyse',
-    label: 'Analyse',
-    items: [
-      { href: '/affairs', label: 'Affaires', icon: ICON.affairs },
       { href: '/analytics', label: 'Analytics', icon: ICON.analytics },
       { href: '/briefing', label: 'Briefing', icon: ICON.briefing },
     ],
   },
   {
     id: 'admin',
-    label: 'Admin',
+    label: 'Système',
     items: [
       { href: '/admin', label: 'Admin', icon: ICON.admin, adminOnly: true },
     ],
