@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Sidebar from '../../components/Sidebar'
 import { fetchAffairs, type Affair } from '../../lib/api'
 import { timeAgo, themeLabel } from '../../lib/formatters'
+import { ShareAffairButton } from '../_components/ShareAffairButton'
 import { gravityColor, gravityLabel, sentimentBucket, SENTIMENT_STYLE } from '../../lib/scales'
 
 type Priority = 'hot' | 'watch' | 'minor'
@@ -227,8 +228,11 @@ function AffaireCard({ a }: { a: Affair }) {
           className="mt-auto flex items-center justify-between pl-[18px] pr-4 py-2.5 font-mono text-[11px]"
           style={{ borderTop: '1px solid var(--border-subtle)', color: 'var(--text-muted)' }}
         >
-          <span style={{ color: 'var(--text-secondary)' }} className="font-sans truncate max-w-[60%]">{loc}</span>
-          <span className="tabular-nums">{a.item_count || 0} items · {(a.sources || []).length} src · {timeAgo(a.last_activity || a.created_at)}</span>
+          <span style={{ color: 'var(--text-secondary)' }} className="font-sans truncate max-w-[48%]">{loc}</span>
+          <span className="flex items-center gap-2 shrink-0">
+            <span className="tabular-nums">{a.item_count || 0} items · {(a.sources || []).length} src · {timeAgo(a.last_activity || a.created_at)}</span>
+            <ShareAffairButton affairId={a._id} compact />
+          </span>
         </div>
       </article>
     </Link>

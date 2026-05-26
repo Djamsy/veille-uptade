@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Sidebar from '../../../components/Sidebar'
+import { ShareAffairButton } from '../../_components/ShareAffairButton'
 import {
   fetchAffairDetail,
   recalculateBmg,
@@ -188,6 +189,7 @@ export default function AffairDetailPage() {
                 </div>
               </div>
               <div className="flex gap-2">
+                <ShareAffairButton affairId={id} />
                 <button
                   onClick={handleRecalcBmg}
                   disabled={busy === 'bmg'}
