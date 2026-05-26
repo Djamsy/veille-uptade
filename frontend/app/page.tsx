@@ -205,9 +205,9 @@ export default function DashboardPage() {
           )}
 
           <div className="px-6 lg:px-8 pb-10 pt-2 max-w-[1500px] mx-auto flex flex-col gap-5">
-          {/* ═══ HERO : LE TERRITOIRE EST LE DASHBOARD ═══ */}
-          <div className="relative reveal reveal-2">
-            <div className="relative mx-auto w-full" style={{ maxWidth: 940 }}>
+          {/* ═══ HERO : LE TERRITOIRE EST LE DASHBOARD (plein écran immersif) ═══ */}
+          <div className="relative reveal reveal-2 flex items-center justify-center" style={{ minHeight: 'calc(100vh - 150px)' }}>
+            <div className="relative mx-auto w-full" style={{ maxWidth: 1080 }}>
               <GuadeloupeMap communeData={liveCommuneData} />
               {/* Climat — overlay sur l'océan, coin haut-gauche */}
               <div className="glass-panel absolute top-3 left-3 p-3.5 w-[42%] max-w-[240px]">
