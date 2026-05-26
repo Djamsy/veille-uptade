@@ -16,6 +16,7 @@ import { TopPersonalities } from './_components/dashboard/TopPersonalities'
 import { MapboxFullMap } from './_components/dashboard/MapboxFullMap'
 import { DashboardTopbar } from './_components/dashboard/DashboardTopbar'
 import { KpiStrip } from './_components/dashboard/KpiStrip'
+import { CollectiviteHero } from './_components/dashboard/CollectiviteHero'
 import { LiveFeed } from './_components/dashboard/LiveFeed'
 import { BarometreCard } from './_components/dashboard/BarometreCard'
 import {
@@ -165,7 +166,15 @@ export default function DashboardPage() {
         )}
 
         <div className="px-6 lg:px-8 py-6 max-w-[1700px] mx-auto flex flex-col gap-5">
-          {/* ── KPI STRIP — vue scannable en 2 sec ── */}
+          {/* ── COLLECTIVITÉ + CLIMAT — réponse prioritaire au job ── */}
+          <CollectiviteHero
+            avgBmg={liveBmg}
+            trendPct={trends?.articles_trend_pct != null ? Math.round(trends.articles_trend_pct) : undefined}
+            sentimentDist={liveSentiment}
+            isMock={isMockKpis}
+          />
+
+          {/* ── KPI STRIP — opérationnel, scannable (secondaire) ── */}
           <div className="reveal reveal-3">
           <KpiStrip
             isMock={isMockKpis}
@@ -230,7 +239,7 @@ export default function DashboardPage() {
                     {Object.keys(mapBgData || {}).length} communes actives
                   </span>
                 </div>
-                <div className="relative" style={{ height: 600 }}>
+                <div className="relative" style={{ height: 440 }}>
                   <MapboxFullMap communes={mapBgData} />
                 </div>
               </div>
