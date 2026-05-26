@@ -192,18 +192,8 @@ export default function DashboardPage() {
   }
   const liveMapData = Object.keys(mapBgData || {}).length > 0 ? mapBgData : (MOCK_MAP_COMMUNES as typeof mapBgData)
 
-  // Anime la page 2 (détail) quand elle entre dans le viewport (scroll narratif)
-  const page2Ref = useRef<HTMLElement | null>(null)
-  useEffect(() => {
-    const el = page2Ref.current
-    if (!el) return
-    const io = new IntersectionObserver(
-      ([e]) => { if (e.isIntersecting) el.classList.add('in-view') },
-      { threshold: 0.12 }
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [])
+  // Bascule carte ↔ détail en FONDU (au lieu d'un scroll narratif)
+  const [view, setView] = useState<'carte' | 'detail'>('carte')
 
   return (
     <div className="theme-carte flex h-screen overflow-hidden" style={{ background: 'var(--bg-base)' }}>
@@ -216,10 +206,10 @@ export default function DashboardPage() {
         </div>
 
         {/* ── CONTENU flottant au-dessus de la carte ── */}
-        <div className="snap-y relative z-10 h-full overflow-y-auto">
+        <div className="relative z-10 h-full">
 
-          {/* ═══ PAGE 1 — LE TERRITOIRE (plein écran) ═══ */}
-          <section className="snap-page relative h-screen overflow-hidden">
+          {/* ═══ PAGE 1 — LE TERRITOIRE (couche en fondu) ═══ */}
+          <div className={`absolute inset-0 overflow-hidden transition-opacity duration-700 ${view === 'carte' ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
             {/* Scrim haut pour lisibilité de la topbar */}
             <div className="absolute top-0 inset-x-0 h-44 pointer-events-none z-20" style={{ background: 'linear-gradient(180deg, rgba(6,18,25,0.9) 0%, rgba(6,18,25,0.3) 55%, transparent 100%)' }} />
             {/* Topbar flottante sur la carte */}
@@ -270,16 +260,21 @@ export default function DashboardPage() {
 
             {/* Fondu vers la partie 2 — haut et marqué pour dissoudre visiblement la carte */}
             <div className="absolute bottom-0 left-0 right-0 h-64 pointer-events-none z-10" style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(10,26,36,0.55) 45%, var(--bg-base) 88%)' }} />
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center scroll-cue pointer-events-none">
-              <span className="font-mono text-[10px] uppercase tracking-[0.16em] mb-1" style={{ color: 'var(--text-muted)' }}>Le détail</span>
+            <button onClick={() => setView('detail')} className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center scroll-cue cursor-pointer">
+              <span className="font-mono text-[10px] uppercase tracking-[0.16em] mb-1" style={{ color: 'var(--text-secondary)' }}>Voir le détail</span>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" style={{ color: 'var(--text-secondary)' }}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
               </svg>
-            </div>
-          </section>
+            </button>
+          </div>
 
-          {/* ═══ PAGE 2 — LE DÉTAIL (animé à l'entrée dans le viewport) ═══ */}
-          <section ref={page2Ref} className="snap-page reveal-page min-h-screen px-6 lg:px-8 py-14 max-w-[1500px] mx-auto flex flex-col gap-5">
+          {/* ═══ PAGE 2 — LE DÉTAIL (couche en fondu) ═══ */}
+          <div className={`absolute inset-0 overflow-y-auto transition-opacity duration-700 ${view === 'detail' ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+          <div className={`px-6 lg:px-8 py-10 max-w-[1500px] mx-auto flex flex-col gap-5 reveal-page ${view === 'detail' ? 'in-view' : ''}`}>
+          <button onClick={() => setView('carte')} className="self-start inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-sm glass-panel cursor-pointer" style={{ color: 'var(--text-secondary)' }}>
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+            Retour à la carte
+          </button>
           <CollectiviteHero
             avgBmg={liveBmg}
             trendPct={trends?.articles_trend_pct != null ? Math.round(trends.articles_trend_pct) : undefined}
@@ -375,7 +370,8 @@ export default function DashboardPage() {
               </div>
             </aside>
           </div>
-          </section>
+          </div>
+          </div>
         </div>
 
         {/* ── Notifications toast ── */}
