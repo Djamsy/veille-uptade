@@ -457,6 +457,11 @@ html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
   --shadow-elevated: 0 2px 6px rgba(0, 0, 0, 0.5), 0 12px 30px rgba(0, 0, 0, 0.45), 0 30px 72px rgba(0, 0, 0, 0.5);
   --rim-light: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 
+  /* Rayons plus arrondis (look immersif, moins éditorial-carré) */
+  --radius: 14px;
+  --radius-sm: 10px;
+  --radius-lg: 20px;
+
   /* Typo — Manrope (UI/display) + IBM Plex Mono pour la data */
   --font-sans: var(--font-manrope), 'Manrope', system-ui, sans-serif;
   --font-serif: var(--font-manrope), 'Manrope', system-ui, sans-serif;
@@ -473,7 +478,7 @@ html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
 .glass-panel {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   backdrop-filter: blur(16px) saturate(1.25);
   -webkit-backdrop-filter: blur(16px) saturate(1.25);
   box-shadow: var(--shadow-elevated), var(--rim-light);
@@ -497,6 +502,16 @@ html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
   background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.05) 75%);
   background-size: 200% 100%;
 }
+/* Rayons : chips/boutons/onglets en rounded-sm (2px, trop carrés) → plus arrondis.
+   (.theme-carte .rounded-sm bat l'utilitaire Tailwind par spécificité) */
+.theme-carte .rounded-sm { border-radius: 9px; }
+
+/* ── Transition de navigation entre pages (App Router template.tsx) ── */
+@keyframes routeEnter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.route-enter { animation: routeEnter 0.42s var(--ease-out); }
 
 /* Indice de scroll — chevron qui invite à descendre vers la partie 2 */
 @keyframes scrollCue {
