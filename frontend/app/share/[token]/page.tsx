@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { fetchSharedAffair } from '../../../lib/api'
+import { GuadeloupeMark } from '../../../components/GuadeloupeMark'
 import { themeLabel } from '../../../lib/formatters'
 import { gravityColor as gaugeColor, sentimentBucket, SENTIMENT_STYLE } from '../../../lib/scales'
 
@@ -40,7 +41,7 @@ export default function SharedAffairPage() {
     return (
       <div className="min-h-screen flex items-center justify-center px-6" style={{ background: 'var(--bg-base)' }}>
         <div
-          className="p-8 max-w-md text-center"
+          className="p-8 max-w-md text-center elev-card"
           style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}
         >
           <div className="font-mono text-[10px] uppercase tracking-[0.18em] mb-3" style={{ color: 'var(--negative)' }}>
@@ -63,33 +64,40 @@ export default function SharedAffairPage() {
   const sentS = SENT_STYLE[sentimentKind(affair.sentiment)]
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg-base)', color: 'var(--text)' }}>
+    <div className="relative min-h-screen overflow-hidden" style={{ background: 'var(--bg-base)', color: 'var(--text)' }}>
+      {/* Signature Carte vivante — papillon en filigrane */}
+      <GuadeloupeMark
+        className="pointer-events-none absolute -right-24 -top-12 w-[460px] h-auto hidden md:block"
+        stroke="#1FB6A6"
+        style={{ opacity: 0.04 }}
+      />
       {/* Header */}
-      <header style={{ borderBottom: '1px solid var(--border)' }}>
+      <header className="relative z-10" style={{ borderBottom: '1px solid var(--border)' }}>
         <div className="max-w-5xl mx-auto px-6 py-5">
           <div className="flex items-center gap-3">
             <div
-              className="w-10 h-10 rounded-md flex items-center justify-center"
-              style={{ background: 'var(--brand-gradient)' }}
+              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+              style={{ background: 'var(--brand-gradient)', boxShadow: 'var(--shadow-card)' }}
             >
-              <span className="font-serif text-sm font-semibold text-white">VM</span>
+              <span className="text-sm font-bold" style={{ color: 'var(--on-accent)' }}>VM</span>
             </div>
             <div>
               <div className="font-mono text-[10px] uppercase tracking-[0.18em]" style={{ color: 'var(--text-muted)' }}>
                 Veille Média Guadeloupe
               </div>
-              <div className="font-serif text-sm font-semibold tracking-tight" style={{ color: 'var(--text)' }}>
+              <div className="text-sm font-semibold tracking-tight" style={{ color: 'var(--text)' }}>
                 Consultation publique
               </div>
             </div>
+            <div className="flag-stripe w-12 ml-auto" />
           </div>
         </div>
       </header>
 
-      <div className="max-w-5xl mx-auto px-6 py-8 space-y-5">
+      <div className="relative z-10 max-w-5xl mx-auto px-6 py-8 space-y-5">
         {/* Title block */}
         <div
-          className="p-6"
+          className="p-6 elev-card"
           style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}
         >
           <div className="flex items-start gap-6 flex-wrap">
@@ -157,7 +165,7 @@ export default function SharedAffairPage() {
                 <span
                   key={e}
                   className="text-[10px] font-medium px-1.5 py-0.5 rounded-sm"
-                  style={{ background: 'var(--info-soft)', color: '#2f5680', border: '1px solid #d3dde9' }}
+                  style={{ background: 'var(--info-soft)', color: 'var(--accent-link)', border: '1px solid var(--border)' }}
                 >
                   {e}
                 </span>
