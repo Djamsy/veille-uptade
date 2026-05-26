@@ -122,7 +122,7 @@ export function CollectiviteHero({ avgBmg, trendPct, sentimentDist, isMock }: Pr
   const entityCounts = useMemo(() => {
     const m = new Map<string, number>()
     affairs.forEach(a => affairEntities(a).forEach(e => m.set(e, (m.get(e) || 0) + 1)))
-    return [...m.entries()].sort((x, y) => y[1] - x[1]).slice(0, 6)
+    return Array.from(m.entries()).sort((x, y) => y[1] - x[1]).slice(0, 6)
   }, [affairs])
 
   // Filtrage par entité sélectionnée
