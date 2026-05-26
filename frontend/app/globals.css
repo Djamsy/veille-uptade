@@ -391,6 +391,15 @@ html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
   span a, p a, .text-link { min-height: auto; display: inline; }
 }
 
+/* ── Desktop large (≥1280px) : sidebar étendue en permanence ──
+   Labels visibles, plus d'overlay au survol qui recouvre le contenu.
+   Le contenu (.lg\:ml-16) est décalé à 220px pour rester aligné. */
+@media (min-width: 1280px) {
+  .icon-sidebar { width: 220px; }
+  .icon-sidebar .nav-label { opacity: 1; width: auto; }
+  .lg\:ml-16 { margin-left: 220px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

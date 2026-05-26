@@ -119,7 +119,7 @@ export function CollectiviteHero({ avgBmg, trendPct, sentimentDist, isMock }: Pr
       {/* ════ ON PARLE DE VOUS — bloc prioritaire ════ */}
       <article
         className="flex flex-col p-5"
-        style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}
+        style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderLeft: `3px solid ${gravityColor(maxGravity)}`, borderRadius: 'var(--radius)' }}
       >
         <div className="flex items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2 min-w-0">
@@ -169,7 +169,7 @@ export function CollectiviteHero({ avgBmg, trendPct, sentimentDist, isMock }: Pr
         ) : (
           <>
             <div className="flex items-end gap-3 flex-wrap">
-              <span className="font-serif text-5xl lg:text-6xl font-semibold tabular-data leading-none" style={{ color: 'var(--text)' }}>
+              <span className="font-serif text-5xl lg:text-6xl font-semibold tabular-data leading-none" style={{ color: gravityColor(maxGravity) }}>
                 {totalMatched}
               </span>
               <span className="font-mono text-[11px] uppercase tracking-[0.12em] pb-1.5" style={{ color: 'var(--text-muted)' }}>

@@ -24,34 +24,29 @@ function trendArrow(delta: number) {
   return '→'
 }
 
-function Cell({ kpi }: { kpi: Kpi }) {
+function Cell({ kpi, last }: { kpi: Kpi; last?: boolean }) {
   const isCrit = kpi.severity === 'crit'
   return (
     <div
-      className="p-4 transition-colors hover:bg-ink-100"
-      style={{
-        background: 'var(--bg-surface)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius)',
-        borderColor: isCrit ? '#f5d4d9' : 'var(--border)',
-      }}
+      className="flex-1 min-w-[150px] px-4 py-3 transition-colors hover:bg-ink-100"
+      style={{ borderRight: last ? 'none' : '1px solid var(--border-subtle)' }}
     >
       <div
-        className="font-mono text-[10px] uppercase tracking-[0.14em] mb-2"
+        className="font-mono text-[10px] uppercase tracking-[0.14em]"
         style={{ color: isCrit ? 'var(--negative)' : 'var(--text-muted)' }}
       >
         {kpi.label}
       </div>
-      <div className="flex items-baseline gap-2.5">
+      <div className="flex items-baseline gap-2 mt-1">
         <span
-          className="font-serif text-4xl lg:text-5xl font-semibold tabular-data leading-none"
+          className="font-serif text-2xl font-semibold tabular-data leading-none"
           style={{ color: isCrit ? 'var(--negative)' : 'var(--text)' }}
         >
           {kpi.value}
         </span>
         {kpi.trend && (
           <span
-            className="font-mono text-xs tabular-nums"
+            className="font-mono text-[11px] tabular-nums"
             style={{ color: trendColor(kpi.trend.delta, kpi.severity, kpi.goodDirection) }}
           >
             {trendArrow(kpi.trend.delta)} {kpi.trend.delta > 0 ? '+' : ''}{kpi.trend.delta}{kpi.trend.period ? ` ${kpi.trend.period}` : ''}
@@ -64,18 +59,19 @@ function Cell({ kpi }: { kpi: Kpi }) {
 
 export function KpiStrip({ kpis, isMock }: { kpis: Kpi[]; isMock?: boolean }) {
   return (
-    <div className="relative">
+    <div
+      className="relative flex flex-wrap items-stretch overflow-hidden"
+      style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}
+    >
+      {kpis.map((k, i) => <Cell key={k.label} kpi={k} last={i === kpis.length - 1} />)}
       {isMock && (
         <span
-          className="absolute -top-2 right-0 font-mono text-[9px] uppercase tracking-[0.12em] px-1 py-0.5 rounded-sm z-10"
+          className="absolute top-1.5 right-2 font-mono text-[9px] uppercase tracking-[0.12em] px-1 py-0.5 rounded-sm z-10"
           style={{ background: 'var(--warn-soft)', color: '#9d551f', border: '1px solid #f3dcc5' }}
         >
           Aperçu
         </span>
       )}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {kpis.map(k => <Cell key={k.label} kpi={k} />)}
-      </div>
     </div>
   )
 }
