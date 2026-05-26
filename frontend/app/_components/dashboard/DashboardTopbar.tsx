@@ -31,15 +31,18 @@ export function DashboardTopbar({ lastRefresh, onRefresh, onOpenBrief, refreshin
 
   return (
     <header
-      className="relative px-6 lg:px-8 pt-5 pb-5 overflow-hidden"
+      className="relative px-6 lg:px-8 pt-5 pb-5"
       style={{ borderBottom: '1px solid var(--border)' }}
     >
-      {/* Signature visuelle — silhouette du papillon en filigrane */}
-      <GuadeloupeMark
-        className="hidden lg:block pointer-events-none absolute -right-6 bottom-0 w-[300px] h-auto"
-        stroke="#18181b"
-        style={{ opacity: 0.05 }}
-      />
+      {/* Watermark clippé dans SON propre conteneur — ne peut jamais rogner le titre.
+         (le header n'a plus overflow-hidden, donc la masthead ne sera jamais coupée) */}
+      <div className="hidden lg:block absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
+        <GuadeloupeMark
+          className="absolute -right-6 bottom-0 w-[300px] h-auto"
+          stroke="#18181b"
+          style={{ opacity: 0.05 }}
+        />
+      </div>
       <div className="relative">
         {/* Barre utilitaire : indicatif à gauche, actions à droite — libère la masthead */}
         <div className="flex items-start justify-between gap-4 mb-4">
