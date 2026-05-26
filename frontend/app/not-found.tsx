@@ -10,7 +10,7 @@ export default function NotFound() {
       {/* Signature — silhouette du papillon en filigrane */}
       <GuadeloupeMark
         className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] max-w-[90vw] h-auto"
-        stroke="#18181b"
+        stroke="#1FB6A6"
         style={{ opacity: 0.04 }}
       />
 
@@ -44,7 +44,7 @@ export default function NotFound() {
           <Link
             href="/"
             className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-sm transition-colors"
-            style={{ background: 'var(--accent-press)', color: '#fafafa', border: '1px solid var(--accent-press)' }}
+            style={{ background: 'var(--accent-press)', color: 'var(--on-accent)', border: '1px solid var(--accent-press)' }}
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />

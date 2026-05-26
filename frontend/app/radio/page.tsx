@@ -215,7 +215,7 @@ export default function RadioPage() {
                 onClick={handleCapture}
                 disabled={capturing}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-sm transition-colors disabled:opacity-50"
-                style={{ background: 'var(--accent-press)', color: '#fafafa', border: '1px solid var(--accent-press)' }}
+                style={{ background: 'var(--accent-press)', color: 'var(--on-accent)', border: '1px solid var(--accent-press)' }}
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24">
                   <rect x="9" y="3" width="6" height="12" rx="3" />
@@ -269,7 +269,7 @@ export default function RadioPage() {
                 className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-full"
                 style={{
                   background: sourceFilter === opt.v ? 'var(--accent-press)' : 'var(--bg-surface)',
-                  color: sourceFilter === opt.v ? '#fafafa' : 'var(--text-secondary)',
+                  color: sourceFilter === opt.v ? 'var(--on-accent)' : 'var(--text-secondary)',
                   border: `1px solid ${sourceFilter === opt.v ? 'var(--accent-press)' : 'var(--border)'}`,
                 }}
               >

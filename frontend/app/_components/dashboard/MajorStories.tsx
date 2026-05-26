@@ -60,7 +60,7 @@ export function MajorStories({ affairs }: { affairs: Affair[] }) {
                 </span>
                 {affair.sentiment && (
                   <span className="text-[10px] capitalize" style={{
-                    color: affair.sentiment === 'positif' ? '#34d399' : affair.sentiment === 'négatif' ? '#f87171' : '#60a5fa'
+                    color: affair.sentiment === 'positif' ? '#34d399' : affair.sentiment === 'négatif' ? '#f87171' : '#5FD0E0'
                   }}>{affair.sentiment}</span>
                 )}
               </div>

@@ -11,7 +11,7 @@ export function ActivityMiniChart({ data }: { data: DailyActivity[] }) {
           <div key={i} className="flex-1 flex flex-col items-center gap-1.5 group relative">
             <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200
               px-2.5 py-1 rounded-lg text-[9px] font-medium whitespace-nowrap z-10 pointer-events-none"
-              style={{ background: 'rgba(37,99,235,0.95)', color: 'white', boxShadow: '0 4px 12px rgba(37,99,235,0.3)' }}>
+              style={{ background: 'rgba(7,20,28,0.96)', color: 'white', boxShadow: '0 4px 12px rgba(0,0,0,0.45)' }}>
               {d.articles} articles · {d.events} événements
             </div>
             <div className="w-full rounded-t-md transition-all duration-700 group-hover:brightness-125 relative"
@@ -19,13 +19,13 @@ export function ActivityMiniChart({ data }: { data: DailyActivity[] }) {
                 height: `${Math.max(h, 4)}%`,
                 background: isToday
                   ? 'linear-gradient(180deg, #facc15 0%, #f59e0b 100%)'
-                  : `linear-gradient(180deg, #60a5fa 0%, #1d4ed8 100%)`,
-                boxShadow: isToday ? '0 -2px 12px rgba(245,158,11,0.3)' : d.articles > 0 ? '0 -2px 12px rgba(37,99,235,0.15)' : 'none',
+                  : `linear-gradient(180deg, #5FD0E0 0%, #169B8D 100%)`,
+                boxShadow: isToday ? '0 -2px 12px rgba(245,158,11,0.3)' : d.articles > 0 ? '0 -2px 12px rgba(31,182,166,0.22)' : 'none',
                 borderRadius: '4px 4px 2px 2px',
               }}>
               {d.articles > 0 && (
                 <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-[9px] font-bold opacity-0 group-hover:opacity-100 transition-opacity"
-                  style={{ color: isToday ? '#facc15' : '#60a5fa' }}>
+                  style={{ color: isToday ? '#facc15' : '#5FD0E0' }}>
                   {d.articles}
                 </span>
               )}

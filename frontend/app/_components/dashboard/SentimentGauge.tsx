@@ -34,7 +34,7 @@ export function SentimentGauge({ sentimentDist }: { sentimentDist: Record<string
 
   const moodEmoji = score >= 70 ? '😊' : score >= 50 ? '😐' : score >= 30 ? '😟' : '😡'
   const moodLabel = score >= 70 ? 'Positif' : score >= 50 ? 'Neutre' : score >= 30 ? 'Tendu' : 'Négatif'
-  const moodColor = score >= 70 ? '#34d399' : score >= 50 ? '#60a5fa' : score >= 30 ? '#fbbf24' : '#f87171'
+  const moodColor = score >= 70 ? '#34d399' : score >= 50 ? '#5FD0E0' : score >= 30 ? '#fbbf24' : '#f87171'
 
   return (
     <div className="flex flex-col items-center">
@@ -58,7 +58,7 @@ export function SentimentGauge({ sentimentDist }: { sentimentDist: Record<string
       <div className="flex items-center gap-3 mt-3">
         {[
           { label: 'Positif', count: positif, color: '#34d399' },
-          { label: 'Neutre', count: neutre, color: '#60a5fa' },
+          { label: 'Neutre', count: neutre, color: '#5FD0E0' },
           { label: 'Négatif', count: negatif, color: '#f87171' },
         ].map(s => (
           <div key={s.label} className="flex items-center gap-1.5">

@@ -151,7 +151,7 @@ export default function BriefingPage() {
                 onClick={handleSendTelegram}
                 disabled={telegramSending}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-sm transition-colors disabled:opacity-50"
-                style={{ background: 'var(--accent-press)', color: '#fafafa', border: '1px solid var(--accent-press)' }}
+                style={{ background: 'var(--accent-press)', color: 'var(--on-accent)', border: '1px solid var(--accent-press)' }}
               >
                 {telegramSending ? 'Envoi…' : telegramMsg || 'Envoyer Telegram'}
               </button>
@@ -292,7 +292,7 @@ export default function BriefingPage() {
                   <button
                     onClick={handleAddKeyword}
                     className="px-2 py-1 text-xs font-semibold rounded-sm"
-                    style={{ background: 'var(--accent-press)', color: '#fafafa' }}
+                    style={{ background: 'var(--accent-press)', color: 'var(--on-accent)' }}
                   >
                     +
                   </button>

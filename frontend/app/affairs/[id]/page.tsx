@@ -200,7 +200,7 @@ export default function AffairDetailPage() {
                   onClick={handleGenerateCtx}
                   disabled={busy === 'ctx'}
                   className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-sm transition-colors disabled:opacity-50"
-                  style={{ background: 'var(--accent-press)', color: '#fafafa', border: '1px solid var(--accent-press)' }}
+                  style={{ background: 'var(--accent-press)', color: 'var(--on-accent)', border: '1px solid var(--accent-press)' }}
                 >
                   {busy === 'ctx' ? 'Génération…' : 'Analyse IA'}
                 </button>

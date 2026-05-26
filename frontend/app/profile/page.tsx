@@ -167,7 +167,7 @@ export default function ProfilePage() {
                 onClick={handleChangePassword}
                 disabled={loading || !currentPassword || !newPassword || !confirmPassword}
                 className="w-full mt-2 px-4 py-2.5 text-sm font-semibold rounded-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                style={{ background: 'var(--accent-press)', color: '#fafafa', border: '1px solid var(--accent-press)' }}
+                style={{ background: 'var(--accent-press)', color: 'var(--on-accent)', border: '1px solid var(--accent-press)' }}
               >
                 {loading && <span className="animate-spin w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full" />}
                 Mettre à jour le mot de passe

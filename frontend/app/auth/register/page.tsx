@@ -244,7 +244,7 @@ export default function RegisterPage() {
               type="submit"
               disabled={loading}
               className="w-full py-2.5 text-sm font-semibold rounded-sm transition-colors disabled:opacity-50 mt-1"
-              style={{ background: 'var(--accent-press)', color: '#fafafa', border: '1px solid var(--accent-press)' }}
+              style={{ background: 'var(--accent-press)', color: 'var(--on-accent)', border: '1px solid var(--accent-press)' }}
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">

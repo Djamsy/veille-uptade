@@ -29,7 +29,7 @@ export default function LandingPage() {
           <Link
             href="/auth/login"
             className="px-4 py-1.5 text-xs font-semibold rounded-sm transition-colors"
-            style={{ background: 'var(--accent-press)', color: '#fafafa', border: '1px solid var(--accent-press)' }}
+            style={{ background: 'var(--accent-press)', color: 'var(--on-accent)', border: '1px solid var(--accent-press)' }}
           >
             Se connecter
           </Link>
@@ -70,7 +70,7 @@ export default function LandingPage() {
             <Link
               href="/auth/login"
               className="px-6 py-2.5 text-sm font-semibold rounded-sm transition-colors"
-              style={{ background: 'var(--accent-press)', color: '#fafafa', border: '1px solid var(--accent-press)' }}
+              style={{ background: 'var(--accent-press)', color: 'var(--on-accent)', border: '1px solid var(--accent-press)' }}
             >
               Accéder à la plateforme
             </Link>

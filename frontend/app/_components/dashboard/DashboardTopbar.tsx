@@ -39,7 +39,7 @@ export function DashboardTopbar({ lastRefresh, onRefresh, onOpenBrief, refreshin
       <div className="hidden lg:block absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
         <GuadeloupeMark
           className="absolute -right-6 bottom-0 w-[300px] h-auto"
-          stroke="#18181b"
+          stroke="#1FB6A6"
           style={{ opacity: 0.05 }}
         />
       </div>
@@ -87,7 +87,7 @@ export function DashboardTopbar({ lastRefresh, onRefresh, onOpenBrief, refreshin
             </button>
             <button
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-press"
-              style={{ background: 'var(--accent-press)', color: '#fafafa', border: '1px solid var(--accent-press)' }}
+              style={{ background: 'var(--accent-press)', color: 'var(--on-accent)', border: '1px solid var(--accent-press)' }}
               onClick={() => window.print()}
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24">

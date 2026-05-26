@@ -389,7 +389,7 @@ function ActionBtn({ label, loading, onClick, primary }: { label: string; loadin
       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-sm transition-colors disabled:opacity-50"
       style={
         primary
-          ? { background: 'var(--accent-press)', color: '#fafafa', border: '1px solid var(--accent-press)' }
+          ? { background: 'var(--accent-press)', color: 'var(--on-accent)', border: '1px solid var(--accent-press)' }
           : { background: 'var(--bg-surface)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }
       }
     >

@@ -390,7 +390,7 @@ function Chip({ children, active, onClick }: { children: React.ReactNode; active
       className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-full transition-colors"
       style={{
         background: active ? 'var(--accent-press)' : 'var(--bg-surface)',
-        color: active ? '#fafafa' : 'var(--text-secondary)',
+        color: active ? 'var(--on-accent)' : 'var(--text-secondary)',
         border: `1px solid ${active ? 'var(--accent-press)' : 'var(--border)'}`,
       }}
     >

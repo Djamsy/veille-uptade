@@ -180,7 +180,7 @@ export default function PresencePage() {
             onClick={handleBackfill}
             disabled={backfilling}
             className="px-3 py-1.5 text-xs font-semibold rounded-sm transition-colors disabled:opacity-50"
-            style={{ background: 'var(--accent-press)', color: '#fafafa', border: '1px solid var(--accent-press)' }}
+            style={{ background: 'var(--accent-press)', color: 'var(--on-accent)', border: '1px solid var(--accent-press)' }}
           >
             {backfilling ? 'Backfill en cours…' : 'Lancer un backfill (30 j)'}
           </button>

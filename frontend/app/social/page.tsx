@@ -1266,7 +1266,7 @@ export default function SocialPage() {
               <button
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-sm transition-colors"
                 onClick={() => setShowNewCampaign(true)}
-                style={{ background: 'var(--accent-press)', color: '#fafafa', border: '1px solid var(--accent-press)' }}
+                style={{ background: 'var(--accent-press)', color: 'var(--on-accent)', border: '1px solid var(--accent-press)' }}
               >
                 + Nouvelle campagne
               </button>
