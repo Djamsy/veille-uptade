@@ -491,8 +491,54 @@ html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
   transition: transform 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out), border-color 0.25s var(--ease-out);
 }
 .elev-card:hover {
-  box-shadow: var(--shadow-elevated), var(--rim-light);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-elevated), var(--rim-light), 0 0 0 1px rgba(31, 182, 166, 0.35);
 }
+
+/* ══════════════════════════════════════════════════════
+   MICRO-INTERACTIONS — survols vivants (theme-carte)
+   ══════════════════════════════════════════════════════ */
+
+/* Transitions fluides par défaut sur tout ce qui est interactif */
+.theme-carte a,
+.theme-carte button,
+.theme-carte [role="button"] {
+  transition: transform 0.16s var(--ease-out), color 0.16s var(--ease-out),
+    background-color 0.16s var(--ease-out), box-shadow 0.2s var(--ease-out),
+    border-color 0.16s var(--ease-out), opacity 0.16s var(--ease-out);
+}
+
+/* Boutons : lift + glow turquoise au survol, enfoncement à l'appui */
+.theme-carte .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(31, 182, 166, 0.34); }
+.theme-carte .btn-glass:hover { transform: translateY(-1px); border-color: var(--border-hover); }
+.theme-carte .btn-primary:active,
+.theme-carte .btn-glass:active { transform: translateY(0); }
+
+/* Carte cliquable générique : lève + ring turquoise (à appliquer via .hover-card) */
+.hover-card {
+  cursor: pointer;
+  transition: transform 0.22s var(--ease-out), box-shadow 0.22s var(--ease-out), border-color 0.22s var(--ease-out);
+}
+.hover-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-elevated), var(--rim-light), 0 0 0 1px rgba(31, 182, 166, 0.4);
+  border-color: var(--border-hover) !important;
+}
+.hover-card:active { transform: translateY(-1px); }
+
+/* Lien à soulignement animé (gauche→droite) */
+.link-anim {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-size: 0% 1.5px;
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  transition: background-size 0.28s var(--ease-out), color 0.16s var(--ease-out);
+}
+.link-anim:hover { background-size: 100% 1.5px; }
+
+/* Icône qui réagit (scale doux) dans un parent .group-icon au survol */
+.group-icon:hover .icon-react { transform: scale(1.12); }
+.icon-react { transition: transform 0.18s var(--ease-out); }
 
 /* Texte sur fond accent : turquoise clair → encre sombre (contraste correct) */
 .theme-carte { --on-accent: #04141c; }

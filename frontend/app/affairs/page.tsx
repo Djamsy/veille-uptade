@@ -144,7 +144,7 @@ function AffaireCard({ a }: { a: Affair }) {
   return (
     <Link href={`/affairs/${a._id}`}>
       <article
-        className="relative flex flex-col h-full transition-colors hover:bg-ink-100"
+        className="relative flex flex-col h-full hover-card"
         style={{
           background: 'var(--bg-surface)',
           border: '1px solid var(--border)',

@@ -14,36 +14,38 @@ module.exports = {
       },
       colors: {
         // ── "Crème & encre" editorial palette ──
+        // ── "Carte vivante" : échelle ink INVERSÉE pour le dark ──
+        // (ink-900 = texte clair, ink-100 = hover translucide, ink-200 = bordure subtile)
         ink: {
-          DEFAULT: '#18181b',
-          50:  '#fafafa',
-          100: '#f4f4f5',
-          200: '#e8e8eb',
-          300: '#d4d4d8',
-          400: '#a1a1aa',
-          500: '#71717a',
-          600: '#52525b',
-          700: '#3f3f46',
-          800: '#27272a',
-          900: '#18181b',
+          DEFAULT: '#EAF4F2',
+          50:  'rgba(255,255,255,0.03)',
+          100: 'rgba(255,255,255,0.06)',
+          200: 'rgba(255,255,255,0.12)',
+          300: '#56737a',
+          400: '#6E8B92',
+          500: '#8FB0B6',
+          600: '#A7C4C9',
+          700: '#c3dadd',
+          800: '#dbeceb',
+          900: '#EAF4F2',
         },
-        // press = encre noire (CTA principal). Alias pour rétrocompat.
+        // press = accent turquoise (CTA, focus rings)
         press: {
-          DEFAULT: '#18181b',
-          dark: '#000000',
-          light: '#27272a',
+          DEFAULT: '#1FB6A6',
+          dark: '#169B8D',
+          light: '#2FD0BD',
         },
         alert: {
-          DEFAULT: '#b8632a',
-          dark: '#9d551f',
-          light: '#c5793f',
-          soft: '#fdf6f0',
+          DEFAULT: '#F0A93B',
+          dark: '#E8743B',
+          light: '#f6c06a',
+          soft: 'rgba(240,169,59,0.14)',
         },
         link: {
-          DEFAULT: '#3e6fa3',
-          dark: '#2f5680',
-          light: '#5887bc',
-          soft: '#f1f5fa',
+          DEFAULT: '#5FD0E0',
+          dark: '#1FB6A6',
+          light: '#8fe0ec',
+          soft: 'rgba(95,208,224,0.12)',
         },
         // ── Tokens topographie GPE (désaturés, lisibles sur clair) ──
         gpe: {
