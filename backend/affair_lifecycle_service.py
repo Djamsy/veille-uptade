@@ -5483,6 +5483,9 @@ class AffairLifecycleService:
           de vérité ; on n'écrit que bmg_formula et bmg_details.
         - Sinon, le BMG formulaic est écrit en bmg ET bmg_formula.
         """
+        # Garde-fou : ré-applique les exclusions opérateur avant tout recalcul
+        # (sinon un article retiré à la main pourrait fausser item_count/BMG).
+        self._enforce_exclusions()
         active = list(self.affairs.find({"status": "active"}))
         for aff in active:
             try:
@@ -5516,6 +5519,177 @@ class AffairLifecycleService:
                 )
             except Exception as e:
                 logger.error(f"❌ BMG recalc pour '{aff.get('title', '?')[:40]}': {e}", exc_info=True)
+
+    def unlink_article(
+        self, affair_id: str, article_id: str, by: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Retire manuellement un article d'une affaire (action opérateur).
+
+        - retire l'article de `affair.articles`
+        - l'ajoute à `affair.excluded_articles` (exclusion permanente)
+        - marque l'article : `_affair_excluded_from += affair_id`,
+          `_affair_processed=True` (PAS False — sinon la ré-affiliation le
+          re-rattacherait au cycle suivant), détache `_affair_id` s'il pointait
+          ici, et journalise `_unlinked_manually` / `_unlinked_by`
+        - recalcule item_count + BMG, journalise la timeline, notifie Telegram
+
+        L'exclusion est ré-appliquée à chaque cycle par `_enforce_exclusions`,
+        donc l'article ne peut pas se re-rattacher tout seul.
+        """
+        if self.db is None:
+            return {"error": "no_db"}
+        try:
+            aff_oid = ObjectId(affair_id)
+        except Exception:
+            return {"error": "ID affaire invalide"}
+
+        affair = self.affairs.find_one({"_id": aff_oid})
+        if not affair:
+            return {"error": "Affaire introuvable"}
+
+        # Formes possibles de l'id article (str + ObjectId) pour le $pull
+        variants: List[Any] = [article_id]
+        try:
+            variants.append(ObjectId(article_id))
+        except Exception:
+            pass
+
+        self.affairs.update_one(
+            {"_id": aff_oid},
+            {
+                "$pull": {"articles": {"$in": variants}},
+                "$addToSet": {"excluded_articles": article_id},
+            },
+        )
+
+        # Marquer l'article côté source pour bloquer toute ré-affiliation
+        art = None
+        try:
+            art_oid = ObjectId(article_id)
+            art = self.articles.find_one(
+                {"_id": art_oid}, {"title": 1, "source": 1, "_affair_id": 1}
+            )
+            art_update: Dict[str, Any] = {
+                "$addToSet": {"_affair_excluded_from": affair_id},
+                "$set": {
+                    "_affair_processed": True,
+                    "_unlinked_manually": True,
+                    "_unlinked_by": by,
+                },
+            }
+            if art and str(art.get("_affair_id")) == affair_id:
+                art_update["$unset"] = {"_affair_id": ""}
+            self.articles.update_one({"_id": art_oid}, art_update)
+        except Exception:
+            pass
+
+        # Recalculer item_count + BMG sur l'état nettoyé
+        updated = self.affairs.find_one({"_id": aff_oid}) or affair
+        new_count = (
+            len(updated.get("articles", []))
+            + len(updated.get("radio_transcriptions", []))
+            + len(updated.get("social_posts", []))
+        )
+        bmg = self.calculate_bmg(updated)
+        self.affairs.update_one(
+            {"_id": aff_oid},
+            {"$set": {
+                "item_count": new_count,
+                "bmg": bmg["bmg"],
+                "bmg_details": bmg,
+            }},
+        )
+
+        # Timeline
+        self.timeline.insert_one({
+            "affair_id": affair_id,
+            "event": "manual_unlink",
+            "details": {
+                "item_id": article_id,
+                "article_id": article_id,
+                "title": (art or {}).get("title", "")[:80],
+                "article_title": (art or {}).get("title", ""),
+                "source": (art or {}).get("source", ""),
+                "by": by,
+            },
+            "timestamp": datetime.utcnow(),
+        })
+
+        # Notification Telegram (optionnelle)
+        if _tg_unlinked:
+            try:
+                _tg_unlinked(
+                    affair,
+                    article_title=(art or {}).get("title", ""),
+                    article_source=(art or {}).get("source", ""),
+                    unlink_type="manual",
+                    reason="Retiré manuellement par l'opérateur",
+                    by=by or "",
+                )
+            except Exception:
+                pass
+
+        logger.info(
+            f"✂️ Article retiré manuellement de '{affair.get('title', '?')[:40]}' "
+            f"(restant: {new_count} items)"
+        )
+        return {
+            "success": True,
+            "affair_id": affair_id,
+            "article_id": article_id,
+            "item_count": new_count,
+            "bmg": bmg["bmg"],
+        }
+
+    def _enforce_exclusions(self) -> int:
+        """Garde-fou idempotent : retire de chaque affaire les articles que
+        l'opérateur a exclus manuellement (`excluded_articles`).
+
+        Quel que soit le chemin qui aurait pu re-rattacher un article exclu
+        (ré-affiliation, fusion stale↔active, merge de cluster…), cette passe
+        le re-supprime à chaque cycle. C'est ce qui rend le « Retirer » définitif
+        sans devoir garder individuellement chaque point d'attache.
+        """
+        if self.db is None:
+            return 0
+        cleaned = 0
+        for aff in self.affairs.find({"excluded_articles": {"$exists": True, "$ne": []}}):
+            excluded = aff.get("excluded_articles") or []
+            if not excluded:
+                continue
+            excluded_set = {str(x) for x in excluded}
+            current = aff.get("articles") or []
+            if not any(str(a) in excluded_set for a in current):
+                continue  # rien à nettoyer pour cette affaire
+
+            # Toutes les formes (str + ObjectId) pour le $pull
+            variants: List[Any] = []
+            for x in excluded:
+                variants.append(x)
+                try:
+                    variants.append(ObjectId(x) if isinstance(x, str) else str(x))
+                except Exception:
+                    pass
+
+            self.affairs.update_one(
+                {"_id": aff["_id"]},
+                {"$pull": {"articles": {"$in": variants}}},
+            )
+            updated = self.affairs.find_one({"_id": aff["_id"]})
+            if updated:
+                new_count = (
+                    len(updated.get("articles", []))
+                    + len(updated.get("radio_transcriptions", []))
+                    + len(updated.get("social_posts", []))
+                )
+                self.affairs.update_one(
+                    {"_id": aff["_id"]},
+                    {"$set": {"item_count": new_count}},
+                )
+            cleaned += 1
+        if cleaned:
+            logger.info(f"🧹 Exclusions opérateur ré-appliquées sur {cleaned} affaire(s)")
+        return cleaned
 
     def _reaffiliate_orphans(self) -> int:
         """Ré-essaye de lier les articles orphelins récents aux affaires actives.

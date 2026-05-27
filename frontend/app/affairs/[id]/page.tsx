@@ -10,6 +10,7 @@ import {
   recalculateBmg,
   generateAffairContext,
   fetchAffairContext,
+  unlinkArticleFromAffair,
   type Affair,
   type AffairContext,
   type TimelineEvent,
@@ -66,6 +67,7 @@ export default function AffairDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState('')
+  const [removing, setRemoving] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -96,6 +98,20 @@ export default function AffairDetailPage() {
     try { await recalculateBmg(id); await load() }
     catch (e) { console.error(e) }
     finally { setBusy('') }
+  }
+
+  const handleUnlinkArticle = async (articleId: string) => {
+    if (!window.confirm("Retirer cet article de l'affaire ? Il n'y sera plus rattaché automatiquement.")) return
+    setRemoving(articleId)
+    try {
+      await unlinkArticleFromAffair(id, articleId)
+      setArticles(prev => prev.filter(a => a._id !== articleId))
+    } catch (e) {
+      console.error(e)
+      setError("Échec du retrait de l'article")
+    } finally {
+      setRemoving(null)
+    }
   }
 
   const handleGenerateCtx = async () => {
@@ -330,6 +346,16 @@ export default function AffairDetailPage() {
                             {a.source} · {timeAgo(a.date || a.scraped_at || '')}
                           </div>
                         </div>
+                        <button
+                          onClick={() => handleUnlinkArticle(a._id)}
+                          disabled={removing === a._id}
+                          title="Retirer cet article de l'affaire (exclusion définitive)"
+                          aria-label="Retirer cet article de l'affaire"
+                          className="shrink-0 self-center font-mono text-xs leading-none px-2 py-1 rounded-sm transition-colors disabled:opacity-40 hover:!text-[color:var(--negative)]"
+                          style={{ color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}
+                        >
+                          {removing === a._id ? '…' : '✕'}
+                        </button>
                       </div>
                     )
                   })}

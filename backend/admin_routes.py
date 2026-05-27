@@ -447,54 +447,16 @@ async def unlink_article_from_affair(
     if not affair_id or not article_id:
         raise HTTPException(400, "affair_id et article_id requis")
 
-    # Retirer l'article de l'affaire
-    svc.affairs.update_one(
-        {"_id": ObjectId(affair_id)},
-        {
-            "$pull": {"articles": article_id},
-            "$inc": {"item_count": -1},
-            "$set": {"last_activity": datetime.now(timezone.utc)},
-        }
-    )
+    # Délègue au service : retire l'article ET pose une exclusion permanente
+    # (`excluded_articles` + `_affair_excluded_from`, `_affair_processed=True`).
+    # C'est ce qui empêche la ré-affiliation automatique de le re-rattacher.
+    # Timeline + notification Telegram sont gérées dans le service.
+    result = svc.unlink_article(affair_id, article_id, by=user["email"])
+    if "error" in result:
+        code = 404 if result["error"] == "Affaire introuvable" else 400
+        raise HTTPException(code, result["error"])
 
-    # Remettre l'article comme non traité
-    svc.articles.update_one(
-        {"_id": ObjectId(article_id)},
-        {"$set": {"_affair_processed": False, "_affair_id": None,
-                  "_unlinked_manually": True, "_unlinked_by": user["email"]}}
-    )
-
-    # Récupérer le titre de l'article pour la notification
-    art_info = svc.articles.find_one(
-        {"_id": ObjectId(article_id)}, {"title": 1, "source": 1}
-    ) or {}
-
-    svc.timeline.insert_one({
-        "affair_id": affair_id,
-        "event": "manual_unlink",
-        "details": {
-            "article_id": article_id,
-            "article_title": art_info.get("title", ""),
-            "by": user["email"],
-        },
-        "timestamp": datetime.now(timezone.utc),
-    })
-
-    # Notification Telegram
-    if _tg_notifs_ok and _tg_unlinked:
-        try:
-            affair = svc.affairs.find_one({"_id": ObjectId(affair_id)}) or {}
-            _tg_unlinked(
-                affair,
-                article_title=art_info.get("title", ""),
-                article_source=art_info.get("source", ""),
-                unlink_type="manual",
-                by=user["email"],
-            )
-        except Exception as tg_err:
-            logger.debug(f"Telegram notify unlink: {tg_err}")
-
-    return {"success": True}
+    return {"success": True, **result}
 
 
 @router.put("/affairs/{affair_id}/reclassify")
