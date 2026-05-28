@@ -12,10 +12,12 @@ from pymongo import MongoClient
 import certifi
 
 # --- PDF service (import robuste) ---
+# NB : le fichier a été renommé pdf_digest_service.py → pdf_service.py mais
+# expose toujours create_digest_pdf et l'instance pdf_digest_service.
 try:
-    from backend.pdf_digest_service import create_digest_pdf  # type: ignore
+    from backend.pdf_service import create_digest_pdf  # type: ignore
 except Exception:
-    from pdf_digest_service import create_digest_pdf  # fallback
+    from pdf_service import create_digest_pdf  # fallback
 
 router = APIRouter(prefix="/api/digest/pdf", tags=["digest-pdf"])
 

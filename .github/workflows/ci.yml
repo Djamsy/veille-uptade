@@ -31,11 +31,16 @@ jobs:
       - name: Install backend deps
         run: pip install -r backend/requirements.txt
 
+      # Ruff : non-bloquant pour l'instant. Le repo a ~2321 erreurs héritées
+      # à nettoyer dans une PR dédiée (cf. BROKEN.md, section "Ruff backlog").
+      # Une fois `ruff check .` à zéro erreur, retirer continue-on-error.
       - name: Ruff lint
         run: ruff check .
+        continue-on-error: true
 
       - name: Ruff format check
         run: ruff format --check .
+        continue-on-error: true
 
       - name: Mypy (soft, non-bloquant pour l'instant)
         run: mypy backend || echo "::warning::mypy a remonté des erreurs (non bloquant)"

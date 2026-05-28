@@ -62,32 +62,37 @@ Posés à plat dans `backend/`. Familles principales :
 | Scraping | `scraper_service.py`, `enhanced_scraper.py`, `enhanced_scraper_with_themes.py`, `apify_social_scraper.py`, `social_stats_scraper.py` | À consolider |
 | Briefing / digest | `briefing_service.py`, `daily_report_service.py`, `summary_service.py` | OK |
 | Social | `apify_social_service.py`, `modern_social_service.py`, `social_media_service.py`, `intelligent_social_monitor.py`, `social_amplification_tracker.py` | À consolider |
-| Bruit médiatique (BMG) | `media_noise_service.py` | OK |
-| Réactions / viral | `population_reaction_service.py`, `viral_detection_service.py` | OK |
+| Bruit médiatique (BMG) | calculé dans `scheduler_service.job_affair_cycle` + utilisé dans `affair_lifecycle_service.compute_priority` | OK. ⚠️ `media_noise_service.py` est une implémentation legacy parallèle non wirée — voir BROKEN.md |
+| Réactions / viral | `population_reaction_service.py` (actif). `viral_detection_service.py`, `viral_automation_service.py`, `viral_orchestra_service.py` (mort, candidats vague 3) | partiellement mort |
 | Embeddings | `embedding_service.py` | OK |
 | Cache | `cache_service.py` + cache mémoire inline dans `server.py` | À unifier |
 | Push (notifications) | `push_service.py` | OK |
 | Personnalités (élus) | `personalities_service.py`, `elus_database.py` | OK |
 
-### Jobs APScheduler (`enhanced_scheduler.py`)
+### Jobs APScheduler
 
-Le scheduler actif (les deux autres sont morts ou legacy).
+Le scheduler **actif en prod** est `backend/scheduler_service.py` (démarré
+par `attach_scheduler(app)` dans `server.py`). 12 jobs :
 
 | Job ID | Fréquence | Description |
 |---|---|---|
-| `enhanced_scraping` | toutes les heures (`min 0`) | Scraping presse locale |
-| `sentiment_batch` | toutes les 30 min | Analyse sentiment en lot |
-| `media_noise_calculation` | toutes les 2 h (`min 15`) | Calcul BMG |
-| `daily_digest` | 12 h | Génération du digest quotidien |
-| `cleanup` | 2 h du matin | Nettoyage cache / vieux docs |
-| `affair_lifecycle` | toutes les 30 min | Réévaluation gravité affaires |
-| `storage_monitor` | toutes les 6 h | Surveillance quota Atlas |
-| `telegram_morning_digest` | 7 h | Digest matinal Telegram |
-| `gpt_affair_cleanup` | toutes les 6 h | Validation LLM affaires |
-| `stale_active_crosscheck` | toutes les 30 min | Détection affaires fantômes |
-| `classify_communes` | toutes les heures (`min 20`) | Classification géo |
-| `facebook_telegram_sync` | chaque minute | Sync FB → Telegram |
-| `social_stats_scrape` | toutes les 48 h | Stats sociales |
+| `full_pipeline` | toutes les 5 min | Pipeline complet (scrape → enrichissement → affaires) |
+| `update_affairs` | toutes les 15 min | Mise à jour affaires |
+| `radio_capture` | toutes les 5 min | Capture flux radio |
+| `radio_health_check` | minute 5 et 35 | Santé des flux radio |
+| `social_scrape` | 7h10, 13h10, 19h10 | Scraping réseaux sociaux (Apify) |
+| `buffer_stats_sync` | 6h, 10h, 13h, 16h, 22h, 23h | Sync stats Buffer |
+| `apify_comments_scrape` | 8h, 19h | Scrape commentaires (~$0.43/run) |
+| `campaign_auto_analysis` | (cf. code) | Analyse auto campagnes |
+| `predictive_analysis` | (cf. code) | Analyse prédictive |
+| `daily_report` | (cf. code) | Rapport quotidien |
+| `morning_briefing` | (cf. code) | Briefing matinal |
+| `watchlist_check` | (cf. code) | Vérif watchlist |
+
+> ⚠️ `backend/enhanced_scheduler.py` définit aussi 13 jobs (`enhanced_scraping`,
+> `sentiment_batch`, `media_noise_calculation`, etc.) mais **aucun n'est démarré**.
+> Seule la fonction `telegram_morning_digest_job` y est utilisée depuis `server.py`
+> (endpoint manuel). Le reste est du code mort. Voir BROKEN.md et DUPLICATES.md.
 
 ### MongoDB — collections principales
 
