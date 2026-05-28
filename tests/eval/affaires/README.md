@@ -86,17 +86,28 @@ Erreurs :
 4. À mesure que le dataset grossit (objectif : 50-100 paires), on durcit
    le seuil de F1 minimum dans le test pytest.
 
-## Brancher la vraie similarité
+## Baselines disponibles
 
-La baseline actuelle est `jaccard_tokens` (intersection de tokens / union).
-Pour câbler `_pairwise_similarity` de `affair_lifecycle_service` :
+| Baseline | Description | F1 actuel | Seuil |
+|---|---|---|---|
+| `jaccard_tokens` | Référence basse : intersection / union de tokens | 0.50 | 0.30 |
+| `jaccard_plus_entities` | Token Jaccard + bonus entités | **0.86** | 0.30 |
+| `lifecycle_pairwise` | **Vraie fonction prod** (fallback sans embeddings) | **0.86** | 0.35 |
 
-1. Extraire `_pairwise_similarity` en fonction **pure** (sans `self`, ou avec
-   un mock minimal du service).
-2. Ajouter un fichier `baselines/lifecycle_pairwise.py` qui importe cette
-   fonction et l'expose avec la signature standard du runner.
-3. Comparer side-by-side les deux baselines sur le même dataset → on saura
-   enfin si la similarité actuelle bat le random.
+### Finding actuel (5 paires, à étoffer)
+
+`lifecycle_pairwise` **égalise** `jaccard_plus_entities` — la complexité
+supplémentaire (résolution d'alias, anti-bonus `GENERIC_ELECTED`, score temporel
+pondéré) ne fait pas la différence sur ce dataset, parce que :
+
+- Les deux ratent **`ex-004`** pour la même raison : Harry Durimel est dans
+  `GENERIC_ELECTED` → le bonus +0.30 est bien bloqué, **mais** les tokens
+  « harry/durimel/maire » partagés font monter la similarité sémantique
+  au-dessus du seuil 0.35. La protection est partielle.
+- C'est exactement le bug que la mémoire `project_affaires_quality` documente.
+
+→ Une fois le dataset à 30-50 paires, on saura si la fonction prod bat
+vraiment la baseline naïve ou si elle est juste plus chère à calculer.
 
 ## Pourquoi un harness avant un refacto
 
