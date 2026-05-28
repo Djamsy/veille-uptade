@@ -1,11 +1,27 @@
 # DUPLICATES.md — inventaire des doublons backend
 
-> Inventaire généré le 2026-05-28 par audit grep.
-> **Aucune suppression effectuée.** Décision à valider par Djamsy avant action.
+> Inventaire initial : 2026-05-28 (audit grep).
+> Première vague de suppressions : 2026-05-28 sur `chore/dead-code-2026-05-28`
+> (3 commits, 33 fichiers supprimés / 1 déplacé, ~13 600 lignes en moins).
 >
 > Méthodo : pour chaque famille, on compte les importeurs **dans `backend/`**, en
 > excluant les fichiers `.bak` / `.backup` (déjà morts), les scripts one-shot
 > et les modules qui ont eux-mêmes 0 importeur (mort transitif).
+
+## État après la 1ère vague (2026-05-28)
+
+| Section | Avant | Supprimé | Reste à traiter |
+|---|---|---|---|
+| 1. LLM | 4 fichiers | 2 morts | `ai_service.py` (importé par scripts) à confirmer |
+| 2. Sentiment | 7 fichiers | 4 morts | `sentiment_service.py` vs `_analysis_` vs `gpt_` à unifier |
+| 3. Scheduler | 3 fichiers | 1 mort | enhanced / service à unifier (chantier séparé) |
+| 4. Scrapers | 5 fichiers | 2 morts | déjà propre |
+| 5. Social | 6 fichiers | 2 morts | `intelligent_social_monitor` à vérifier |
+| 6. .bak/.backup | 3 | 3 | ✅ vide |
+| 7. Scripts racine | 23 | 21 supprimés + 1 déplacé | ✅ il reste `dev_run.sh` seulement |
+| Module mort hors liste | — | `media_noise_detection_mistral.py` (SyntaxError) | — |
+
+**Total** : 33 fichiers / ~13 600 lignes retirés du repo. Aucune régression dans `tests/unit/` ni `tests/eval/`.
 
 ## Légende
 
