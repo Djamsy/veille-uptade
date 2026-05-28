@@ -1,0 +1,4 @@
+backend/affair_lifecycle_routes.py	1638
+backend/affair_lifecycle_service.py	5653
+backend/ai_groq_service.py	2317
+backend/server.py	2746
