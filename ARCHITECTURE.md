@@ -37,7 +37,6 @@ Frontend Next.js 14 (App Router)
 | `/api/affairs/monitor` | `backend/affairs_monitor_routes.py` | Surveillance & alertes |
 | `/api/presence` | `backend/presence_routes.py` | Présence médiatique élus |
 | `/api/reconciliation` | `backend/reconciliation_routes.py` | Dédup entités |
-| `/api/ai` (advanced) | `backend/advanced_classification_routes.py` | Classification LLM |
 | `/api/scheduler` | (interne — depuis `enhanced_scheduler.py`) | Statut jobs |
 | `/api/social` | `backend/social_*_routes.py` (plusieurs) | Réseaux sociaux |
 | `/api/transcriptions` | `backend/transcription_*_routes.py` | Radio + IA |
@@ -45,7 +44,9 @@ Frontend Next.js 14 (App Router)
 | `/api/digest/pdf` | `backend/digest_routes.py`, `pdf_routes.py` | Génération PDF |
 | `/telegram` | `backend/telegram_routes.py` | Bot Telegram |
 
-⚠️ **23 fichiers `*_routes.py`** posés à plat — pas de hiérarchie par domaine.
+> Note : `transcription_ai_routes.py` (`/api/ai/*`) et `advanced_classification_routes.py` (`/api/transcriptions/advanced/*`) ont été supprimés le 2026-05-28 — ils définissaient des routers mais n'étaient **pas wirés dans server.py**. Mort effectif. Voir DUPLICATES.md.
+
+⚠️ **Fichiers `*_routes.py`** posés à plat — pas de hiérarchie par domaine (chantier ouvert).
 
 ### Services (couche métier)
 
@@ -55,9 +56,9 @@ Posés à plat dans `backend/`. Familles principales :
 |---|---|---|
 | Affaires (cœur métier) | `affair_lifecycle_service.py` (**5 653 L**) | Monolithe à découper |
 | Reconciliation d'entités | `entity_reconciliation_service.py`, `entity_presence_service.py`, `entity_aliases.py` | OK |
-| Sentiment | `sentiment_service.py`, `sentiment_service_v2.py`, `async_sentiment_service.py`, `gpt_sentiment_service.py`, `personality_sentiment_service.py`, `async_sentiment_service copie.py` | **6 implémentations, à fusionner** — voir DUPLICATES.md |
-| LLM | `ai_service.py`, `ai_service_no_ollama.py`, `ai_service_unified.py`, `ai_groq_service.py` | **4 implémentations** |
-| Scheduler | `scheduler_service.py`, `enhanced_scheduler.py`, `simple_scheduler.py` | **3 implémentations** |
+| Sentiment | `sentiment_service.py`, `sentiment_analysis_service.py`, `gpt_sentiment_service.py` (+ `gpt_sentiment_validation.py`) | 3 implémentations à fusionner (chantier ouvert) — voir DUPLICATES.md |
+| LLM | `ai_groq_service.py` (principal), `ai_service.py` (shim trivial pour scripts) | OK depuis 2026-05-28 |
+| Scheduler | `scheduler_service.py`, `enhanced_scheduler.py` | 2 actifs à unifier (chantier ouvert) |
 | Scraping | `scraper_service.py`, `enhanced_scraper.py`, `enhanced_scraper_with_themes.py`, `apify_social_scraper.py`, `social_stats_scraper.py` | À consolider |
 | Briefing / digest | `briefing_service.py`, `daily_report_service.py`, `summary_service.py` | OK |
 | Social | `apify_social_service.py`, `modern_social_service.py`, `social_media_service.py`, `intelligent_social_monitor.py`, `social_amplification_tracker.py` | À consolider |
