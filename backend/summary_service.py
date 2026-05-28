@@ -8,16 +8,38 @@ import re
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-# Imports conditionnels pour éviter les erreurs de déploiement
-try:
-    from sumy.parsers.plaintext import PlaintextParser
-    from sumy.nlp.tokenizers import Tokenizer
-    from sumy.summarizers.text_rank import TextRankSummarizer  
-    from sumy.summarizers.lex_rank import LexRankSummarizer
-    SUMY_AVAILABLE = True
-except ImportError as e:
-    logging.warning(f"Sumy not available: {e}. Using basic summarization.")
-    SUMY_AVAILABLE = False
+# --- Lazy import de Sumy (gain cold-start ~1.2s sur sumy/nltk/scipy/sklearn) ---
+# Avant : ces imports étaient évalués à l'import du module → chargeaient nltk
+# (582 ms), scipy.stats (509 ms), sklearn (327 ms) au démarrage du serveur, même
+# si personne ne demandait jamais de résumé. Maintenant : chargés au 1er usage.
+SUMY_AVAILABLE = False  # mis à True dès qu'on a réussi à charger sumy
+_SUMY_CHECKED = False
+PlaintextParser = None  # type: ignore[assignment]
+Tokenizer = None  # type: ignore[assignment]
+TextRankSummarizer = None  # type: ignore[assignment]
+LexRankSummarizer = None  # type: ignore[assignment]
+
+
+def _ensure_sumy_loaded() -> bool:
+    """Charge sumy à la 1ère demande. Idempotent, sûr à appeler partout."""
+    global SUMY_AVAILABLE, _SUMY_CHECKED
+    global PlaintextParser, Tokenizer, TextRankSummarizer, LexRankSummarizer
+    if _SUMY_CHECKED:
+        return SUMY_AVAILABLE
+    _SUMY_CHECKED = True
+    try:
+        from sumy.parsers.plaintext import PlaintextParser as _PlaintextParser
+        from sumy.nlp.tokenizers import Tokenizer as _Tokenizer
+        from sumy.summarizers.text_rank import TextRankSummarizer as _TextRankSummarizer
+        from sumy.summarizers.lex_rank import LexRankSummarizer as _LexRankSummarizer
+        PlaintextParser = _PlaintextParser
+        Tokenizer = _Tokenizer
+        TextRankSummarizer = _TextRankSummarizer
+        LexRankSummarizer = _LexRankSummarizer
+        SUMY_AVAILABLE = True
+    except ImportError as e:
+        logging.warning(f"Sumy not available: {e}. Using basic summarization.")
+    return SUMY_AVAILABLE
 
 # Configuration logging
 logging.basicConfig(level=logging.INFO)
@@ -25,24 +47,33 @@ logger = logging.getLogger(__name__)
 
 class FreeSummaryService:
     def __init__(self):
-        """Initialiser le service de résumé en mode production sécurisé"""
+        """Initialiser le service de résumé en mode production sécurisé.
+
+        NB : les summarizers sumy ne sont PLUS instanciés ici (gain cold-start).
+        Ils sont créés à la 1ère utilisation via `_ensure_summarizers()`.
+        """
         # Aucune dépendance lourde - Mode production
         self.nlp = None
+        self.textrank_summarizer = None
+        self.lexrank_summarizer = None
+        self._summarizers_loaded = False
         logger.info("✅ Service de résumé initialisé (mode production allégé)")
-        
-        # Initialiser les summarizers seulement si sumy est disponible
-        if SUMY_AVAILABLE:
-            try:
-                self.textrank_summarizer = TextRankSummarizer()
-                self.lexrank_summarizer = LexRankSummarizer()
-                logger.info("✅ Sumy summarizers loaded")
-            except Exception as e:
-                logger.warning(f"Could not load sumy summarizers: {e}")
-                self.textrank_summarizer = None
-                self.lexrank_summarizer = None
-        else:
-            self.textrank_summarizer = None
-            self.lexrank_summarizer = None
+
+    def _ensure_summarizers(self) -> bool:
+        """Charge sumy et instancie les summarizers à la 1ère demande."""
+        if self._summarizers_loaded:
+            return self.textrank_summarizer is not None
+        self._summarizers_loaded = True
+        if not _ensure_sumy_loaded():
+            return False
+        try:
+            self.textrank_summarizer = TextRankSummarizer()
+            self.lexrank_summarizer = LexRankSummarizer()
+            logger.info("✅ Sumy summarizers loaded (lazy)")
+            return True
+        except Exception as e:
+            logger.warning(f"Could not load sumy summarizers: {e}")
+            return False
 
     def extract_key_sentences(self, text: str, max_sentences: int = 3) -> List[str]:
         """Extraire les phrases clés d'un texte avec méthodes basiques uniquement"""
@@ -82,7 +113,7 @@ class FreeSummaryService:
     def summarize_with_textrank(self, text: str, sentence_count: int = 2) -> str:
         """Résumer avec TextRank"""
         try:
-            if not SUMY_AVAILABLE or self.textrank_summarizer is None:
+            if not self._ensure_summarizers() or self.textrank_summarizer is None:
                 return ""
             parser = PlaintextParser.from_string(text, Tokenizer("french"))
             summary = self.textrank_summarizer(parser.document, sentence_count)
@@ -94,7 +125,7 @@ class FreeSummaryService:
     def summarize_with_lexrank(self, text: str, sentence_count: int = 2) -> str:
         """Résumer avec LexRank"""
         try:
-            if not SUMY_AVAILABLE or self.lexrank_summarizer is None:
+            if not self._ensure_summarizers() or self.lexrank_summarizer is None:
                 return ""
             parser = PlaintextParser.from_string(text, Tokenizer("french"))
             summary = self.lexrank_summarizer(parser.document, sentence_count)
@@ -576,16 +607,9 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from pymongo import MongoClient
 
-# --- Sumy (optionnel) ---------------------------------------------------------
-try:
-    from sumy.parsers.plaintext import PlaintextParser
-    from sumy.nlp.tokenizers import Tokenizer
-    from sumy.summarizers.text_rank import TextRankSummarizer
-    from sumy.summarizers.lex_rank import LexRankSummarizer
-    SUMY_AVAILABLE = True
-except ImportError as e:
-    logging.warning(f"Sumy not available: {e}. Using basic summarization.")
-    SUMY_AVAILABLE = False
+# --- Sumy : lazy (cf. bloc supérieur du fichier qui définit déjà _ensure_sumy_loaded) ---
+# Les variables SUMY_AVAILABLE, PlaintextParser, etc. sont déjà déclarées en haut
+# du fichier et restent partagées. On NE refait PAS try/import sumy ici.
 
 # --- Logging ------------------------------------------------------------------
 logging.basicConfig(level=logging.INFO)
@@ -596,21 +620,31 @@ logger = logging.getLogger("backend.summary_service")
 # ==============================================================================
 class FreeSummaryService:
     def __init__(self):
-        """Initialiser le service de résumé en mode production sécurisé"""
+        """Initialiser le service de résumé en mode production sécurisé.
+
+        Lazy : les summarizers sumy sont créés au 1er usage seulement
+        (gain cold-start ~1.2s sur sumy/nltk/scipy/sklearn).
+        """
         self.nlp = None
+        self.textrank_summarizer = None
+        self.lexrank_summarizer = None
+        self._summarizers_loaded = False
         logger.info("✅ Service de résumé initialisé (mode production allégé)")
-        if SUMY_AVAILABLE:
-            try:
-                self.textrank_summarizer = TextRankSummarizer()
-                self.lexrank_summarizer = LexRankSummarizer()
-                logger.info("✅ Sumy summarizers loaded")
-            except Exception as e:
-                logger.warning(f"Could not load sumy summarizers: {e}")
-                self.textrank_summarizer = None
-                self.lexrank_summarizer = None
-        else:
-            self.textrank_summarizer = None
-            self.lexrank_summarizer = None
+
+    def _ensure_summarizers(self) -> bool:
+        if self._summarizers_loaded:
+            return self.textrank_summarizer is not None
+        self._summarizers_loaded = True
+        if not _ensure_sumy_loaded():
+            return False
+        try:
+            self.textrank_summarizer = TextRankSummarizer()
+            self.lexrank_summarizer = LexRankSummarizer()
+            logger.info("✅ Sumy summarizers loaded (lazy)")
+            return True
+        except Exception as e:
+            logger.warning(f"Could not load sumy summarizers: {e}")
+            return False
 
     def extract_key_sentences(self, text: str, max_sentences: int = 3) -> List[str]:
         if not text or not text.strip():
@@ -637,7 +671,7 @@ class FreeSummaryService:
 
     def summarize_with_textrank(self, text: str, sentence_count: int = 2) -> str:
         try:
-            if not SUMY_AVAILABLE or self.textrank_summarizer is None:
+            if not self._ensure_summarizers() or self.textrank_summarizer is None:
                 return ""
             parser = PlaintextParser.from_string(text, Tokenizer("french"))
             summary = self.textrank_summarizer(parser.document, sentence_count)
@@ -648,7 +682,7 @@ class FreeSummaryService:
 
     def summarize_with_lexrank(self, text: str, sentence_count: int = 2) -> str:
         try:
-            if not SUMY_AVAILABLE or self.lexrank_summarizer is None:
+            if not self._ensure_summarizers() or self.lexrank_summarizer is None:
                 return ""
             parser = PlaintextParser.from_string(text, Tokenizer("french"))
             summary = self.lexrank_summarizer(parser.document, sentence_count)

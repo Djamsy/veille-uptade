@@ -9,14 +9,41 @@ import logging
 import requests
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
-try:
-    from telegram import Bot
-    from telegram.constants import ParseMode
-except Exception:  # make telegram optional; we can still send via HTTP
-    Bot = None
-    class ParseMode:
-        HTML = "HTML"
-        MARKDOWN_V2 = "MarkdownV2"
+# --- Lazy import de python-telegram-bot (gain cold-start ~1.7s) ---
+# Avant : `from telegram import Bot` chargeait toute la lib python-telegram-bot
+# (httpx, asyncio backends, etc.) à l'import du module → ~1.7s. Maintenant : chargé
+# au 1er Bot(token=...) via _get_bot_class().
+class ParseMode:  # fallback constants — utilisées partout dans le module
+    HTML = "HTML"
+    MARKDOWN_V2 = "MarkdownV2"
+
+
+Bot = None  # type: ignore[assignment]
+_TELEGRAM_LOAD_ATTEMPTED = False
+
+
+def _get_bot_class():
+    """Charge `telegram.Bot` à la 1ère demande, met aussi à jour `ParseMode`.
+
+    Renvoie la classe `Bot` (ou `None` si python-telegram-bot indisponible).
+    Idempotent et thread-safe pour les usages typiques.
+    """
+    global Bot, ParseMode, _TELEGRAM_LOAD_ATTEMPTED
+    if _TELEGRAM_LOAD_ATTEMPTED:
+        return Bot
+    _TELEGRAM_LOAD_ATTEMPTED = True
+    try:
+        from telegram import Bot as _Bot
+        from telegram.constants import ParseMode as _RealParseMode
+        Bot = _Bot
+        ParseMode = _RealParseMode  # remplace le stub
+        logger_ = logging.getLogger(__name__)
+        logger_.info("✅ python-telegram-bot chargé (lazy)")
+    except Exception as e:
+        logging.getLogger(__name__).warning(
+            f"python-telegram-bot indisponible : {e}. Fallback HTTP direct."
+        )
+    return Bot
 from pymongo import MongoClient
 import re
 import json
@@ -33,12 +60,14 @@ class TelegramAlertsService:
         self.telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
         self.default_chat_id = os.environ.get("TELEGRAM_CHAT_ID")
         self.bot = None
-        if self.telegram_token and self.default_chat_id and Bot is not None:
-            try:
-                self.bot = Bot(token=self.telegram_token)
-                logger.info("✅ Bot Telegram initialisé depuis les variables d'environnement")
-            except Exception as e:
-                logger.warning(f"⚠️ Impossible d'initialiser Bot (env): {e}")
+        if self.telegram_token and self.default_chat_id:
+            _BotCls = _get_bot_class()
+            if _BotCls is not None:
+                try:
+                    self.bot = _BotCls(token=self.telegram_token)
+                    logger.info("✅ Bot Telegram initialisé depuis les variables d'environnement")
+                except Exception as e:
+                    logger.warning(f"⚠️ Impossible d'initialiser Bot (env): {e}")
         
         # MongoDB connection
         MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
@@ -61,9 +90,11 @@ class TelegramAlertsService:
                     if cfg:
                         self.telegram_token = self.telegram_token or cfg.get("token")
                         self.default_chat_id = self.default_chat_id or cfg.get("default_chat_id")
-                        if self.telegram_token and self.default_chat_id and Bot is not None:
-                            self.bot = Bot(token=self.telegram_token)
-                            logger.info("✅ Configuration Telegram chargée depuis MongoDB")
+                        if self.telegram_token and self.default_chat_id:
+                            _BotCls = _get_bot_class()
+                            if _BotCls is not None:
+                                self.bot = _BotCls(token=self.telegram_token)
+                                logger.info("✅ Configuration Telegram chargée depuis MongoDB")
                 except Exception as e:
                     logger.warning(f"⚠️ Fallback Mongo pour Telegram échoué: {e}")
         except Exception as e:
@@ -144,9 +175,10 @@ class TelegramAlertsService:
         try:
             self.telegram_token = token
             self.default_chat_id = str(chat_id)
-            if Bot is not None:
+            _BotCls = _get_bot_class()
+            if _BotCls is not None:
                 try:
-                    self.bot = Bot(token=token)
+                    self.bot = _BotCls(token=token)
                 except Exception as e:
                     logger.warning(f"⚠️ Bot non initialisé (lib manquante ou erreur): {e}")
             # Sauvegarde Mongo
@@ -170,11 +202,13 @@ class TelegramAlertsService:
         """Charger la configuration depuis ENV puis MongoDB."""
         # ENV prioritaire
         if self.telegram_token and self.default_chat_id:
-            if Bot is not None and self.bot is None:
-                try:
-                    self.bot = Bot(token=self.telegram_token)
-                except Exception as e:
-                    logger.warning(f"⚠️ Init Bot depuis ENV échouée: {e}")
+            if self.bot is None:
+                _BotCls = _get_bot_class()
+                if _BotCls is not None:
+                    try:
+                        self.bot = _BotCls(token=self.telegram_token)
+                    except Exception as e:
+                        logger.warning(f"⚠️ Init Bot depuis ENV échouée: {e}")
             return True
         # Mongo fallback
         try:
@@ -182,9 +216,10 @@ class TelegramAlertsService:
             if config:
                 self.telegram_token = config.get("token")
                 self.default_chat_id = str(config.get("default_chat_id"))
-                if Bot is not None:
+                _BotCls = _get_bot_class()
+                if _BotCls is not None:
                     try:
-                        self.bot = Bot(token=self.telegram_token)
+                        self.bot = _BotCls(token=self.telegram_token)
                     except Exception as e:
                         logger.warning(f"⚠️ Init Bot depuis Mongo échouée: {e}")
                 logger.info("✅ Configuration Telegram chargée")
