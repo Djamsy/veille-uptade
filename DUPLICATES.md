@@ -12,7 +12,7 @@
 
 | Section | Avant | Supprimé | Reste à traiter |
 |---|---|---|---|
-| 1. LLM | 4 fichiers | 2 morts | `ai_service.py` (importé par scripts) à confirmer |
+| 1. LLM | 4 fichiers | 2 morts | ✅ `ai_service.py` conservé (shim pour scripts) — voir vague 2 |
 | 2. Sentiment | 7 fichiers | 4 morts | `sentiment_service.py` vs `_analysis_` vs `gpt_` à unifier |
 | 3. Scheduler | 3 fichiers | 1 mort | enhanced / service à unifier (chantier séparé) |
 | 4. Scrapers | 5 fichiers | 2 morts | déjà propre |
@@ -20,8 +20,15 @@
 | 6. .bak/.backup | 3 | 3 | ✅ vide |
 | 7. Scripts racine | 23 | 21 supprimés + 1 déplacé | ✅ il reste `dev_run.sh` seulement |
 | Module mort hors liste | — | `media_noise_detection_mistral.py` (SyntaxError) | — |
+| **Vague 2 (2026-05-28)** | | | |
+| Routers non wirés | 2 | 2 (`transcription_ai_routes.py`, `advanced_classification_routes.py`) | ✅ |
+| Scripts d'enrichissement | 2 | 1 doublon supprimé + 1 déplacé vers `backend/scripts/` | ✅ |
 
-**Total** : 33 fichiers / ~13 600 lignes retirés du repo. Aucune régression dans `tests/unit/` ni `tests/eval/`.
+**Total** :
+- **Vague 1** : 33 fichiers / ~13 600 lignes
+- **Vague 2** : 3 fichiers supprimés (~1 315 L) + 1 déplacé
+
+Aucune régression dans `tests/unit/` ni `tests/eval/`.
 
 ## Légende
 
