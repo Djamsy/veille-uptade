@@ -1,0 +1,100 @@
+# =====================================================
+#  pyproject.toml — veille-uptade
+#  Outillage : ruff (lint + format), mypy (typecheck soft), pytest.
+# =====================================================
+
+[project]
+name = "veille-uptade-backend"
+version = "0.1.0"
+description = "Plateforme de veille médiatique Guadeloupe"
+requires-python = ">=3.11"
+
+# ---------------------------------------------------------------------------
+# Ruff — lint + format. Démarrage prudent : on active les règles qui font
+# levier (E, F, I, B, UP) sans s'auto-bloquer en ajoutant 2000 ignores.
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [
+    ".venv",
+    "venv",
+    "venv_enrich",
+    "backend/venv",
+    "backend/.venv",
+    "node_modules",
+    ".next",
+    "backend/__pycache__",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort (imports ordonnés)
+    "B",   # bugbear (bugs courants)
+    "UP",  # pyupgrade (syntaxe moderne)
+    "SIM", # simplify
+    "RUF", # ruff-specific
+]
+ignore = [
+    "E501",  # line-too-long : on a beaucoup de cas légitimes, on laisse au format
+    "B008",  # function call in default arg : FastAPI Depends() est légitime
+    "B904",  # raise from : trop bruyant pour ouvrir, à activer plus tard
+    "SIM108", # ternary : pas toujours plus lisible
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["F401", "F811"]      # fixtures, imports indirects
+"backend/server.py" = ["E402"]     # imports tardifs justifiés
+"backend/scripts/**" = ["E402"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# ---------------------------------------------------------------------------
+# Mypy — mode "soft" pour démarrer : on signale, on ne bloque pas.
+# Quand le bruit baisse, durcir avec strict = true par module.
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.11"
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+ignore_missing_imports = true     # nombreuses libs sans stubs
+follow_imports = "silent"
+exclude = [
+    ".venv",
+    "venv",
+    "venv_enrich",
+    "backend/venv",
+    "node_modules",
+]
+
+# Durcir progressivement, module par module.
+# Exemple cible une fois consolidé :
+# [[tool.mypy.overrides]]
+# module = "backend.affair_lifecycle_service"
+# disallow_untyped_defs = true
+
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+]
+markers = [
+    "unit: tests unitaires rapides (pas de Mongo, pas de réseau)",
+    "integration: tests d'intégration (Mongo local requis)",
+    "eval: tests d'évaluation qualité (datasets annotés)",
+    "slow: tests lents (réseau, scraping réel)",
+]

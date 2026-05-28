@@ -1,0 +1,52 @@
+# =====================================================
+#  .pre-commit-config.yaml
+#  Installer : pip install pre-commit && pre-commit install
+# =====================================================
+
+repos:
+  # --- Hygiène générale ----------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: detect-private-key
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+
+  # --- Ruff (lint + format) ------------------------------------------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format
+
+  # --- Détection de secrets ------------------------------------------------
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+
+  # --- Règles spécifiques au projet ----------------------------------------
+  - repo: local
+    hooks:
+      - id: no-monster-py-files
+        name: Refuser les fichiers Python > 1500 lignes
+        entry: scripts/precommit_no_monsters.sh
+        language: script
+        types: [python]
+        exclude: '^(\.venv|venv|backend/venv|node_modules)'
+
+      - id: no-junk-file-names
+        name: Refuser les noms _v2.py, _new.py, _unified.py, ' copie.py'
+        entry: scripts/precommit_no_junk_names.sh
+        language: script
+        types: [python]
