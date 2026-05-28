@@ -26,7 +26,7 @@
       "expected": "merge",
       "predicted": "split",
       "score": 0.2857142857142857,
-      "rationale": "Même fait reformulé : annonce d'investissement région. Vocabulaire différent mais entités, montant et programme identiques."
+      "rationale": "Même fait reformulé : annonce d'investissement région. Vocabulaire différent mais entités, montant et programme identiques. Thème education hors BROAD_THEMES → bonus theme s'applique correctement."
     }
   ]
 }
