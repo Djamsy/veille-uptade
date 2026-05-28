@@ -1,11 +1,52 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-# IDE and editors
+# =====================================================
+#  .gitignore — veille-uptade
+#  Organisé par catégorie ; pas de doublons.
+# =====================================================
+
+# --- Secrets & environnement (jamais committés) -------
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env
+frontend/.env.local
+*token.json*
+*credentials.json*
+# Garder les exemples committés
+!.env.example
+!backend/.env.example
+!frontend/.env.example
+
+# --- macOS / Windows / IDE ----------------------------
+.DS_Store
+**/.DS_Store
+Thumbs.db
 .idea/
 .vscode/
+*.swp
 
-# Dependencies
+# --- Python -------------------------------------------
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+venv_*/
+env/
+backend/.venv/
+backend/venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# --- Node / Next.js -----------------------------------
 node_modules/
-/node_modules
+**/node_modules/
 /.pnp
 .pnp.js
 .yarn/install-state.gz
@@ -14,45 +55,27 @@ node_modules/
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
-
-# Testing
-/coverage
-
-# Next.js
-/.next/
+.next/
+**/.next/
 /out/
 next-env.d.ts
 *.tsbuildinfo
+frontend/yarn.lock   # on choisit npm
+.swc/
 
-# Production builds
+# --- Builds & coverage --------------------------------
 /build
 dist/
-dist
+/coverage
 
-# Environment files (comprehensive coverage)
-*token.json*
-*credentials.json*
-backend/.env
-backend/.env
-backend/.env
-# macOS
-.DS_Store
-frontend/.DS_Store
-frontend/src/.DS_Store
+# --- Logs (jamais dans le repo) -----------------------
+*.log
+logs/
+backend/logs/
 
-# Python
-__pycache__/
-*.pyc
-backend/.venv/
-env/
-.venv/
+# --- Fichiers temporaires de test ---------------------
+test_audio.wav
+test_digest.pdf
 
-# Node / React
-node_modules/
-
-# Lockfiles: on choisit NPM, on ignore yarn.lock
-frontend/yarn.lock
-
-# Secrets
-.env
-frontend/.env
+# --- Worktrees Claude / agents ------------------------
+.claude/worktrees/
