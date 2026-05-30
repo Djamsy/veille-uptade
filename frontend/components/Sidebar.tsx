@@ -39,6 +39,11 @@ const ICON = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
     </svg>
   ),
+  observatoire: (
+    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3v18h18M7 14l3.5-3.5 2.5 2.5L18 8m0 0h-3.5M18 8v3.5" />
+    </svg>
+  ),
   elections: (
     <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -109,13 +114,14 @@ const SECTIONS: NavSection[] = [
     items: [
       { href: '/articles', label: 'Articles', icon: ICON.articles },
       { href: '/radio', label: 'Radio', icon: ICON.radio },
-      { href: '/social', label: 'Réseaux sociaux', icon: ICON.social, adminOnly: true },
+      { href: '/social', label: 'Campagnes', icon: ICON.social, adminOnly: true },
     ],
   },
   {
     id: 'partager',
     label: 'Analyser & partager',
     items: [
+      { href: '/observatoire', label: 'Observatoire', icon: ICON.observatoire, adminOnly: true },
       { href: '/analytics', label: 'Analytics', icon: ICON.analytics },
       { href: '/briefing', label: 'Briefing', icon: ICON.briefing },
     ],
