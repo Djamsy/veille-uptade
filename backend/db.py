@@ -229,6 +229,23 @@ def ensure_api_indexes(db=None):
         _safe_index(presences, [("published_at", DESCENDING)], "idx_presence_date")
         _safe_index(presences, [("article_id", ASCENDING), ("entity_canonical", ASCENDING), ("commune", ASCENDING)], "idx_presence_dedup")
 
+        # ── Observatoire social : snapshots historiques des comptes RS ──
+        # Aucune TTL : l'historique d'évolution doit être conservé durablement.
+        # Un snapshot par (plateforme, date) — l'index unique garantit l'idempotence
+        # (un seul snapshot par jour et par plateforme, ré-exécution = upsert).
+        snapshots = db["account_snapshots"]
+        _safe_index(snapshots, [("platform", ASCENDING), ("snapshot_date", DESCENDING)], "idx_snapshot_platform_date")
+        _safe_index(snapshots, [("snapshot_date", DESCENDING)], "idx_snapshot_date")
+        try:
+            snapshots.create_index(
+                [("platform", ASCENDING), ("snapshot_date", ASCENDING)],
+                name="idx_snapshot_unique",
+                unique=True,
+                background=True,
+            )
+        except Exception:
+            pass  # index déjà existant
+
         _indexes_created = True
         logger.info("✅ Tous les index API créés avec succès")
     except Exception as e:

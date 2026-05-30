@@ -111,8 +111,15 @@ def _scrape_instagram() -> List[Dict]:
     posts = []
     for item in items:
         comments_raw = item.get("latestComments") or item.get("comments") or []
+        # Followers lus gratuitement si l'actor les renvoie dans l'item (sinon absent).
+        followers = _safe_int(
+            item.get("ownerFollowersCount")
+            or (item.get("owner") or {}).get("followersCount")
+            or item.get("followersCount")
+        )
         posts.append({
             "platform": "instagram",
+            "author_followers": followers,
             "external_id": item.get("id") or item.get("shortCode") or "",
             "text": item.get("caption") or item.get("alt") or "",
             "url": item.get("url") or item.get("webLink") or "",
@@ -152,8 +159,14 @@ def _scrape_facebook() -> List[Dict]:
     posts = []
     for item in items:
         comments_raw = item.get("topComments") or item.get("comments_full") or item.get("comments") or []
+        followers = _safe_int(
+            item.get("pageLikes")
+            or item.get("pageFollowers")
+            or (item.get("page") or {}).get("likes")
+        )
         posts.append({
             "platform": "facebook",
+            "author_followers": followers,
             "external_id": item.get("postId", "") or item.get("id", ""),
             "text": item.get("text", "") or item.get("message", ""),
             "url": item.get("url", "") or item.get("postUrl", ""),
@@ -196,8 +209,15 @@ def _scrape_tiktok() -> List[Dict]:
     posts = []
     for item in items:
         comments_raw = item.get("comments") or []
+        # clockworks/tiktok-profile-scraper expose les abonnés sous authorMeta.fans.
+        followers = _safe_int(
+            (item.get("authorMeta") or {}).get("fans")
+            or (item.get("authorMeta") or {}).get("followerCount")
+            or item.get("fans")
+        )
         posts.append({
             "platform": "tiktok",
+            "author_followers": followers,
             "external_id": item.get("id") or item.get("videoId") or "",
             "text": item.get("text") or item.get("desc") or item.get("description") or "",
             "url": item.get("webVideoUrl") or item.get("url") or "",
@@ -277,6 +297,7 @@ def _create_external_post(scraped: Dict, db) -> str:
         "platform": scraped["platform"],
         "platform_post_id": scraped.get("external_id", ""),
         "url": scraped.get("url", ""),
+        "author_followers": _safe_int(scraped.get("author_followers")),
         "stats": scraped.get("stats", {}),
         "platform_stats": {scraped["platform"]: scraped.get("stats", {})},
         "comments_scraped": scraped.get("comments", []),
@@ -318,6 +339,11 @@ def _update_post_stats(post_id, scraped: Dict, db):
         "stats": total,
         "stats_updated_at": datetime.now(timezone.utc).isoformat(),
     }
+
+    # Nombre d'abonnés (lu gratuitement depuis l'item Apify) — pour l'observatoire.
+    followers = _safe_int(scraped.get("author_followers"))
+    if followers > 0:
+        update["author_followers"] = followers
 
     # Mettre à jour les commentaires (priorité Apify car plus riches)
     if comments:

@@ -6,8 +6,22 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     ...options,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
   });
-  if (!res.ok) throw new Error(`API ${res.status}: ${res.statusText}`);
+  if (!res.ok) {
+    const err = new Error(`API ${res.status}: ${res.statusText}`) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
+  }
   return res.json();
+}
+
+/** Message utilisateur clair à partir du statut HTTP d'une erreur apiFetch. */
+export function apiErrorMessage(e: unknown, context = 'opération'): string {
+  const status = (e as { status?: number })?.status;
+  if (status === 401) return 'Session expirée — reconnecte-toi.';
+  if (status === 403) return 'Accès réservé aux administrateurs.';
+  if (status === 404) return `Cette fonctionnalité n'est pas encore déployée sur le backend (${context}).`;
+  if (status && status >= 500) return 'Erreur serveur — réessaie dans un instant.';
+  return `Échec de l'${context}.`;
 }
 
 function authHeaders(): Record<string, string> {
@@ -1179,4 +1193,92 @@ export const scrapePostStats = (postId: string) =>
 export const syncBufferStats = () =>
   adminFetch<{ ok: boolean; updated?: number; created?: number; platforms?: Record<string, unknown>; error?: string }>(
     '/api/social-stats/buffer-sync', { method: 'POST' }
+  );
+
+// ============================================================
+// OBSERVATOIRE SOCIAL — historique & évolution
+// ============================================================
+
+export interface AccountSnapshot {
+  platform: string;
+  snapshot_date: string;
+  captured_at: string;
+  posts_count: number;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  engagement: number;
+  followers?: number;
+  followers_captured_at?: string;
+}
+
+export interface SocialHistory {
+  ok: boolean;
+  days: number;
+  series: Record<string, AccountSnapshot[]>;
+}
+
+export interface PlatformEvolution {
+  available: boolean;
+  snapshot_date?: string;
+  engagement?: number;
+  followers?: number | null;
+  posts_count?: number;
+  delta_engagement_7d?: number | null;
+  delta_engagement_30d?: number | null;
+  delta_followers_7d?: number | null;
+}
+
+export interface SocialEvolution {
+  ok: boolean;
+  platforms: Record<string, PlatformEvolution>;
+}
+
+export const fetchSocialHistory = (platform?: string, days = 30) =>
+  apiFetch<SocialHistory>(
+    `/api/social-stats/history?days=${days}${platform ? `&platform=${platform}` : ''}`
+  );
+
+export const fetchSocialEvolution = () =>
+  apiFetch<SocialEvolution>('/api/social-stats/evolution');
+
+export const triggerSocialSnapshot = () =>
+  adminFetch<{ ok: boolean; snapshot_date: string; captured: number; platforms: Record<string, unknown> }>(
+    '/api/social-stats/snapshot', { method: 'POST' }
+  );
+
+// ── Saisie manuelle ──
+
+export interface WebTrafficMetrics {
+  sessions?: number;
+  pageviews?: number;
+  users?: number;
+  new_users?: number;
+  avg_session_duration?: number;
+  bounce_rate?: number;
+}
+
+export interface WebTrafficPoint extends WebTrafficMetrics {
+  platform: string;
+  snapshot_date: string;
+  captured_at: string;
+  source?: string;
+}
+
+export const setManualFollowers = (platform: string, followers: number, date?: string) =>
+  adminFetch<{ ok: boolean; platform: string; snapshot_date: string; followers: number }>(
+    '/api/social-stats/manual/followers',
+    { method: 'POST', body: JSON.stringify({ platform, followers, date }) }
+  );
+
+export const setManualWebTraffic = (metrics: WebTrafficMetrics, date?: string) =>
+  adminFetch<{ ok: boolean; snapshot_date: string; metrics: WebTrafficMetrics }>(
+    '/api/social-stats/manual/web-traffic',
+    { method: 'POST', body: JSON.stringify({ ...metrics, date }) }
+  );
+
+export const fetchWebHistory = (days = 90) =>
+  apiFetch<{ ok: boolean; days: number; points: WebTrafficPoint[]; latest: WebTrafficPoint | null }>(
+    `/api/social-stats/web-history?days=${days}`
   );
