@@ -1,16 +1,43 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter } from 'next/font/google'
+import { Inter, Newsreader, Manrope, IBM_Plex_Mono } from 'next/font/google'
 import './globals.css'
 import ClientLayout from '../components/ClientLayout'
 import ServiceWorkerRegistration from '../components/ServiceWorkerRegistration'
 
-const inter = Inter({ subsets: ['latin'], weight: ['300', '400', '500', '600', '700'] })
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  variable: '--font-inter',
+  display: 'swap',
+})
+
+const newsreader = Newsreader({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-newsreader',
+  display: 'swap',
+})
+
+// ── Thème « Carte vivante » : Manrope (UI) + mono data ──
+const manrope = Manrope({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700', '800'],
+  variable: '--font-manrope',
+  display: 'swap',
+})
+
+const plexMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-mono-data',
+  display: 'swap',
+})
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
-  themeColor: '#0a0a0f',
+  themeColor: '#0A1A24',
 }
 
 export const metadata: Metadata = {
@@ -35,7 +62,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr">
+    <html lang="fr" className={`${inter.variable} ${newsreader.variable} ${manrope.variable} ${plexMono.variable}`}>
       <head>
         {/* Preconnect Mapbox CDN — réduit la latence de 200-500ms */}
         <link rel="preconnect" href="https://api.mapbox.com" />
@@ -52,17 +79,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.css"
         />
       </head>
-      <body className={`${inter.className} antialiased`} style={{ background: '#0a0a0f', color: '#f1f5f9' }}>
+      <body className="theme-carte font-sans antialiased" style={{ background: '#0A1A24', color: '#EAF4F2' }}>
         <ServiceWorkerRegistration />
-        {/* Ambient gradient background */}
-        <div className="ambient-bg">
-          <div className="ambient-orb-3" />
-          <div className="noise-overlay" />
-        </div>
-        {/* Content */}
-        <div className="relative z-10">
-          <ClientLayout>{children}</ClientLayout>
-        </div>
+        <ClientLayout>{children}</ClientLayout>
       </body>
     </html>
   )

@@ -16,53 +16,31 @@ import {
   type PredictiveItem,
 } from '../../lib/api'
 
-// ── Helpers ──────────────────────────────────────────
-function StatusDot({ ok }: { ok: boolean }) {
+function pct(num: number, denom: number): number {
+  if (!denom) return 0
+  return Math.round((num / denom) * 100)
+}
+
+function StatusPill({ ok, label }: { ok: boolean; label: string }) {
   return (
-    <div className={`w-2.5 h-2.5 rounded-full ${ok ? 'bg-emerald-500' : 'bg-red-500'}`}
-      style={ok ? { boxShadow: '0 0 8px rgba(16,185,129,0.5)' } : { boxShadow: '0 0 8px rgba(239,68,68,0.5)' }} />
+    <span
+      className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] px-1.5 py-0.5 rounded-sm"
+      style={{
+        background: ok ? 'var(--ok-soft)' : 'var(--crit-soft)',
+        color: ok ? '#3d6f44' : '#b02939',
+        border: `1px solid ${ok ? '#cce5d0' : '#f5d4d9'}`,
+      }}
+    >
+      <span className="w-1.5 h-1.5 rounded-full" style={{ background: ok ? 'var(--positive)' : 'var(--negative)' }} />
+      {label}
+    </span>
   )
 }
 
-function MetricRow({ label, value, color, sub }: { label: string; value: string | number; color?: string; sub?: string }) {
-  return (
-    <div className="flex items-center justify-between py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-      <span className="text-xs" style={{ color: 'rgba(255,255,255,0.45)' }}>{label}</span>
-      <div className="text-right">
-        <span className="text-xs font-semibold" style={{ color: color || 'white' }}>{value}</span>
-        {sub && <p className="text-[9px]" style={{ color: 'rgba(255,255,255,0.2)' }}>{sub}</p>}
-      </div>
-    </div>
-  )
-}
-
-function ProgressRing({ pct, color, size = 56, label }: { pct: number; color: string; size?: number; label: string }) {
-  const r = (size - 8) / 2
-  const c = 2 * Math.PI * r
-  const dasharray = `${(pct / 100) * c} ${c}`
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="5" />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth="5"
-          strokeDasharray={dasharray} strokeLinecap="round" />
-        <text x={size / 2} y={size / 2 + 4} textAnchor="middle" fill="white" fontSize="12" fontWeight="bold"
-          style={{ transform: 'rotate(90deg)', transformOrigin: '50% 50%' }}>
-          {Math.round(pct)}%
-        </text>
-      </svg>
-      <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.35)' }}>{label}</span>
-    </div>
-  )
-}
-
-// ════════════════════════════════════════════════════════════
-// ANALYTICS PAGE
-// ════════════════════════════════════════════════════════════
 export default function AnalyticsPage() {
   const [health, setHealth] = useState<SystemStats | null>(null)
-  const [reconHealth, setReconHealth] = useState<Record<string, any> | null>(null)
-  const [indexStatus, setIndexStatus] = useState<Record<string, any> | null>(null)
+  const [reconHealth, setReconHealth] = useState<Record<string, unknown> | null>(null)
+  const [indexStatus, setIndexStatus] = useState<Record<string, unknown> | null>(null)
   const [dashboard, setDashboard] = useState<EnrichedDashboardData | null>(null)
   const [predictive, setPredictive] = useState<PredictiveAnalysis | null>(null)
   const [predictiveLoading, setPredictiveLoading] = useState(false)
@@ -78,40 +56,27 @@ export default function AnalyticsPage() {
         fetchEnrichedDashboard(),
       ])
       if (h.status === 'fulfilled') setHealth(h.value)
-      if (r.status === 'fulfilled') setReconHealth(r.value)
-      if (idx.status === 'fulfilled') setIndexStatus(idx.value)
+      if (r.status === 'fulfilled') setReconHealth(r.value as Record<string, unknown>)
+      if (idx.status === 'fulfilled') setIndexStatus(idx.value as Record<string, unknown>)
       if (dash.status === 'fulfilled') setDashboard(dash.value)
-    } catch (e) {
-      console.error(e)
-    } finally { setLoading(false) }
+    } catch (e) { console.error(e) }
+    finally { setLoading(false) }
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
 
-  const handleAction = async (action: string, fn: () => Promise<any>) => {
+  const handleAction = async (action: string, fn: () => Promise<unknown>) => {
     setActionLoading(action)
     try { await fn(); await loadData() }
     catch (e) { console.error(`Action ${action} failed:`, e) }
     finally { setActionLoading('') }
   }
 
-  // ── Loading ─────────────────
-  if (loading) {
-    return (
-      <div className="flex">
-        <Sidebar />
-        <main className="lg:ml-16 flex-1 p-4 lg:p-8 pb-24 lg:pb-8 min-h-screen">
-          <div className="max-w-[1400px] mx-auto">
-            <div className="skeleton h-8 w-40 mb-8" />
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="glass-card-static p-5"><div className="skeleton h-4 w-20 mb-3" /><div className="skeleton h-12 w-full" /></div>
-              ))}
-            </div>
-          </div>
-        </main>
-      </div>
-    )
+  const loadPredictive = async () => {
+    setPredictiveLoading(true)
+    try { const res = await fetchPredictiveAnalysis(); setPredictive(res.analysis) }
+    catch (e) { console.error(e) }
+    finally { setPredictiveLoading(false) }
   }
 
   const coverage = dashboard?.coverage
@@ -124,573 +89,317 @@ export default function AnalyticsPage() {
   const topSources = dashboard?.top_sources || []
   const topEntities = dashboard?.top_entities || []
 
-  return (
-    <div className="flex">
-      <Sidebar />
-      <main className="lg:ml-16 flex-1 p-4 lg:p-8 pb-24 lg:pb-8 min-h-screen">
-        <div className="max-w-[1400px] mx-auto animate-fade-in">
+  const pipelineOk = health?.status === 'healthy' || health?.status === 'ok'
+  const reconOk = Boolean(reconHealth && (reconHealth.status === 'healthy' || reconHealth.status === 'ok'))
+  const indexOk = Boolean(indexStatus && indexStatus.status === 'ok')
+  const dashOk = Boolean(dashboard)
 
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+  return (
+    <div className="flex min-h-screen" style={{ background: 'var(--bg-base)' }}>
+      <Sidebar />
+      <main className="lg:ml-16 flex-1 overflow-y-auto">
+        <header className="px-6 lg:px-8 pt-5 pb-5" style={{ borderBottom: '1px solid var(--border)' }}>
+          <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <h1 className="text-xl lg:text-2xl font-bold text-white tracking-tight">Analytics</h1>
-              <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              <div className="font-mono text-[10px] uppercase tracking-[0.18em] mb-2" style={{ color: 'var(--text-muted)' }}>
+                Analyse / Analytics
+              </div>
+              <h1 className="font-serif text-3xl lg:text-4xl font-medium tracking-tight italic" style={{ color: 'var(--text)' }}>
+                Analytics
+              </h1>
+              <p className="font-mono text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
                 Performance du pipeline, qualité des données et métriques système
               </p>
             </div>
-            <button onClick={loadData} className="btn-glass px-3 py-2 text-sm">↻ Rafraîchir</button>
-          </div>
-
-          {/* ── ROW 1 : Système Health Cards ───────── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            {/* Pipeline status */}
-            <div className="glass-card-static p-4">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.3)' }}>Pipeline</p>
-                <StatusDot ok={health?.status === 'healthy'} />
-              </div>
-              <p className="text-2xl font-bold" style={{ color: health?.status === 'healthy' ? '#34d399' : '#f87171' }}>
-                {health?.status === 'healthy' ? 'OK' : 'Erreur'}
-              </p>
-              <p className="text-[10px] mt-1" style={{ color: 'rgba(255,255,255,0.2)' }}>
-                {health?.affairs_active ?? 0} affaires · {health?.clusters_active ?? 0} clusters
-              </p>
-            </div>
-
-            {/* Enrichissement */}
-            <div className="glass-card-static p-4">
-              <p className="text-[10px] uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.3)' }}>Enrichissement IA</p>
-              <p className="text-2xl font-bold" style={{
-                color: (coverage?.enrichment_rate ?? 0) >= 80 ? '#34d399' : (coverage?.enrichment_rate ?? 0) >= 50 ? '#fbbf24' : '#f87171'
-              }}>{coverage?.enrichment_rate ?? 0}%</p>
-              <div className="h-1 rounded-full mt-2" style={{ background: 'rgba(255,255,255,0.04)' }}>
-                <div className="h-full rounded-full" style={{
-                  width: `${Math.min(100, coverage?.enrichment_rate ?? 0)}%`,
-                  background: '#60a5fa',
-                }} />
-              </div>
-              <p className="text-[10px] mt-1" style={{ color: 'rgba(255,255,255,0.2)' }}>
-                {coverage?.enriched_articles_7d ?? 0} / {coverage?.total_articles_7d ?? 0} articles
-              </p>
-            </div>
-
-            {/* Affiliation */}
-            <div className="glass-card-static p-4">
-              <p className="text-[10px] uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.3)' }}>Affiliation</p>
-              <p className="text-2xl font-bold" style={{
-                color: (coverage?.affiliation_rate ?? 0) >= 60 ? '#34d399' : (coverage?.affiliation_rate ?? 0) >= 30 ? '#fbbf24' : '#f87171'
-              }}>{coverage?.affiliation_rate ?? 0}%</p>
-              <div className="h-1 rounded-full mt-2" style={{ background: 'rgba(255,255,255,0.04)' }}>
-                <div className="h-full rounded-full" style={{
-                  width: `${Math.min(100, coverage?.affiliation_rate ?? 0)}%`,
-                  background: (coverage?.affiliation_rate ?? 0) >= 60 ? '#34d399' : '#fbbf24',
-                }} />
-              </div>
-              <p className="text-[10px] mt-1" style={{ color: 'rgba(255,255,255,0.2)' }}>
-                {coverage?.affiliated_articles_7d ?? 0} articles → affaires
-              </p>
-            </div>
-
-            {/* Radio */}
-            <div className="glass-card-static p-4">
-              <p className="text-[10px] uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.3)' }}>Radio</p>
-              <p className="text-2xl font-bold" style={{ color: '#facc15' }}>{coverage?.radio_rate ?? 0}%</p>
-              <div className="h-1 rounded-full mt-2" style={{ background: 'rgba(255,255,255,0.04)' }}>
-                <div className="h-full rounded-full" style={{
-                  width: `${Math.min(100, coverage?.radio_rate ?? 0)}%`,
-                  background: '#facc15',
-                }} />
-              </div>
-              <p className="text-[10px] mt-1" style={{ color: 'rgba(255,255,255,0.2)' }}>
-                {coverage?.processed_transcriptions_7d ?? 0} / {coverage?.total_transcriptions_7d ?? 0} transcriptions
-              </p>
-            </div>
-          </div>
-
-          {/* ── ROW 2 : Coverage rings + Gravity quality + Trends ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-
-            {/* Coverage rings */}
-            <div className="glass-card-static p-5">
-              <h2 className="text-xs font-semibold uppercase tracking-wider mb-5" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                Taux de couverture
-              </h2>
-              <div className="flex items-center justify-around">
-                <ProgressRing pct={coverage?.enrichment_rate ?? 0} color="#60a5fa" label="Enrichi" />
-                <ProgressRing pct={coverage?.affiliation_rate ?? 0}
-                  color={(coverage?.affiliation_rate ?? 0) >= 60 ? '#34d399' : '#fbbf24'} label="Affilié" />
-                <ProgressRing pct={coverage?.radio_rate ?? 0} color="#facc15" label="Radio" />
-              </div>
-            </div>
-
-            {/* Gravity Quality */}
-            <div className="glass-card-static p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                  Qualité du scoring IA
-                </h2>
-                <span className="text-[10px] px-2 py-0.5 rounded-full" style={{
-                  background: avgGravity <= 0.35 ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
-                  color: avgGravity <= 0.35 ? '#34d399' : '#fbbf24',
-                }}>moy. {Math.round(avgGravity * 100)}%</span>
-              </div>
-              {gravDist ? (
-                <div className="space-y-3">
-                  {[
-                    { label: 'Faible (0-25%)', count: gravDist.low, color: '#34d399', target: '~60%' },
-                    { label: 'Moyen (25-50%)', count: gravDist.medium, color: '#fbbf24', target: '~25%' },
-                    { label: 'Élevé (50-70%)', count: gravDist.high, color: '#fb923c', target: '~10%' },
-                    { label: 'Critique (70%+)', count: gravDist.critical, color: '#f87171', target: '~5%' },
-                  ].map(seg => {
-                    const total = gravDist.low + gravDist.medium + gravDist.high + gravDist.critical
-                    const pct = total > 0 ? Math.round(seg.count / total * 100) : 0
-                    return (
-                      <div key={seg.label}>
-                        <div className="flex items-center justify-between mb-0.5">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: seg.color }} />
-                            <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.5)' }}>{seg.label}</span>
-                          </div>
-                          <span className="text-[11px]" style={{ color: seg.color }}>
-                            {pct}% <span style={{ color: 'rgba(255,255,255,0.15)' }}>cible {seg.target}</span>
-                          </span>
-                        </div>
-                        <div className="h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.04)' }}>
-                          <div className="h-full rounded-full transition-all duration-500" style={{
-                            width: `${pct}%`, background: seg.color,
-                          }} />
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : (
-                <p className="text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.25)' }}>Pas de données</p>
-              )}
-            </div>
-
-            {/* Tendances semaine */}
-            <div className="glass-card-static p-5">
-              <h2 className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                Tendances
-              </h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)' }}>
-                  <div>
-                    <p className="text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>Articles cette semaine</p>
-                    <p className="text-xl font-bold text-white">{trends?.articles_this_week ?? 0}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.25)' }}>sem. précédente</p>
-                    <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>{trends?.articles_last_week ?? 0}</p>
-                    {trends && (
-                      <div className="mt-1 flex items-center justify-end gap-1">
-                        <span className="text-xs font-medium" style={{
-                          color: trends.articles_trend_pct >= 0 ? '#34d399' : '#f87171'
-                        }}>
-                          {trends.articles_trend_pct >= 0 ? '+' : ''}{trends.articles_trend_pct}%
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)' }}>
-                  <div>
-                    <p className="text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>Affaires créées</p>
-                    <p className="text-xl font-bold" style={{ color: '#60a5fa' }}>{trends?.affairs_created_this_week ?? 0}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.25)' }}>sem. précédente</p>
-                    <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>{trends?.affairs_created_last_week ?? 0}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)' }}>
-                  <div>
-                    <p className="text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>BMG moyen</p>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-shrink-0 rounded-full border-2 border-cyan-500/40 flex items-center justify-center text-[10px] font-bold text-cyan-300"
-                        style={{ width: '36px', height: '36px' }}>
-                        {Math.round(avgBmg * 100)}
-                      </div>
-                      <p className="text-lg font-bold text-white">{Math.round(avgBmg * 100)}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.25)' }}>priorités</p>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      {(priorityCounts.hot || 0) > 0 && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>
-                          {priorityCounts.hot}
-                        </span>
-                      )}
-                      {(priorityCounts.watch || 0) > 0 && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24' }}>
-                          {priorityCounts.watch}
-                        </span>
-                      )}
-                      {(priorityCounts.minor || 0) > 0 && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(16,185,129,0.15)', color: '#34d399' }}>
-                          {priorityCounts.minor}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ── ROW 3 : Pipeline détaillé + Réconciliation + Index ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-
-            {/* Pipeline détaillé */}
-            <div className="glass-card-static p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>Pipeline détaillé</h2>
-                <StatusDot ok={health?.status === 'healthy'} />
-              </div>
-              <div>
-                <MetricRow label="Candidats total" value={health?.candidates_total ?? '—'} />
-                <MetricRow label="Non classés" value={health?.candidates_unclustered ?? '—'} color="#fbbf24" />
-                <MetricRow label="Clusters actifs" value={health?.clusters_active ?? '—'} color="#facc15" />
-                <MetricRow label="Affaires actives" value={health?.affairs_active ?? '—'} color="#34d399" />
-                <MetricRow label="En veille" value={health?.affairs_stale ?? '—'} color="rgba(255,255,255,0.35)" />
-              </div>
-              <button onClick={() => handleAction('cycle', () => runFullCycle())} disabled={actionLoading === 'cycle'}
-                className="mt-4 w-full py-2 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
-                style={{ background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.2)' }}>
-                {actionLoading === 'cycle' ? '⟳ Cycle en cours...' : '▶ Lancer le cycle complet'}
-              </button>
-            </div>
-
-            {/* Réconciliation */}
-            <div className="glass-card-static p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>Réconciliation</h2>
-                <StatusDot ok={!!reconHealth} />
-              </div>
-              {reconHealth ? (
-                <div>
-                  {Object.entries(reconHealth).slice(0, 7).map(([key, val]) => (
-                    <MetricRow key={key}
-                      label={key.replace(/_/g, ' ')}
-                      value={typeof val === 'object' ? JSON.stringify(val).slice(0, 25) : String(val)} />
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs py-4" style={{ color: 'rgba(255,255,255,0.3)' }}>Service non disponible</p>
-              )}
-              <div className="flex gap-2 mt-4">
-                <button onClick={() => handleAction('recon', () => runReconciliation(3, false))} disabled={!!actionLoading}
-                  className="flex-1 py-2 rounded-lg text-xs font-medium disabled:opacity-50"
-                  style={{ background: 'rgba(22,163,74,0.15)', color: '#facc15', border: '1px solid rgba(22,163,74,0.2)' }}>
-                  {actionLoading === 'recon' ? '⟳...' : 'Réconcilier'}
-                </button>
-                <button onClick={() => handleAction('recon_dry', () => runReconciliation(3, true))} disabled={!!actionLoading}
-                  className="flex-1 py-2 rounded-lg text-xs font-medium disabled:opacity-50"
-                  style={{ background: 'rgba(251,191,36,0.1)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.15)' }}>
-                  {actionLoading === 'recon_dry' ? '⟳...' : 'Dry run'}
-                </button>
-              </div>
-            </div>
-
-            {/* Index articles */}
-            <div className="glass-card-static p-5">
-              <h2 className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: 'rgba(255,255,255,0.4)' }}>Index articles</h2>
-              {indexStatus ? (
-                <>
-                  <MetricRow label="Articles indexés" value={indexStatus.index_size ?? '—'} />
-                  <MetricRow label="Âge index" value={indexStatus.index_age_minutes ? `${indexStatus.index_age_minutes} min` : '—'} />
-                  <MetricRow label="Entités uniques" value={indexStatus.unique_entities ?? '—'} color="#facc15" />
-                  <MetricRow label="Affaires dans index" value={indexStatus.affairs_in_index ?? '—'} color="#34d399" />
-
-                  {indexStatus.themes_distribution && (
-                    <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                      <p className="text-[10px] uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.25)' }}>Thèmes</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {Object.entries(indexStatus.themes_distribution as Record<string, number>)
-                          .sort(([, a], [, b]) => (b as number) - (a as number))
-                          .slice(0, 8)
-                          .map(([theme, count]) => (
-                            <span key={theme} className="text-[10px] px-2 py-0.5 rounded-full"
-                              style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.35)' }}>
-                              {theme} ({count as number})
-                            </span>
-                          ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <p className="text-xs py-4" style={{ color: 'rgba(255,255,255,0.3)' }}>Index non disponible</p>
-              )}
-            </div>
-          </div>
-
-          {/* ── ROW 4 : Sentiment + Sources + Entités ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-
-            {/* Sentiment */}
-            <div className="glass-card-static p-5">
-              <h2 className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                Sentiment médias 7j
-              </h2>
-              {Object.keys(sentDist).length > 0 ? (
-                <div className="space-y-3">
-                  {Object.entries(sentDist).map(([key, count]) => {
-                    const total = Object.values(sentDist).reduce((s, c) => s + c, 0)
-                    const pct = total > 0 ? Math.round(count / total * 100) : 0
-                    const colorMap: Record<string, string> = {
-                      positif: '#34d399', positive: '#34d399',
-                      négatif: '#f87171', negatif: '#f87171', negative: '#f87171',
-                      neutre: '#60a5fa', neutral: '#60a5fa',
-                      mixte: '#fbbf24', mixed: '#fbbf24',
-                    }
-                    const color = colorMap[key.toLowerCase()] || '#94a3b8'
-                    return (
-                      <div key={key}>
-                        <div className="flex items-center justify-between mb-0.5">
-                          <span className="text-[11px] capitalize" style={{ color: 'rgba(255,255,255,0.5)' }}>{key}</span>
-                          <span className="text-[11px] font-medium" style={{ color }}>
-                            {count} <span style={{ color: 'rgba(255,255,255,0.2)' }}>({pct}%)</span>
-                          </span>
-                        </div>
-                        <div className="h-2 rounded-full" style={{ background: 'rgba(255,255,255,0.04)' }}>
-                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : (
-                <p className="text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.25)' }}>Pas de données</p>
-              )}
-            </div>
-
-            {/* Top sources */}
-            <div className="glass-card-static p-5">
-              <h2 className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                Volume par source
-              </h2>
-              {topSources.length > 0 ? (
-                <div className="space-y-2.5">
-                  {topSources.map((s, i) => {
-                    const maxC = topSources[0].count
-                    const pct = Math.round(s.count / maxC * 100)
-                    return (
-                      <div key={i}>
-                        <div className="flex items-center justify-between mb-0.5">
-                          <span className="text-[11px] truncate" style={{ color: 'rgba(255,255,255,0.5)' }}>{s.name}</span>
-                          <span className="text-[11px] font-medium text-white">{s.count}</span>
-                        </div>
-                        <div className="h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.04)' }}>
-                          <div className="h-full rounded-full" style={{
-                            width: `${pct}%`,
-                            background: `linear-gradient(90deg, #2563eb, #60a5fa)`,
-                          }} />
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : (
-                <p className="text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.25)' }}>Pas de sources</p>
-              )}
-            </div>
-
-            {/* Entités les plus citées */}
-            <div className="glass-card-static p-5">
-              <h2 className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                Entités les plus citées
-              </h2>
-              {topEntities.length > 0 ? (
-                <div className="space-y-2">
-                  {topEntities.slice(0, 10).map((e, i) => {
-                    const maxC = topEntities[0].count
-                    return (
-                      <div key={i} className="flex items-center gap-2">
-                        <span className="text-[10px] w-4 text-right" style={{
-                          color: i < 3 ? '#fbbf24' : 'rgba(255,255,255,0.2)',
-                          fontWeight: i < 3 ? 600 : 400,
-                        }}>{i + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-0.5">
-                            <span className="text-[11px] truncate" style={{ color: 'rgba(255,255,255,0.55)' }}>{e.name}</span>
-                            <span className="text-[10px] font-medium" style={{ color: 'rgba(255,255,255,0.3)' }}>×{e.count}</span>
-                          </div>
-                          <div className="h-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.04)' }}>
-                            <div className="h-full rounded-full" style={{
-                              width: `${(e.count / maxC) * 100}%`,
-                              background: i < 3 ? '#facc15' : 'rgba(22,163,74,0.3)',
-                            }} />
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : (
-                <p className="text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.25)' }}>Aucune entité</p>
-              )}
-            </div>
-          </div>
-
-          {/* ═══ ANALYSE PRÉDICTIVE IA ═══ */}
-          <div className="glass-card p-6 mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{
-                  background: 'linear-gradient(135deg, rgba(22,163,74,0.2), rgba(37,99,235,0.2))',
-                  border: '1px solid rgba(22,163,74,0.3)',
-                }}>
-                  <span className="text-sm">🔮</span>
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-white">Analyse prédictive IA</h3>
-                  <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                    Tendances, anticipations et recommandations GPT
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={async () => {
-                  setPredictiveLoading(true)
-                  try {
-                    const res = await fetchPredictiveAnalysis()
-                    if (res.success) setPredictive(res.analysis)
-                  } catch (e) { console.error(e) }
-                  finally { setPredictiveLoading(false) }
-                }}
-                disabled={predictiveLoading}
-                className="px-4 py-2 rounded-xl text-xs font-medium transition-all"
-                style={{
-                  background: predictiveLoading ? 'rgba(22,163,74,0.1)' : 'rgba(22,163,74,0.15)',
-                  color: '#facc15',
-                  border: '1px solid rgba(22,163,74,0.3)',
-                }}
-              >
-                {predictiveLoading ? (
-                  <span className="flex items-center gap-2">
-                    <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>
-                    Analyse en cours...
-                  </span>
-                ) : 'Lancer l\'analyse IA'}
-              </button>
-            </div>
-
-            {predictive && (
-              <div className="space-y-4">
-                {/* Synthèse */}
-                {predictive.synthese && (
-                  <div className="p-4 rounded-xl" style={{ background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.15)' }}>
-                    <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.7)' }}>{predictive.synthese}</p>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Tendances */}
-                  {predictive.tendances?.length > 0 && (
-                    <div>
-                      <h4 className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#60a5fa' }}>Tendances détectées</h4>
-                      <div className="space-y-2">
-                        {predictive.tendances.map((t: PredictiveItem, i: number) => (
-                          <div key={i} className="p-3 rounded-lg" style={{ background: 'rgba(37,99,235,0.06)', border: '1px solid rgba(37,99,235,0.12)' }}>
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs font-medium text-white">{t.titre}</span>
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{
-                                background: t.confiance >= 0.7 ? 'rgba(16,185,129,0.15)' : 'rgba(251,191,36,0.15)',
-                                color: t.confiance >= 0.7 ? '#34d399' : '#fbbf24',
-                              }}>{Math.round(t.confiance * 100)}%</span>
-                            </div>
-                            <p className="text-[10px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.4)' }}>{t.description}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Anticipations */}
-                  {predictive.anticipations?.length > 0 && (
-                    <div>
-                      <h4 className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#facc15' }}>Événements anticipés</h4>
-                      <div className="space-y-2">
-                        {predictive.anticipations.map((a: PredictiveItem, i: number) => (
-                          <div key={i} className="p-3 rounded-lg" style={{ background: 'rgba(22,163,74,0.06)', border: '1px solid rgba(22,163,74,0.12)' }}>
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs font-medium text-white">{a.titre}</span>
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{
-                                background: a.confiance >= 0.7 ? 'rgba(16,185,129,0.15)' : 'rgba(251,191,36,0.15)',
-                                color: a.confiance >= 0.7 ? '#34d399' : '#fbbf24',
-                              }}>{Math.round(a.confiance * 100)}%</span>
-                            </div>
-                            <p className="text-[10px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.4)' }}>{a.description}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Recommandations */}
-                  {predictive.recommandations?.length > 0 && (
-                    <div>
-                      <h4 className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#34d399' }}>Recommandations de veille</h4>
-                      <div className="space-y-2">
-                        {predictive.recommandations.map((r: PredictiveItem, i: number) => (
-                          <div key={i} className="p-3 rounded-lg" style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.12)' }}>
-                            <span className="text-xs font-medium text-white">{r.titre}</span>
-                            <p className="text-[10px] leading-relaxed mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>{r.description}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Risques */}
-                  {predictive.risques?.length > 0 && (
-                    <div>
-                      <h4 className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#f87171' }}>Risques d'escalade</h4>
-                      <div className="space-y-2">
-                        {predictive.risques.map((r: PredictiveItem, i: number) => (
-                          <div key={i} className="p-3 rounded-lg" style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.12)' }}>
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs font-medium text-white">{r.titre}</span>
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{
-                                background: 'rgba(239,68,68,0.15)', color: '#fca5a5',
-                              }}>{Math.round(r.confiance * 100)}%</span>
-                            </div>
-                            <p className="text-[10px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.4)' }}>{r.description}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {!predictive && !predictiveLoading && (
-              <p className="text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                Cliquez sur "Lancer l'analyse IA" pour obtenir tendances et anticipations
-              </p>
-            )}
-          </div>
-
-          {/* ── Spinner ── */}
-          {actionLoading && (
-            <div className="fixed bottom-6 right-6 flex items-center gap-2 px-4 py-2 rounded-xl"
-              style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)' }}>
-              <svg className="w-4 h-4 animate-spin" style={{ color: '#34d399' }} fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            <button
+              onClick={loadData}
+              disabled={loading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-sm transition-colors hover:bg-ink-100"
+              style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+            >
+              <svg className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 12a9 9 0 0115.5-6.3L21 8M21 3v5h-5M21 12a9 9 0 01-15.5 6.3L3 16M3 21v-5h5" />
               </svg>
-              <span className="text-xs font-medium" style={{ color: '#34d399' }}>Action en cours...</span>
-            </div>
+              Actualiser
+            </button>
+          </div>
+        </header>
+
+        <div className="px-6 lg:px-8 py-6 max-w-[1500px] mx-auto space-y-5">
+          {/* Health row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <HealthCard label="Pipeline" pill={<StatusPill ok={pipelineOk} label={pipelineOk ? 'OK' : 'KO'} />}>
+              <div className="text-xs space-y-0.5" style={{ color: 'var(--text-secondary)' }}>
+                <Row label="Candidats" value={String(health?.candidates_total ?? '—')} />
+                <Row label="Clusters" value={String(health?.clusters_active ?? '—')} />
+                <Row label="Affaires actives" value={String(health?.affairs_active ?? '—')} />
+              </div>
+            </HealthCard>
+
+            <HealthCard label="Réconciliation" pill={<StatusPill ok={reconOk} label={reconOk ? 'OK' : 'KO'} />}>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                {reconHealth ? 'Service opérationnel' : 'Indisponible'}
+              </p>
+            </HealthCard>
+
+            <HealthCard label="Index articles" pill={<StatusPill ok={indexOk} label={indexOk ? 'OK' : 'KO'} />}>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                {indexStatus ? `${(indexStatus as Record<string, unknown>).count || '—'} entrées` : 'Indisponible'}
+              </p>
+            </HealthCard>
+
+            <HealthCard label="Dashboard" pill={<StatusPill ok={dashOk} label={dashOk ? 'OK' : 'KO'} />}>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                {dashOk ? `${Math.round(avgBmg * 100)} BMG moy.` : 'Indisponible'}
+              </p>
+            </HealthCard>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-2 flex-wrap">
+            <ActionBtn
+              label="Lancer un cycle complet"
+              loading={actionLoading === 'cycle'}
+              onClick={() => handleAction('cycle', runFullCycle)}
+            />
+            <ActionBtn
+              label="Lancer réconciliation"
+              loading={actionLoading === 'recon'}
+              onClick={() => handleAction('recon', runReconciliation)}
+            />
+            <ActionBtn
+              label="Analyse prédictive"
+              loading={predictiveLoading}
+              onClick={loadPredictive}
+              primary
+            />
+          </div>
+
+          {/* Coverage + KPI */}
+          {coverage && (
+            <Section label="Couverture · 7 jours">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Kpi label="Articles" value={coverage.total_articles_7d} />
+                <Kpi label="Enrichis" value={`${pct(coverage.enriched_articles_7d, coverage.total_articles_7d)}%`} />
+                <Kpi label="Affiliés" value={`${pct(coverage.affiliated_articles_7d, coverage.total_articles_7d)}%`} />
+                <Kpi label="Transcriptions" value={`${pct(coverage.processed_transcriptions_7d, coverage.total_transcriptions_7d)}%`} />
+              </div>
+            </Section>
           )}
 
+          {/* Gravity + Sentiment distribution */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {gravDist && (
+              <Section label="Gravité (distribution)">
+                <Bars items={[
+                  { label: 'Faible', value: gravDist.low, color: 'var(--positive)' },
+                  { label: 'Moyen', value: gravDist.medium, color: 'var(--caution)' },
+                  { label: 'Élevé', value: gravDist.high, color: 'var(--warning)' },
+                  { label: 'Critique', value: gravDist.critical, color: 'var(--negative)' },
+                ]} />
+              </Section>
+            )}
+            {Object.keys(sentDist).length > 0 && (
+              <Section label="Sentiment (distribution)">
+                <Bars items={Object.entries(sentDist).map(([k, v]) => ({
+                  label: k,
+                  value: v,
+                  color: k.includes('négatif') ? 'var(--negative)' : k.includes('positif') ? 'var(--positive)' : k.includes('mitigé') || k.includes('mixte') ? 'var(--warning)' : 'var(--neutral)',
+                }))} />
+              </Section>
+            )}
+          </div>
+
+          {/* Top sources + entities */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {topSources.length > 0 && (
+              <Section label="Top sources">
+                <div className="space-y-2">
+                  {topSources.slice(0, 6).map(s => {
+                    const max = topSources[0]?.count || 1
+                    return (
+                      <div key={s.name}>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{s.name}</span>
+                          <span className="font-mono text-xs tabular-nums" style={{ color: 'var(--text)' }}>{s.count}</span>
+                        </div>
+                        <div className="h-1.5 rounded-sm" style={{ background: 'var(--bg-elevated)' }}>
+                          <div className="h-full rounded-sm" style={{ width: `${(s.count / max) * 100}%`, background: 'var(--accent-press)' }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </Section>
+            )}
+            {topEntities.length > 0 && (
+              <Section label="Top entités">
+                <div className="space-y-1.5">
+                  {topEntities.slice(0, 6).map(e => (
+                    <div key={e.name} className="flex justify-between text-xs py-0.5">
+                      <span style={{ color: 'var(--text)' }}>{e.name}</span>
+                      <span className="font-mono tabular-nums" style={{ color: 'var(--text-muted)' }}>{e.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </Section>
+            )}
+          </div>
+
+          {/* Trends summary */}
+          {trends && (
+            <Section label="Tendances">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <Kpi label="Articles · sem." value={trends.articles_this_week} hint={`vs ${trends.articles_last_week}`} />
+                <Kpi label="Évolution" value={`${trends.articles_trend_pct > 0 ? '+' : ''}${Math.round(trends.articles_trend_pct)}%`} severity={trends.articles_trend_pct > 0 ? 'warn' : 'ok'} />
+                <Kpi label="Affaires créées" value={trends.affairs_created_this_week} hint={`vs ${trends.affairs_created_last_week}`} />
+              </div>
+            </Section>
+          )}
+
+          {/* Priorities */}
+          {Object.keys(priorityCounts).length > 0 && (
+            <Section label="Priorités">
+              <div className="grid grid-cols-3 gap-3">
+                <Kpi label="Hot" value={priorityCounts.hot || 0} severity="crit" />
+                <Kpi label="Watch" value={priorityCounts.watch || 0} severity="warn" />
+                <Kpi label="Minor" value={priorityCounts.minor || 0} severity="ok" />
+              </div>
+            </Section>
+          )}
+
+          {/* Predictive */}
+          {predictive && (
+            <Section label="Analyse prédictive">
+              {predictive.synthese && (
+                <p className="font-serif text-base italic leading-relaxed mb-4" style={{ color: 'var(--text-secondary)' }}>
+                  {predictive.synthese}
+                </p>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <PredBlock label="Tendances" items={predictive.tendances} />
+                <PredBlock label="Anticipations" items={predictive.anticipations} />
+                <PredBlock label="Risques" items={predictive.risques} />
+                <PredBlock label="Recommandations" items={predictive.recommandations} />
+              </div>
+            </Section>
+          )}
+
+          <div className="font-serif text-base font-medium tabular-nums" style={{ color: 'var(--text-muted)' }}>
+            Moyenne gravité : <span style={{ color: 'var(--text)' }}>{Math.round(avgGravity * 100)}</span>
+          </div>
         </div>
       </main>
     </div>
+  )
+}
+
+function HealthCard({ label, pill, children }: { label: string; pill: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="p-4" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+      <div className="flex items-center justify-between mb-2">
+        <span className="font-mono text-[10px] uppercase tracking-[0.14em]" style={{ color: 'var(--text-muted)' }}>{label}</span>
+        {pill}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function Section({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <section style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+      <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+        <span className="font-mono text-[10px] uppercase tracking-[0.14em]" style={{ color: 'var(--text-muted)' }}>{label}</span>
+      </div>
+      <div className="p-4">{children}</div>
+    </section>
+  )
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between">
+      <span style={{ color: 'var(--text-muted)' }}>{label}</span>
+      <span className="font-mono tabular-nums" style={{ color: 'var(--text)' }}>{value}</span>
+    </div>
+  )
+}
+
+function Kpi({ label, value, severity, hint }: { label: string; value: number | string; severity?: 'crit' | 'warn' | 'ok'; hint?: string }) {
+  const color = severity === 'crit' ? 'var(--negative)' : severity === 'warn' ? 'var(--warning)' : severity === 'ok' ? 'var(--positive)' : 'var(--text)'
+  return (
+    <div className="p-3" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+      <div className="font-mono text-[10px] uppercase tracking-[0.14em] mb-1.5" style={{ color: 'var(--text-muted)' }}>{label}</div>
+      <div className="flex items-baseline gap-2">
+        <span className="font-serif text-2xl font-semibold tabular-nums leading-none" style={{ color }}>{value}</span>
+        {hint && <span className="font-mono text-[10px]" style={{ color: 'var(--text-muted)' }}>{hint}</span>}
+      </div>
+    </div>
+  )
+}
+
+function Bars({ items }: { items: { label: string; value: number; color: string }[] }) {
+  const total = items.reduce((s, x) => s + x.value, 0)
+  if (total === 0) return <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Pas de données</p>
+  return (
+    <div className="space-y-2">
+      {items.map(it => {
+        const p = Math.round((it.value / total) * 100)
+        return (
+          <div key={it.label}>
+            <div className="flex justify-between mb-1">
+              <span className="text-xs capitalize" style={{ color: 'var(--text-secondary)' }}>{it.label}</span>
+              <span className="font-mono text-xs tabular-nums" style={{ color: 'var(--text)' }}>{it.value} <span style={{ color: 'var(--text-muted)' }}>({p}%)</span></span>
+            </div>
+            <div className="h-1.5 rounded-sm" style={{ background: 'var(--bg-elevated)' }}>
+              <div className="h-full rounded-sm" style={{ width: `${p}%`, background: it.color }} />
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function PredBlock({ label, items }: { label: string; items: PredictiveItem[] }) {
+  if (!items?.length) return null
+  return (
+    <div>
+      <div className="font-mono text-[10px] uppercase tracking-[0.14em] mb-2" style={{ color: 'var(--text-muted)' }}>{label}</div>
+      <div className="space-y-2">
+        {items.map((it, i) => (
+          <div key={i} className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+            <div className="font-medium" style={{ color: 'var(--text)' }}>
+              {it.titre} <span className="font-mono ml-1" style={{ color: 'var(--text-muted)' }}>{Math.round(it.confiance * 100)}%</span>
+            </div>
+            <p className="leading-relaxed">{it.description}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ActionBtn({ label, loading, onClick, primary }: { label: string; loading: boolean; onClick: () => void; primary?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={loading}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-sm transition-colors disabled:opacity-50"
+      style={
+        primary
+          ? { background: 'var(--accent-press)', color: 'var(--on-accent)', border: '1px solid var(--accent-press)' }
+          : { background: 'var(--bg-surface)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }
+      }
+    >
+      {loading && (
+        <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+        </svg>
+      )}
+      {loading ? 'En cours…' : label}
+    </button>
   )
 }

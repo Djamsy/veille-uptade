@@ -60,6 +60,20 @@ export function themeColorParts(theme: string): [string, string, string] {
   return raw.split('_') as [string, string, string]
 }
 
+const THEME_COLOR_SOLID: Record<string, string> = {
+  politique: '#facc15', economie: '#34d399', social: '#93c5fd',
+  environnement: '#86efac', sante: '#fda4af', justice: '#fde68a',
+  securite: '#fca5a5', education: '#93c5fd', culture: '#f9a8d4',
+  sport: '#67e8f9', infrastructure: '#fdba74', general: '#cbd5e1',
+  economie_emploi: '#34d399', eau_env: '#86efac',
+  energie_transports: '#fdba74', sante_social: '#fda4af',
+  securite_justice: '#fde68a', culture_patrimoine: '#f9a8d4',
+}
+
+export function themeColor(theme: string): string {
+  return THEME_COLOR_SOLID[theme] || '#cbd5e1'
+}
+
 /**
  * Classe CSS pour la gravité
  */

@@ -55,7 +55,8 @@ export default function ServiceWorkerRegistration() {
     setPushSupported(true)
     setPushPermission(Notification.permission)
 
-    // Enregistrer le service worker
+    // Le SW (v5) fetch en no-store pour html/js/css → toujours frais, y compris
+    // en dev. On l'enregistre donc dans tous les environnements.
     navigator.serviceWorker.register('/sw.js').then(async (registration) => {
       console.log('SW registered')
 

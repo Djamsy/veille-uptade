@@ -2,64 +2,97 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Scrollbar invisible ──────────────────────────── */
-.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-.scrollbar-hide::-webkit-scrollbar { display: none; }
-
 /* ══════════════════════════════════════════════════════
-   DESIGN SYSTEM V3 — Dark-first, inspiré Figma tactical
-   Couches : base(#0a0a0f) → surface(#0d0d14) → card(#12121a) → elevated(#1a1a24)
+   DESIGN SYSTEM V5 — "Crème & encre" light editorial
+   See: design-system/veille-media-guadeloupe/MASTER.md
    ══════════════════════════════════════════════════════ */
 
 :root {
-  /* ── Palette Principale ───────────────────────── */
-  --primary: #818cf8;
-  --primary-light: #a5b4fc;
-  --primary-dark: #6366f1;
-  --accent: #fbbf24;
-  --accent-light: #fcd34d;
-  --positive: #34d399;
-  --positive-light: #6ee7b7;
-  --negative: #f87171;
-  --negative-light: #fca5a5;
-  --neutral: #94a3b8;
-  --warning: #fbbf24;
-  --coral: #fb923c;
+  /* ── Surfaces — blancs neutres zinc ── */
+  --bg-base: #fafafa;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-elevated: #f4f4f5;
+  --bg-hover: #f4f4f5;
+  --bg-sidebar: #f4f4f5;
+  --bg-sunk: #f0f0f1;
+  /* Compat */
+  --bg: #fafafa;
+  --bg-card-hover: #f4f4f5;
 
-  /* ── Couches de fond (dark depth) ─────────────── */
-  --bg-base: #0a0a0f;
-  --bg-surface: #0d0d14;
-  --bg-card: #12121a;
-  --bg-elevated: #1a1a24;
-  --bg-hover: #1f1f2e;
-  --bg-sidebar: #0d0d14;
+  /* ── Texte — encre noire ── */
+  --text: #18181b;
+  --text-secondary: #3f3f46;
+  --text-muted: #71717a;
+  --text-disabled: #a1a1aa;
 
-  /* Compat ancien système */
-  --bg: #0a0a0f;
-  --bg-card-hover: #1f1f2e;
+  /* ── Bordures ── */
+  --border: #e8e8eb;
+  --border-subtle: #e8e8eb;
+  --border-hover: #d4d4d8;
+  --border-strong: #a1a1aa;
+  --border-accent: #18181b;
 
-  /* ── Textes ───────────────────────────────────── */
-  --text: #f1f5f9;
-  --text-secondary: #cbd5e1;
-  --text-muted: #64748b;
+  /* ── Accents — sobriété éditoriale ── */
+  --accent-press: #18181b;
+  --accent-press-dark: #000000;
+  --accent-press-light: #27272a;
+  --accent-alert: #b8632a;
+  --accent-alert-light: #c5793f;
+  --accent-link: #3e6fa3;
+  --accent-link-light: #5887bc;
 
-  /* ── Bordures ─────────────────────────────────── */
-  --border: rgba(255,255,255,0.05);
-  --border-hover: rgba(255,255,255,0.10);
-  --border-accent: rgba(129,140,248,0.25);
+  /* Compat — alias d'anciens noms */
+  --primary: var(--accent-press);
+  --primary-light: var(--accent-press-light);
+  --primary-dark: var(--accent-press-dark);
+  --accent: var(--accent-alert);
+  --accent-light: var(--accent-alert-light);
 
-  /* ── Glass ────────────────────────────────────── */
-  --glass-bg: rgba(13,13,20,0.80);
-  --glass-border: rgba(255,255,255,0.06);
-  --glass-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  /* ── Tokens sémantiques (topographie GPE désaturée) ── */
+  --positive: #4a7b56;          /* vert mangrove */
+  --positive-light: #6ba572;
+  --negative: #a8324a;          /* rouge Soufrière */
+  --negative-light: #c4546b;
+  --neutral: #71717a;
+  --warning: #8d4628;           /* terre volcanique */
+  --caution: #b89030;           /* jaune canne mûre */
+  --coral: #b8632a;
 
-  /* ── Glassmorphism fort (overlays carte) ─────── */
-  --glass-heavy-bg: rgba(0,0,0,0.60);
-  --glass-heavy-border: rgba(255,255,255,0.10);
+  /* Soft backgrounds pour tags */
+  --crit-soft: #fdf2f4;
+  --warn-soft: #fdf6f0;
+  --caution-soft: #fdfaf0;
+  --ok-soft: #f0f8f1;
+  --info-soft: #f1f5fa;
 
-  --radius: 12px;
-  --radius-sm: 8px;
-  --radius-lg: 16px;
+  /* ── Glass (réservé overlays sur carte) ── */
+  --glass-bg: rgba(255,255,255,0.85);
+  --glass-border: rgba(0,0,0,0.06);
+  --glass-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  --glass-heavy-bg: rgba(255,255,255,0.92);
+  --glass-heavy-border: rgba(0,0,0,0.10);
+
+  /* ── Shadow scale (très subtil sur fond clair) ── */
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-elevated: 0 4px 12px rgba(0,0,0,0.08);
+
+  /* ── Radius (rayons fins éditoriaux) ── */
+  --radius: 6px;
+  --radius-sm: 4px;
+  --radius-lg: 8px;
+
+  /* ── Fonts ── */
+  --font-sans: var(--font-inter), 'Inter', system-ui, -apple-system, sans-serif;
+  --font-serif: var(--font-newsreader), 'Newsreader', Georgia, serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, 'JetBrains Mono', monospace;
+
+  /* Brand gradient — version mute pour logo (vert→ambré→rouge) */
+  --brand-gradient: linear-gradient(135deg, #4a7b56 0%, #b89030 50%, #a8324a 100%);
+
+  /* ── Easing (courbes custom — jamais ease/linear par défaut) ── */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);        /* expo out */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);  /* quart out */
 }
 
 * { box-sizing: border-box; }
@@ -67,216 +100,111 @@
 body {
   margin: 0;
   padding: 0;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   background: var(--bg-base);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
 }
 
-/* Dashboard map mode — body transparent pour laisser voir la carte */
-.map-dashboard-mode { background: transparent !important; }
-.map-dashboard-mode > * { background: transparent !important; }
-.map-dashboard-mode .ambient-bg { display: none !important; }
-
-/* ── Ambient glow subtil (dark) ─────────────────────── */
-.ambient-bg {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-.ambient-bg::before {
-  content: '';
-  position: absolute;
-  top: -20%;
-  left: -10%;
-  width: 500px;
-  height: 500px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(99,102,241,0.06) 0%, transparent 60%);
-  filter: blur(100px);
-  animation: ambientSlow 50s ease-in-out infinite;
-}
-.ambient-bg::after {
-  content: '';
-  position: absolute;
-  bottom: -20%;
-  right: -10%;
-  width: 400px;
-  height: 400px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(251,191,36,0.03) 0%, transparent 60%);
-  filter: blur(100px);
-  animation: ambientSlow 55s ease-in-out infinite reverse;
+/* Editorial headings — Newsreader serif */
+.font-serif, h1.font-serif, h2.font-serif {
+  font-family: var(--font-serif);
+  letter-spacing: -0.01em;
 }
 
-@keyframes ambientSlow {
-  0%, 100% { transform: translate(0, 0); }
-  50% { transform: translate(30px, 20px); }
+/* Masthead — la Une : grand serif optique, tracking resserré à grande taille */
+.masthead {
+  font-family: var(--font-serif);
+  font-style: italic;
+  letter-spacing: -0.025em;
+  /* 1.1 (pas 0.95) : un serif italique accentué (É, descendantes) se fait
+     rogner en line-height trop serré, surtout sous un parent overflow-hidden. */
+  line-height: 1.1;
+  padding-bottom: 0.04em;
+  text-wrap: balance;
+  font-feature-settings: 'liga' 1, 'dlig' 1;
 }
+/* Chiffres data — alignés, sans liga, lecture en colonne */
+.tabular-data { font-variant-numeric: tabular-nums lining-nums; letter-spacing: -0.01em; }
+/* Titres équilibrés (pas d'orphelin) */
+h1, h2 { text-wrap: balance; }
 
-/* ── Scrollbar (dark) ──────────────────────────────── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
+/* ── Load choreography — révélation éditoriale sobre ── */
+@keyframes editorialReveal {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.reveal {
+  opacity: 0;
+  animation: editorialReveal 0.55s var(--ease-out) both;
+}
+.reveal-1 { animation-delay: 0.04s; }
+.reveal-2 { animation-delay: 0.12s; }
+.reveal-3 { animation-delay: 0.20s; }
+.reveal-4 { animation-delay: 0.28s; }
+
+/* ── Utilitaires ─────────────────────────────────────── */
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 10px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+::selection { background: rgba(24,24,27,0.15); color: #18181b; }
+
+html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
+.safe-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+* { touch-action: manipulation; }
 
 /* ══════════════════════════════════════════════════════
    COMPOSANTS
    ══════════════════════════════════════════════════════ */
 
-/* ── Glass card — surface semi-opaque ─────────────── */
+/* ── Cards ─────────────────────────────────────────── */
 .glass-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .glass-card:hover {
   background: var(--bg-elevated);
   border-color: var(--border-hover);
-  box-shadow: 0 8px 28px rgba(0,0,0,0.3);
-  transform: translateY(-2px);
+  box-shadow: var(--shadow-elevated);
 }
 
 .glass-card-static {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
 }
 
-/* ── Glassmorphism overlay (pour carte) ─────────────── */
-.glass-overlay {
-  background: var(--glass-heavy-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--glass-heavy-border);
-  border-radius: var(--radius-lg);
-}
-
-/* ── Colored cards — dark gradients ───────────────── */
-.card-blue {
-  background: linear-gradient(135deg, rgba(30,58,95,0.75) 0%, rgba(30,41,59,0.75) 100%);
-  border: 1px solid rgba(96,165,250,0.2);
-  border-radius: var(--radius);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-.card-amber {
-  background: linear-gradient(135deg, rgba(120,53,15,0.75) 0%, rgba(69,26,3,0.75) 100%);
-  border: 1px solid rgba(245,158,11,0.25);
-  border-radius: var(--radius);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-.card-emerald {
-  background: linear-gradient(135deg, rgba(6,78,59,0.75) 0%, rgba(2,44,34,0.75) 100%);
-  border: 1px solid rgba(16,185,129,0.25);
-  border-radius: var(--radius);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-.card-rose {
-  background: linear-gradient(135deg, rgba(76,5,25,0.75) 0%, rgba(49,4,19,0.75) 100%);
-  border: 1px solid rgba(244,63,94,0.25);
-  border-radius: var(--radius);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-.card-violet {
-  background: linear-gradient(135deg, rgba(46,16,101,0.75) 0%, rgba(30,10,62,0.75) 100%);
-  border: 1px solid rgba(139,92,246,0.25);
-  border-radius: var(--radius);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-.card-yellow {
-  background: linear-gradient(135deg, rgba(113,63,18,0.75) 0%, rgba(66,32,6,0.75) 100%);
-  border: 1px solid rgba(234,179,8,0.25);
-  border-radius: var(--radius);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-.card-cyan {
-  background: linear-gradient(135deg, rgba(8,51,68,0.75) 0%, rgba(4,47,46,0.75) 100%);
-  border: 1px solid rgba(34,211,238,0.25);
-  border-radius: var(--radius);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-
-/* ── Sidebar ─────────────────────────────────────────── */
-.sidebar-link {
-  transition: all 0.2s ease;
-  position: relative;
-  border-radius: 10px;
-}
-.sidebar-link::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  height: 0;
-  width: 3px;
-  background: linear-gradient(180deg, var(--primary), var(--accent));
-  border-radius: 0 3px 3px 0;
-  transition: height 0.2s ease;
-  transform: translateY(-50%);
-}
-.sidebar-link:hover::before { height: 50%; }
-.sidebar-link.active::before { height: 65%; }
-.sidebar-link.active { background: rgba(129,140,248,0.1); }
-
-/* ── Icon sidebar (Figma-style) ──────────────────── */
-.icon-sidebar {
-  width: 64px;
-  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.icon-sidebar:hover,
-.icon-sidebar.expanded {
-  width: 220px;
-}
+/* ── Sidebar — persistante, labels visibles (JAMAIS d'overlay sur le contenu) ── */
+.icon-sidebar { width: 220px; }
 .icon-sidebar .nav-label {
-  opacity: 0;
-  width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  transition: opacity 0.2s ease 0s, width 0.2s ease 0s;
-}
-.icon-sidebar:hover .nav-label,
-.icon-sidebar.expanded .nav-label {
   opacity: 1;
   width: auto;
-  transition: opacity 0.2s ease 0.1s, width 0.2s ease 0.05s;
+  white-space: nowrap;
 }
 
-/* ── Skeleton ────────────────────────────────────────── */
+/* ── Skeleton (light) ──────────────────────────────── */
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
 .skeleton {
-  background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 75%);
+  background: linear-gradient(90deg, #f4f4f5 25%, #e8e8eb 50%, #f4f4f5 75%);
   background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
-  border-radius: 8px;
+  animation: shimmer 1.6s ease-in-out infinite;
+  border-radius: 4px;
 }
-
-/* ── Badges ──────────────────────────────────────────── */
-.badge { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold; }
-.badge-critical { background: rgba(248,113,113,0.15); color: #fca5a5; border: 1px solid rgba(248,113,113,0.25); }
-.badge-high { background: rgba(251,146,60,0.12); color: #fdba74; border: 1px solid rgba(251,146,60,0.25); }
-.badge-medium { background: rgba(251,191,36,0.12); color: #fcd34d; border: 1px solid rgba(251,191,36,0.25); }
-.badge-low { background: rgba(52,211,153,0.12); color: #6ee7b7; border: 1px solid rgba(52,211,153,0.25); }
-.badge-info { background: rgba(129,140,248,0.12); color: #a5b4fc; border: 1px solid rgba(129,140,248,0.25); }
 
 /* ── Input ───────────────────────────────────────────── */
 .input-dark {
-  background: var(--bg-elevated);
+  background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text);
@@ -284,102 +212,54 @@ body {
 }
 .input-dark:focus {
   outline: none;
-  border-color: rgba(129,140,248,0.5);
-  box-shadow: 0 0 0 3px rgba(129,140,248,0.1);
+  border-color: var(--accent-press);
+  box-shadow: 0 0 0 3px rgba(24,24,27,0.10);
 }
 .input-dark::placeholder { color: var(--text-muted); }
 
 /* ── Buttons ─────────────────────────────────────────── */
 .btn-primary {
-  background: linear-gradient(135deg, #818cf8, #6366f1);
-  color: white;
-  border: none;
+  background: var(--accent-press);
+  color: #fafafa;
+  border: 1px solid var(--accent-press);
   border-radius: var(--radius-sm);
   font-weight: 600;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 12px rgba(99,102,241,0.3);
+  transition: background 0.12s ease, border-color 0.12s ease;
 }
 .btn-primary:hover {
-  box-shadow: 0 4px 20px rgba(99,102,241,0.4);
-  transform: translateY(-1px);
+  background: var(--accent-press-light);
+  border-color: var(--accent-press-light);
 }
-.btn-primary:active { transform: translateY(0); }
-.btn-primary:disabled { opacity: 0.4; transform: none; box-shadow: none; }
+.btn-primary:disabled { opacity: 0.4; }
 
 .btn-glass {
-  background: rgba(255,255,255,0.05);
+  background: var(--bg-surface);
   border: 1px solid var(--border);
   color: var(--text-secondary);
   border-radius: var(--radius-sm);
   font-weight: 500;
-  transition: all 0.2s ease;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
 }
 .btn-glass:hover {
-  background: rgba(255,255,255,0.08);
+  background: var(--bg-hover);
   border-color: var(--border-hover);
   color: var(--text);
 }
 
-.btn-gold {
-  background: linear-gradient(135deg, #fbbf24, #d97706);
-  color: #1a1a1a;
-  border: none;
-  border-radius: var(--radius-sm);
-  font-weight: 700;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 12px rgba(245,158,11,0.25);
-}
-.btn-gold:hover { box-shadow: 0 4px 20px rgba(245,158,11,0.35); transform: translateY(-1px); }
-
-.btn-green {
-  background: linear-gradient(135deg, #34d399, #059669);
-  color: white;
-  border: none;
-  border-radius: var(--radius-sm);
-  font-weight: 600;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 12px rgba(16,185,129,0.25);
-}
-.btn-green:hover { box-shadow: 0 4px 20px rgba(16,185,129,0.35); transform: translateY(-1px); }
-
-/* ── Progress bar ────────────────────────────────────── */
-.progress-bar-bg { background: rgba(255,255,255,0.06); border-radius: 999px; overflow: hidden; }
-
-/* ── Gradient text ───────────────────────────────────── */
-.stat-value {
-  background: linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.8) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-.text-gradient-primary {
-  background: linear-gradient(135deg, #a5b4fc, #818cf8);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-.text-gradient-warm {
-  background: linear-gradient(135deg, #fbbf24, #f97316);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* ── Flag stripe ─────────────────────────────────────── */
+/* ── Flag stripe (drapeau GP éditorialisé, version mute) ── */
 .flag-stripe {
   height: 2px;
-  background: linear-gradient(90deg, #10b981 33%, #f59e0b 33% 66%, #ef4444 66%);
+  background: linear-gradient(90deg, #4a7b56 33%, #b89030 33% 66%, #a8324a 66%);
   border-radius: 2px;
+  opacity: 0.75;
 }
 
-/* ── Animations — légères et fluides ─────────────────── */
+/* ── Animations ─────────────────────────────────────── */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.animate-fade-in { animation: fadeIn 0.3s ease-out; }
+.animate-fade-in { animation: fadeIn 0.3s var(--ease-out); }
 
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(16px); }
@@ -387,22 +267,11 @@ body {
 }
 .animate-slide-up { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
 
-/* ── Stagger ────────────────────────────────────────── */
 @keyframes staggerIn {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.stagger-fade > * { animation: staggerIn 0.3s ease-out both; }
-.stagger-fade > *:nth-child(1) { animation-delay: 0.02s; }
-.stagger-fade > *:nth-child(2) { animation-delay: 0.04s; }
-.stagger-fade > *:nth-child(3) { animation-delay: 0.06s; }
-.stagger-fade > *:nth-child(4) { animation-delay: 0.08s; }
-.stagger-fade > *:nth-child(5) { animation-delay: 0.10s; }
-.stagger-fade > *:nth-child(6) { animation-delay: 0.12s; }
-.stagger-fade > *:nth-child(7) { animation-delay: 0.14s; }
-.stagger-fade > *:nth-child(8) { animation-delay: 0.16s; }
-
-.stagger-cards > * { animation: staggerIn 0.3s ease-out both; }
+.stagger-cards > * { animation: staggerIn 0.3s var(--ease-out) both; }
 .stagger-cards > *:nth-child(1) { animation-delay: 0.03s; }
 .stagger-cards > *:nth-child(2) { animation-delay: 0.06s; }
 .stagger-cards > *:nth-child(3) { animation-delay: 0.09s; }
@@ -412,117 +281,23 @@ body {
 .stagger-cards > *:nth-child(7) { animation-delay: 0.21s; }
 .stagger-cards > *:nth-child(8) { animation-delay: 0.24s; }
 
-.stagger-posts > * { animation: staggerIn 0.25s ease-out both; }
-.stagger-posts > *:nth-child(1) { animation-delay: 0.02s; }
-.stagger-posts > *:nth-child(2) { animation-delay: 0.04s; }
-.stagger-posts > *:nth-child(3) { animation-delay: 0.06s; }
-.stagger-posts > *:nth-child(4) { animation-delay: 0.08s; }
-.stagger-posts > *:nth-child(5) { animation-delay: 0.10s; }
-
-/* ── BMG gauge ───────────────────────────────────────── */
-@keyframes gaugeRotate { from { stroke-dashoffset: 251; } }
+/* ── BMG gauge (used by BmgGauge component) ──────────── */
 @keyframes pulseGlow {
-  0%, 100% { filter: drop-shadow(0 0 3px currentColor); }
-  50% { filter: drop-shadow(0 0 10px currentColor); }
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
 }
 .gauge-critical { animation: pulseGlow 2s ease-in-out infinite; }
 
-/* ── Pulse ring ──────────────────────────────────────── */
-@keyframes pulseRing {
-  0% { transform: scale(1); opacity: 1; }
-  100% { transform: scale(2.5); opacity: 0; }
+/* ── Focus ──────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--accent-press);
+  outline-offset: 2px;
 }
-.pulse-ring { position: relative; }
-.pulse-ring::after {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border-radius: 50%;
-  border: 1.5px solid currentColor;
-  animation: pulseRing 2s cubic-bezier(0,0,0.2,1) infinite;
-}
-
-/* ── KPI card accent ─────────────────────────────────── */
-.kpi-card {
-  position: relative;
-  overflow: hidden;
-  border-radius: var(--radius);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  transition: all 0.2s ease;
-}
-.kpi-card:hover {
-  border-color: var(--border-hover);
-  background: var(--bg-elevated);
-}
-.kpi-card::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: var(--kpi-color, rgba(99,102,241,0.4));
-  opacity: 0.6;
-  transition: opacity 0.2s;
-}
-.kpi-card:hover::after { opacity: 1; }
-
-/* ── Tooltip ─────────────────────────────────────────── */
-[data-tooltip] { position: relative; }
-[data-tooltip]::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%) translateY(-4px);
-  padding: 4px 10px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-hover);
-  border-radius: 8px;
-  font-size: 10px;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-[data-tooltip]:hover::after { opacity: 1; }
-
-/* ── Section divider ─────────────────────────────────── */
-.section-divider {
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06) 50%, transparent);
-}
-
-/* ── Gradient border ─────────────────────────────────── */
-.gradient-border { position: relative; border: none !important; }
-.gradient-border::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg, rgba(129,140,248,0.2), transparent 50%, rgba(52,211,153,0.15));
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-}
-
-/* ── Glow effects ────────────────────────────────────── */
-.glow-blue { box-shadow: 0 0 20px rgba(99,102,241,0.12); }
-.glow-green { box-shadow: 0 0 20px rgba(16,185,129,0.12); }
-.glow-red { box-shadow: 0 0 20px rgba(239,68,68,0.12); }
-.glow-gold { box-shadow: 0 0 20px rgba(245,158,11,0.12); }
-
-::selection { background: rgba(129,140,248,0.3); color: #f1f5f9; }
 
 /* ══════════════════════════════════════════════════════
-   MOBILE RESPONSIVE — iPhone & Samsung optimisé
+   MOBILE RESPONSIVE
    ══════════════════════════════════════════════════════ */
 
-/* ── Tablet & below (<1024px) ───────────────────────── */
 @media (max-width: 1023px) {
   .lg\:ml-16 { margin-left: 0 !important; }
   .lg\:ml-60 { margin-left: 0 !important; }
@@ -532,12 +307,10 @@ body {
   table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
 
-/* ── Mobile standard (iPhone SE, Samsung Galaxy S) ──── */
 @media (max-width: 640px) {
   h1 { font-size: 1.15rem !important; }
   h2 { font-size: 0.95rem !important; }
   h3 { font-size: 0.85rem !important; }
-  .kpi-card { padding: 0.625rem !important; }
 
   .dash-left-panel {
     position: fixed !important;
@@ -552,24 +325,21 @@ body {
     transition: transform 300ms ease, opacity 200ms ease !important;
     z-index: 20 !important;
   }
-
   .dash-left-panel.mobile-panel-hidden {
     transform: translateY(100%) !important;
     opacity: 0 !important;
     pointer-events: none !important;
   }
 
-  .badge { padding: 0.125rem 0.5rem; font-size: 0.625rem; }
   .affair-grid { grid-template-columns: 1fr !important; gap: 0.5rem !important; }
   body { font-size: 14px; }
   p, span, li { line-height: 1.5; }
 
-  .btn-primary, .btn-glass, .btn-gold, .btn-green {
+  .btn-primary, .btn-glass {
     min-height: 44px;
     padding: 0.625rem 1rem;
     font-size: 0.875rem;
   }
-
   .input-dark {
     min-height: 44px;
     font-size: 16px !important;
@@ -577,56 +347,45 @@ body {
   }
 }
 
-/* ── Petits mobiles (iPhone SE 1st gen, Galaxy A) ───── */
 @media (max-width: 375px) {
   h1 { font-size: 1rem !important; }
   body { font-size: 13px; }
-  .kpi-card { padding: 0.5rem !important; }
   .glass-card { padding: 0.625rem; }
-  .badge { font-size: 0.6rem; }
 }
 
-/* ── Grands mobiles (iPhone Pro Max, Samsung Ultra) ─── */
 @media (min-width: 414px) and (max-width: 640px) {
   .dash-left-panel { max-height: 50vh !important; }
   .affair-grid { gap: 0.625rem !important; }
 }
 
-/* ── Paysage mobile ─────────────────────────────────── */
 @media (max-height: 500px) and (orientation: landscape) {
   .dash-left-panel { max-height: 60vh !important; }
   .main-content { padding-bottom: 3.5rem; }
 }
 
-/* ── PWA ─────────────────────────────────────────────── */
 @media (display-mode: standalone) {
   body {
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
   }
   html { overscroll-behavior-y: contain; }
-  .mobile-top-bar {
-    padding-top: max(0.75rem, env(safe-area-inset-top));
-  }
+  .mobile-top-bar { padding-top: max(0.75rem, env(safe-area-inset-top)); }
 }
 
-/* ── Touch ───────────────────────────────────────────── */
 @media (pointer: coarse) {
-  .sidebar-link { min-height: 48px; padding: 0.625rem 0.75rem; }
-  .btn-glass, .btn-primary, .btn-gold, .btn-green { min-height: 44px; }
-  .glass-card:hover { transform: none; box-shadow: none; }
-  .glass-card:active { transform: scale(0.98); }
+  .btn-glass, .btn-primary { min-height: 44px; }
+  .glass-card:hover { box-shadow: none; }
+  .glass-card:active { transform: scale(0.99); }
   a, button { min-height: 44px; display: inline-flex; align-items: center; }
-  span a, p a, .badge, .text-link { min-height: auto; display: inline; }
+  span a, p a, .text-link { min-height: auto; display: inline; }
 }
 
-/* ── Focus ───────────────────────────────────────────── */
-:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
+/* Contenu décalé de la largeur de la sidebar persistante (≥1024px) —
+   la sidebar étant fixed, le contenu doit l'éviter pour ne pas passer dessous. */
+@media (min-width: 1024px) {
+  .lg\:ml-16 { margin-left: 220px !important; }
 }
 
-/* ── Reduced motion ──────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -634,6 +393,250 @@ body {
   }
 }
 
-html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
-.safe-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
-* { touch-action: manipulation; }
+/* ══════════════════════════════════════════════════════
+   THÈME « CARTE VIVANTE » — territoire-interface immersif
+   Scopé via .theme-carte : redéfinit les tokens, donc les
+   composants existants (var(--*)) se re-thématisent seuls.
+   ══════════════════════════════════════════════════════ */
+.theme-carte {
+  /* Surfaces — mer profonde + glass */
+  --bg-base: #0A1A24;
+  --bg-surface: rgba(14, 34, 46, 0.62);
+  --bg-card: rgba(14, 34, 46, 0.62);
+  --bg-elevated: rgba(22, 48, 62, 0.72);
+  --bg-hover: rgba(31, 182, 166, 0.12);
+  --bg-sidebar: rgba(7, 20, 28, 0.88);
+  --bg-sunk: rgba(6, 18, 25, 0.55);
+  --bg: #0A1A24;
+  --bg-card-hover: rgba(22, 48, 62, 0.72);
+
+  /* Texte — clair sur mer */
+  --text: #EAF4F2;
+  --text-secondary: #A7C4C9;
+  --text-muted: #6E8B92;
+  --text-disabled: #46606A;
+
+  /* Bordures */
+  --border: rgba(255, 255, 255, 0.10);
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-hover: rgba(31, 182, 166, 0.45);
+  --border-strong: rgba(255, 255, 255, 0.22);
+  --border-accent: #1FB6A6;
+
+  /* Accents — turquoise signal + volcan */
+  --accent-press: #1FB6A6;
+  --accent-press-light: #2FD0BD;
+  --accent-press-dark: #169B8D;
+  --accent-alert: #E8743B;
+  --accent-alert-light: #f08e5b;
+  --accent-link: #5FD0E0;
+  --primary: #1FB6A6;
+  --primary-light: #2FD0BD;
+  --accent: #E8743B;
+
+  /* Sémantiques — topographie 971 sur fond sombre */
+  --positive: #38C172;     /* mangrove */
+  --positive-light: #5fd690;
+  --negative: #E54B5A;     /* Soufrière */
+  --negative-light: #ef7079;
+  --neutral: #6E8B92;
+  --warning: #F0A93B;      /* terre volcanique */
+  --caution: #F0C93B;      /* canne mûre */
+  --coral: #E8743B;
+
+  --crit-soft: rgba(229, 75, 90, 0.16);
+  --warn-soft: rgba(240, 169, 59, 0.16);
+  --caution-soft: rgba(240, 201, 59, 0.14);
+  --ok-soft: rgba(56, 193, 114, 0.16);
+  --info-soft: rgba(95, 208, 224, 0.14);
+
+  --glass-bg: rgba(14, 34, 46, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.10);
+  /* Ombres multi-couches (ambiante + portée) pensées pour le dark */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 4px 14px rgba(0, 0, 0, 0.38);
+  --shadow-elevated: 0 2px 6px rgba(0, 0, 0, 0.5), 0 12px 30px rgba(0, 0, 0, 0.45), 0 30px 72px rgba(0, 0, 0, 0.5);
+  --rim-light: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+
+  /* Rayons plus arrondis (look immersif, moins éditorial-carré) */
+  --radius: 14px;
+  --radius-sm: 10px;
+  --radius-lg: 20px;
+
+  /* Typo — Manrope (UI/display) + IBM Plex Mono pour la data */
+  --font-sans: var(--font-manrope), 'Manrope', system-ui, sans-serif;
+  --font-serif: var(--font-manrope), 'Manrope', system-ui, sans-serif;
+  --font-mono: var(--font-mono-data), ui-monospace, 'IBM Plex Mono', monospace;
+
+  background: var(--bg-base);
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+/* La masthead n'est plus italique en Carte vivante (Space Grotesk n'a pas d'italique) */
+.theme-carte .masthead { font-style: normal; letter-spacing: -0.03em; }
+
+/* Panneau verre flottant — ombre profonde + rim-light (réalisme verre) */
+.glass-panel {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(16px) saturate(1.25);
+  -webkit-backdrop-filter: blur(16px) saturate(1.25);
+  box-shadow: var(--shadow-elevated), var(--rim-light);
+  transition: transform 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out), border-color 0.25s var(--ease-out);
+}
+
+/* Carte de contenu (page 2) — élévation douce + rim-light */
+.elev-card {
+  box-shadow: var(--shadow-card), var(--rim-light);
+  transition: transform 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out), border-color 0.25s var(--ease-out);
+}
+.elev-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-elevated), var(--rim-light), 0 0 0 1px rgba(31, 182, 166, 0.35);
+}
+
+/* ══════════════════════════════════════════════════════
+   MICRO-INTERACTIONS — survols vivants (theme-carte)
+   ══════════════════════════════════════════════════════ */
+
+/* Transitions fluides par défaut sur tout ce qui est interactif */
+.theme-carte a,
+.theme-carte button,
+.theme-carte [role="button"] {
+  transition: transform 0.16s var(--ease-out), color 0.16s var(--ease-out),
+    background-color 0.16s var(--ease-out), box-shadow 0.2s var(--ease-out),
+    border-color 0.16s var(--ease-out), opacity 0.16s var(--ease-out);
+}
+
+/* Boutons : lift + glow turquoise au survol, enfoncement à l'appui */
+.theme-carte .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(31, 182, 166, 0.34); }
+.theme-carte .btn-glass:hover { transform: translateY(-1px); border-color: var(--border-hover); }
+.theme-carte .btn-primary:active,
+.theme-carte .btn-glass:active { transform: translateY(0); }
+
+/* Carte cliquable générique : lève + ring turquoise (à appliquer via .hover-card) */
+.hover-card {
+  cursor: pointer;
+  transition: transform 0.22s var(--ease-out), box-shadow 0.22s var(--ease-out), border-color 0.22s var(--ease-out);
+}
+.hover-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-elevated), var(--rim-light), 0 0 0 1px rgba(31, 182, 166, 0.4);
+  border-color: var(--border-hover) !important;
+}
+.hover-card:active { transform: translateY(-1px); }
+
+/* Lien à soulignement animé (gauche→droite) */
+.link-anim {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-size: 0% 1.5px;
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  transition: background-size 0.28s var(--ease-out), color 0.16s var(--ease-out);
+}
+.link-anim:hover { background-size: 100% 1.5px; }
+
+/* Icône qui réagit (scale doux) dans un parent .group-icon au survol */
+.group-icon:hover .icon-react { transform: scale(1.12); }
+.icon-react { transition: transform 0.18s var(--ease-out); }
+
+/* Texte sur fond accent : turquoise clair → encre sombre (contraste correct) */
+.theme-carte { --on-accent: #04141c; }
+.theme-carte .btn-primary { color: var(--on-accent); }
+/* Skeleton dark (le gris clair de Crème flashait en blanc sur le sombre) */
+.theme-carte .skeleton {
+  background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.05) 75%);
+  background-size: 200% 100%;
+}
+/* Rayons : chips/boutons/onglets en rounded-sm (2px, trop carrés) → plus arrondis.
+   (.theme-carte .rounded-sm bat l'utilitaire Tailwind par spécificité) */
+.theme-carte .rounded-sm { border-radius: 9px; }
+
+/* ── Transition de navigation entre pages (App Router template.tsx) ── */
+@keyframes routeEnter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.route-enter { animation: routeEnter 0.42s var(--ease-out); }
+
+/* Indice de scroll — chevron qui invite à descendre vers la partie 2 */
+@keyframes scrollCue {
+  0%, 100% { transform: translateY(0); opacity: 0.4; }
+  50% { transform: translateY(7px); opacity: 1; }
+}
+.scroll-cue { animation: scrollCue 1.8s var(--ease-out) infinite; }
+
+/* ── Scroll narratif : 2 pages qui s'enclenchent (carte / détail) ── */
+.snap-y { scroll-snap-type: y proximity; scroll-behavior: smooth; }
+.snap-page { scroll-snap-align: start; }
+
+/* Révélation animée des widgets quand la page 2 entre dans le viewport */
+.reveal-page > * {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.6s var(--ease-out), transform 0.7s var(--ease-out);
+}
+.reveal-page.in-view > * { opacity: 1; transform: translateY(0); }
+.reveal-page.in-view > *:nth-child(2) { transition-delay: 0.1s; }
+.reveal-page.in-view > *:nth-child(3) { transition-delay: 0.2s; }
+.reveal-page.in-view > *:nth-child(4) { transition-delay: 0.3s; }
+
+/* Fond carte + fallback on-brand (dégradé mer) si pas de carte */
+.carte-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: radial-gradient(125% 85% at 72% 18%, #114559 0%, #0A1A24 52%, #06121A 100%);
+}
+/* Nappe de climat ambiante (couleur pilotée par --climate-wash) */
+.carte-wash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(65% 55% at 50% 38%, var(--climate-wash, rgba(31, 182, 166, 0.12)) 0%, transparent 72%);
+  transition: background 0.8s var(--ease-out);
+}
+
+/* Marqueurs vivants */
+@keyframes markerPulse {
+  0% { transform: scale(1); opacity: 0.9; }
+  70% { transform: scale(2.4); opacity: 0; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+.marker-pulse { position: relative; }
+.marker-pulse::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  animation: markerPulse 2.4s var(--ease-out) infinite;
+}
+
+/* Mapbox — popups & contrôles au thème Carte vivante */
+.theme-carte .mapboxgl-popup-content {
+  background: transparent !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+.theme-carte .mapboxgl-popup-tip {
+  border-top-color: rgba(2, 6, 23, 0.92) !important;
+  border-bottom-color: rgba(2, 6, 23, 0.92) !important;
+}
+.theme-carte .mapboxgl-popup-close-button {
+  color: rgba(255, 255, 255, 0.6) !important;
+  font-size: 18px !important;
+  padding: 2px 8px !important;
+}
+.theme-carte .mapboxgl-ctrl-group {
+  background: var(--glass-bg) !important;
+  border: 1px solid var(--glass-border) !important;
+  backdrop-filter: blur(12px);
+}
+.theme-carte .mapboxgl-ctrl-group button + button {
+  border-top: 1px solid var(--border) !important;
+}
+.theme-carte .mapboxgl-ctrl button .mapboxgl-ctrl-icon {
+  filter: invert(1) brightness(1.4);
+}

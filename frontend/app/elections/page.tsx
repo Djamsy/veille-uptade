@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import Sidebar from '../../components/Sidebar'
 import { type Affair } from '../../lib/api'
+import { timeAgo } from '../../lib/formatters'
+import { gravityColor, sentimentBucket, SENTIMENT_STYLE } from '../../lib/scales'
 
 const API = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 
@@ -11,28 +13,8 @@ interface ElectionAffair extends Affair {
   communes?: string[]
 }
 
-function timeAgo(dateStr: string): string {
-  if (!dateStr) return ''
-  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
-  if (diff < 60) return "à l'instant"
-  if (diff < 3600) return `il y a ${Math.floor(diff / 60)}min`
-  if (diff < 86400) return `il y a ${Math.floor(diff / 3600)}h`
-  return `il y a ${Math.floor(diff / 86400)}j`
-}
-
-function sentimentEmoji(s: string): string {
-  if (!s || s === 'neutre') return ''
-  if (s.includes('négatif') || s.includes('negatif') || s === 'critique') return '😠'
-  if (s.includes('positif')) return '😊'
-  return '😐'
-}
-
-function sentimentColor(s: string): string {
-  if (!s || s === 'neutre') return 'rgba(255,255,255,0.35)'
-  if (s.includes('négatif') || s.includes('negatif') || s === 'critique') return '#f87171'
-  if (s.includes('positif')) return '#6ee7b7'
-  return '#fbbf24'
-}
+const SENT_STYLE = SENTIMENT_STYLE
+const sentimentKind = sentimentBucket
 
 export default function ElectionsPage() {
   const [elections, setElections] = useState<ElectionAffair[]>([])
@@ -52,84 +34,97 @@ export default function ElectionsPage() {
   useEffect(() => { loadData() }, [loadData])
 
   return (
-    <div className="flex min-h-screen" style={{ background: 'var(--bg-main)' }}>
+    <div className="flex min-h-screen" style={{ background: 'var(--bg-base)' }}>
       <Sidebar />
-      <main className="lg:ml-16 flex-1 p-4 lg:p-6 pb-24 lg:pb-6 min-h-screen">
-        <div className="max-w-[1400px] mx-auto animate-fade-in">
-
-          {/* Header */}
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-white tracking-tight">
-              Elections Municipales 2026
-            </h1>
-            <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
-              Suivi des affaires liées aux élections municipales en Guadeloupe
-            </p>
+      <main className="lg:ml-16 flex-1 overflow-y-auto">
+        <header className="px-6 lg:px-8 pt-5 pb-5" style={{ borderBottom: '1px solid var(--border)' }}>
+          <div className="font-mono text-[10px] uppercase tracking-[0.18em] mb-2" style={{ color: 'var(--text-muted)' }}>
+            Terrain / Élections
           </div>
+          <h1 className="font-serif text-3xl lg:text-4xl font-medium tracking-tight italic" style={{ color: 'var(--text)' }}>
+            Élections municipales 2026
+          </h1>
+          <p className="font-mono text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+            Suivi des affaires liées aux municipales · <span style={{ color: 'var(--text)' }}>{elections.length}</span> affaires détectées
+          </p>
+        </header>
 
+        <div className="px-6 lg:px-8 py-6 max-w-[1500px] mx-auto">
           {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                  <div className="skeleton h-4 w-2/3 mb-3" />
+                  <div className="skeleton h-3 w-full mb-2" />
+                  <div className="skeleton h-3 w-3/4" />
+                </div>
+              ))}
             </div>
           ) : elections.length === 0 ? (
-            <div className="glass-card border border-[rgba(255,255,255,0.08)] p-10 text-center">
-              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                Aucune affaire électorale détectée pour le moment.
-              </p>
-              <p className="text-xs mt-2" style={{ color: 'rgba(255,255,255,0.2)' }}>
+            <div className="p-16 text-center" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Aucune affaire électorale détectée pour le moment.</p>
+              <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
                 Les articles mentionnant les municipales 2026 créeront automatiquement des affaires.
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {elections.map((affair) => (
-                <Link key={affair._id} href={`/affairs/${affair._id}`}>
-                  <div className="glass-card border border-[rgba(255,255,255,0.08)] p-5 cursor-pointer hover:border-[rgba(255,255,255,0.15)] transition-all h-full">
-                    <div className="flex items-start justify-between gap-2 mb-3">
-                      <h3 className="text-sm font-semibold text-white line-clamp-2 flex-1">
-                        {affair.title}
-                      </h3>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0 ${
-                        affair.gravity_score >= 0.7 ? 'bg-red-500/20 text-red-400'
-                        : affair.gravity_score >= 0.5 ? 'bg-orange-500/20 text-orange-400'
-                        : 'bg-emerald-500/20 text-emerald-400'
-                      }`}>
-                        {Math.round(affair.gravity_score * 100)}%
-                      </span>
-                    </div>
-
-                    {affair.description && (
-                      <p className="text-[10px] line-clamp-3 mb-3" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                        {affair.description}
-                      </p>
-                    )}
-
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {affair.communes && affair.communes.slice(0, 3).map((c) => (
-                        <span key={c} className="text-[9px] px-1.5 py-0.5 rounded-full"
-                          style={{
-                            background: 'rgba(37,99,235,0.15)',
-                            color: '#a5b4fc',
-                            border: '1px solid rgba(37,99,235,0.3)',
-                          }}>
-                          {c}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {elections.map((affair) => {
+                const gravity = Math.round((affair.gravity_score || 0) * 100)
+                const sentS = SENT_STYLE[sentimentKind(affair.sentiment)]
+                return (
+                  <Link key={affair._id} href={`/affairs/${affair._id}`}>
+                    <article
+                      className="p-5 h-full transition-colors hover:bg-ink-100"
+                      style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <h3 className="font-serif text-[15px] font-semibold leading-snug line-clamp-2 flex-1 tracking-tight" style={{ color: 'var(--text)' }}>
+                          {affair.title}
+                        </h3>
+                        <span
+                          className="font-serif text-base font-semibold tabular-nums shrink-0"
+                          style={{ color: gravityColor(gravity) }}
+                        >
+                          {gravity}
                         </span>
-                      ))}
-                      {affair.sentiment && affair.sentiment !== 'neutre' && (
-                        <span className="text-[9px]" style={{ color: sentimentColor(affair.sentiment) }}>
-                          {sentimentEmoji(affair.sentiment)} {affair.sentiment}
-                        </span>
+                      </div>
+
+                      {affair.description && (
+                        <p className="text-xs leading-relaxed line-clamp-3 mb-3" style={{ color: 'var(--text-secondary)' }}>
+                          {affair.description}
+                        </p>
                       )}
-                      <span className="text-[9px]" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                        {affair.item_count} items · {timeAgo(affair.last_activity || affair.created_at)}
-                      </span>
-                    </div>
-                  </div>
-                </Link>
-              ))}
+
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {affair.communes && affair.communes.slice(0, 3).map((c) => (
+                          <span
+                            key={c}
+                            className="text-[10px] font-medium px-1.5 py-0.5 rounded-sm"
+                            style={{ background: 'var(--info-soft)', color: '#2f5680', border: '1px solid #d3dde9' }}
+                          >
+                            {c}
+                          </span>
+                        ))}
+                        {affair.sentiment && affair.sentiment !== 'neutre' && (
+                          <span
+                            className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-sm"
+                            style={{ background: sentS.bg, color: sentS.color, border: `1px solid ${sentS.border}` }}
+                          >
+                            <span className="w-1 h-1 rounded-full" style={{ background: sentS.color }} />
+                            {affair.sentiment}
+                          </span>
+                        )}
+                        <span className="font-mono text-[10px] ml-auto" style={{ color: 'var(--text-muted)' }}>
+                          {affair.item_count} · {timeAgo(affair.last_activity || affair.created_at)}
+                        </span>
+                      </div>
+                    </article>
+                  </Link>
+                )
+              })}
             </div>
           )}
-
         </div>
       </main>
     </div>

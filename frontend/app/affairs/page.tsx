@@ -1,80 +1,26 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import Sidebar from '../../components/Sidebar'
 import { fetchAffairs, type Affair } from '../../lib/api'
-
-// ── Helpers ──────────────────────────────────────────────
-function timeAgo(dateStr: string): string {
-  const now = Date.now()
-  const then = new Date(dateStr).getTime()
-  const diff = Math.floor((now - then) / 1000)
-  if (diff < 60) return "à l'instant"
-  if (diff < 3600) return `il y a ${Math.floor(diff / 60)}min`
-  if (diff < 86400) return `il y a ${Math.floor(diff / 3600)}h`
-  return `il y a ${Math.floor(diff / 86400)}j`
-}
-
-function themeLabel(theme: string): string {
-  const map: Record<string, string> = {
-    politique: 'Politique', economie: 'Économie', social: 'Social',
-    environnement: 'Environnement', sante: 'Santé', justice: 'Justice',
-    education: 'Éducation', culture: 'Culture', sport: 'Sport',
-    securite: 'Sécurité', infrastructure: 'Infrastructure', general: 'Général',
-  }
-  return map[theme] || theme
-}
-
-function themeStyle(theme: string): { bg: string; color: string; border: string } {
-  const map: Record<string, { bg: string; color: string; border: string }> = {
-    politique: { bg: 'rgba(22,163,74,0.12)', color: '#facc15', border: 'rgba(22,163,74,0.25)' },
-    economie: { bg: 'rgba(16,185,129,0.12)', color: '#34d399', border: 'rgba(16,185,129,0.25)' },
-    social: { bg: 'rgba(96,165,250,0.12)', color: '#93c5fd', border: 'rgba(96,165,250,0.25)' },
-    environnement: { bg: 'rgba(74,222,128,0.12)', color: '#86efac', border: 'rgba(74,222,128,0.25)' },
-    sante: { bg: 'rgba(251,113,133,0.12)', color: '#fda4af', border: 'rgba(251,113,133,0.25)' },
-    justice: { bg: 'rgba(251,191,36,0.12)', color: '#fde68a', border: 'rgba(251,191,36,0.25)' },
-    securite: { bg: 'rgba(248,113,113,0.12)', color: '#fca5a5', border: 'rgba(248,113,113,0.25)' },
-  }
-  return map[theme] || { bg: 'rgba(148,163,184,0.12)', color: '#cbd5e1', border: 'rgba(148,163,184,0.25)' }
-}
-
-function alertBadgeStyle(niveau: string): { bg: string; color: string; border: string } {
-  const n = niveau?.toLowerCase()
-  if (n === 'critique') return { bg: 'rgba(239,68,68,0.12)', color: '#f87171', border: 'rgba(239,68,68,0.25)' }
-  if (n === 'élevé') return { bg: 'rgba(249,115,22,0.12)', color: '#fb923c', border: 'rgba(249,115,22,0.25)' }
-  if (n === 'modéré') return { bg: 'rgba(245,158,11,0.12)', color: '#fbbf24', border: 'rgba(245,158,11,0.25)' }
-  return { bg: 'rgba(16,185,129,0.12)', color: '#34d399', border: 'rgba(16,185,129,0.25)' }
-}
+import { timeAgo, themeLabel } from '../../lib/formatters'
+import { ShareAffairButton } from '../_components/ShareAffairButton'
+import { gravityColor, gravityLabel, sentimentBucket, SENTIMENT_STYLE } from '../../lib/scales'
 
 type Priority = 'hot' | 'watch' | 'minor'
+type StatusFilter = 'all' | 'active' | 'stale' | 'archived'
+type SortField = 'bmg' | 'gravity' | 'recent' | 'items'
+type ViewMode = 'grid' | 'list'
 
-const PRIORITY_CONFIG: Record<Priority, { label: string; icon: string; color: string; glow: string; bg: string; border: string }> = {
-  hot: {
-    label: 'Urgentes',
-    icon: '●',
-    color: '#f87171',
-    glow: 'rgba(239,68,68,0.25)',
-    bg: 'rgba(239,68,68,0.05)',
-    border: 'rgba(239,68,68,0.12)',
-  },
-  watch: {
-    label: 'À surveiller',
-    icon: '●',
-    color: '#fbbf24',
-    glow: 'rgba(251,191,36,0.2)',
-    bg: 'rgba(251,191,36,0.04)',
-    border: 'rgba(251,191,36,0.10)',
-  },
-  minor: {
-    label: 'Mineures',
-    icon: '●',
-    color: '#34d399',
-    glow: 'rgba(16,185,129,0.2)',
-    bg: 'rgba(16,185,129,0.04)',
-    border: 'rgba(16,185,129,0.10)',
-  },
+const PRIORITY_META: Record<Priority, { label: string; color: string }> = {
+  hot:   { label: 'Urgentes',     color: 'var(--negative)' },
+  watch: { label: 'À surveiller', color: 'var(--caution)' },
+  minor: { label: 'Mineures',     color: 'var(--positive)' },
 }
+
+const scoreColor = gravityColor
+const sevLabel = gravityLabel
 
 function getAffairPriority(a: Affair): Priority {
   if (a.priority === 'hot' || a.priority === 'watch' || a.priority === 'minor') return a.priority
@@ -88,20 +34,220 @@ function getAffairPriority(a: Affair): Priority {
   return 'minor'
 }
 
-type SortField = 'bmg' | 'gravity' | 'recent' | 'items'
-type StatusFilter = 'all' | 'active' | 'stale' | 'archived'
+// ── Icônes vecteurs de propagation ──────────────────────────────
+function IconPresse() {
+  return (
+    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+    </svg>
+  )
+}
+function IconRadio() {
+  return (
+    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
+    </svg>
+  )
+}
+function IconSocial() {
+  return (
+    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+    </svg>
+  )
+}
+function IconNational() {
+  return (
+    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+function PropagationBar({ a }: { a: Affair }) {
+  const prop = a.propagation
+  if (!prop) return null
+
+  const score = Math.round(prop.score * 100)
+  const vect = prop.vecteurs
+  const spike = prop.velocity?.spike
+
+  const activeVecteurs: Array<{ icon: React.ReactNode; label: string; count: number }> = [
+    { icon: <IconPresse />, label: 'Presse', count: vect.presse },
+    { icon: <IconRadio />, label: 'Radio', count: vect.radio },
+    { icon: <IconSocial />, label: 'Social', count: vect.social },
+    { icon: <IconNational />, label: 'National', count: vect.national },
+  ].filter(v => v.count > 0)
+
+  return (
+    <div
+      className="pl-[18px] pr-4 pb-2.5 flex items-center justify-between gap-2 flex-wrap"
+      style={{ borderTop: '1px solid var(--border-subtle)' }}
+    >
+      {/* Vecteurs actifs */}
+      <div className="flex items-center gap-1.5 pt-2">
+        {activeVecteurs.map(v => (
+          <span
+            key={v.label}
+            title={`${v.label} · ${v.count}`}
+            className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-sm"
+            style={{
+              background: 'var(--bg-elevated)',
+              color: 'var(--text-secondary)',
+              border: '1px solid var(--border)',
+            }}
+          >
+            {v.icon}
+            <span>{v.count}</span>
+          </span>
+        ))}
+        {activeVecteurs.length === 0 && (
+          <span className="text-[10px]" style={{ color: 'var(--text-disabled)' }}>Aucun vecteur</span>
+        )}
+      </div>
+
+      {/* Score + badge spike */}
+      <div className="flex items-center gap-1.5 pt-2">
+        {spike && (
+          <span
+            className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-sm"
+            style={{
+              background: 'var(--warn-soft)',
+              color: 'var(--warning)',
+              border: '1px solid color-mix(in srgb, var(--warning) 25%, transparent)',
+            }}
+          >
+            🔥 Viral
+          </span>
+        )}
+        <span
+          className="font-mono text-[10px] font-medium px-1.5 py-0.5 rounded-sm"
+          style={{
+            background: 'var(--bg-elevated)',
+            color: 'var(--text-muted)',
+            border: '1px solid var(--border)',
+          }}
+        >
+          {score}% prop.
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function AffaireCard({ a }: { a: Affair }) {
+  const bmg = Math.round((a.bmg || 0) * 100)
+  const c = scoreColor(bmg)
+  const sentS = SENTIMENT_STYLE[sentimentBucket(a.sentiment)]
+  const loc = a.primary_entity || a.institutions?.[0] || '—'
+  const tags = [...(a.elected || []), ...(a.institutions || [])].slice(0, 3)
+
+  return (
+    <Link href={`/affairs/${a._id}`}>
+      <article
+        className="relative flex flex-col h-full hover-card"
+        style={{
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)',
+          overflow: 'hidden',
+        }}
+      >
+        <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ background: c }} />
+
+        <div className="flex items-start gap-3 pl-[18px] pr-4 pt-3.5 pb-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+              <span className="font-mono text-[10px] font-semibold tracking-[0.1em]" style={{ color: c }}>
+                {sevLabel(bmg)} · BMG {bmg}
+              </span>
+              <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>·</span>
+              <span className="font-mono text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                {themeLabel(a.theme)}
+              </span>
+              {a.propagation?.velocity?.spike && (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-sm"
+                  style={{
+                    background: 'var(--warn-soft)',
+                    color: 'var(--warning)',
+                    border: '1px solid color-mix(in srgb, var(--warning) 25%, transparent)',
+                  }}
+                >
+                  🔥 Viral
+                </span>
+              )}
+            </div>
+            <h3
+              className="font-serif text-[15px] font-semibold leading-snug tracking-tight"
+              style={{ color: 'var(--text)' }}
+            >
+              {a.title || a.primary_entity || 'Affaire'}
+            </h3>
+          </div>
+          <div className="text-right shrink-0">
+            <div className="font-serif text-[26px] font-semibold tabular-nums leading-none" style={{ color: c, letterSpacing: '-0.02em' }}>
+              {bmg}
+            </div>
+            <div className="font-mono text-[9px] uppercase tracking-[0.12em] mt-1" style={{ color: 'var(--text-muted)' }}>
+              BMG
+            </div>
+          </div>
+        </div>
+
+        {a.description && (
+          <p className="text-[13px] leading-relaxed pl-[18px] pr-4 pb-3 line-clamp-2" style={{ color: 'var(--text-secondary)' }}>
+            {a.description}
+          </p>
+        )}
+
+        <div className="pl-[18px] pr-4 pb-3 flex gap-1.5 flex-wrap">
+          {a.sentiment && (
+            <span
+              className="inline-flex items-center gap-1.5 text-[10px] font-medium px-1.5 py-0.5 rounded-sm"
+              style={{ background: sentS.bg, color: sentS.color, border: `1px solid ${sentS.border}` }}
+            >
+              <span className="w-1 h-1 rounded-full" style={{ background: sentS.color }} />
+              {a.sentiment}
+            </span>
+          )}
+          {tags.map(t => (
+            <span
+              key={t}
+              className="text-[10px] font-medium px-1.5 py-0.5 rounded-sm"
+              style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+            >
+              {t}
+            </span>
+          ))}
+        </div>
+
+        <PropagationBar a={a} />
+
+        <div
+          className="mt-auto flex items-center justify-between pl-[18px] pr-4 py-2.5 font-mono text-[11px]"
+          style={{ borderTop: '1px solid var(--border-subtle)', color: 'var(--text-muted)' }}
+        >
+          <span style={{ color: 'var(--text-secondary)' }} className="font-sans truncate max-w-[48%]">{loc}</span>
+          <span className="flex items-center gap-2 shrink-0">
+            <span className="tabular-nums">{a.item_count || 0} items · {(a.sources || []).length} src · {timeAgo(a.last_activity || a.created_at)}</span>
+            <ShareAffairButton affairId={a._id} compact />
+          </span>
+        </div>
+      </article>
+    </Link>
+  )
+}
 
 export default function AffairsPage() {
   const [affairs, setAffairs] = useState<Affair[]>([])
-  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
   const [sortBy, setSortBy] = useState<SortField>('bmg')
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
-  const [minorExpanded, setMinorExpanded] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [search, setSearch] = useState('')
   const [themeFilter, setThemeFilter] = useState<string>('all')
+  const [viewMode] = useState<ViewMode>('grid')
 
   const loadAffairs = useCallback(async () => {
     setLoading(true)
@@ -109,383 +255,259 @@ export default function AffairsPage() {
       const apiStatus = statusFilter === 'all' ? 'active' : statusFilter
       const data = await fetchAffairs(apiStatus, 50, sortBy === 'recent' ? 'last_activity' : sortBy)
       setAffairs(data.affairs || [])
-      setTotal(data.total || 0)
       setError('')
-    } catch (e: any) {
-      setError(e.message || 'Erreur de chargement')
-    } finally { setLoading(false) }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Erreur de chargement')
+    } finally {
+      setLoading(false)
+    }
   }, [statusFilter, sortBy])
 
   useEffect(() => { loadAffairs() }, [loadAffairs])
 
-  const sortedAffairs = [...affairs].sort((a, b) => {
-    switch (sortBy) {
-      case 'bmg': return (b.bmg || 0) - (a.bmg || 0)
-      case 'gravity': return (b.gravity_score || 0) - (a.gravity_score || 0)
-      case 'items': return (b.item_count || 0) - (a.item_count || 0)
-      case 'recent':
-        return new Date(b.last_activity || b.created_at).getTime() - new Date(a.last_activity || a.created_at).getTime()
-      default: return 0
-    }
-  })
+  const filtered = useMemo(() => {
+    return affairs.filter(a => {
+      if (themeFilter !== 'all' && a.theme !== themeFilter) return false
+      if (search) {
+        const q = search.toLowerCase()
+        const haystack = `${a.title || ''} ${a.primary_entity || ''} ${a.description || ''} ${a.theme}`.toLowerCase()
+        if (!haystack.includes(q)) return false
+      }
+      return true
+    })
+  }, [affairs, search, themeFilter])
 
-  const filteredAffairs = sortedAffairs.filter(a => {
-    // Text search
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase()
-      const match = (a.title || '').toLowerCase().includes(q) ||
-        (a.description || '').toLowerCase().includes(q) ||
-        (a.primary_entity || '').toLowerCase().includes(q) ||
-        (a.entities || []).some(e => e.toLowerCase().includes(q)) ||
-        (a.elected || []).some(e => e.toLowerCase().includes(q)) ||
-        (a.theme || '').toLowerCase().includes(q)
-      if (!match) return false
-    }
-    // Theme filter
-    if (themeFilter !== 'all' && a.theme !== themeFilter) return false
-    return true
-  })
+  const grouped = useMemo(() => {
+    const hot: Affair[] = []
+    const watch: Affair[] = []
+    const minor: Affair[] = []
+    filtered.forEach(a => {
+      const p = getAffairPriority(a)
+      if (p === 'hot') hot.push(a)
+      else if (p === 'watch') watch.push(a)
+      else minor.push(a)
+    })
+    return { hot, watch, minor }
+  }, [filtered])
 
-  const grouped: Record<Priority, Affair[]> = { hot: [], watch: [], minor: [] }
-  filteredAffairs.forEach(a => {
-    const p = getAffairPriority(a)
-    grouped[p].push(a)
-  })
+  const totalAll = affairs.length
+  const totalHot = grouped.hot.length
+  const totalWatch = grouped.watch.length
+  const avgBmg = affairs.length > 0
+    ? Math.round(affairs.reduce((s, a) => s + (a.bmg || 0), 0) / affairs.length * 100)
+    : 0
 
-  const hotCount = grouped.hot.length
-  const watchCount = grouped.watch.length
-  const minorCount = grouped.minor.length
-
-  const renderGridCard = (affair: Affair) => {
-    const ts = themeStyle(affair.theme)
-    const as_ = affair.bmg_details?.niveau_alerte ? alertBadgeStyle(affair.bmg_details.niveau_alerte) : null
-    const priority = getAffairPriority(affair)
-    const pc = PRIORITY_CONFIG[priority]
-    return (
-      <Link key={affair._id} href={`/affairs/${affair._id}`}>
-        <div className="glass-card p-5 cursor-pointer h-full group" style={{
-          borderLeft: `2px solid ${pc.color}`,
-        }}>
-          <div className="flex items-start justify-between gap-3 mb-3">
-            <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-semibold text-white truncate group-hover:text-white/95">{affair.title || affair.primary_entity || 'Affaire'}</h3>
-              {affair.primary_entity && affair.title !== affair.primary_entity && (
-                <p className="text-xs truncate mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>{affair.primary_entity}</p>
-              )}
-            </div>
-            <div className="flex-shrink-0 rounded-full border-2 border-cyan-500/40 flex items-center justify-center text-lg font-bold text-cyan-300"
-              style={{ width: '60px', height: '60px' }}>
-              {Math.round((affair.bmg || 0) * 100)}
-            </div>
-          </div>
-          {affair.description && <p className="text-xs line-clamp-2 mb-3" style={{ color: 'rgba(255,255,255,0.35)' }}>{affair.description}</p>}
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: ts.bg, color: ts.color, border: `1px solid ${ts.border}` }}>{themeLabel(affair.theme)}</span>
-            {as_ && <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: as_.bg, color: as_.color, border: `1px solid ${as_.border}` }}>{affair.bmg_details!.niveau_alerte}</span>}
-            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{
-              background: affair.status === 'active' ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.03)',
-              color: affair.status === 'active' ? '#34d399' : 'rgba(255,255,255,0.25)',
-              border: `1px solid ${affair.status === 'active' ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.06)'}`,
-            }}>{affair.status}</span>
-          </div>
-          {affair.entities && affair.entities.length > 0 && (
-            <div className="flex flex-wrap gap-1 mb-3">
-              {affair.entities.slice(0, 3).map((e, i) => (
-                <span key={i} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.3)' }}>{e}</span>
-              ))}
-              {affair.entities.length > 3 && <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.2)' }}>+{affair.entities.length - 3}</span>}
-            </div>
-          )}
-          {affair.sentiment && affair.sentiment !== 'neutre' && (
-            <div className="mb-2">
-              <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{
-                background: affair.sentiment.includes('négatif') || affair.sentiment.includes('negatif') || affair.sentiment === 'critique'
-                  ? 'rgba(248,113,113,0.1)' : affair.sentiment.includes('positif') ? 'rgba(110,231,183,0.1)' : 'rgba(251,191,36,0.1)',
-                color: affair.sentiment.includes('négatif') || affair.sentiment.includes('negatif') || affair.sentiment === 'critique'
-                  ? '#fca5a5' : affair.sentiment.includes('positif') ? '#6ee7b7' : '#fde68a',
-                border: `1px solid ${affair.sentiment.includes('négatif') || affair.sentiment.includes('negatif') || affair.sentiment === 'critique'
-                  ? 'rgba(248,113,113,0.15)' : affair.sentiment.includes('positif') ? 'rgba(110,231,183,0.15)' : 'rgba(251,191,36,0.15)'}`,
-              }}>
-                {affair.sentiment}
-              </span>
-            </div>
-          )}
-          <div className="flex items-center justify-between text-xs pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.25)' }}>
-            <div className="flex items-center gap-3">
-              <span>{affair.item_count || 0} items</span>
-              <span>{affair.bmg_details?.active_canals || (new Set(affair.source_types || []).size) || 1} canaux</span>
-              <span>{new Set(affair.sources || []).size || 1} sources</span>
-            </div>
-            <span>{timeAgo(affair.last_activity || affair.created_at)}</span>
-          </div>
-        </div>
-      </Link>
-    )
-  }
-
-  const renderListRow = (affair: Affair) => {
-    const ts = themeStyle(affair.theme)
-    const as_ = affair.bmg_details?.niveau_alerte ? alertBadgeStyle(affair.bmg_details.niveau_alerte) : null
-    const priority = getAffairPriority(affair)
-    const pc = PRIORITY_CONFIG[priority]
-    return (
-      <Link key={affair._id} href={`/affairs/${affair._id}`}>
-        <div className="flex items-center gap-4 p-4 glass-card cursor-pointer group" style={{ borderLeft: `2px solid ${pc.color}` }}>
-          <div className="flex-shrink-0 rounded-full border-2 border-cyan-500/40 flex items-center justify-center text-[10px] font-bold text-cyan-300"
-            style={{ width: '48px', height: '48px' }}>
-            {Math.round((affair.bmg || 0) * 100)}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-sm font-semibold text-white truncate group-hover:text-white/95">{affair.title || affair.primary_entity || 'Affaire'}</h3>
-              <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: ts.bg, color: ts.color, border: `1px solid ${ts.border}` }}>{themeLabel(affair.theme)}</span>
-            </div>
-            <div className="flex items-center gap-3 text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>
-              <span>{affair.item_count || 0} items</span>
-              <span>{affair.bmg_details?.active_canals || (new Set(affair.source_types || []).size) || 1} canaux</span>
-              <span>{new Set(affair.sources || []).size || 1} sources</span>
-              <span>Gravité {Math.round((affair.gravity_score || 0) * 100)}%</span>
-              {affair.sentiment && affair.sentiment !== 'neutre' && (
-                <span style={{
-                  color: affair.sentiment.includes('négatif') || affair.sentiment.includes('negatif') || affair.sentiment === 'critique'
-                    ? '#f87171'
-                    : affair.sentiment.includes('positif') ? '#6ee7b7' : '#fbbf24'
-                }}>
-                  {affair.sentiment}
-                </span>
-              )}
-              <span>{timeAgo(affair.last_activity || affair.created_at)}</span>
-            </div>
-          </div>
-          {as_ && <span className="text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0" style={{ background: as_.bg, color: as_.color, border: `1px solid ${as_.border}` }}>{affair.bmg_details!.niveau_alerte}</span>}
-          <svg className="w-4 h-4 flex-shrink-0 group-hover:translate-x-0.5 transition-transform" style={{ color: 'rgba(255,255,255,0.15)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-        </div>
-      </Link>
-    )
-  }
-
-  const renderSection = (priority: Priority, items: Affair[], collapsible: boolean = false) => {
-    if (items.length === 0) return null
-    const config = PRIORITY_CONFIG[priority]
-    const isCollapsed = collapsible && !minorExpanded
-
-    return (
-      <div key={priority} className="mb-8">
-        <div
-          className="flex items-center gap-3 mb-4 cursor-pointer select-none group"
-          onClick={() => collapsible && setMinorExpanded(!minorExpanded)}
-        >
-          <div className="w-2 h-2 rounded-full" style={{
-            backgroundColor: config.color,
-            boxShadow: `0 0 8px ${config.glow}`,
-          }} />
-          <h2 className="text-sm font-semibold" style={{ color: config.color }}>
-            {config.label}
-          </h2>
-          <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{
-            background: config.bg,
-            color: config.color,
-            border: `1px solid ${config.border}`,
-          }}>
-            {items.length}
-          </span>
-          <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${config.border}, transparent)` }} />
-          {collapsible && (
-            <svg
-              className="w-4 h-4 transition-transform duration-300"
-              style={{
-                color: config.color,
-                transform: isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)',
-              }}
-              fill="none" stroke="currentColor" viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          )}
-        </div>
-
-        {!isCollapsed && (
-          viewMode === 'grid' ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 affair-grid stagger-fade">
-              {items.map(renderGridCard)}
-            </div>
-          ) : (
-            <div className="space-y-2 stagger-fade">
-              {items.map(renderListRow)}
-            </div>
-          )
-        )}
-
-        {isCollapsed && (
-          <div
-            className="glass-card-static p-3 text-center cursor-pointer hover:bg-white/[0.03] transition-colors"
-            onClick={() => setMinorExpanded(true)}
-            style={{ borderColor: config.border }}
-          >
-            <p className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>
-              {items.length} affaire{items.length > 1 ? 's' : ''} mineure{items.length > 1 ? 's' : ''} — cliquer pour déplier
-            </p>
-          </div>
-        )}
-      </div>
-    )
-  }
+  const themeCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    affairs.forEach(a => { if (a.theme) counts[a.theme] = (counts[a.theme] || 0) + 1 })
+    return counts
+  }, [affairs])
 
   return (
-    <div className="flex">
+    <div className="flex min-h-screen" style={{ background: 'var(--bg-base)' }}>
       <Sidebar />
-      <main className="lg:ml-16 flex-1 p-3 sm:p-5 lg:p-8 min-h-screen main-content">
-        <div className="max-w-7xl mx-auto animate-fade-in">
-
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
+      <main className="lg:ml-16 flex-1 overflow-y-auto">
+        <header className="px-6 lg:px-8 pt-5 pb-5" style={{ borderBottom: '1px solid var(--border)' }}>
+          <div className="flex items-start justify-between gap-4">
             <div>
-              <h1 className="text-lg sm:text-xl lg:text-2xl font-bold tracking-tight" style={{ color: 'var(--text)' }}>Affaires</h1>
-              <p className="text-xs sm:text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                {total} affaire{total > 1 ? 's' : ''} au total
-                {hotCount > 0 && (
-                  <span style={{ color: 'var(--negative)' }}> — {hotCount} urgente{hotCount > 1 ? 's' : ''}</span>
-                )}
+              <div className="font-mono text-[10px] uppercase tracking-[0.18em] mb-2" style={{ color: 'var(--text-muted)' }}>
+                Pilotage / Affaires
+              </div>
+              <h1 className="font-serif text-3xl lg:text-4xl font-medium tracking-tight italic" style={{ color: 'var(--text)' }}>
+                Affaires
+              </h1>
+              <p className="font-mono text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+                <span style={{ color: 'var(--text)' }}>{totalAll}</span> affaires au total
+                {totalHot > 0 && <span> — <span style={{ color: 'var(--negative)' }}>{totalHot} urgentes</span></span>}
               </p>
             </div>
-            <button onClick={loadAffairs} className="btn-glass px-3 py-2 text-sm">
-              <span className="flex items-center gap-1.5">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                Actualiser
-              </span>
+            <button
+              onClick={loadAffairs}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-sm transition-colors hover:bg-ink-100"
+              style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+            >
+              <svg className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 12a9 9 0 0115.5-6.3L21 8M21 3v5h-5M21 12a9 9 0 01-15.5 6.3L3 16M3 21v-5h5" />
+              </svg>
+              Actualiser
             </button>
           </div>
+        </header>
 
-          {/* Search bar */}
-          <div className="mb-4">
-            <div className="relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-muted)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Rechercher une affaire, entité, élu..."
-                className="input-dark w-full pl-10 pr-4 py-2.5 text-sm"
-              />
-              {searchQuery && (
-                <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-              )}
-            </div>
+        <div className="px-6 lg:px-8 py-6 max-w-[1500px] mx-auto space-y-5">
+          {/* KPI strip */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <KpiCell label="Total suivies" value={totalAll} hint="active filter" />
+            <KpiCell label="Urgentes · BMG ≥ 70" value={totalHot} severity="crit" hint={`${totalHot > 0 ? '+' : ''}${totalHot} vs hier`} />
+            <KpiCell label="À surveiller" value={totalWatch} severity="warn" />
+            <KpiCell label="BMG moyen" value={avgBmg} severity="neutral" />
           </div>
 
-          {/* Priority summary pills */}
-          {!loading && filteredAffairs.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-4">
-              {(['hot', 'watch', 'minor'] as Priority[]).map(p => {
-                const count = grouped[p].length
-                if (count === 0) return null
-                const c = PRIORITY_CONFIG[p]
-                return (
-                  <div key={p} className="flex items-center gap-2 px-3 py-1.5 rounded-xl" style={{
-                    background: c.bg,
-                    border: `1px solid ${c.border}`,
-                  }}>
-                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c.color, boxShadow: `0 0 4px ${c.glow}` }} />
-                    <span className="text-xs font-medium" style={{ color: c.color }}>{count} {c.label.toLowerCase()}</span>
-                  </div>
-                )
-              })}
+          {/* Toolbar */}
+          <div className="flex gap-3 items-center flex-wrap">
+            <div
+              className="relative flex-1 min-w-[260px] max-w-[420px]"
+              style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}
+            >
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24" style={{ color: 'var(--text-muted)' }}>
+                <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+              </svg>
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Rechercher une affaire, entité, élu…"
+                className="w-full bg-transparent pl-9 pr-3 py-2 text-sm focus:outline-none"
+                style={{ color: 'var(--text)' }}
+              />
             </div>
-          )}
 
-          {/* Filters */}
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4 sm:mb-6 glass-card-static p-2.5 sm:p-3 lg:p-4">
-            <div className="flex rounded-xl p-0.5 overflow-x-auto scrollbar-hide" style={{ background: 'var(--bg-card)' }}>
-              {(['all', 'active', 'stale', 'archived'] as StatusFilter[]).map((s) => (
-                <button key={s} onClick={() => setStatusFilter(s)}
-                  className="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap"
-                  style={statusFilter === s ? { background: 'rgba(124,131,219,0.15)', color: 'var(--primary)' } : { color: 'var(--text-muted)' }}
-                >
-                  {s === 'all' ? 'Toutes' : s === 'active' ? 'Actives' : s === 'stale' ? 'En veille' : 'Archivées'}
-                </button>
-              ))}
-            </div>
-            <div className="hidden sm:block" style={{ width: '1px', height: '20px', background: 'var(--border)' }} />
-            <div className="flex gap-2 w-full sm:w-auto">
-              <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortField)} className="input-dark px-2.5 sm:px-3 py-1.5 text-xs flex-1 sm:flex-none">
-                <option value="bmg">BMG</option>
+            <Segmented
+              value={statusFilter}
+              onChange={v => setStatusFilter(v as StatusFilter)}
+              options={[
+                { value: 'all', label: 'Toutes' },
+                { value: 'active', label: 'Actives' },
+                { value: 'stale', label: 'En veille' },
+                { value: 'archived', label: 'Archivées' },
+              ]}
+            />
+
+            <div className="ml-auto flex gap-2">
+              <SelectField value={sortBy} onChange={v => setSortBy(v as SortField)}>
+                <option value="bmg">BMG décroissant</option>
                 <option value="gravity">Gravité</option>
-                <option value="recent">Récent</option>
-                <option value="items">Items</option>
-              </select>
-              <select value={themeFilter} onChange={(e) => setThemeFilter(e.target.value)} className="input-dark px-2.5 sm:px-3 py-1.5 text-xs flex-1 sm:flex-none">
+                <option value="recent">Plus récent</option>
+                <option value="items">Plus d&apos;items</option>
+              </SelectField>
+              <SelectField value={themeFilter} onChange={setThemeFilter}>
                 <option value="all">Tous thèmes</option>
-                <option value="politique">Politique</option>
-                <option value="economie">Économie</option>
-                <option value="social">Social</option>
-                <option value="environnement">Environnement</option>
-                <option value="sante">Santé</option>
-                <option value="justice">Justice</option>
-                <option value="securite">Sécurité</option>
-                <option value="education">Éducation</option>
-                <option value="culture">Culture</option>
-                <option value="sport">Sport</option>
-                <option value="infrastructure">Infrastructure</option>
-                <option value="general">Général</option>
-              </select>
-            </div>
-            <div className="ml-auto flex rounded-xl p-0.5" style={{ background: 'var(--bg-card)' }}>
-              {(['grid', 'list'] as const).map((mode) => (
-                <button key={mode} onClick={() => setViewMode(mode)} className="p-1.5 rounded-lg transition-all"
-                  style={viewMode === mode ? { background: 'var(--bg-card-hover)', color: 'var(--text)' } : { color: 'var(--text-muted)' }}
-                >
-                  {mode === 'grid' ? (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
-                  )}
-                </button>
-              ))}
+                {Object.keys(themeCounts).map(t => (
+                  <option key={t} value={t}>{themeLabel(t)} ({themeCounts[t]})</option>
+                ))}
+              </SelectField>
             </div>
           </div>
 
           {error && (
-            <div className="mb-6 px-4 py-3 rounded-xl text-sm" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)', color: '#f87171' }}>{error}</div>
+            <div className="px-4 py-3 text-xs" style={{ background: 'var(--crit-soft)', color: '#b02939', border: '1px solid #f5d4d9', borderRadius: 'var(--radius-sm)' }}>
+              {error}
+            </div>
           )}
 
           {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="glass-card-static p-5"><div className="skeleton h-4 w-32 mb-3" /><div className="skeleton h-16 w-full mb-3" /><div className="skeleton h-3 w-24" /></div>
+                <div key={i} className="p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                  <div className="skeleton h-4 w-2/3 mb-3" />
+                  <div className="skeleton h-3 w-full mb-2" />
+                  <div className="skeleton h-3 w-3/4" />
+                </div>
               ))}
             </div>
-          ) : filteredAffairs.length === 0 ? (
-            <div className="glass-card-static p-16 text-center">
-              <svg className="w-14 h-14 mx-auto mb-4" style={{ color: 'rgba(255,255,255,0.1)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-              </svg>
-              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                {searchQuery || themeFilter !== 'all'
-                  ? 'Aucune affaire ne correspond à votre recherche'
-                  : 'Aucune affaire avec ce filtre'}
-              </p>
-              <button
-                onClick={() => {
-                  setSearchQuery('')
-                  setThemeFilter('all')
-                }}
-                className="text-sm mt-2 font-medium hover:underline"
-                style={{ color: '#60a5fa' }}
-              >
-                Réinitialiser
-              </button>
-            </div>
           ) : (
-            <div>
-              {renderSection('hot', grouped.hot)}
-              {renderSection('watch', grouped.watch)}
-              {renderSection('minor', grouped.minor, true)}
-            </div>
+            <>
+              {grouped.hot.length > 0 && <Section meta={PRIORITY_META.hot} count={grouped.hot.length} affairs={grouped.hot} />}
+              {grouped.watch.length > 0 && <Section meta={PRIORITY_META.watch} count={grouped.watch.length} affairs={grouped.watch} />}
+              {grouped.minor.length > 0 && <Section meta={PRIORITY_META.minor} count={grouped.minor.length} affairs={grouped.minor} />}
+              {filtered.length === 0 && (
+                <div className="p-16 text-center" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                  <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Aucune affaire</p>
+                </div>
+              )}
+            </>
           )}
         </div>
       </main>
     </div>
+  )
+}
+
+function Section({ meta, count, affairs }: { meta: { label: string; color: string }; count: number; affairs: Affair[] }) {
+  return (
+    <section>
+      <div className="flex items-baseline gap-2.5 mb-3">
+        <span className="w-1.5 h-1.5 rounded-full" style={{ background: meta.color }} />
+        <h2 className="font-serif text-base font-semibold tracking-tight" style={{ color: 'var(--text)' }}>{meta.label}</h2>
+        <span className="font-mono text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          {count} affaire{count > 1 ? 's' : ''}
+        </span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 mb-6">
+        {affairs.map(a => <AffaireCard key={a._id} a={a} />)}
+      </div>
+    </section>
+  )
+}
+
+function KpiCell({ label, value, severity, hint }: { label: string; value: number | string; severity?: 'crit' | 'warn' | 'ok' | 'neutral'; hint?: string }) {
+  const isCrit = severity === 'crit'
+  const color = isCrit ? 'var(--negative)' : severity === 'warn' ? 'var(--warning)' : severity === 'ok' ? 'var(--positive)' : 'var(--text)'
+  return (
+    <div
+      className="p-4"
+      style={{
+        background: 'var(--bg-surface)',
+        border: `1px solid ${isCrit ? '#f5d4d9' : 'var(--border)'}`,
+        borderRadius: 'var(--radius)',
+      }}
+    >
+      <div className="font-mono text-[10px] uppercase tracking-[0.14em] mb-2" style={{ color: isCrit ? 'var(--negative)' : 'var(--text-muted)' }}>
+        {label}
+      </div>
+      <div className="flex items-baseline gap-2.5">
+        <span className="font-serif text-3xl font-semibold tabular-nums leading-none" style={{ color }}>
+          {value}
+        </span>
+        {hint && (
+          <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{hint}</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function Segmented({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
+  return (
+    <div
+      className="inline-flex"
+      style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-surface)' }}
+    >
+      {options.map((opt, i) => (
+        <button
+          key={opt.value}
+          onClick={() => onChange(opt.value)}
+          className="px-3 py-1.5 text-xs font-medium"
+          style={{
+            background: value === opt.value ? 'var(--bg-hover)' : 'transparent',
+            color: value === opt.value ? 'var(--text)' : 'var(--text-muted)',
+            borderLeft: i > 0 ? '1px solid var(--border)' : 'none',
+          }}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function SelectField({ value, onChange, children }: { value: string; onChange: (v: string) => void; children: React.ReactNode }) {
+  return (
+    <select
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      className="text-xs font-medium px-2.5 py-1.5 rounded-sm appearance-none cursor-pointer"
+      style={{
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--border)',
+        color: 'var(--text-secondary)',
+        paddingRight: '24px',
+        backgroundImage: 'linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%)',
+        backgroundPosition: 'calc(100% - 14px) 50%, calc(100% - 10px) 50%',
+        backgroundSize: '4px 4px',
+        backgroundRepeat: 'no-repeat',
+      }}
+    >
+      {children}
+    </select>
   )
 }
