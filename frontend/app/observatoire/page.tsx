@@ -9,6 +9,7 @@ import {
   fetchWebHistory,
   fetchSocialEvolution,
   fetchCampaigns,
+  apiErrorMessage,
   type WebTrafficPoint,
   type SocialEvolution,
   type Campaign,
@@ -54,8 +55,8 @@ export default function ObservatoirePage() {
       const r = await triggerSocialSnapshot()
       setMsg(`Instantané capturé (${r.snapshot_date}) — ${r.captured} plateformes`)
       setRefreshKey(k => k + 1)
-    } catch {
-      setMsg('Capture impossible — réservé aux administrateurs ?')
+    } catch (e) {
+      setMsg(apiErrorMessage(e, 'capture'))
     } finally { setCapturing(false) }
   }
 

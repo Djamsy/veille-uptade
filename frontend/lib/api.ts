@@ -6,8 +6,22 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     ...options,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
   });
-  if (!res.ok) throw new Error(`API ${res.status}: ${res.statusText}`);
+  if (!res.ok) {
+    const err = new Error(`API ${res.status}: ${res.statusText}`) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
+  }
   return res.json();
+}
+
+/** Message utilisateur clair à partir du statut HTTP d'une erreur apiFetch. */
+export function apiErrorMessage(e: unknown, context = 'opération'): string {
+  const status = (e as { status?: number })?.status;
+  if (status === 401) return 'Session expirée — reconnecte-toi.';
+  if (status === 403) return 'Accès réservé aux administrateurs.';
+  if (status === 404) return `Cette fonctionnalité n'est pas encore déployée sur le backend (${context}).`;
+  if (status && status >= 500) return 'Erreur serveur — réessaie dans un instant.';
+  return `Échec de l'${context}.`;
 }
 
 function authHeaders(): Record<string, string> {

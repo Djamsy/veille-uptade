@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { setManualFollowers, setManualWebTraffic } from '../../../lib/api'
+import { setManualFollowers, setManualWebTraffic, apiErrorMessage } from '../../../lib/api'
 
 const PLATFORMS = [
   { id: 'instagram', label: 'Instagram', color: '#e4405f' },
@@ -42,8 +42,8 @@ export function StatsEntryModal({ onClose, onSaved }: { onClose: () => void; onS
       await setManualWebTraffic(metrics, date)
       setMsg('Trafic web enregistré ✓')
       onSaved()
-    } catch {
-      setMsg('Erreur — réservé aux administrateurs ?')
+    } catch (e) {
+      setMsg(apiErrorMessage(e, 'enregistrement'))
     } finally { setSaving(false) }
   }
 
@@ -55,8 +55,8 @@ export function StatsEntryModal({ onClose, onSaved }: { onClose: () => void; onS
       await Promise.all(entries.map(p => setManualFollowers(p.id, parseInt(followers[p.id], 10), date)))
       setMsg('Abonnés enregistrés ✓')
       onSaved()
-    } catch {
-      setMsg('Erreur — réservé aux administrateurs ?')
+    } catch (e) {
+      setMsg(apiErrorMessage(e, 'enregistrement'))
     } finally { setSaving(false) }
   }
 
