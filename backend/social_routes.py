@@ -3,10 +3,7 @@ from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, HTTPException, Query, Body
 
 # ✅ on force l’import depuis social_media_service (avec YouTube inclus)
-try:
-    from backend.social_media_service import social_scraper  # type: ignore
-except Exception:
-    from social_media_service import social_scraper  # type: ignore
+from backend.social_media_service import social_scraper
 
 router = APIRouter()
 logger = logging.getLogger("backend.social_routes")

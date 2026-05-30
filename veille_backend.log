@@ -18438,3 +18438,29 @@ AttributeError: module 'bcrypt' has no attribute '__about__'
 2026-03-20 13:51:04,234 - veille_media_backend - INFO - MONGO_URL: mongodb+srv://djamalloiseau:djamalloiseau@cluster0.kae7vjm.mongodb.net/veille_media?retryWrites=true&w=majority
 2026-03-20 13:51:04,234 - veille_media_backend - INFO - Environment: development
 2026-03-20 13:51:04,234 - veille_media_backend - INFO - Seuil gravité affaires: 0.6
+2026-05-30 15:04:47,264 - veille_media_backend - INFO - ============================================================
+2026-05-30 15:04:47,396 - veille_media_backend - INFO - 🏝️ VEILLE MÉDIA GUADELOUPE - VERSION 5.2.0-NO-OLLAMA
+2026-05-30 15:04:47,397 - veille_media_backend - INFO - 🚀 Mode: SANS OLLAMA - 100% règles déterministes
+2026-05-30 15:04:47,397 - veille_media_backend - INFO - ============================================================
+2026-05-30 15:04:47,397 - veille_media_backend - INFO - MONGO_URL: mongodb://localhost:27017
+2026-05-30 15:04:47,397 - veille_media_backend - INFO - Environment: development
+2026-05-30 15:04:47,397 - veille_media_backend - INFO - Seuil gravité affaires: 0.6
+2026-05-30 15:04:52,409 - veille_media_backend - ERROR - ❌ Échec connexion MongoDB
+2026-05-30 15:04:52,412 - veille_media_backend - INFO - ℹ️ Groq non configuré (pas de GROQ_API_KEY), fallback sur règles
+2026-05-30 15:04:52,413 - veille_media_backend - INFO - ✅ Service d'enrichissement chargé (tags_index — règles)
+2026-05-30 15:04:52,413 - veille_media_backend - INFO - ✅ Sentiment Service local chargé
+2026-05-30 15:04:52,469 - veille_media_backend - INFO - ✅ Scraper chargé depuis scraper_service.py
+2026-05-30 15:04:52,470 - veille_media_backend - INFO - ✅ Scraper actif: _LazyScraperProxy
+2026-05-30 15:11:00,279 - veille_media_backend - INFO - ============================================================
+2026-05-30 15:11:00,279 - veille_media_backend - INFO - 🏝️ VEILLE MÉDIA GUADELOUPE - VERSION 5.2.0-NO-OLLAMA
+2026-05-30 15:11:00,279 - veille_media_backend - INFO - 🚀 Mode: SANS OLLAMA - 100% règles déterministes
+2026-05-30 15:11:00,279 - veille_media_backend - INFO - ============================================================
+2026-05-30 15:11:00,280 - veille_media_backend - INFO - MONGO_URL: mongodb://localhost:27017
+2026-05-30 15:11:00,280 - veille_media_backend - INFO - Environment: development
+2026-05-30 15:11:00,280 - veille_media_backend - INFO - Seuil gravité affaires: 0.6
+2026-05-30 15:11:05,292 - veille_media_backend - ERROR - ❌ Échec connexion MongoDB
+2026-05-30 15:11:05,295 - veille_media_backend - INFO - ℹ️ Groq non configuré (pas de GROQ_API_KEY), fallback sur règles
+2026-05-30 15:11:05,296 - veille_media_backend - INFO - ✅ Service d'enrichissement chargé (tags_index — règles)
+2026-05-30 15:11:05,296 - veille_media_backend - INFO - ✅ Sentiment Service local chargé
+2026-05-30 15:11:05,354 - veille_media_backend - INFO - ✅ Scraper chargé depuis scraper_service.py
+2026-05-30 15:11:05,354 - veille_media_backend - INFO - ✅ Scraper actif: _LazyScraperProxy

@@ -38,10 +38,7 @@ logger = logging.getLogger("entity_presence_service")
 # ============================================================
 # Imports locaux — fallbacks pour package vs script direct
 # ============================================================
-try:
-    from backend.entity_aliases import ELECTED_ALIASES, _normalize  # type: ignore
-except ImportError:  # pragma: no cover
-    from entity_aliases import ELECTED_ALIASES, _normalize  # type: ignore
+from backend.entity_aliases import ELECTED_ALIASES, _normalize
 
 try:
     from backend.elus_database import get_mandat_commune  # type: ignore
@@ -52,10 +49,7 @@ except ImportError:  # pragma: no cover
         def get_mandat_commune(name: str):  # fallback no-op
             return None
 
-try:
-    from backend.ai_groq_service import _call_ai, is_available as ai_is_available  # type: ignore
-except ImportError:  # pragma: no cover
-    from ai_groq_service import _call_ai, is_available as ai_is_available  # type: ignore
+from backend.ai_groq_service import _call_ai, is_available as ai_is_available
 
 
 # ============================================================

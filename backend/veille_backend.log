@@ -29273,3 +29273,16 @@ ModuleNotFoundError: No module named 'backend.radio_cards_routes'
 2026-02-26 10:19:23,620 - veille_media_backend - INFO - ✅ Scheduler APScheduler démarré
 2026-02-26 10:20:00,009 - apscheduler.executors.default - INFO - Running job "Capture radio/TV (flux planifiés) (trigger: cron[minute='*/5'], next run at: 2026-02-26 10:25:00 AST)" (scheduled at 2026-02-26 10:20:00-04:00)
 2026-02-26 10:20:00,025 - apscheduler.executors.default - INFO - Job "Capture radio/TV (flux planifiés) (trigger: cron[minute='*/5'], next run at: 2026-02-26 10:25:00 AST)" executed successfully
+2026-05-30 14:58:36,362 - veille_media_backend - INFO - ============================================================
+2026-05-30 14:58:36,424 - veille_media_backend - INFO - 🏝️ VEILLE MÉDIA GUADELOUPE - VERSION 5.2.0-NO-OLLAMA
+2026-05-30 14:58:36,424 - veille_media_backend - INFO - 🚀 Mode: SANS OLLAMA - 100% règles déterministes
+2026-05-30 14:58:36,424 - veille_media_backend - INFO - ============================================================
+2026-05-30 14:58:36,424 - veille_media_backend - INFO - MONGO_URL: mongodb://localhost:27017
+2026-05-30 14:58:36,424 - veille_media_backend - INFO - Environment: development
+2026-05-30 14:58:36,424 - veille_media_backend - INFO - Seuil gravité affaires: 0.6
+2026-05-30 14:58:41,436 - veille_media_backend - ERROR - ❌ Échec connexion MongoDB
+2026-05-30 14:58:41,440 - veille_media_backend - INFO - ℹ️ Groq non configuré (pas de GROQ_API_KEY), fallback sur règles
+2026-05-30 14:58:41,440 - veille_media_backend - INFO - ✅ Service d'enrichissement chargé (tags_index — règles)
+2026-05-30 14:58:41,441 - veille_media_backend - INFO - ✅ Sentiment Service local chargé
+2026-05-30 14:58:41,497 - veille_media_backend - INFO - ✅ Scraper chargé depuis scraper_service.py
+2026-05-30 14:58:41,497 - veille_media_backend - INFO - ✅ Scraper actif: _LazyScraperProxy

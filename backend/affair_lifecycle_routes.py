@@ -37,10 +37,7 @@ _auth_deps = {}
 def _get_auth_deps():
     """Lazy-load des dépendances auth depuis admin_routes."""
     if not _auth_deps:
-        try:
-            from backend.admin_routes import get_current_user, require_role
-        except ImportError:
-            from admin_routes import get_current_user, require_role
+        from backend.admin_routes import get_current_user, require_role
         _auth_deps["get_current_user"] = get_current_user
         _auth_deps["require_role"] = require_role
     return _auth_deps

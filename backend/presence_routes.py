@@ -25,35 +25,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 logger = logging.getLogger("presence_routes")
 
 # ── Imports locaux (fallback package vs script) ──
-try:
-    from backend.db import get_db  # type: ignore
-except ImportError:  # pragma: no cover
-    from db import get_db  # type: ignore
+from backend.db import get_db
 
-try:
-    from backend.auth_routes import require_admin  # type: ignore
-except ImportError:  # pragma: no cover
-    from auth_routes import require_admin  # type: ignore
+from backend.auth_routes import require_admin
 
-try:
-    from backend.entity_aliases import ELECTED_ALIASES  # type: ignore
-except ImportError:  # pragma: no cover
-    from entity_aliases import ELECTED_ALIASES  # type: ignore
+from backend.entity_aliases import ELECTED_ALIASES
 
-try:
-    from backend.entity_presence_service import (  # type: ignore
-        extract_presences_from_article,
-        aggregate_by_commune,
-        aggregate_by_entity,
-        GUADELOUPE_COMMUNES,
-    )
-except ImportError:  # pragma: no cover
-    from entity_presence_service import (  # type: ignore
-        extract_presences_from_article,
-        aggregate_by_commune,
-        aggregate_by_entity,
-        GUADELOUPE_COMMUNES,
-    )
+from backend.entity_presence_service import extract_presences_from_article, aggregate_by_commune, aggregate_by_entity, GUADELOUPE_COMMUNES
 
 
 router = APIRouter(prefix="/api/presence", tags=["presence"])

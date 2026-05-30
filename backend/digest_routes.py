@@ -441,10 +441,7 @@ def create_now(with_pdf: bool = Query(False, description="Générer aussi un PDF
 
     if with_pdf:
         try:
-            try:
-                from backend.pdf_digest_service import create_digest_pdf  # brandé
-            except Exception:
-                from pdf_digest_service import create_digest_pdf  # fallback import
+            from backend.pdf_digest_service import create_digest_pdf
 
             pdf_path = create_digest_pdf(
                 _payload_for_pdf(date_str, out["created_at"], arts, trs)
@@ -487,10 +484,7 @@ def get_pdf(date_str: str):
 
     # 1) tentative PDF brandé
     try:
-        try:
-            from backend.pdf_digest_service import create_digest_pdf
-        except Exception:
-            from pdf_digest_service import create_digest_pdf
+        from backend.pdf_digest_service import create_digest_pdf
         pdf_path = create_digest_pdf(
             _payload_for_pdf(date_str, created_at, arts, trs)
         )

@@ -288,10 +288,7 @@ async def job_enrich():
             # ── Notifications Telegram (après le batch) ──
             if telegram_queue:
                 try:
-                    try:
-                        from backend.telegram_service import notify_new_article
-                    except ImportError:
-                        from telegram_service import notify_new_article
+                    from backend.telegram_service import notify_new_article
                     for merged_article in telegram_queue[:10]:  # Max 10 notifs par cycle
                         merged_article["_id"] = str(merged_article.get("_id", ""))
                         notify_new_article(merged_article)
@@ -304,10 +301,7 @@ async def job_enrich():
             # Idempotent grâce à idx_presence_dedup. N'échoue jamais le job principal.
             try:
                 if enriched_payloads:
-                    try:
-                        from backend.entity_presence_service import extract_presences_from_article  # type: ignore
-                    except ImportError:
-                        from entity_presence_service import extract_presences_from_article  # type: ignore
+                    from backend.entity_presence_service import extract_presences_from_article
 
                     presences_col = _db["entity_presences"]
                     pres_total = 0
@@ -672,10 +666,7 @@ async def job_radio_capture():
 async def job_radio_health_check():
     """Vérifie l'accessibilité de tous les flux radio configurés."""
     try:
-        try:
-            from backend.radio_cards_routes import run_auto_health_check
-        except Exception:
-            from radio_cards_routes import run_auto_health_check
+        from backend.radio_cards_routes import run_auto_health_check
 
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, run_auto_health_check)
@@ -698,10 +689,7 @@ async def job_radio_health_check():
 async def job_social_scrape():
     """Scrape batché Facebook + Instagram + Twitter via Apify."""
     try:
-        try:
-            from backend.apify_social_scraper import get_social_scraper
-        except ImportError:
-            from apify_social_scraper import get_social_scraper
+        from backend.apify_social_scraper import get_social_scraper
 
         scraper = get_social_scraper()
         if not scraper.is_ready():
@@ -729,10 +717,7 @@ async def job_social_scrape():
 async def job_buffer_stats_sync():
     """Synchronise les stats des publications via Buffer API (gratuit)."""
     try:
-        try:
-            from backend.campaign_service import sync_buffer_stats
-        except ImportError:
-            from campaign_service import sync_buffer_stats
+        from backend.campaign_service import sync_buffer_stats
 
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, sync_buffer_stats)
@@ -753,10 +738,7 @@ async def job_buffer_stats_sync():
 async def job_apify_comments_scrape():
     """Scrape les commentaires FB/IG/TikTok via Apify (budget $30/mois)."""
     try:
-        try:
-            from backend.social_stats_scraper import scrape_own_social_stats
-        except ImportError:
-            from social_stats_scraper import scrape_own_social_stats
+        from backend.social_stats_scraper import scrape_own_social_stats
 
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, scrape_own_social_stats)
@@ -779,10 +761,7 @@ async def job_apify_comments_scrape():
 async def job_campaign_auto_analysis():
     """Re-analyse les campagnes RS dont l'analyse a expiré (>2j)."""
     try:
-        try:
-            from backend.campaign_service import auto_analyze_campaigns
-        except ImportError:
-            from campaign_service import auto_analyze_campaigns
+        from backend.campaign_service import auto_analyze_campaigns
 
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, auto_analyze_campaigns)
@@ -868,10 +847,7 @@ async def job_daily_report():
         return {"status": "skip", "reason": "no_db"}
 
     try:
-        try:
-            from backend.daily_report_service import generate_and_send_daily_report
-        except ImportError:
-            from daily_report_service import generate_and_send_daily_report
+        from backend.daily_report_service import generate_and_send_daily_report
 
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, generate_and_send_daily_report, _db)
@@ -899,10 +875,7 @@ async def job_predictive_analysis():
 
     try:
         # Import du service IA
-        try:
-            from backend.ai_groq_service import analyze_trends_predictive
-        except ImportError:
-            from ai_groq_service import analyze_trends_predictive
+        from backend.ai_groq_service import analyze_trends_predictive
 
         affairs_col = _db.get_collection("affairs")
         active = list(affairs_col.find({"status": "active"}).sort("bmg", -1).limit(30))
@@ -949,10 +922,7 @@ async def job_morning_briefing():
         return {"status": "skip", "reason": "no_db"}
 
     try:
-        try:
-            from backend.briefing_service import send_telegram_briefing
-        except ImportError:
-            from briefing_service import send_telegram_briefing
+        from backend.briefing_service import send_telegram_briefing
 
         loop = asyncio.get_running_loop()
         success = await loop.run_in_executor(None, send_telegram_briefing, _db, 24)
@@ -976,14 +946,7 @@ async def job_watchlist_check():
         return {"status": "skip", "reason": "no_db"}
 
     try:
-        try:
-            from backend.briefing_service import (
-                _check_watchlist, send_watchlist_alerts_telegram
-            )
-        except ImportError:
-            from briefing_service import (
-                _check_watchlist, send_watchlist_alerts_telegram
-            )
+        from backend.briefing_service import _check_watchlist, send_watchlist_alerts_telegram
 
         articles_col = _db["articles_guadeloupe"]
         radio_col = _db["radio_transcriptions"]
@@ -1177,10 +1140,7 @@ _sched_auth = {}
 
 def _get_sched_auth():
     if not _sched_auth:
-        try:
-            from backend.admin_routes import get_current_user, require_role
-        except ImportError:
-            from admin_routes import get_current_user, require_role
+        from backend.admin_routes import get_current_user, require_role
         _sched_auth["get_current_user"] = get_current_user
         _sched_auth["require_role"] = require_role
     return _sched_auth

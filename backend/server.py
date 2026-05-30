@@ -93,10 +93,7 @@ import uvicorn
 # Garde admin (importable depuis auth_routes) — utilisée sur les routes destructives.
 # Fallback no-op si l'import échoue, pour ne pas casser le boot en dev local.
 try:
-    try:
-        from backend.auth_routes import require_admin  # type: ignore
-    except ImportError:
-        from auth_routes import require_admin  # type: ignore
+    from backend.auth_routes import require_admin
 except Exception:  # pragma: no cover
     def require_admin():  # type: ignore
         raise HTTPException(503, "Auth indisponible — endpoint protégé")
@@ -1374,10 +1371,7 @@ async def crosscheck_stale_active_endpoint(admin: dict = Depends(require_admin))
 @app.post("/api/articles/classify-communes")
 async def classify_communes_endpoint(background_tasks: BackgroundTasks):
     """Re-classifie tous les articles sans commune par regex + IA fallback."""
-    try:
-        from backend.affair_lifecycle_service import classify_article_commune
-    except ImportError:
-        from affair_lifecycle_service import classify_article_commune
+    from backend.affair_lifecycle_service import classify_article_commune
 
     def _run_classification():
         try:
@@ -1480,10 +1474,7 @@ _scheduler_loaded = False
 
 if RUN_SCHEDULER:
     try:
-        try:
-            from backend.scheduler_service import router as scheduler_router, attach_scheduler
-        except ImportError:
-            from scheduler_service import router as scheduler_router, attach_scheduler
+        from backend.scheduler_service import router as scheduler_router, attach_scheduler
         app.include_router(scheduler_router, prefix="/api/scheduler")
 
         @app.on_event("startup")
@@ -1535,10 +1526,7 @@ async def debug_scheduler():
 
     # Tester l'import du scheduler_service
     try:
-        try:
-            from backend.scheduler_service import _scheduler, _db
-        except ImportError:
-            from scheduler_service import _scheduler, _db
+        from backend.scheduler_service import _scheduler, _db
         diag["scheduler_service_import"] = "OK"
         diag["scheduler_instance"] = _scheduler is not None
         diag["scheduler_running"] = _scheduler.running if _scheduler else False
@@ -1653,10 +1641,7 @@ try:
 
     # ── Routes admin (pilotage manuel des affaires) ──
     try:
-        try:
-            from backend.admin_routes import router as admin_router, set_service as set_admin_service
-        except ImportError:
-            from admin_routes import router as admin_router, set_service as set_admin_service
+        from backend.admin_routes import router as admin_router, set_service as set_admin_service
         set_admin_service(affair_lifecycle_service)
         app.include_router(admin_router)
         logger.info("✅ Routes admin chargées (/api/admin/*)")
@@ -1681,10 +1666,7 @@ except Exception as e:
 
 # ========== AUTHENTIFICATION ==========
 try:
-    try:
-        from backend.auth_routes import router as auth_router
-    except ImportError:
-        from auth_routes import router as auth_router
+    from backend.auth_routes import router as auth_router
 
     app.include_router(auth_router)
     logger.info("✅ Routes auth chargées (/api/auth/*)")
@@ -1753,10 +1735,7 @@ except Exception as e:
 
 # ========== ENTITY PRESENCE (admin only) ==========
 try:
-    try:
-        from backend.presence_routes import router as presence_router
-    except ImportError:
-        from presence_routes import router as presence_router
+    from backend.presence_routes import router as presence_router
     app.include_router(presence_router)
     logger.info("✅ Routes Presence chargées (/api/presence/* — admin only)")
 except Exception as e:
@@ -1765,10 +1744,7 @@ except Exception as e:
 
 # ========== AFFAIRS MONITOR (admin only) ==========
 try:
-    try:
-        from backend.affairs_monitor_routes import router as affairs_monitor_router
-    except ImportError:
-        from affairs_monitor_routes import router as affairs_monitor_router
+    from backend.affairs_monitor_routes import router as affairs_monitor_router
     app.include_router(affairs_monitor_router)
     logger.info("✅ Routes Affairs Monitor chargées (/api/affairs/monitor/* — admin only)")
 except Exception as e:
@@ -1813,10 +1789,7 @@ async def generate_media_summary(period: str = Query("journalier", regex="^(jour
             art["_id"] = str(art["_id"])
 
         # Vérifier si l'IA est disponible
-        try:
-            from backend.ai_groq_service import generate_summary as ai_generate_summary, is_available as ai_is_available
-        except ImportError:
-            from ai_groq_service import generate_summary as ai_generate_summary, is_available as ai_is_available
+        from backend.ai_groq_service import generate_summary as ai_generate_summary, is_available as ai_is_available
 
         if not ai_is_available():
             raise HTTPException(status_code=503, detail="Service IA non disponible")

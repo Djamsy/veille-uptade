@@ -490,10 +490,7 @@ class RadioTranscriptionService:
 
         # 📢 Notification Telegram du résumé radio
         try:
-            try:
-                from backend.telegram_service import notify_radio_summary
-            except ImportError:
-                from telegram_service import notify_radio_summary
+            from backend.telegram_service import notify_radio_summary
             notify_radio_summary(doc)
         except Exception as tg_err:
             logger.debug(f"Telegram notif radio: {tg_err}")

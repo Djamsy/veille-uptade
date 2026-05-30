@@ -317,10 +317,7 @@ async def affair_lifecycle_job():
     """Tâche automatique : cycle de vie des affaires (clustering, promotion, fusion, ré-affiliation)"""
     logger.info("🔄 Démarrage cycle de vie des affaires automatique")
     try:
-        try:
-            from backend.affair_lifecycle_service import get_affair_lifecycle_service
-        except ImportError:
-            from affair_lifecycle_service import get_affair_lifecycle_service
+        from backend.affair_lifecycle_service import get_affair_lifecycle_service
         svc = get_affair_lifecycle_service()
         if not svc:
             logger.warning("AffairLifecycleService non disponible")
@@ -342,14 +339,8 @@ async def telegram_morning_digest_job():
     logger.info("📰 Génération du digest matinal GPT pour Telegram...")
     try:
         from pymongo import MongoClient
-        try:
-            from backend.telegram_alerts_service import TelegramAlertsService
-        except ImportError:
-            from telegram_alerts_service import TelegramAlertsService
-        try:
-            from backend.ai_groq_service import _call_ai, is_available as ai_available
-        except ImportError:
-            from ai_groq_service import _call_ai, is_available as ai_available
+        from backend.telegram_alerts_service import TelegramAlertsService
+        from backend.ai_groq_service import _call_ai, is_available as ai_available
 
         mongo_uri = os.environ.get("MONGODB_URI") or os.environ.get("MONGO_URI")
         if not mongo_uri:
@@ -482,10 +473,7 @@ async def gpt_affair_cleanup_job():
     """Nettoyage GPT périodique des affaires — retire les articles mal classés."""
     logger.info("🧹🧠 Nettoyage GPT des affaires...")
     try:
-        try:
-            from backend.affair_lifecycle_service import get_affair_lifecycle_service
-        except ImportError:
-            from affair_lifecycle_service import get_affair_lifecycle_service
+        from backend.affair_lifecycle_service import get_affair_lifecycle_service
         svc = get_affair_lifecycle_service()
         if not svc:
             logger.warning("AffairLifecycleService non disponible")
@@ -502,10 +490,7 @@ async def stale_active_crosscheck_job():
     """Cross-check GPT : compare les affaires en veille aux actives pour fusion."""
     logger.info("🔄🧠 Cross-check stale ↔ active...")
     try:
-        try:
-            from backend.affair_lifecycle_service import get_affair_lifecycle_service
-        except ImportError:
-            from affair_lifecycle_service import get_affair_lifecycle_service
+        from backend.affair_lifecycle_service import get_affair_lifecycle_service
         svc = get_affair_lifecycle_service()
         if not svc:
             logger.warning("AffairLifecycleService non disponible")
@@ -642,10 +627,7 @@ async def storage_monitor_job():
         # Alertes Telegram si seuil dépassé
         if usage_pct >= 80:
             try:
-                try:
-                    from backend.telegram_alerts_service import TelegramAlertsService
-                except ImportError:
-                    from telegram_alerts_service import TelegramAlertsService
+                from backend.telegram_alerts_service import TelegramAlertsService
 
                 tg = TelegramAlertsService()
                 if tg.bot or tg.bot_token:

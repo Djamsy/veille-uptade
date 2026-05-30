@@ -6,10 +6,7 @@ Corrige les erreurs factuelles en utilisant tags_index comme référence
 
 import logging
 from typing import Dict, Any, List
-try:
-    from backend.tags_index import ELECTED_INDEX, infer_tags_and_theme
-except ImportError:
-    from tags_index import ELECTED_INDEX, infer_tags_and_theme
+from backend.tags_index import ELECTED_INDEX, infer_tags_and_theme
 
 logger = logging.getLogger(__name__)
 

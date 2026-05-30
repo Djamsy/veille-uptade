@@ -16,10 +16,7 @@ from pymongo.errors import PyMongoError
 import certifi
 
 # Import du système de tags unifié
-try:
-    from backend.tags_index import infer_tags_and_theme, THEME_TAXONOMY, ELECTED_INDEX
-except ImportError:
-    from tags_index import infer_tags_and_theme, THEME_TAXONOMY, ELECTED_INDEX
+from backend.tags_index import infer_tags_and_theme, THEME_TAXONOMY, ELECTED_INDEX
 
 # Configuration logging
 logger = logging.getLogger("media_noise_service")

@@ -5,10 +5,7 @@ from typing import Any, Dict, Optional, List
 from fastapi import APIRouter, HTTPException, Query, Body
 
 # Import radio service + TZ helpers (compatible avec exécution depuis backend/ ou racine)
-try:
-    from backend.radio_service import radio_service, TZ, TIMEZONE_NAME  # type: ignore
-except Exception:  # pragma: no cover
-    from radio_service import radio_service, TZ, TIMEZONE_NAME  # type: ignore
+from backend.radio_service import radio_service, TZ, TIMEZONE_NAME
 
 router = APIRouter(prefix="/api/transcriptions", tags=["transcriptions"])
 

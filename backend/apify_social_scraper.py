@@ -511,10 +511,7 @@ class ApifySocialScraper:
             return 0
 
         try:
-            try:
-                from backend.ai_groq_service import enrich_social_posts_batch
-            except ImportError:
-                from ai_groq_service import enrich_social_posts_batch
+            from backend.ai_groq_service import enrich_social_posts_batch
         except Exception:
             logger.warning("⚠️ enrich_social_posts_batch non disponible")
             return 0
@@ -568,10 +565,7 @@ class ApifySocialScraper:
         ingested = 0
         if relevant_posts:
             try:
-                try:
-                    from backend.affair_lifecycle_service import get_affair_lifecycle_service
-                except ImportError:
-                    from affair_lifecycle_service import get_affair_lifecycle_service
+                from backend.affair_lifecycle_service import get_affair_lifecycle_service
                 svc = get_affair_lifecycle_service(db=self.db)
                 for post in relevant_posts:
                     try:

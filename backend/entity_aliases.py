@@ -207,10 +207,7 @@ _MANUAL_ELECTED_ALIASES: Dict[str, List[str]] = {
 def _build_elected_aliases() -> Dict[str, List[str]]:
     """Construit le dict ELECTED_ALIASES final (officiel + fallback manuel)."""
     try:
-        try:
-            from backend.elus_database import build_aliases_index  # type: ignore
-        except ImportError:
-            from elus_database import build_aliases_index  # type: ignore
+        from backend.elus_database import build_aliases_index
         official = build_aliases_index()
     except Exception as e:
         logger.warning(f"⚠️ elus_database indisponible, fallback sur alias manuels: {e}")

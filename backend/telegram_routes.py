@@ -6,10 +6,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Body, HTTPException
 
 # importe l'instance globale du service
-try:
-    from backend.telegram_alerts_service import telegram_alerts  # type: ignore
-except Exception:  # fallback si exécuté différemment
-    from telegram_alerts_service import telegram_alerts  # type: ignore
+from backend.telegram_alerts_service import telegram_alerts
 
 logger = logging.getLogger("telegram_routes")
 router = APIRouter(prefix="/telegram", tags=["telegram"])

@@ -12,10 +12,7 @@ from pymongo import MongoClient
 import certifi
 
 # --- PDF service (import robuste) ---
-try:
-    from backend.pdf_digest_service import create_digest_pdf  # type: ignore
-except Exception:
-    from pdf_digest_service import create_digest_pdf  # fallback
+from backend.pdf_digest_service import create_digest_pdf
 
 router = APIRouter(prefix="/api/digest/pdf", tags=["digest-pdf"])
 

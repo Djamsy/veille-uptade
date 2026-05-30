@@ -21,10 +21,7 @@ from starlette.responses import StreamingResponse
 from gridfs import GridFSBucket
 from bson import ObjectId
 
-try:
-    from backend.radio_service import radio_service, TZ, TIMEZONE_NAME
-except Exception:
-    from radio_service import radio_service, TZ, TIMEZONE_NAME
+from backend.radio_service import radio_service, TZ, TIMEZONE_NAME
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/radio", tags=["radio"])

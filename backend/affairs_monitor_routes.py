@@ -20,15 +20,9 @@ from fastapi import APIRouter, Depends, Query
 
 logger = logging.getLogger("affairs_monitor")
 
-try:
-    from backend.db import get_db  # type: ignore
-except ImportError:  # pragma: no cover
-    from db import get_db  # type: ignore
+from backend.db import get_db
 
-try:
-    from backend.auth_routes import require_admin  # type: ignore
-except ImportError:  # pragma: no cover
-    from auth_routes import require_admin  # type: ignore
+from backend.auth_routes import require_admin
 
 
 router = APIRouter(prefix="/api/affairs/monitor", tags=["affairs-monitor"])
