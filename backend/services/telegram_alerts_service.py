@@ -724,8 +724,24 @@ class TelegramAlertsService:
         
         return self.send_alert_sync(test_message, chat_id)
 
-# Instance globale
-telegram_alerts = TelegramAlertsService()
+# Instance globale — proxy paresseux : la connexion Mongo (et son timeout) n'a lieu
+# qu'au premier accès réel, pas à l'import. Rend le module importable sans Mongo (tests/CI).
+class _LazyTelegramAlerts:
+    __slots__ = ("_inst",)
+
+    def __init__(self):
+        self._inst = None
+
+    def _get(self):
+        if self._inst is None:
+            self._inst = TelegramAlertsService()
+        return self._inst
+
+    def __getattr__(self, name):
+        return getattr(self._get(), name)
+
+
+telegram_alerts = _LazyTelegramAlerts()
 
 if __name__ == "__main__":
     # Test du service

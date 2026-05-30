@@ -661,8 +661,24 @@ class RadioTranscriptionService:
         return self.db is not None and self.transcriptions_collection is not None
 
 
-# Instance globale
-radio_service = RadioTranscriptionService()
+# Instance globale — proxy paresseux : la connexion Mongo (et son timeout) n'a lieu
+# qu'au premier accès réel, pas à l'import. Rend le module importable sans Mongo (tests/CI).
+class _LazyRadioService:
+    __slots__ = ("_inst",)
+
+    def __init__(self):
+        self._inst = None
+
+    def _get(self):
+        if self._inst is None:
+            self._inst = RadioTranscriptionService()
+        return self._inst
+
+    def __getattr__(self, name):
+        return getattr(self._get(), name)
+
+
+radio_service = _LazyRadioService()
 
 def run_morning_radio_capture():
     """Compatibilité legacy"""

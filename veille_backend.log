@@ -18492,3 +18492,120 @@ AttributeError: module 'bcrypt' has no attribute '__about__'
 2026-05-30 16:06:27,163 - veille_media_backend - WARNING - ⚠️ Import scraper_service.py échec: No module named 'scraper_service'
 2026-05-30 16:06:27,233 - veille_media_backend - INFO - ✅ Scraper chargé depuis backend.services.scraper_service
 2026-05-30 16:06:27,233 - veille_media_backend - INFO - ✅ Scraper actif: _LazyScraperProxy
+2026-05-30 16:17:32,288 - veille_media_backend - INFO - ============================================================
+2026-05-30 16:17:32,288 - veille_media_backend - INFO - 🏝️ VEILLE MÉDIA GUADELOUPE - VERSION 5.2.0-NO-OLLAMA
+2026-05-30 16:17:32,288 - veille_media_backend - INFO - 🚀 Mode: SANS OLLAMA - 100% règles déterministes
+2026-05-30 16:17:32,288 - veille_media_backend - INFO - ============================================================
+2026-05-30 16:17:32,288 - veille_media_backend - INFO - MONGO_URL: mongodb://localhost:27017
+2026-05-30 16:17:32,288 - veille_media_backend - INFO - Environment: development
+2026-05-30 16:17:32,288 - veille_media_backend - INFO - Seuil gravité affaires: 0.6
+2026-05-30 16:17:36,423 - veille_media_backend - INFO - ============================================================
+2026-05-30 16:17:36,423 - veille_media_backend - INFO - 🏝️ VEILLE MÉDIA GUADELOUPE - VERSION 5.2.0-NO-OLLAMA
+2026-05-30 16:17:36,423 - veille_media_backend - INFO - 🚀 Mode: SANS OLLAMA - 100% règles déterministes
+2026-05-30 16:17:36,423 - veille_media_backend - INFO - ============================================================
+2026-05-30 16:17:36,423 - veille_media_backend - INFO - MONGO_URL: mongodb://localhost:27017
+2026-05-30 16:17:36,423 - veille_media_backend - INFO - Environment: development
+2026-05-30 16:17:36,424 - veille_media_backend - INFO - Seuil gravité affaires: 0.6
+2026-05-30 16:17:37,303 - veille_media_backend - ERROR - ❌ Échec connexion MongoDB
+2026-05-30 16:17:37,307 - veille_media_backend - INFO - ℹ️ Groq non configuré (pas de GROQ_API_KEY), fallback sur règles
+2026-05-30 16:17:37,308 - veille_media_backend - INFO - ✅ Service d'enrichissement chargé (tags_index — règles)
+2026-05-30 16:17:37,308 - veille_media_backend - INFO - ✅ Sentiment Service local chargé
+2026-05-30 16:17:37,308 - veille_media_backend - WARNING - ⚠️ Import scraper_service.py échec: No module named 'scraper_service'
+2026-05-30 16:17:37,376 - veille_media_backend - INFO - ✅ Scraper chargé depuis backend.services.scraper_service
+2026-05-30 16:17:37,376 - veille_media_backend - INFO - ✅ Scraper actif: _LazyScraperProxy
+2026-05-30 16:17:37,380 - veille_media_backend - INFO - ✅ Radio service chargé
+2026-05-30 16:17:37,637 - backend.services.summary_service - INFO - ✅ Service de résumé initialisé (mode production allégé)
+2026-05-30 16:17:37,637 - backend.services.summary_service - INFO - ✅ Sumy summarizers loaded
+2026-05-30 16:17:37,637 - backend.services.summary_service - INFO - ✅ Service de résumé initialisé (mode production allégé)
+2026-05-30 16:17:37,637 - backend.services.summary_service - INFO - ✅ Sumy summarizers loaded
+2026-05-30 16:17:37,642 - veille_media_backend - INFO - ✅ Summary service chargé
+2026-05-30 16:17:37,696 - veille_media_backend - INFO - ✅ Scheduler routes ajoutées
+2026-05-30 16:17:37,714 - veille_media_backend - INFO - ✅ Routes radio cards chargées (/api/radio/*)
+2026-05-30 16:17:41,441 - veille_media_backend - ERROR - ❌ Échec connexion MongoDB
+2026-05-30 16:17:41,445 - veille_media_backend - INFO - ℹ️ Groq non configuré (pas de GROQ_API_KEY), fallback sur règles
+2026-05-30 16:17:41,445 - veille_media_backend - INFO - ✅ Service d'enrichissement chargé (tags_index — règles)
+2026-05-30 16:17:41,445 - veille_media_backend - INFO - ✅ Sentiment Service local chargé
+2026-05-30 16:17:41,446 - veille_media_backend - WARNING - ⚠️ Import scraper_service.py échec: No module named 'scraper_service'
+2026-05-30 16:17:41,536 - veille_media_backend - INFO - ✅ Scraper chargé depuis backend.services.scraper_service
+2026-05-30 16:17:41,537 - veille_media_backend - INFO - ✅ Scraper actif: _LazyScraperProxy
+2026-05-30 16:17:41,542 - veille_media_backend - INFO - ✅ Radio service chargé
+2026-05-30 16:18:32,194 - veille_media_backend - INFO - ============================================================
+2026-05-30 16:18:32,194 - veille_media_backend - INFO - 🏝️ VEILLE MÉDIA GUADELOUPE - VERSION 5.2.0-NO-OLLAMA
+2026-05-30 16:18:32,194 - veille_media_backend - INFO - 🚀 Mode: SANS OLLAMA - 100% règles déterministes
+2026-05-30 16:18:32,194 - veille_media_backend - INFO - ============================================================
+2026-05-30 16:18:32,194 - veille_media_backend - INFO - MONGO_URL: mongodb://localhost:27017
+2026-05-30 16:18:32,194 - veille_media_backend - INFO - Environment: development
+2026-05-30 16:18:32,194 - veille_media_backend - INFO - Seuil gravité affaires: 0.6
+2026-05-30 16:18:37,208 - veille_media_backend - ERROR - ❌ Échec connexion MongoDB
+2026-05-30 16:18:37,211 - veille_media_backend - INFO - ℹ️ Groq non configuré (pas de GROQ_API_KEY), fallback sur règles
+2026-05-30 16:18:37,212 - veille_media_backend - INFO - ✅ Service d'enrichissement chargé (tags_index — règles)
+2026-05-30 16:18:37,212 - veille_media_backend - INFO - ✅ Sentiment Service local chargé
+2026-05-30 16:18:37,213 - veille_media_backend - WARNING - ⚠️ Import scraper_service.py échec: No module named 'scraper_service'
+2026-05-30 16:18:37,278 - veille_media_backend - INFO - ✅ Scraper chargé depuis backend.services.scraper_service
+2026-05-30 16:18:37,278 - veille_media_backend - INFO - ✅ Scraper actif: _LazyScraperProxy
+2026-05-30 16:18:37,282 - veille_media_backend - INFO - ✅ Radio service chargé
+2026-05-30 16:18:37,542 - backend.services.summary_service - INFO - ✅ Service de résumé initialisé (mode production allégé)
+2026-05-30 16:18:37,542 - backend.services.summary_service - INFO - ✅ Sumy summarizers loaded
+2026-05-30 16:18:37,542 - backend.services.summary_service - INFO - ✅ Service de résumé initialisé (mode production allégé)
+2026-05-30 16:18:37,542 - backend.services.summary_service - INFO - ✅ Sumy summarizers loaded
+2026-05-30 16:18:37,545 - veille_media_backend - INFO - ✅ Summary service chargé
+2026-05-30 16:18:37,553 - veille_media_backend - WARNING - ⚠️ Scheduler désactivé: RUN_SCHEDULER=false
+2026-05-30 16:18:37,568 - veille_media_backend - INFO - ✅ Routes radio cards chargées (/api/radio/*)
+2026-05-30 16:18:52,602 - apify_social - ERROR - 💥 Apify Social: Mongo indisponible: localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms), Timeout: 15.0s, Topology Description: <TopologyDescription id: 6a1b0ddd57884e25f50a42c2, topology_type: Unknown, servers: [<ServerDescription ('localhost', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>]>
+2026-05-30 16:18:52,607 - veille_media_backend - INFO - ✅ Routes social scraper chargées (/api/social/*) — Apify NON configuré (APIFY_TOKEN manquant)
+2026-05-30 16:19:02,634 - entity_reconciliation - ERROR - ❌ MongoDB indisponible: localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms), Timeout: 10.0s, Topology Description: <TopologyDescription id: 6a1b0dec57884e25f50a42c3, topology_type: Unknown, servers: [<ServerDescription ('localhost', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>]>
+2026-05-30 16:19:02,635 - entity_reconciliation - ERROR - ❌ Pas de connexion MongoDB — service inopérant
+2026-05-30 16:19:02,635 - entity_reconciliation - INFO - ✅ EntityReconciliationService initialisé
+2026-05-30 16:19:02,640 - veille_media_backend - INFO - ✅ Service de réconciliation entités chargé
+2026-05-30 16:19:02,640 - veille_media_backend - INFO -    📚 Réconciliation articles↔transcriptions activée
+2026-05-30 16:19:02,644 - elus_database - WARNING - ⚠️ Fichier /home/user/veille-uptade/backend/services/data/elus_guadeloupe.json introuvable
+2026-05-30 16:19:12,684 - affair_lifecycle - ERROR - ❌ MongoDB: localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms), Timeout: 10.0s, Topology Description: <TopologyDescription id: 6a1b0df657884e25f50a42c4, topology_type: Unknown, servers: [<ServerDescription ('localhost', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>]>
+2026-05-30 16:19:12,684 - affair_lifecycle - ERROR - ❌ Pas de DB — service inopérant
+2026-05-30 16:19:12,705 - veille_media_backend - INFO - ✅ Système d'affaires V2 chargé (cycle de vie complet)
+2026-05-30 16:19:12,705 - veille_media_backend - INFO -    🔄 Pipeline: ingestion → clustering → promotion → BMG
+2026-05-30 16:19:12,734 - veille_media_backend - INFO - ✅ Routes admin chargées (/api/admin/*)
+2026-05-30 16:19:12,741 - veille_media_backend - INFO - ✅ Routes auth chargées (/api/auth/*)
+2026-05-30 16:19:12,841 - veille_media_backend - INFO - ✅ Routes Telegram chargées (/api/telegram/*)
+2026-05-30 16:19:12,855 - veille_media_backend - INFO - ✅ Routes Veille chargées (/api/veille/*)
+2026-05-30 16:19:12,871 - veille_media_backend - INFO - ✅ Routes Presence chargées (/api/presence/* — admin only)
+2026-05-30 16:19:12,882 - veille_media_backend - INFO - ✅ Routes Affairs Monitor chargées (/api/affairs/monitor/* — admin only)
+2026-05-30 16:22:00,591 - veille_media_backend - INFO - ============================================================
+2026-05-30 16:22:00,592 - veille_media_backend - INFO - 🏝️ VEILLE MÉDIA GUADELOUPE - VERSION 5.2.0-NO-OLLAMA
+2026-05-30 16:22:00,592 - veille_media_backend - INFO - 🚀 Mode: SANS OLLAMA - 100% règles déterministes
+2026-05-30 16:22:00,592 - veille_media_backend - INFO - ============================================================
+2026-05-30 16:22:00,592 - veille_media_backend - INFO - MONGO_URL: mongodb://localhost:27017
+2026-05-30 16:22:00,592 - veille_media_backend - INFO - Environment: development
+2026-05-30 16:22:00,592 - veille_media_backend - INFO - Seuil gravité affaires: 0.6
+2026-05-30 16:22:05,606 - veille_media_backend - ERROR - ❌ Échec connexion MongoDB
+2026-05-30 16:22:05,611 - veille_media_backend - INFO - ℹ️ Groq non configuré (pas de GROQ_API_KEY), fallback sur règles
+2026-05-30 16:22:05,611 - veille_media_backend - INFO - ✅ Service d'enrichissement chargé (tags_index — règles)
+2026-05-30 16:22:05,612 - veille_media_backend - INFO - ✅ Sentiment Service local chargé
+2026-05-30 16:22:05,612 - veille_media_backend - WARNING - ⚠️ Import scraper_service.py échec: No module named 'scraper_service'
+2026-05-30 16:22:05,681 - veille_media_backend - INFO - ✅ Scraper chargé depuis backend.services.scraper_service
+2026-05-30 16:22:05,681 - veille_media_backend - INFO - ✅ Scraper actif: _LazyScraperProxy
+2026-05-30 16:22:05,685 - veille_media_backend - INFO - ✅ Radio service chargé
+2026-05-30 16:22:05,897 - backend.services.summary_service - INFO - ✅ Service de résumé initialisé (mode production allégé)
+2026-05-30 16:22:05,897 - backend.services.summary_service - INFO - ✅ Sumy summarizers loaded
+2026-05-30 16:22:05,897 - backend.services.summary_service - INFO - ✅ Service de résumé initialisé (mode production allégé)
+2026-05-30 16:22:05,897 - backend.services.summary_service - INFO - ✅ Sumy summarizers loaded
+2026-05-30 16:22:05,900 - veille_media_backend - INFO - ✅ Summary service chargé
+2026-05-30 16:22:05,945 - veille_media_backend - INFO - ✅ Scheduler routes ajoutées
+2026-05-30 16:22:05,962 - veille_media_backend - INFO - ✅ Routes radio cards chargées (/api/radio/*)
+2026-05-30 16:22:20,996 - apify_social - ERROR - 💥 Apify Social: Mongo indisponible: localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms), Timeout: 15.0s, Topology Description: <TopologyDescription id: 6a1b0ead9e7ba07850542daf, topology_type: Unknown, servers: [<ServerDescription ('localhost', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>]>
+2026-05-30 16:22:21,001 - veille_media_backend - INFO - ✅ Routes social scraper chargées (/api/social/*) — Apify NON configuré (APIFY_TOKEN manquant)
+2026-05-30 16:22:31,030 - entity_reconciliation - ERROR - ❌ MongoDB indisponible: localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms), Timeout: 10.0s, Topology Description: <TopologyDescription id: 6a1b0ebd9e7ba07850542db0, topology_type: Unknown, servers: [<ServerDescription ('localhost', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>]>
+2026-05-30 16:22:31,030 - entity_reconciliation - ERROR - ❌ Pas de connexion MongoDB — service inopérant
+2026-05-30 16:22:31,030 - entity_reconciliation - INFO - ✅ EntityReconciliationService initialisé
+2026-05-30 16:22:31,036 - veille_media_backend - INFO - ✅ Service de réconciliation entités chargé
+2026-05-30 16:22:31,036 - veille_media_backend - INFO -    📚 Réconciliation articles↔transcriptions activée
+2026-05-30 16:22:31,040 - elus_database - WARNING - ⚠️ Fichier /home/user/veille-uptade/backend/services/data/elus_guadeloupe.json introuvable
+2026-05-30 16:22:41,081 - affair_lifecycle - ERROR - ❌ MongoDB: localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms), Timeout: 10.0s, Topology Description: <TopologyDescription id: 6a1b0ec79e7ba07850542db1, topology_type: Unknown, servers: [<ServerDescription ('localhost', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>]>
+2026-05-30 16:22:41,081 - affair_lifecycle - ERROR - ❌ Pas de DB — service inopérant
+2026-05-30 16:22:41,094 - veille_media_backend - INFO - ✅ Système d'affaires V2 chargé (cycle de vie complet)
+2026-05-30 16:22:41,095 - veille_media_backend - INFO -    🔄 Pipeline: ingestion → clustering → promotion → BMG
+2026-05-30 16:22:41,119 - veille_media_backend - INFO - ✅ Routes admin chargées (/api/admin/*)
+2026-05-30 16:22:41,124 - veille_media_backend - INFO - ✅ Routes auth chargées (/api/auth/*)
+2026-05-30 16:22:41,254 - veille_media_backend - INFO - ✅ Routes Telegram chargées (/api/telegram/*)
+2026-05-30 16:22:41,267 - veille_media_backend - INFO - ✅ Routes Veille chargées (/api/veille/*)
+2026-05-30 16:22:41,284 - veille_media_backend - INFO - ✅ Routes Presence chargées (/api/presence/* — admin only)
+2026-05-30 16:22:41,298 - veille_media_backend - INFO - ✅ Routes Affairs Monitor chargées (/api/affairs/monitor/* — admin only)

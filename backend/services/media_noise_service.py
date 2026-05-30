@@ -16,7 +16,13 @@ from pymongo.errors import PyMongoError
 import certifi
 
 # Import du système de tags unifié
-from backend.services.tags_index import infer_tags_and_theme, THEME_TAXONOMY, ELECTED_INDEX
+from backend.services.tags_index import infer_tags_and_theme, THEME_TAXONOMY
+try:
+    from backend.services.tags_index import ELECTED_INDEX  # type: ignore
+except ImportError:
+    # Symbole retiré de tags_index : on dégrade proprement (enrichissement élus vide)
+    # plutôt que de planter à l'import. Cf. entity_aliases.ELECTED_ALIASES si besoin de réactiver.
+    ELECTED_INDEX: dict = {}
 
 # Configuration logging
 logger = logging.getLogger("media_noise_service")
@@ -500,5 +506,21 @@ class MediaNoiseService:
             logger.error(f"Erreur stats MediaNoiseService: {e}")
             return {"error": str(e), "service_status": "error"}
 
-# Instance globale
-media_noise_service = MediaNoiseService()
+# Instance globale — proxy paresseux : la connexion Mongo (et son timeout) n'a lieu
+# qu'au premier accès réel, pas à l'import. Rend le module importable sans Mongo (tests/CI).
+class _LazyMediaNoiseService:
+    __slots__ = ("_inst",)
+
+    def __init__(self):
+        self._inst = None
+
+    def _get(self):
+        if self._inst is None:
+            self._inst = MediaNoiseService()
+        return self._inst
+
+    def __getattr__(self, name):
+        return getattr(self._get(), name)
+
+
+media_noise_service = _LazyMediaNoiseService()
