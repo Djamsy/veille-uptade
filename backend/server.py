@@ -428,26 +428,11 @@ except Exception as e:
 guadeloupe_scraper = None
 
 try:
-    import sys
-    import os
-    
-    backend_dir = os.path.dirname(os.path.abspath(__file__))
-    if backend_dir not in sys.path:
-        sys.path.insert(0, backend_dir)
-    
-    from scraper_service import guadeloupe_scraper as _scraper
+    from backend.services.scraper_service import guadeloupe_scraper as _scraper
     guadeloupe_scraper = _scraper
-    logger.info("✅ Scraper chargé depuis scraper_service.py")
-    
+    logger.info("✅ Scraper chargé depuis backend.services.scraper_service")
 except Exception as e:
-    logger.warning(f"⚠️ Import scraper_service.py échec: {e}")
-    
-    try:
-        from backend.services.scraper_service import guadeloupe_scraper as _scraper
-        guadeloupe_scraper = _scraper
-        logger.info("✅ Scraper chargé depuis backend.services.scraper_service")
-    except Exception as ee:
-        logger.error(f"❌ Import backend.services.scraper_service échec: {ee}")
+    logger.error(f"❌ Import backend.services.scraper_service échec: {e}")
 
 # Si toujours None, utiliser le scraper inline
 if guadeloupe_scraper is None:
