@@ -27,8 +27,15 @@ logger = logging.getLogger("veille.social_snapshot")
 
 PLATFORMS = ("instagram", "facebook", "tiktok")
 
+# Pseudo-plateforme « trafic web » : mêmes snapshots datés, métriques différentes
+# (saisies à la main depuis Google Analytics / ExactMetrics).
+WEB_SOURCE = "site_web"
+
 # Champs d'engagement agrégés que l'on suit dans le temps.
 _METRICS = ("views", "likes", "comments", "shares")
+
+# Champs de trafic web saisis manuellement.
+_WEB_METRICS = ("sessions", "pageviews", "users", "new_users", "avg_session_duration", "bounce_rate")
 
 
 def _get_db():
@@ -226,3 +233,97 @@ def get_evolution() -> Dict[str, Any]:
         }
 
     return {"ok": True, "platforms": out}
+
+
+# ── Saisie manuelle ─────────────────────────────────────────
+
+def _normalize_date(date_str: Optional[str]) -> str:
+    """Valide une date YYYY-MM-DD, ou renvoie aujourd'hui par défaut."""
+    if not date_str:
+        return _today_str()
+    try:
+        return datetime.strptime(date_str, "%Y-%m-%d").strftime("%Y-%m-%d")
+    except (ValueError, TypeError):
+        return _today_str()
+
+
+def set_followers(platform: str, followers: int, date_str: Optional[str] = None) -> Dict[str, Any]:
+    """Renseigne/corrige à la main le nombre d'abonnés d'une plateforme à une date.
+
+    S'attache au snapshot du jour (créé s'il n'existe pas encore) sans écraser
+    les métriques d'engagement déjà capturées automatiquement.
+    """
+    if platform not in PLATFORMS:
+        return {"ok": False, "error": f"platform inconnue: {platform}"}
+
+    db = _get_db()
+    snapshot_date = _normalize_date(date_str)
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    db["account_snapshots"].update_one(
+        {"platform": platform, "snapshot_date": snapshot_date},
+        {
+            "$set": {
+                "followers": _safe_int(followers),
+                "followers_captured_at": now_iso,
+                "followers_source": "manual",
+            },
+            "$setOnInsert": {
+                "platform": platform,
+                "snapshot_date": snapshot_date,
+                "captured_at": now_iso,
+            },
+        },
+        upsert=True,
+    )
+    logger.info("✍️ Followers manuels %s=%s (%s)", platform, followers, snapshot_date)
+    return {"ok": True, "platform": platform, "snapshot_date": snapshot_date, "followers": _safe_int(followers)}
+
+
+def set_web_traffic(metrics: Dict[str, Any], date_str: Optional[str] = None) -> Dict[str, Any]:
+    """Enregistre un point de trafic web (saisi depuis Google Analytics / ExactMetrics).
+
+    Stocké comme un snapshot daté sous la pseudo-plateforme `site_web`, ce qui le
+    fait apparaître dans la même vue Évolution. Idempotent par date (upsert).
+
+    Champs acceptés : sessions, pageviews, users, new_users,
+    avg_session_duration (secondes), bounce_rate (%).
+    """
+    db = _get_db()
+    snapshot_date = _normalize_date(date_str)
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    doc: Dict[str, Any] = {
+        "platform": WEB_SOURCE,
+        "snapshot_date": snapshot_date,
+        "captured_at": now_iso,
+        "source": "manual",
+    }
+    for m in _WEB_METRICS:
+        if m in metrics and metrics[m] is not None:
+            # bounce_rate et avg_session_duration peuvent être décimaux.
+            try:
+                doc[m] = float(metrics[m]) if m in ("avg_session_duration", "bounce_rate") else _safe_int(metrics[m])
+            except (TypeError, ValueError):
+                continue
+
+    db["account_snapshots"].update_one(
+        {"platform": WEB_SOURCE, "snapshot_date": snapshot_date},
+        {"$set": doc},
+        upsert=True,
+    )
+    logger.info("🌐 Trafic web manuel enregistré (%s): %s", snapshot_date, {k: doc[k] for k in _WEB_METRICS if k in doc})
+    return {"ok": True, "snapshot_date": snapshot_date, "metrics": {k: doc[k] for k in _WEB_METRICS if k in doc}}
+
+
+def get_web_history(days: int = 90) -> Dict[str, Any]:
+    """Série temporelle du trafic web sur `days` jours (pour la vue + l'export)."""
+    db = _get_db()
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+    points = list(
+        db["account_snapshots"].find(
+            {"platform": WEB_SOURCE, "snapshot_date": {"$gte": since}}, {"_id": 0}
+        ).sort("snapshot_date", 1)
+    )
+    latest = points[-1] if points else None
+    return {"ok": True, "days": days, "points": points, "latest": latest}

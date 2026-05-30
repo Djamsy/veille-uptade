@@ -2727,6 +2727,55 @@ async def trigger_social_snapshot(admin: dict = Depends(require_admin)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/social-stats/manual/followers")
+async def set_manual_followers(payload: dict = Body(...), admin: dict = Depends(require_admin)):
+    """Saisie/correction manuelle du nombre d'abonnés d'une plateforme (admin).
+
+    Body: { platform: "instagram"|"facebook"|"tiktok", followers: int, date?: "YYYY-MM-DD" }
+    """
+    try:
+        from backend.services.social_snapshot_service import set_followers
+        platform = payload.get("platform", "")
+        followers = payload.get("followers")
+        if followers is None:
+            raise HTTPException(status_code=422, detail="followers requis")
+        result = set_followers(platform, followers, payload.get("date"))
+        if not result.get("ok"):
+            raise HTTPException(status_code=422, detail=result.get("error", "saisie invalide"))
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Manual followers error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/social-stats/manual/web-traffic")
+async def set_manual_web_traffic(payload: dict = Body(...), admin: dict = Depends(require_admin)):
+    """Saisie manuelle du trafic web depuis Google Analytics / ExactMetrics (admin).
+
+    Body: { date?: "YYYY-MM-DD", sessions, pageviews, users, new_users,
+            avg_session_duration, bounce_rate }
+    """
+    try:
+        from backend.services.social_snapshot_service import set_web_traffic
+        return set_web_traffic(payload, payload.get("date"))
+    except Exception as e:
+        logger.error(f"Manual web traffic error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/social-stats/web-history")
+async def social_web_history(days: int = Query(90, ge=1, le=365)):
+    """Série temporelle du trafic web (pour la vue Évolution + l'export hebdo)."""
+    try:
+        from backend.services.social_snapshot_service import get_web_history
+        return get_web_history(days=days)
+    except Exception as e:
+        logger.error(f"Web history error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ========== LANCEMENT ==========
 
 if __name__ == "__main__":

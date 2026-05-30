@@ -1233,3 +1233,38 @@ export const triggerSocialSnapshot = () =>
   adminFetch<{ ok: boolean; snapshot_date: string; captured: number; platforms: Record<string, unknown> }>(
     '/api/social-stats/snapshot', { method: 'POST' }
   );
+
+// ── Saisie manuelle ──
+
+export interface WebTrafficMetrics {
+  sessions?: number;
+  pageviews?: number;
+  users?: number;
+  new_users?: number;
+  avg_session_duration?: number;
+  bounce_rate?: number;
+}
+
+export interface WebTrafficPoint extends WebTrafficMetrics {
+  platform: string;
+  snapshot_date: string;
+  captured_at: string;
+  source?: string;
+}
+
+export const setManualFollowers = (platform: string, followers: number, date?: string) =>
+  adminFetch<{ ok: boolean; platform: string; snapshot_date: string; followers: number }>(
+    '/api/social-stats/manual/followers',
+    { method: 'POST', body: JSON.stringify({ platform, followers, date }) }
+  );
+
+export const setManualWebTraffic = (metrics: WebTrafficMetrics, date?: string) =>
+  adminFetch<{ ok: boolean; snapshot_date: string; metrics: WebTrafficMetrics }>(
+    '/api/social-stats/manual/web-traffic',
+    { method: 'POST', body: JSON.stringify({ ...metrics, date }) }
+  );
+
+export const fetchWebHistory = (days = 90) =>
+  apiFetch<{ ok: boolean; days: number; points: WebTrafficPoint[]; latest: WebTrafficPoint | null }>(
+    `/api/social-stats/web-history?days=${days}`
+  );

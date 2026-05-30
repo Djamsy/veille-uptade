@@ -30,7 +30,9 @@ class FakeCollection:
                 d.update(update.get("$set", {}))
                 return
         if upsert:
-            doc = dict(flt); doc.update(update.get("$set", {}))
+            doc = dict(flt)
+            doc.update(update.get("$setOnInsert", {}))
+            doc.update(update.get("$set", {}))
             self.docs.append(doc)
     def _match(self, d, query):
         for k, v in query.items():
@@ -96,5 +98,35 @@ assert e["ok"], e
 assert e["platforms"]["instagram"]["available"] is True
 assert e["platforms"]["instagram"]["delta_engagement_7d"] is None  # 1 seul snapshot
 print("  IG evolution:", e["platforms"]["instagram"])
+
+print("=== set_followers() : saisie manuelle, n'écrase pas l'engagement ===")
+rfm = svc.set_followers("facebook", 12000, "2026-05-30")
+assert rfm["ok"] and rfm["followers"] == 12000, rfm
+fb_snap = [d for d in fake.cols["account_snapshots"].docs if d["platform"] == "facebook"][0]
+assert fb_snap["followers"] == 12000, fb_snap
+assert fb_snap.get("engagement") == 40, "engagement écrasé !"  # préservé
+assert fb_snap.get("followers_source") == "manual"
+print("  FB snapshot:", {k: fb_snap.get(k) for k in ("engagement", "followers", "followers_source")})
+
+print("=== set_followers() refuse une plateforme inconnue ===")
+bad = svc.set_followers("linkedin", 999)
+assert bad["ok"] is False, bad
+print("  rejet linkedin OK")
+
+print("=== set_web_traffic() : nouvelle source site_web ===")
+rweb = svc.set_web_traffic({
+    "sessions": 22725, "pageviews": 31992, "users": 17647,
+    "new_users": 15804, "avg_session_duration": 26, "bounce_rate": 55.9,
+}, "2026-05-30")
+assert rweb["ok"] and rweb["metrics"]["sessions"] == 22725, rweb
+assert rweb["metrics"]["bounce_rate"] == 55.9, rweb
+web_snap = [d for d in fake.cols["account_snapshots"].docs if d["platform"] == "site_web"][0]
+assert web_snap["pageviews"] == 31992 and web_snap["source"] == "manual", web_snap
+print("  web snapshot:", {k: web_snap.get(k) for k in svc._WEB_METRICS})
+
+print("=== get_web_history() ===")
+wh = svc.get_web_history(days=90)
+assert wh["ok"] and len(wh["points"]) == 1 and wh["latest"]["sessions"] == 22725, wh
+print("  points:", len(wh["points"]), "latest sessions:", wh["latest"]["sessions"])
 
 print("\n✅ TOUS LES TESTS PASSENT")
