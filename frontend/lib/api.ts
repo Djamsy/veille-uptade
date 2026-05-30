@@ -51,6 +51,7 @@ export interface Affair {
   created_at: string;
   last_activity: string;
   promoted_at?: string;
+  propagation?: Propagation;
 }
 
 export interface BmgDetails {
@@ -62,6 +63,22 @@ export interface BmgDetails {
   dominant_canal: string | null;
   multi_canal_bonus: boolean;
   calculated_at: string;
+}
+
+export interface Propagation {
+  score: number;
+  vecteurs: {
+    presse: number;
+    radio: number;
+    social: number;
+    national: number;
+  };
+  nb_sources: number;
+  velocity: {
+    j7: number;
+    j30: number;
+    spike: boolean;
+  };
 }
 
 export interface Article {

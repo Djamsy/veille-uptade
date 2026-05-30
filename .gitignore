@@ -60,3 +60,6 @@ frontend/.env
 # Logs runtime (ne pas versionner)
 *.log
 veille_backend.log
+
+# Next.js build output (filet, en plus de frontend/.gitignore)
+frontend/.next/

@@ -204,12 +204,17 @@ export default function AffairsMonitorPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 p-6">
+    <div className="min-h-screen p-6" style={{ background: 'var(--bg-base)', color: 'var(--text)' }}>
       <div className="max-w-7xl mx-auto">
-        <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <header className="mb-6 flex flex-wrap items-start justify-between gap-3 pb-5" style={{ borderBottom: '1px solid var(--border)' }}>
           <div>
-            <h1 className="text-2xl font-bold">Monitoring création d'affaires</h1>
-            <p className="text-sm text-gray-400 mt-1">
+            <div className="font-mono text-[10px] uppercase tracking-[0.18em] mb-2" style={{ color: 'var(--text-muted)' }}>
+              Système / Monitoring
+            </div>
+            <h1 className="font-serif text-3xl font-medium tracking-tight italic" style={{ color: 'var(--text)' }}>
+              Monitoring affaires
+            </h1>
+            <p className="text-sm mt-2" style={{ color: 'var(--text-secondary)' }}>
               Audit temps réel — créations, blocages anti boule-de-neige, articles refusés.
               Auto-refresh 30 s.
             </p>

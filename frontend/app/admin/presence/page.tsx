@@ -161,20 +161,26 @@ export default function PresencePage() {
   )
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 p-6">
+    <div className="min-h-screen p-6" style={{ background: 'var(--bg-base)', color: 'var(--text)' }}>
       <div className="max-w-6xl mx-auto">
-        <header className="mb-6 flex items-center justify-between">
+        <header className="mb-6 flex items-center justify-between pb-5" style={{ borderBottom: '1px solid var(--border)' }}>
           <div>
-            <h1 className="text-2xl font-bold">Carte de présence — Admin</h1>
-            <p className="text-sm text-gray-400 mt-1">
-              Présence politique/professionnelle d'élus dans la presse de Guadeloupe.
+            <div className="font-mono text-[10px] uppercase tracking-[0.18em] mb-2" style={{ color: 'var(--text-muted)' }}>
+              Système / Carte de présence
+            </div>
+            <h1 className="font-serif text-3xl font-medium tracking-tight italic" style={{ color: 'var(--text)' }}>
+              Carte de présence
+            </h1>
+            <p className="text-sm mt-2" style={{ color: 'var(--text-secondary)' }}>
+              Présence politique/professionnelle d&apos;élus dans la presse de Guadeloupe.
               Visibilité réservée aux administrateurs.
             </p>
           </div>
           <button
             onClick={handleBackfill}
             disabled={backfilling}
-            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-sm font-medium"
+            className="px-3 py-1.5 text-xs font-semibold rounded-sm transition-colors disabled:opacity-50"
+            style={{ background: 'var(--accent-press)', color: 'var(--on-accent)', border: '1px solid var(--accent-press)' }}
           >
             {backfilling ? 'Backfill en cours…' : 'Lancer un backfill (30 j)'}
           </button>
