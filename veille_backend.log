@@ -18464,3 +18464,31 @@ AttributeError: module 'bcrypt' has no attribute '__about__'
 2026-05-30 15:11:05,296 - veille_media_backend - INFO - ✅ Sentiment Service local chargé
 2026-05-30 15:11:05,354 - veille_media_backend - INFO - ✅ Scraper chargé depuis scraper_service.py
 2026-05-30 15:11:05,354 - veille_media_backend - INFO - ✅ Scraper actif: _LazyScraperProxy
+2026-05-30 16:01:13,973 - veille_media_backend - INFO - ============================================================
+2026-05-30 16:01:13,973 - veille_media_backend - INFO - 🏝️ VEILLE MÉDIA GUADELOUPE - VERSION 5.2.0-NO-OLLAMA
+2026-05-30 16:01:13,973 - veille_media_backend - INFO - 🚀 Mode: SANS OLLAMA - 100% règles déterministes
+2026-05-30 16:01:13,973 - veille_media_backend - INFO - ============================================================
+2026-05-30 16:01:13,974 - veille_media_backend - INFO - MONGO_URL: mongodb://localhost:27017
+2026-05-30 16:01:13,974 - veille_media_backend - INFO - Environment: development
+2026-05-30 16:01:13,974 - veille_media_backend - INFO - Seuil gravité affaires: 0.6
+2026-05-30 16:01:18,996 - veille_media_backend - ERROR - ❌ Échec connexion MongoDB
+2026-05-30 16:01:19,036 - veille_media_backend - INFO - ℹ️ Groq non configuré (pas de GROQ_API_KEY), fallback sur règles
+2026-05-30 16:01:19,040 - veille_media_backend - INFO - ✅ Service d'enrichissement chargé (tags_index — règles)
+2026-05-30 16:01:19,041 - veille_media_backend - INFO - ✅ Sentiment Service local chargé
+2026-05-30 16:01:19,041 - veille_media_backend - WARNING - ⚠️ Import scraper_service.py échec: No module named 'scraper_service'
+2026-05-30 16:01:20,109 - veille_media_backend - INFO - ✅ Scraper chargé depuis backend.services.scraper_service
+2026-05-30 16:01:20,109 - veille_media_backend - INFO - ✅ Scraper actif: _LazyScraperProxy
+2026-05-30 16:06:22,143 - veille_media_backend - INFO - ============================================================
+2026-05-30 16:06:22,144 - veille_media_backend - INFO - 🏝️ VEILLE MÉDIA GUADELOUPE - VERSION 5.2.0-NO-OLLAMA
+2026-05-30 16:06:22,144 - veille_media_backend - INFO - 🚀 Mode: SANS OLLAMA - 100% règles déterministes
+2026-05-30 16:06:22,144 - veille_media_backend - INFO - ============================================================
+2026-05-30 16:06:22,144 - veille_media_backend - INFO - MONGO_URL: mongodb://localhost:27017
+2026-05-30 16:06:22,144 - veille_media_backend - INFO - Environment: development
+2026-05-30 16:06:22,144 - veille_media_backend - INFO - Seuil gravité affaires: 0.6
+2026-05-30 16:06:27,158 - veille_media_backend - ERROR - ❌ Échec connexion MongoDB
+2026-05-30 16:06:27,162 - veille_media_backend - INFO - ℹ️ Groq non configuré (pas de GROQ_API_KEY), fallback sur règles
+2026-05-30 16:06:27,163 - veille_media_backend - INFO - ✅ Service d'enrichissement chargé (tags_index — règles)
+2026-05-30 16:06:27,163 - veille_media_backend - INFO - ✅ Sentiment Service local chargé
+2026-05-30 16:06:27,163 - veille_media_backend - WARNING - ⚠️ Import scraper_service.py échec: No module named 'scraper_service'
+2026-05-30 16:06:27,233 - veille_media_backend - INFO - ✅ Scraper chargé depuis backend.services.scraper_service
+2026-05-30 16:06:27,233 - veille_media_backend - INFO - ✅ Scraper actif: _LazyScraperProxy
