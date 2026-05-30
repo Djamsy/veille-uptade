@@ -755,6 +755,40 @@ async def job_apify_comments_scrape():
 
 
 # ============================================================
+# JOB Observatoire social — snapshots historiques (gratuit)
+# ============================================================
+
+async def job_social_snapshot():
+    """Fige l'engagement du jour par plateforme dans account_snapshots (quotidien)."""
+    try:
+        from backend.services.social_snapshot_service import capture_snapshots
+
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, capture_snapshots)
+        logger.info(f"📸 Snapshot social: {result.get('captured', 0)} plateformes ({result.get('snapshot_date')})")
+        return result
+
+    except Exception as e:
+        logger.error(f"❌ Erreur snapshot social: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+async def job_social_followers_weekly():
+    """Renseigne les followers sur le snapshot du jour (hebdomadaire)."""
+    try:
+        from backend.services.social_snapshot_service import capture_followers_weekly
+
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, capture_followers_weekly)
+        logger.info(f"👥 Snapshot followers hebdo: {result.get('captured', 0)} plateformes")
+        return result
+
+    except Exception as e:
+        logger.error(f"❌ Erreur snapshot followers: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+# ============================================================
 # JOB Auto-analyse campagnes RS (tous les 2 jours)
 # ============================================================
 
@@ -1069,6 +1103,22 @@ def _ensure_scheduler():
         CronTrigger(hour="8,19", minute="0", timezone=TZ),
         id="apify_comments_scrape",
         name="Apify comments (FB+IG+TK) 2x/jour — budget $30/mois"
+    )
+
+    # 📸 Snapshot social quotidien à 23h50 — après tous les syncs de la journée
+    _scheduler.add_job(
+        job_social_snapshot,
+        CronTrigger(hour=23, minute=50, timezone=TZ),
+        id="social_snapshot",
+        name="Snapshot engagement social (quotidien, gratuit)"
+    )
+
+    # 👥 Snapshot followers hebdomadaire — lundi 0h05
+    _scheduler.add_job(
+        job_social_followers_weekly,
+        CronTrigger(day_of_week="mon", hour=0, minute=5, timezone=TZ),
+        id="social_followers_weekly",
+        name="Snapshot followers (hebdomadaire)"
     )
 
     # Auto-analyse campagnes RS tous les 2 jours a 9h

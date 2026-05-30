@@ -1180,3 +1180,56 @@ export const syncBufferStats = () =>
   adminFetch<{ ok: boolean; updated?: number; created?: number; platforms?: Record<string, unknown>; error?: string }>(
     '/api/social-stats/buffer-sync', { method: 'POST' }
   );
+
+// ============================================================
+// OBSERVATOIRE SOCIAL — historique & évolution
+// ============================================================
+
+export interface AccountSnapshot {
+  platform: string;
+  snapshot_date: string;
+  captured_at: string;
+  posts_count: number;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  engagement: number;
+  followers?: number;
+  followers_captured_at?: string;
+}
+
+export interface SocialHistory {
+  ok: boolean;
+  days: number;
+  series: Record<string, AccountSnapshot[]>;
+}
+
+export interface PlatformEvolution {
+  available: boolean;
+  snapshot_date?: string;
+  engagement?: number;
+  followers?: number | null;
+  posts_count?: number;
+  delta_engagement_7d?: number | null;
+  delta_engagement_30d?: number | null;
+  delta_followers_7d?: number | null;
+}
+
+export interface SocialEvolution {
+  ok: boolean;
+  platforms: Record<string, PlatformEvolution>;
+}
+
+export const fetchSocialHistory = (platform?: string, days = 30) =>
+  apiFetch<SocialHistory>(
+    `/api/social-stats/history?days=${days}${platform ? `&platform=${platform}` : ''}`
+  );
+
+export const fetchSocialEvolution = () =>
+  apiFetch<SocialEvolution>('/api/social-stats/evolution');
+
+export const triggerSocialSnapshot = () =>
+  adminFetch<{ ok: boolean; snapshot_date: string; captured: number; platforms: Record<string, unknown> }>(
+    '/api/social-stats/snapshot', { method: 'POST' }
+  );

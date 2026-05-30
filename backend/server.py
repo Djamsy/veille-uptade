@@ -2684,6 +2684,49 @@ async def social_stats_status():
         return {"ok": False, "error": str(e)}
 
 
+# ========== OBSERVATOIRE SOCIAL — historique & évolution ==========
+
+@app.get("/api/social-stats/history")
+async def social_stats_history(platform: str = Query(None), days: int = Query(30, ge=1, le=365)):
+    """Série temporelle des snapshots d'engagement par plateforme.
+
+    Args:
+        platform: filtre une plateforme (instagram/facebook/tiktok), ou toutes si absent.
+        days: profondeur d'historique (1–365, défaut 30).
+    """
+    try:
+        from backend.services.social_snapshot_service import get_history
+        return get_history(platform=platform, days=days)
+    except Exception as e:
+        logger.error(f"Social history error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/social-stats/evolution")
+async def social_stats_evolution():
+    """Résumé d'évolution par plateforme : valeur actuelle + deltas J-7 / J-30."""
+    try:
+        from backend.services.social_snapshot_service import get_evolution
+        return get_evolution()
+    except Exception as e:
+        logger.error(f"Social evolution error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/social-stats/snapshot")
+async def trigger_social_snapshot(admin: dict = Depends(require_admin)):
+    """Capture manuelle d'un snapshot d'engagement du jour (admin).
+
+    Utile pour amorcer l'historique sans attendre le job de 23h50.
+    """
+    try:
+        from backend.services.social_snapshot_service import capture_snapshots
+        return capture_snapshots()
+    except Exception as e:
+        logger.error(f"Social snapshot error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ========== LANCEMENT ==========
 
 if __name__ == "__main__":

@@ -18,6 +18,7 @@ import {
   CampaignPost,
   ServiceStatus,
 } from '../../lib/api'
+import { SocialEvolutionPanel } from '../_components/dashboard/SocialEvolutionPanel'
 
 // ── Couleurs plateformes ──
 const PLAT_COLORS: Record<string, { icon: string; color: string; bg: string }> = {
@@ -1315,6 +1316,11 @@ export default function SocialPage() {
             if (selectedCampaign) selectCampaign(selectedCampaign)
           } catch (e) { alert('Erreur: ' + e) }
         }} />
+
+        {/* Observatoire — évolution de l'engagement dans le temps */}
+        <div className="mt-5">
+          <SocialEvolutionPanel />
+        </div>
 
         {/* Campaign tabs (horizontal) */}
         {!loading && campaigns.length > 0 && (
