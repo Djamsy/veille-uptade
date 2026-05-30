@@ -56,3 +56,7 @@ frontend/yarn.lock
 # Secrets
 .env
 frontend/.env
+
+# Logs runtime (ne pas versionner)
+*.log
+veille_backend.log

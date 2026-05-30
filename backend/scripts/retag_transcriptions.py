@@ -20,7 +20,7 @@ load_dotenv()
 # Ajouter le chemin backend
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ai_service import ai_service
+from backend._attic.ai_service import ai_service
 
 # Configuration logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

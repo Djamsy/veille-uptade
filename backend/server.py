@@ -93,10 +93,7 @@ import uvicorn
 # Garde admin (importable depuis auth_routes) — utilisée sur les routes destructives.
 # Fallback no-op si l'import échoue, pour ne pas casser le boot en dev local.
 try:
-    try:
-        from backend.auth_routes import require_admin  # type: ignore
-    except ImportError:
-        from auth_routes import require_admin  # type: ignore
+    from backend.routers.auth_routes import require_admin
 except Exception:  # pragma: no cover
     def require_admin():  # type: ignore
         raise HTTPException(503, "Auth indisponible — endpoint protégé")
@@ -254,7 +251,7 @@ _ai_provider_name = "règles"
 
 # 1. Essayer Groq (IA)
 try:
-    from backend.ai_groq_service import smart_enrich_article, is_available as groq_is_available, analyze_sentiment_groq, AI_PROVIDER as _ai_prov, AI_MODEL as _ai_mod
+    from backend.services.ai_groq_service import smart_enrich_article, is_available as groq_is_available, analyze_sentiment_groq, AI_PROVIDER as _ai_prov, AI_MODEL as _ai_mod
     if groq_is_available():
         enrichment_service = smart_enrich_article
         _groq_available = True
@@ -268,7 +265,7 @@ except Exception as e:
 # 2. Fallback sur tags_index si Groq indisponible
 if enrichment_service is None:
     try:
-        from backend.tags_index import infer_tags_and_theme
+        from backend.services.tags_index import infer_tags_and_theme
         enrichment_service = infer_tags_and_theme
         logger.info("✅ Service d'enrichissement chargé (tags_index — règles)")
     except Exception as e:
@@ -431,26 +428,11 @@ except Exception as e:
 guadeloupe_scraper = None
 
 try:
-    import sys
-    import os
-    
-    backend_dir = os.path.dirname(os.path.abspath(__file__))
-    if backend_dir not in sys.path:
-        sys.path.insert(0, backend_dir)
-    
-    from scraper_service import guadeloupe_scraper as _scraper
+    from backend.services.scraper_service import guadeloupe_scraper as _scraper
     guadeloupe_scraper = _scraper
-    logger.info("✅ Scraper chargé depuis scraper_service.py")
-    
+    logger.info("✅ Scraper chargé depuis backend.services.scraper_service")
 except Exception as e:
-    logger.warning(f"⚠️ Import scraper_service.py échec: {e}")
-    
-    try:
-        from backend.scraper_service import guadeloupe_scraper as _scraper
-        guadeloupe_scraper = _scraper
-        logger.info("✅ Scraper chargé depuis backend.scraper_service")
-    except Exception as ee:
-        logger.error(f"❌ Import backend.scraper_service échec: {ee}")
+    logger.error(f"❌ Import backend.services.scraper_service échec: {e}")
 
 # Si toujours None, utiliser le scraper inline
 if guadeloupe_scraper is None:
@@ -620,7 +602,7 @@ else:
 # Service Radio
 radio_service = None
 try:
-    from backend.radio_service import radio_service
+    from backend.services.radio_service import radio_service
     logger.info("✅ Radio service chargé")
 except Exception as e:
     logger.warning(f"⚠️ Radio service non disponible: {e}")
@@ -628,7 +610,7 @@ except Exception as e:
 # Service Summary
 summary_service = None
 try:
-    from backend.summary_service import summary_service
+    from backend.services.summary_service import summary_service
     logger.info("✅ Summary service chargé")
 except Exception as e:
     logger.warning(f"⚠️ Summary service non disponible: {e}")
@@ -1323,7 +1305,7 @@ async def send_digest_now(admin: dict = Depends(require_admin)):
         return result or {"sent": True}
     except Exception as e:
         try:
-            from backend.enhanced_scheduler import telegram_morning_digest_job
+            from backend.services.enhanced_scheduler import telegram_morning_digest_job
             result = await telegram_morning_digest_job()
             return result or {"sent": True}
         except Exception as e2:
@@ -1374,10 +1356,7 @@ async def crosscheck_stale_active_endpoint(admin: dict = Depends(require_admin))
 @app.post("/api/articles/classify-communes")
 async def classify_communes_endpoint(background_tasks: BackgroundTasks):
     """Re-classifie tous les articles sans commune par regex + IA fallback."""
-    try:
-        from backend.affair_lifecycle_service import classify_article_commune
-    except ImportError:
-        from affair_lifecycle_service import classify_article_commune
+    from backend.services.affair_lifecycle_service import classify_article_commune
 
     def _run_classification():
         try:
@@ -1480,10 +1459,7 @@ _scheduler_loaded = False
 
 if RUN_SCHEDULER:
     try:
-        try:
-            from backend.scheduler_service import router as scheduler_router, attach_scheduler
-        except ImportError:
-            from scheduler_service import router as scheduler_router, attach_scheduler
+        from backend.services.scheduler_service import router as scheduler_router, attach_scheduler
         app.include_router(scheduler_router, prefix="/api/scheduler")
 
         @app.on_event("startup")
@@ -1535,10 +1511,7 @@ async def debug_scheduler():
 
     # Tester l'import du scheduler_service
     try:
-        try:
-            from backend.scheduler_service import _scheduler, _db
-        except ImportError:
-            from scheduler_service import _scheduler, _db
+        from backend.services.scheduler_service import _scheduler, _db
         diag["scheduler_service_import"] = "OK"
         diag["scheduler_instance"] = _scheduler is not None
         diag["scheduler_running"] = _scheduler.running if _scheduler else False
@@ -1599,7 +1572,7 @@ async def reset_affairs(admin: dict = Depends(require_admin)):
 
 # ========== ROUTES RADIO CARDS ==========
 try:
-    from backend.radio_cards_routes import router as radio_cards_router
+    from backend.routers.radio_cards_routes import router as radio_cards_router
     app.include_router(radio_cards_router, prefix="/api")
     logger.info("✅ Routes radio cards chargées (/api/radio/*)")
 except Exception as e:
@@ -1608,8 +1581,8 @@ except Exception as e:
 # ========== SCRAPING RÉSEAUX SOCIAUX (Apify) ==========
 try:
     try:
-        from backend.apify_social_scraper import get_social_scraper
-        from backend.social_scraper_routes import router as social_router, set_scraper
+        from backend.services.apify_social_scraper import get_social_scraper
+        from backend.routers.social_scraper_routes import router as social_router, set_scraper
     except ImportError:
         from apify_social_scraper import get_social_scraper
         from social_scraper_routes import router as social_router, set_scraper
@@ -1624,8 +1597,8 @@ except Exception as e:
 # ========== RÉCONCILIATION ENTITÉS ==========
 reconciliation_service = None
 try:
-    from backend.entity_reconciliation_service import get_reconciliation_service
-    from backend.reconciliation_routes import router as reconciliation_router, set_service as set_recon_service
+    from backend.services.entity_reconciliation_service import get_reconciliation_service
+    from backend.routers.reconciliation_routes import router as reconciliation_router, set_service as set_recon_service
 
     reconciliation_service = get_reconciliation_service(db=db)
     set_recon_service(reconciliation_service)
@@ -1639,8 +1612,8 @@ except Exception as e:
 affair_lifecycle_service = None
 try:
     try:
-        from backend.affair_lifecycle_service import get_affair_lifecycle_service
-        from backend.affair_lifecycle_routes import router as affair_v2_router, set_service as set_affair_service
+        from backend.services.affair_lifecycle_service import get_affair_lifecycle_service
+        from backend.routers.affair_lifecycle_routes import router as affair_v2_router, set_service as set_affair_service
     except ImportError:
         from affair_lifecycle_service import get_affair_lifecycle_service
         from affair_lifecycle_routes import router as affair_v2_router, set_service as set_affair_service
@@ -1653,10 +1626,7 @@ try:
 
     # ── Routes admin (pilotage manuel des affaires) ──
     try:
-        try:
-            from backend.admin_routes import router as admin_router, set_service as set_admin_service
-        except ImportError:
-            from admin_routes import router as admin_router, set_service as set_admin_service
+        from backend.routers.admin_routes import router as admin_router, set_service as set_admin_service
         set_admin_service(affair_lifecycle_service)
         app.include_router(admin_router)
         logger.info("✅ Routes admin chargées (/api/admin/*)")
@@ -1681,10 +1651,7 @@ except Exception as e:
 
 # ========== AUTHENTIFICATION ==========
 try:
-    try:
-        from backend.auth_routes import router as auth_router
-    except ImportError:
-        from auth_routes import router as auth_router
+    from backend.routers.auth_routes import router as auth_router
 
     app.include_router(auth_router)
     logger.info("✅ Routes auth chargées (/api/auth/*)")
@@ -1695,8 +1662,8 @@ except Exception as e:
 # ========== TELEGRAM ALERTS ==========
 try:
     try:
-        from backend.telegram_routes import router as telegram_router
-        from backend.telegram_alerts_service import telegram_alerts as _tg_alerts
+        from backend.routers.telegram_routes import router as telegram_router
+        from backend.services.telegram_alerts_service import telegram_alerts as _tg_alerts
     except ImportError:
         from telegram_routes import router as telegram_router
         from telegram_alerts_service import telegram_alerts as _tg_alerts
@@ -1721,7 +1688,7 @@ except Exception as e:
 async def _register_publication_bot_webhook():
     """Enregistre automatiquement le webhook Telegram du bot de publication au demarrage."""
     try:
-        from backend.publication_bot import PUBLICATION_BOT_TOKEN, _tg_api, is_configured
+        from backend.services.publication_bot import PUBLICATION_BOT_TOKEN, _tg_api, is_configured
         if not is_configured():
             logger.info("Publication bot: non configure (PUBLICATION_BOT_TOKEN manquant)")
             return
@@ -1744,7 +1711,7 @@ async def _register_publication_bot_webhook():
 # ROUTES VEILLE — Briefing, Trending, Coverage, Watchlist
 # ============================================================
 try:
-    from backend.veille_routes import router as veille_router
+    from backend.routers.veille_routes import router as veille_router
     app.include_router(veille_router, prefix="/api/veille")
     logger.info("✅ Routes Veille chargées (/api/veille/*)")
 except Exception as e:
@@ -1753,10 +1720,7 @@ except Exception as e:
 
 # ========== ENTITY PRESENCE (admin only) ==========
 try:
-    try:
-        from backend.presence_routes import router as presence_router
-    except ImportError:
-        from presence_routes import router as presence_router
+    from backend.routers.presence_routes import router as presence_router
     app.include_router(presence_router)
     logger.info("✅ Routes Presence chargées (/api/presence/* — admin only)")
 except Exception as e:
@@ -1765,10 +1729,7 @@ except Exception as e:
 
 # ========== AFFAIRS MONITOR (admin only) ==========
 try:
-    try:
-        from backend.affairs_monitor_routes import router as affairs_monitor_router
-    except ImportError:
-        from affairs_monitor_routes import router as affairs_monitor_router
+    from backend.routers.affairs_monitor_routes import router as affairs_monitor_router
     app.include_router(affairs_monitor_router)
     logger.info("✅ Routes Affairs Monitor chargées (/api/affairs/monitor/* — admin only)")
 except Exception as e:
@@ -1813,10 +1774,7 @@ async def generate_media_summary(period: str = Query("journalier", regex="^(jour
             art["_id"] = str(art["_id"])
 
         # Vérifier si l'IA est disponible
-        try:
-            from backend.ai_groq_service import generate_summary as ai_generate_summary, is_available as ai_is_available
-        except ImportError:
-            from ai_groq_service import generate_summary as ai_generate_summary, is_available as ai_is_available
+        from backend.services.ai_groq_service import generate_summary as ai_generate_summary, is_available as ai_is_available
 
         if not ai_is_available():
             raise HTTPException(status_code=503, detail="Service IA non disponible")
@@ -2040,7 +1998,7 @@ async def get_source_reliability():
 async def list_campaigns(status: str = Query(None)):
     """Liste les campagnes."""
     try:
-        from backend.campaign_service import get_campaigns
+        from backend.services.campaign_service import get_campaigns
         campaigns = get_campaigns(status=status, db=db)
         return {"campaigns": campaigns, "total": len(campaigns)}
     except Exception as e:
@@ -2052,7 +2010,7 @@ async def list_campaigns(status: str = Query(None)):
 async def create_campaign_endpoint(request: Request):
     """Crée une nouvelle campagne."""
     try:
-        from backend.campaign_service import create_campaign
+        from backend.services.campaign_service import create_campaign
         body = await request.json()
         campaign = create_campaign(
             name=body.get("name", ""),
@@ -2071,7 +2029,7 @@ async def create_campaign_endpoint(request: Request):
 async def get_campaign_detail(campaign_id: str):
     """Détail d'une campagne avec ses posts."""
     try:
-        from backend.campaign_service import get_campaign, get_campaign_posts
+        from backend.services.campaign_service import get_campaign, get_campaign_posts
         campaign = get_campaign(campaign_id, db=db)
         if not campaign:
             raise HTTPException(status_code=404, detail="Campagne introuvable")
@@ -2087,7 +2045,7 @@ async def get_campaign_detail(campaign_id: str):
 async def update_campaign_endpoint(campaign_id: str, request: Request):
     """Met à jour une campagne."""
     try:
-        from backend.campaign_service import update_campaign
+        from backend.services.campaign_service import update_campaign
         body = await request.json()
         success = update_campaign(campaign_id, body, db=db)
         return {"ok": success}
@@ -2099,7 +2057,7 @@ async def update_campaign_endpoint(campaign_id: str, request: Request):
 async def analyze_campaign_endpoint(campaign_id: str):
     """Lance l'analyse IA d'une campagne."""
     try:
-        from backend.campaign_service import analyze_campaign
+        from backend.services.campaign_service import analyze_campaign
         analysis = analyze_campaign(campaign_id, db=db)
         if analysis is None:
             return {"ok": False, "error": "Mistral non configuré ou analyse impossible"}
@@ -2134,7 +2092,7 @@ async def get_analysis_history(campaign_id: str, limit: int = Query(10, ge=1, le
 async def compare_campaigns_endpoint(request: Request):
     """Compare deux campagnes."""
     try:
-        from backend.campaign_service import compare_campaigns
+        from backend.services.campaign_service import compare_campaigns
         body = await request.json()
         result = compare_campaigns(body.get("campaign_a"), body.get("campaign_b"), db=db)
         if result is None:
@@ -2148,7 +2106,7 @@ async def compare_campaigns_endpoint(request: Request):
 async def list_campaign_posts(campaign_id: str, limit: int = Query(50, ge=1, le=200)):
     """Liste les posts d'une campagne."""
     try:
-        from backend.campaign_service import get_campaign_posts
+        from backend.services.campaign_service import get_campaign_posts
         posts = get_campaign_posts(campaign_id, limit=limit, db=db)
         return {"posts": posts, "total": len(posts)}
     except Exception as e:
@@ -2166,7 +2124,7 @@ async def publish_from_web(request: Request):
       - media: (optionnel) fichier image ou vidéo
     """
     try:
-        from backend.campaign_service import (
+        from backend.services.campaign_service import (
             detect_campaign, save_post, upload_to_cloudinary, publish_to_buffer,
             get_campaign
         )
@@ -2442,7 +2400,7 @@ async def buffer_debug():
 async def debug_buffer_enums():
     """Introspection des enums Buffer pour schedulingType et mode."""
     try:
-        from backend.campaign_service import _buffer_graphql
+        from backend.services.campaign_service import _buffer_graphql
         enums_to_check = [
             "SchedulingType", "PostMode", "PostSchedulingType",
             "CreatePostSchedulingType", "CreatePostMode",
@@ -2469,7 +2427,7 @@ async def debug_buffer_enums():
 async def publication_bot_webhook(request: Request):
     """Webhook Telegram pour le bot de publication."""
     try:
-        from backend.publication_bot import handle_webhook
+        from backend.services.publication_bot import handle_webhook
         update = await request.json()
         result = handle_webhook(update)
         return result
@@ -2482,14 +2440,14 @@ async def publication_bot_webhook(request: Request):
 async def publication_bot_status():
     """Statut du bot de publication."""
     try:
-        from backend.publication_bot import is_configured as bot_configured
-        from backend.campaign_service import (
+        from backend.services.publication_bot import is_configured as bot_configured
+        from backend.services.campaign_service import (
             BUFFER_ACCESS_TOKEN, CLOUDINARY_CLOUD_NAME, MISTRAL_API_KEY
         )
         # Vérifier le webhook Telegram
         webhook_url = None
         try:
-            from backend.publication_bot import PUBLICATION_BOT_TOKEN, _tg_api
+            from backend.services.publication_bot import PUBLICATION_BOT_TOKEN, _tg_api
             if PUBLICATION_BOT_TOKEN:
                 info = _tg_api("getWebhookInfo")
                 if info and info.get("ok"):
@@ -2513,7 +2471,7 @@ async def publication_bot_register_webhook():
     """Enregistre le webhook Telegram pour le bot de publication."""
     import urllib.request as _urllib_req
     try:
-        from backend.publication_bot import PUBLICATION_BOT_TOKEN, is_configured
+        from backend.services.publication_bot import PUBLICATION_BOT_TOKEN, is_configured
         if not is_configured():
             return {"ok": False, "error": "Bot non configure (PUBLICATION_BOT_TOKEN manquant)"}
 
@@ -2564,7 +2522,7 @@ async def publication_bot_register_webhook():
 async def get_vapid_key():
     """Retourne la clé publique VAPID pour l'inscription push côté client."""
     try:
-        from backend.push_service import get_public_key, is_configured as push_configured
+        from backend.services.push_service import get_public_key, is_configured as push_configured
         if not push_configured():
             return {"ok": False, "error": "Push non configuré"}
         return {"ok": True, "publicKey": get_public_key()}
@@ -2576,7 +2534,7 @@ async def get_vapid_key():
 async def push_subscribe(request: Request):
     """Enregistre un abonnement push."""
     try:
-        from backend.push_service import save_subscription
+        from backend.services.push_service import save_subscription
         body = await request.json()
         success = save_subscription(body, db=db)
         return {"ok": success}
@@ -2589,7 +2547,7 @@ async def push_subscribe(request: Request):
 async def push_unsubscribe(request: Request):
     """Supprime un abonnement push."""
     try:
-        from backend.push_service import remove_subscription
+        from backend.services.push_service import remove_subscription
         body = await request.json()
         success = remove_subscription(body.get("endpoint", ""), db=db)
         return {"ok": success}
@@ -2601,7 +2559,7 @@ async def push_unsubscribe(request: Request):
 async def push_test():
     """Envoie une notification test à tous les abonnés."""
     try:
-        from backend.push_service import notify_new_affair
+        from backend.services.push_service import notify_new_affair
         test_affair = {
             "title": "Test notification — Veille Média 971",
             "gravity_score": 0.5,
@@ -2622,7 +2580,7 @@ async def push_test():
 async def facebook_sync():
     """Synchronise manuellement les posts Facebook vers Telegram."""
     try:
-        from backend.facebook_telegram_service import sync_facebook_to_telegram, is_configured as fb_configured
+        from backend.services.facebook_telegram_service import sync_facebook_to_telegram, is_configured as fb_configured
 
         if not fb_configured():
             return {
@@ -2643,8 +2601,8 @@ async def facebook_sync():
 async def facebook_status():
     """Statut de la configuration Facebook → Telegram."""
     try:
-        from backend.facebook_telegram_service import is_configured as fb_configured, FB_PAGE_NAME
-        from backend.telegram_service import is_configured as tg_configured
+        from backend.services.facebook_telegram_service import is_configured as fb_configured, FB_PAGE_NAME
+        from backend.services.telegram_service import is_configured as tg_configured
 
         fb_ok = fb_configured()
         tg_ok = tg_configured()
@@ -2674,7 +2632,7 @@ async def facebook_status():
 async def trigger_social_stats_scrape(admin: dict = Depends(require_admin)):
     """Déclenche manuellement le scraping des stats RS propres. (admin)"""
     try:
-        from backend.social_stats_scraper import scrape_own_social_stats, is_configured as ss_configured
+        from backend.services.social_stats_scraper import scrape_own_social_stats, is_configured as ss_configured
         if not ss_configured():
             return {"ok": False, "error": "Non configuré (APIFY_TOKEN + CD971_*_URL)"}
         result = scrape_own_social_stats()
@@ -2687,7 +2645,7 @@ async def trigger_social_stats_scrape(admin: dict = Depends(require_admin)):
 async def trigger_single_post_scrape(post_id: str, admin: dict = Depends(require_admin)):
     """Scrape les stats/commentaires d'un post spécifique (cas viral). (admin)"""
     try:
-        from backend.social_stats_scraper import scrape_single_post, is_configured as ss_configured
+        from backend.services.social_stats_scraper import scrape_single_post, is_configured as ss_configured
         if not ss_configured():
             return {"ok": False, "error": "Non configuré (APIFY_TOKEN + CD971_*_URL)"}
         result = scrape_single_post(post_id)
@@ -2703,7 +2661,7 @@ async def trigger_buffer_stats_sync(admin: dict = Depends(require_admin)):
     Récupère les posts publiés via Buffer et met à jour les stats en base.
     """
     try:
-        from backend.campaign_service import sync_buffer_stats
+        from backend.services.campaign_service import sync_buffer_stats
         result = sync_buffer_stats()
         return result
     except Exception as e:
@@ -2715,7 +2673,7 @@ async def trigger_buffer_stats_sync(admin: dict = Depends(require_admin)):
 async def social_stats_status():
     """Statut du scraping stats RS propres."""
     try:
-        from backend.social_stats_scraper import is_configured as ss_configured, OWN_PROFILES
+        from backend.services.social_stats_scraper import is_configured as ss_configured, OWN_PROFILES
         configured_platforms = [p for p, url in OWN_PROFILES.items() if url]
         return {
             "configured": ss_configured(),

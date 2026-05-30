@@ -1,0 +1,36 @@
+name: Backend smoke (import + syntaxe)
+
+# Filet en amont de Render : Render ne déploie le backend que sur `main` (donc après
+# merge). Ce workflow rejoue l'essentiel — install des deps de prod + import de l'app —
+# dès la PR, sans MongoDB, pour attraper une régression avant qu'elle n'atteigne prod.
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-smoke.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-smoke.yml"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"   # même version que Render (render.yaml)
+          cache: pip
+
+      - name: Install backend deps (mêmes pins que Render)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Syntaxe + import de l'arbre vivant (sans MongoDB)
+        run: python backend/scripts/ci_smoke_import.py
