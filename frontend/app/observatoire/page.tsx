@@ -4,15 +4,16 @@ import { useState, useEffect, useCallback } from 'react'
 import Sidebar from '../../components/Sidebar'
 import { SocialEvolutionPanel } from '../_components/dashboard/SocialEvolutionPanel'
 import { StatsEntryModal } from '../_components/dashboard/StatsEntryModal'
+import { DecisionInsights } from '../_components/dashboard/DecisionInsights'
 import {
   triggerSocialSnapshot,
   fetchWebHistory,
   fetchSocialEvolution,
-  fetchCampaigns,
+  fetchDecisionInsights,
   apiErrorMessage,
   type WebTrafficPoint,
   type SocialEvolution,
-  type Campaign,
+  type DecisionInsights as DecisionInsightsData,
 } from '../../lib/api'
 import { exportWeeklyReportPNG } from '../../lib/weeklyReport'
 
@@ -39,12 +40,12 @@ export default function ObservatoirePage() {
 
   const [web, setWeb] = useState<WebTrafficPoint | null>(null)
   const [evolution, setEvolution] = useState<SocialEvolution | null>(null)
-  const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [insights, setInsights] = useState<DecisionInsightsData | null>(null)
 
   const loadData = useCallback(() => {
     fetchWebHistory(90).then(r => setWeb(r.latest)).catch(() => {})
     fetchSocialEvolution().then(setEvolution).catch(() => {})
-    fetchCampaigns().then(r => setCampaigns(r.campaigns || [])).catch(() => {})
+    fetchDecisionInsights(7).then(setInsights).catch(() => {})
   }, [])
 
   useEffect(() => { loadData() }, [loadData, refreshKey])
@@ -61,7 +62,7 @@ export default function ObservatoirePage() {
   }
 
   const handleExport = () => {
-    exportWeeklyReportPNG({ web, evolution, campaigns })
+    exportWeeklyReportPNG({ web, evolution, insights })
   }
 
   return (
@@ -103,6 +104,9 @@ export default function ObservatoirePage() {
         </header>
 
         <div className="px-6 lg:px-8 py-6 max-w-[1700px] mx-auto space-y-5">
+          {/* Outil de décision : top post, ce qui marche, sentiment, top 3 */}
+          <DecisionInsights days={7} />
+
           {/* Trafic web (saisi manuellement) */}
           <div className="rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.03)' }}>
             <div className="flex items-center justify-between mb-4">

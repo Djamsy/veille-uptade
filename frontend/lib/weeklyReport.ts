@@ -1,12 +1,12 @@
 // Génère un PNG « bilan hebdomadaire » combinant trafic web, engagement social
 // et campagnes — dessiné sur un canvas natif (aucune dépendance externe).
 
-import type { SocialEvolution, WebTrafficPoint, Campaign } from './api'
+import type { SocialEvolution, WebTrafficPoint, DecisionInsights } from './api'
 
 export interface WeeklyReportData {
   web: WebTrafficPoint | null
   evolution: SocialEvolution | null
-  campaigns: Campaign[]
+  insights: DecisionInsights | null
 }
 
 const PLAT_COLORS: Record<string, string> = {
@@ -133,25 +133,54 @@ export function exportWeeklyReportPNG(data: WeeklyReportData): void {
   })
   y += 150
 
-  // ── Campagnes ──
-  sectionTitle('Campagnes actives')
-  const active = data.campaigns.filter(c => c.status === 'active').slice(0, 4)
-  if (active.length === 0) {
+  const ins = data.insights
+
+  // ── Post le plus vu ──
+  sectionTitle('Post le plus vu de la semaine')
+  if (ins?.top_post) {
+    const tp = ins.top_post
+    ctx.fillStyle = '#ffffff'
+    ctx.font = '600 20px Inter, system-ui, sans-serif'
+    ctx.fillText(tp.title.slice(0, 60), PAD, y + 8)
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'
+    ctx.font = '400 15px Inter, system-ui, sans-serif'
+    const plat = tp.platform ? `${tp.platform} · ` : ''
+    ctx.fillText(`${plat}${fmt(tp.stats.views)} vues · ${fmt(tp.stats.likes)} likes · ${fmt(tp.stats.comments)} commentaires`, PAD, y + 36)
+    y += 72
+  } else {
     ctx.fillStyle = 'rgba(255,255,255,0.4)'
     ctx.font = '400 16px Inter, system-ui, sans-serif'
-    ctx.fillText('Aucune campagne active cette semaine.', PAD, y + 8)
+    ctx.fillText('Pas encore de données de posts cette semaine.', PAD, y + 8)
+    y += 48
+  }
+
+  // ── Ce qui marche + recommandations ──
+  sectionTitle('Ce qui marche & recommandations')
+  const ww = ins?.what_works
+  if (ww) {
+    ctx.fillStyle = 'rgba(255,255,255,0.7)'
+    ctx.font = '500 16px Inter, system-ui, sans-serif'
+    const bits = [
+      ww.best_format && `Format : ${ww.best_format}`,
+      ww.best_platform && `Plateforme : ${ww.best_platform}`,
+      ww.best_day && `Jour : ${ww.best_day}`,
+      ww.best_time && `Heure : ${ww.best_time}`,
+    ].filter(Boolean)
+    ctx.fillText(bits.join('   ·   '), PAD, y + 8)
+    y += 36
+  }
+  const recos = (ins?.recommendations || []).slice(0, 3)
+  recos.forEach((r, i) => {
+    ctx.fillStyle = 'rgba(255,255,255,0.6)'
+    ctx.font = '400 15px Inter, system-ui, sans-serif'
+    ctx.fillText(`${i + 1}. ${r.slice(0, 80)}`, PAD, y + 8)
+    y += 32
+  })
+  if (!ww && recos.length === 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.4)'
+    ctx.font = '400 16px Inter, system-ui, sans-serif'
+    ctx.fillText("Lance une analyse IA sur une campagne pour obtenir des recommandations.", PAD, y + 8)
     y += 40
-  } else {
-    active.forEach(c => {
-      ctx.fillStyle = '#ffffff'
-      ctx.font = '600 18px Inter, system-ui, sans-serif'
-      ctx.fillText(c.name, PAD, y + 8)
-      ctx.fillStyle = 'rgba(255,255,255,0.55)'
-      ctx.font = '400 15px Inter, system-ui, sans-serif'
-      const line = `${c.post_count} posts · ${fmt(c.total_views)} vues · ${fmt(c.total_likes)} likes · ${fmt(c.total_comments)} commentaires`
-      ctx.fillText(line, PAD, y + 34)
-      y += 64
-    })
   }
 
   // ── Pied de page ──

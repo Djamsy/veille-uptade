@@ -212,6 +212,126 @@ def get_campaign_posts(campaign_id: str = None, limit: int = 50, db=None) -> Lis
     return posts
 
 
+def get_decision_insights(days: int = 7, db=None) -> Dict[str, Any]:
+    """Agrège les données décisionnelles d'une période (défaut 7j).
+
+    Source unique pour les cartes « outil de décision » des pages Observatoire et
+    Campagnes — évite des dizaines d'appels côté front. Tout est calculé à partir
+    de `campaign_posts` (stats maintenues par le scraper) et de l'`ai_analysis`
+    des campagnes (sentiment, performance, recommandations).
+
+    Renvoie : top_post, top_posts (3), what_works (issu IA), sentiment + reco,
+    totaux de période.
+    """
+    if db is None:
+        db = _get_db()
+
+    from datetime import datetime, timezone, timedelta
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+    def _v(post, key):
+        return (post.get("stats") or {}).get(key, 0) or 0
+
+    def _engagement(post):
+        s = post.get("stats") or {}
+        return (s.get("likes", 0) or 0) + (s.get("comments", 0) or 0) + (s.get("shares", 0) or 0)
+
+    def _main_platform(post):
+        ps = post.get("platform_stats") or {}
+        if not ps:
+            return None
+        # plateforme avec le plus de vues, sinon la première
+        return max(ps, key=lambda k: (ps[k] or {}).get("views", 0) or 0)
+
+    def _slim(post):
+        """Version allégée d'un post pour le front (pas de payload lourd)."""
+        return {
+            "_id": str(post.get("_id", "")),
+            "title": post.get("title", "") or "(sans titre)",
+            "media_url": post.get("media_url", ""),
+            "media_type": post.get("media_type", "photo"),
+            "campaign_name": post.get("campaign_name", ""),
+            "published_at": post.get("published_at", ""),
+            "platform": _main_platform(post),
+            "stats": {
+                "views": _v(post, "views"),
+                "likes": _v(post, "likes"),
+                "comments": _v(post, "comments"),
+                "shares": (post.get("stats") or {}).get("shares", 0) or 0,
+            },
+            "engagement": _engagement(post),
+            "sentiment": post.get("sentiment"),
+            "top_comments": [
+                {"author": c.get("author", ""), "text": c.get("text", ""), "likes": c.get("likes", 0) or 0}
+                for c in (post.get("comments_scraped") or [])[:3]
+                if isinstance(c, dict) and c.get("text")
+            ],
+        }
+
+    # Posts de la période (avec au moins une vue, pour ignorer les coquilles vides)
+    recent = list(db["campaign_posts"].find(
+        {"published_at": {"$gte": cutoff}},
+        {"title": 1, "media_url": 1, "media_type": 1, "campaign_name": 1,
+         "published_at": 1, "stats": 1, "platform_stats": 1, "sentiment": 1, "comments_scraped": 1},
+    ))
+    # Fallback : si rien dans la fenêtre, prendre les plus récents tout court
+    if not recent:
+        recent = list(db["campaign_posts"].find(
+            {}, {"title": 1, "media_url": 1, "media_type": 1, "campaign_name": 1,
+                 "published_at": 1, "stats": 1, "platform_stats": 1, "sentiment": 1, "comments_scraped": 1},
+        ).sort("published_at", -1).limit(30))
+
+    by_views = sorted(recent, key=lambda p: _v(p, "views"), reverse=True)
+    top_post = _slim(by_views[0]) if by_views else None
+    top_posts = [_slim(p) for p in by_views[:3]]
+
+    totals = {
+        "posts": len(recent),
+        "views": sum(_v(p, "views") for p in recent),
+        "likes": sum(_v(p, "likes") for p in recent),
+        "comments": sum(_v(p, "comments") for p in recent),
+        "engagement": sum(_engagement(p) for p in recent),
+    }
+
+    # « Ce qui marche » + sentiment + reco : depuis l'analyse IA la plus récente.
+    what_works = None
+    sentiment = None
+    recommendations: List[str] = []
+    summary = ""
+    latest = db["campaigns"].find_one(
+        {"ai_analysis": {"$ne": None}},
+        sort=[("analyzed_at", -1)],
+    )
+    if latest and latest.get("ai_analysis"):
+        ai = latest["ai_analysis"]
+        perf = ai.get("performance") or {}
+        what_works = {
+            "best_format": perf.get("best_format"),
+            "best_platform": perf.get("best_platform"),
+            "best_time": perf.get("best_time"),
+            "best_day": perf.get("best_day"),
+            "engagement_rate": perf.get("engagement_rate"),
+            "from_campaign": latest.get("name", ""),
+            "analyzed_at": latest.get("analyzed_at"),
+        }
+        sentiment = ai.get("sentiment")
+        recommendations = (ai.get("recommendations") or [])[:3]
+        summary = ai.get("summary", "")
+
+    return {
+        "ok": True,
+        "days": days,
+        "top_post": top_post,
+        "top_posts": top_posts,
+        "totals": totals,
+        "what_works": what_works,
+        "sentiment": sentiment,
+        "recommendations": recommendations,
+        "summary": summary,
+    }
+
+
+
 # ============================================================
 # BUFFER API (GraphQL — nouvelle API officielle)
 # Docs: https://developers.buffer.com/guides/getting-started.html

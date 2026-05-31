@@ -2006,6 +2006,22 @@ async def list_campaigns(status: str = Query(None)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# IMPORTANT : route statique déclarée AVANT /api/campaigns/{id} (sinon « insights »
+# serait capturé comme un campaign_id).
+@app.get("/api/campaigns/insights")
+async def campaign_insights(days: int = Query(7, ge=1, le=90)):
+    """Données décisionnelles agrégées (top post, ce qui marche, sentiment, reco).
+
+    Source unique pour les cartes des pages Observatoire et Campagnes.
+    """
+    try:
+        from backend.services.campaign_service import get_decision_insights
+        return get_decision_insights(days=days, db=db)
+    except Exception as e:
+        logger.error(f"Erreur insights: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/campaigns")
 async def create_campaign_endpoint(request: Request):
     """Crée une nouvelle campagne."""
