@@ -124,6 +124,8 @@ def _scrape_instagram() -> List[Dict]:
             "text": item.get("caption") or item.get("alt") or "",
             "url": item.get("url") or item.get("webLink") or "",
             "media_url": item.get("displayUrl") or item.get("videoUrl") or "",
+            # Vignette image (toujours une image, jamais une vidéo) — sert au cache Cloudinary.
+            "thumbnail_url": item.get("displayUrl") or "",
             "media_type": "video" if item.get("isVideo") or item.get("type") == "Video" else "photo",
             "published_at": item.get("timestamp") or item.get("takenAtTimestamp") or "",
             "stats": {
@@ -171,6 +173,8 @@ def _scrape_facebook() -> List[Dict]:
             "text": item.get("text", "") or item.get("message", ""),
             "url": item.get("url", "") or item.get("postUrl", ""),
             "media_url": item.get("fullPicture", "") or item.get("videoUrl", ""),
+            # Vignette image (toujours une image, jamais une vidéo) — sert au cache Cloudinary.
+            "thumbnail_url": item.get("fullPicture", "") or "",
             "media_type": "video" if item.get("videoUrl") else "photo",
             "published_at": item.get("time", "") or item.get("timestamp", ""),
             "stats": {
@@ -222,6 +226,8 @@ def _scrape_tiktok() -> List[Dict]:
             "text": item.get("text") or item.get("desc") or item.get("description") or "",
             "url": item.get("webVideoUrl") or item.get("url") or "",
             "media_url": item.get("videoUrl") or item.get("coverUrl") or "",
+            # Vignette image : coverUrl (le videoUrl TikTok est un .mp4 inutilisable comme image).
+            "thumbnail_url": item.get("coverUrl") or item.get("originalCoverUrl") or "",
             "media_type": "video",
             "published_at": item.get("createTimeISO") or item.get("createTime") or "",
             "stats": {
@@ -272,6 +278,28 @@ def _match_to_db_post(scraped: Dict, db_posts: List[Dict]) -> Optional[Dict]:
     return None
 
 
+def _cache_media(url: str) -> Optional[str]:
+    """Copie une image distante (CDN de plateforme) sur notre Cloudinary.
+
+    Les URLs renvoyées par Instagram/Facebook/TikTok sont signées et expirent
+    (quelques heures/jours) et ne servent pas les en-têtes CORS — ce qui casse
+    l'export PNG du bilan (canvas « taché »). On les copie une fois sur notre
+    Cloudinary pour obtenir une URL stable, pérenne et CORS-friendly.
+
+    Tolérant aux pannes : renvoie None sans interrompre le scraping.
+    """
+    if not url or not url.startswith("http"):
+        return None
+    if "res.cloudinary.com" in url:  # déjà mise en cache
+        return url
+    try:
+        from backend.services.campaign_service import upload_to_cloudinary
+        return upload_to_cloudinary(url, resource_type="image")
+    except Exception as e:
+        logger.warning(f"Cache média Cloudinary échoué: {e}")
+        return None
+
+
 def _create_external_post(scraped: Dict, db) -> str:
     """Crée un post en base pour un post publié hors bot."""
     from backend.services.campaign_service import detect_campaign
@@ -286,11 +314,18 @@ def _create_external_post(scraped: Dict, db) -> str:
     campaign_name = campaign.get("name", "Institutionnel") if campaign else "Institutionnel"
     campaign_id = str(campaign.get("_id", "")) if campaign else ""
 
+    # Mise en cache de la vignette sur notre Cloudinary (URL stable, CORS-friendly).
+    original_media = scraped.get("media_url", "")
+    thumb = scraped.get("thumbnail_url") or original_media
+    cached = _cache_media(thumb)
+
     post = {
         "title": title,
         "body": body,
         "hashtags": hashtags,
-        "media_url": scraped.get("media_url", ""),
+        "media_url": cached or original_media,
+        "media_original_url": original_media,
+        "media_cached": bool(cached),
         "media_type": scraped.get("media_type", "photo"),
         "campaign_id": campaign_id,
         "campaign_name": campaign_name,
@@ -344,6 +379,17 @@ def _update_post_stats(post_id, scraped: Dict, db):
     followers = _safe_int(scraped.get("author_followers"))
     if followers > 0:
         update["author_followers"] = followers
+
+    # Mise en cache de la vignette (une seule fois) pour les posts existants :
+    # les URLs CDN stockées au scrape précédent ont pu expirer.
+    if not post.get("media_cached"):
+        original_media = post.get("media_url", "") or scraped.get("media_url", "")
+        thumb = scraped.get("thumbnail_url") or original_media
+        cached = _cache_media(thumb)
+        if cached:
+            update["media_url"] = cached
+            update["media_original_url"] = original_media
+            update["media_cached"] = True
 
     # Mettre à jour les commentaires (priorité Apify car plus riches)
     if comments:
