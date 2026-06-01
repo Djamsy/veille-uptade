@@ -7,6 +7,7 @@ import { StatsEntryModal } from '../_components/dashboard/StatsEntryModal'
 import { DecisionInsights } from '../_components/dashboard/DecisionInsights'
 import {
   triggerSocialSnapshot,
+  backfillMediaCache,
   fetchWebHistory,
   fetchSocialEvolution,
   fetchDecisionInsights,
@@ -71,6 +72,17 @@ export default function ObservatoirePage() {
     } finally { setCapturing(false) }
   }
 
+  const [backfilling, setBackfilling] = useState(false)
+  const handleBackfill = async () => {
+    setBackfilling(true); setMsg(null)
+    try {
+      const r = await backfillMediaCache()
+      setMsg(`Vignettes mises en cache : ${r.cached} OK, ${r.failed} échecs, ${r.skipped} déjà à jour (${r.scanned} analysés)`)
+    } catch (e) {
+      setMsg(apiErrorMessage(e, 'mise en cache des vignettes'))
+    } finally { setBackfilling(false) }
+  }
+
   const [exporting, setExporting] = useState(false)
   const handleExport = async () => {
     setExporting(true)
@@ -109,6 +121,12 @@ export default function ObservatoirePage() {
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-sm transition-colors disabled:opacity-50"
                 style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
                 {exporting ? 'Génération…' : 'Exporter PNG hebdo'}
+              </button>
+              <button onClick={handleBackfill} disabled={backfilling}
+                title="Met en cache les vignettes des posts (corrige les images manquantes du bilan)"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-sm transition-colors disabled:opacity-50"
+                style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+                {backfilling ? 'Mise en cache…' : 'Cacher les vignettes'}
               </button>
               <button onClick={handleCapture} disabled={capturing}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-sm transition-colors disabled:opacity-50"

@@ -1234,6 +1234,11 @@ export const syncBufferStats = () =>
     '/api/social-stats/buffer-sync', { method: 'POST' }
   );
 
+export const backfillMediaCache = (limit = 200) =>
+  adminFetch<{ ok: boolean; scanned: number; cached: number; failed: number; skipped: number; error?: string }>(
+    `/api/social-stats/backfill-media?limit=${limit}`, { method: 'POST' }
+  );
+
 // ============================================================
 // OBSERVATOIRE SOCIAL — historique & évolution
 // ============================================================
