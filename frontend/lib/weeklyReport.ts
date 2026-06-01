@@ -173,7 +173,7 @@ export async function drawWeeklyReport(
   ctx: CanvasRenderingContext2D,
   data: WeeklyReportData,
   loadImage: ImageLoader = browserImageLoader,
-): Promise<void> {
+): Promise<number> {
   const W = REPORT_W, H = REPORT_H
 
   const now = new Date()
@@ -554,21 +554,33 @@ export async function drawWeeklyReport(
   ctx.fillStyle = MUTED2
   ctx.font = '400 13px Inter, system-ui, sans-serif'
   ctx.fillText(`Généré le ${frDate(now)} · Observatoire interne — données ${ins?.days ?? 7} derniers jours`, PAD, y + 26)
+
+  // Hauteur réellement occupée par le contenu (pour rogner le vide en bas).
+  return Math.min(H, y + 44)
 }
 
-/** Dessine le bilan sur un canvas hors-écran et renvoie le PNG en Blob. */
+/** Dessine le bilan sur un canvas hors-écran et renvoie le PNG en Blob.
+ *  Rendu haute résolution (scale 3) et rognage du vide en bas pour une
+ *  meilleure lisibilité, notamment dans l'aperçu Telegram. */
 export async function renderWeeklyReportBlob(data: WeeklyReportData): Promise<Blob | null> {
-  const scale = 2
-  const canvas = document.createElement('canvas')
-  canvas.width = REPORT_W * scale
-  canvas.height = REPORT_H * scale
-  const ctx = canvas.getContext('2d')!
-  ctx.scale(scale, scale)
+  const scale = 3
+  // 1) Dessin pleine page pour connaître la hauteur réelle du contenu.
+  const full = document.createElement('canvas')
+  full.width = REPORT_W * scale
+  full.height = REPORT_H * scale
+  const fctx = full.getContext('2d')!
+  fctx.scale(scale, scale)
+  const contentH = await drawWeeklyReport(fctx, data)
 
-  await drawWeeklyReport(ctx, data)
+  // 2) Canvas final rogné à la hauteur du contenu.
+  const out = document.createElement('canvas')
+  out.width = REPORT_W * scale
+  out.height = Math.round(contentH * scale)
+  const octx = out.getContext('2d')!
+  octx.drawImage(full, 0, 0)
 
   return await new Promise<Blob | null>(resolve => {
-    canvas.toBlob(blob => resolve(blob), 'image/png')
+    out.toBlob(blob => resolve(blob), 'image/png')
   })
 }
 

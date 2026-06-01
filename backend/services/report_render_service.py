@@ -25,6 +25,8 @@ logger = logging.getLogger("veille.report_render")
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "").rstrip("/")
 RENDER_TIMEOUT_MS = int(os.getenv("REPORT_RENDER_TIMEOUT_MS", "60000"))
+# Chemin explicite vers un binaire Chromium (sinon celui géré par Playwright).
+CHROMIUM_PATH = os.getenv("PLAYWRIGHT_CHROMIUM_PATH", "")
 
 
 async def render_weekly_png(days: int = 7) -> Optional[bytes]:
@@ -41,8 +43,12 @@ async def render_weekly_png(days: int = 7) -> Optional[bytes]:
 
     url = f"{FRONTEND_URL}/report/render?days={days}"
     try:
+        launch_kwargs = {"args": ["--no-sandbox", "--disable-dev-shm-usage"]}
+        if CHROMIUM_PATH:
+            launch_kwargs["executable_path"] = CHROMIUM_PATH
+
         async with async_playwright() as p:
-            browser = await p.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage"])
+            browser = await p.chromium.launch(**launch_kwargs)
             try:
                 page = await browser.new_page(
                     viewport={"width": 900, "height": 1400},

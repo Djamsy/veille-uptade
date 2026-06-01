@@ -57,7 +57,9 @@ function hasAccess(userRole: string, requiredRole: string): boolean {
 }
 
 // ── Public routes (no auth needed) ─────────────────────
-const PUBLIC_ROUTES = ['/auth/login', '/auth/register']
+// '/report/render' : page de rendu hors-écran du bilan (données déjà
+// publiques via l'API) chargée par le rendu PNG serveur — pas d'auth.
+const PUBLIC_ROUTES = ['/auth/login', '/auth/register', '/report/render']
 
 // ── Dev bypass (opt-in via env, never on by default) ───
 const DEV_BYPASS = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === 'true'

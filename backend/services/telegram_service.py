@@ -90,20 +90,23 @@ def send_message(text: str, parse_mode: str = "HTML", disable_preview: bool = Tr
         return False
 
 
-def send_photo_bytes(image_bytes: bytes, caption: str = "", filename: str = "bilan.png") -> bool:
-    """Envoie une image (bytes PNG/JPG) sur Telegram via sendPhoto.
+def send_photo_bytes(image_bytes: bytes, caption: str = "", filename: str = "bilan.png",
+                     as_document: bool = False) -> bool:
+    """Envoie une image (bytes PNG/JPG) sur Telegram.
 
-    Pour préserver la pleine résolution du bilan (image A4 haute déf), on
-    bascule automatiquement sur sendDocument si l'image dépasse les limites
-    de sendPhoto (10 Mo / dimensions). Retourne True si succès.
+    Par défaut via sendPhoto (aperçu inline). `as_document=True` force
+    sendDocument : Telegram ne recompresse pas et ne réduit pas l'image —
+    indispensable pour la lisibilité d'un bilan A4 haute résolution.
+    Bascule aussi sur sendDocument au-delà de 10 Mo. Retourne True si succès.
     """
     if not is_configured():
         logger.debug("Telegram non configuré — image ignorée")
         return False
 
-    # sendPhoto compresse et limite à 10 Mo ; au-delà → sendDocument.
-    method = "sendPhoto" if len(image_bytes) < 10 * 1024 * 1024 else "sendDocument"
-    field = "photo" if method == "sendPhoto" else "document"
+    # sendPhoto compresse et réduit (~1280px) ; document = pleine résolution.
+    use_doc = as_document or len(image_bytes) >= 10 * 1024 * 1024
+    method = "sendDocument" if use_doc else "sendPhoto"
+    field = "document" if use_doc else "photo"
 
     try:
         import time

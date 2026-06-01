@@ -2699,7 +2699,7 @@ async def send_report_image(
         data = await file.read()
         if not data:
             return {"ok": False, "error": "Image vide"}
-        ok = send_photo_bytes(data, caption=caption, filename=file.filename or "bilan.png")
+        ok = send_photo_bytes(data, caption=caption, filename=file.filename or "bilan.png", as_document=True)
         return {"ok": bool(ok), "sent": bool(ok), "bytes": len(data)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -2726,7 +2726,7 @@ async def trigger_weekly_png(days: int = 7, admin: dict = Depends(require_admin)
         png = await render_weekly_png(days=days)
         if not png:
             return {"ok": False, "error": "Rendu PNG indisponible (FRONTEND_URL / Chromium ?). Voir logs."}
-        sent = send_photo_bytes(png, caption=f"📊 Bilan réseaux sociaux — {days} derniers jours", filename="bilan-hebdo.png")
+        sent = send_photo_bytes(png, caption=f"📊 Bilan réseaux sociaux — {days} derniers jours", filename="bilan-hebdo.png", as_document=True)
         return {"ok": bool(sent), "sent": bool(sent), "bytes": len(png)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

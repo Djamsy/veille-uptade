@@ -918,8 +918,11 @@ async def job_weekly_digest():
             from backend.services.telegram_service import send_photo_bytes, is_configured as tg_ok
             png = await render_weekly_png(days=7)
             if png and tg_ok():
+                from functools import partial
                 sent = await asyncio.get_running_loop().run_in_executor(
-                    None, send_photo_bytes, png, "📊 Bilan hebdomadaire — réseaux sociaux", "bilan-hebdo.png"
+                    None,
+                    partial(send_photo_bytes, png, caption="📊 Bilan hebdomadaire — réseaux sociaux",
+                            filename="bilan-hebdo.png", as_document=True),
                 )
                 if sent:
                     logger.info("📊 Bilan hebdo PNG envoyé")
