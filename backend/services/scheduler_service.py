@@ -1132,9 +1132,11 @@ def _ensure_scheduler():
     # Analyse predictive IA toutes les heures (minute 30)
     _scheduler.add_job(
         job_predictive_analysis,
-        CronTrigger(minute="30", timezone=TZ),
+        # Coût IA : une affaire n'évolue pas d'heure en heure. 4×/jour suffit
+        # (était minute="30" = 24×/jour → ~-70€/mois sur les appels GPT).
+        CronTrigger(hour="6,12,18,0", minute="30", timezone=TZ),
         id="predictive_analysis",
-        name="Analyse prédictive IA (GPT)"
+        name="Analyse prédictive IA (GPT) — 4×/jour"
     )
 
     # 📄 Bilan PDF quotidien à 7h du matin (heure Guadeloupe)
