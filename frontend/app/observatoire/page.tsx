@@ -10,10 +10,12 @@ import {
   fetchWebHistory,
   fetchSocialEvolution,
   fetchDecisionInsights,
+  fetchSocialHistory,
   apiErrorMessage,
   type WebTrafficPoint,
   type SocialEvolution,
   type DecisionInsights as DecisionInsightsData,
+  type AccountSnapshot,
 } from '../../lib/api'
 import { exportWeeklyReportPNG } from '../../lib/weeklyReport'
 
@@ -39,13 +41,21 @@ export default function ObservatoirePage() {
   const [refreshKey, setRefreshKey] = useState(0)
 
   const [web, setWeb] = useState<WebTrafficPoint | null>(null)
+  const [webPrev, setWebPrev] = useState<WebTrafficPoint | null>(null)
   const [evolution, setEvolution] = useState<SocialEvolution | null>(null)
   const [insights, setInsights] = useState<DecisionInsightsData | null>(null)
+  const [history, setHistory] = useState<Record<string, AccountSnapshot[]>>({})
 
   const loadData = useCallback(() => {
-    fetchWebHistory(90).then(r => setWeb(r.latest)).catch(() => {})
+    fetchWebHistory(90).then(r => {
+      setWeb(r.latest)
+      // avant-dernier point (pour les tendances du bilan)
+      const pts = r.points || []
+      setWebPrev(pts.length >= 2 ? pts[pts.length - 2] : null)
+    }).catch(() => {})
     fetchSocialEvolution().then(setEvolution).catch(() => {})
     fetchDecisionInsights(7).then(setInsights).catch(() => {})
+    fetchSocialHistory(undefined, 30).then(r => setHistory(r.series || {})).catch(() => {})
   }, [])
 
   useEffect(() => { loadData() }, [loadData, refreshKey])
@@ -61,8 +71,14 @@ export default function ObservatoirePage() {
     } finally { setCapturing(false) }
   }
 
-  const handleExport = () => {
-    exportWeeklyReportPNG({ web, evolution, insights })
+  const [exporting, setExporting] = useState(false)
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      await exportWeeklyReportPNG({ web, webPrev, evolution, insights, history })
+    } finally {
+      setExporting(false)
+    }
   }
 
   return (
@@ -89,10 +105,10 @@ export default function ObservatoirePage() {
                 style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
                 Saisir des stats
               </button>
-              <button onClick={handleExport}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-sm transition-colors"
+              <button onClick={handleExport} disabled={exporting}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-sm transition-colors disabled:opacity-50"
                 style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
-                Exporter PNG hebdo
+                {exporting ? 'Génération…' : 'Exporter PNG hebdo'}
               </button>
               <button onClick={handleCapture} disabled={capturing}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-sm transition-colors disabled:opacity-50"
