@@ -1239,6 +1239,11 @@ export const backfillMediaCache = (limit = 200) =>
     `/api/social-stats/backfill-media?limit=${limit}`, { method: 'POST' }
   );
 
+export const sendWeeklyDigest = (days = 7) =>
+  adminFetch<{ ok: boolean; days?: number; sent?: boolean; error?: string }>(
+    `/api/social-stats/weekly-digest?days=${days}`, { method: 'POST' }
+  );
+
 // ============================================================
 // OBSERVATOIRE SOCIAL — historique & évolution
 // ============================================================

@@ -8,6 +8,7 @@ import { DecisionInsights } from '../_components/dashboard/DecisionInsights'
 import {
   triggerSocialSnapshot,
   backfillMediaCache,
+  sendWeeklyDigest,
   fetchWebHistory,
   fetchSocialEvolution,
   fetchDecisionInsights,
@@ -46,6 +47,7 @@ export default function ObservatoirePage() {
   const [evolution, setEvolution] = useState<SocialEvolution | null>(null)
   const [insights, setInsights] = useState<DecisionInsightsData | null>(null)
   const [history, setHistory] = useState<Record<string, AccountSnapshot[]>>({})
+  const [days, setDays] = useState(7)
 
   const loadData = useCallback(() => {
     fetchWebHistory(90).then(r => {
@@ -55,9 +57,9 @@ export default function ObservatoirePage() {
       setWebPrev(pts.length >= 2 ? pts[pts.length - 2] : null)
     }).catch(() => {})
     fetchSocialEvolution().then(setEvolution).catch(() => {})
-    fetchDecisionInsights(7).then(setInsights).catch(() => {})
+    fetchDecisionInsights(days).then(setInsights).catch(() => {})
     fetchSocialHistory(undefined, 30).then(r => setHistory(r.series || {})).catch(() => {})
-  }, [])
+  }, [days])
 
   useEffect(() => { loadData() }, [loadData, refreshKey])
 
@@ -81,6 +83,17 @@ export default function ObservatoirePage() {
     } catch (e) {
       setMsg(apiErrorMessage(e, 'mise en cache des vignettes'))
     } finally { setBackfilling(false) }
+  }
+
+  const [sendingDigest, setSendingDigest] = useState(false)
+  const handleSendDigest = async () => {
+    setSendingDigest(true); setMsg(null)
+    try {
+      const r = await sendWeeklyDigest(days)
+      setMsg(r.sent ? 'Bilan hebdo envoyé sur Telegram ✓' : (r.error || 'Envoi du bilan échoué'))
+    } catch (e) {
+      setMsg(apiErrorMessage(e, 'envoi du bilan Telegram'))
+    } finally { setSendingDigest(false) }
   }
 
   const [exporting, setExporting] = useState(false)
@@ -112,6 +125,17 @@ export default function ObservatoirePage() {
             </div>
             <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
               {msg && <span className="font-mono text-[11px] w-full text-right mb-1" style={{ color: 'var(--text-muted)' }}>{msg}</span>}
+              <div className="inline-flex rounded-sm overflow-hidden" style={{ border: '1px solid var(--border)' }} role="group" aria-label="Période d'analyse">
+                {[7, 30, 90].map(d => (
+                  <button key={d} onClick={() => setDays(d)}
+                    className="px-2.5 py-1.5 text-xs font-medium transition-colors"
+                    style={days === d
+                      ? { background: 'var(--accent-press)', color: 'var(--on-accent)' }
+                      : { background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>
+                    {d}j
+                  </button>
+                ))}
+              </div>
               <button onClick={() => setShowEntry(true)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-sm transition-colors"
                 style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
@@ -128,6 +152,12 @@ export default function ObservatoirePage() {
                 style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
                 {backfilling ? 'Mise en cache…' : 'Cacher les vignettes'}
               </button>
+              <button onClick={handleSendDigest} disabled={sendingDigest}
+                title="Envoie le bilan de la période sélectionnée sur Telegram"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-sm transition-colors disabled:opacity-50"
+                style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+                {sendingDigest ? 'Envoi…' : 'Envoyer sur Telegram'}
+              </button>
               <button onClick={handleCapture} disabled={capturing}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-sm transition-colors disabled:opacity-50"
                 style={{ background: 'var(--accent-press)', color: 'var(--on-accent)', border: '1px solid var(--accent-press)' }}>
@@ -139,7 +169,7 @@ export default function ObservatoirePage() {
 
         <div className="px-6 lg:px-8 py-6 max-w-[1700px] mx-auto space-y-5">
           {/* Outil de décision : top post, ce qui marche, sentiment, top 3 */}
-          <DecisionInsights days={7} />
+          <DecisionInsights days={days} />
 
           {/* Trafic web (saisi manuellement) */}
           <div className="rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.03)' }}>
