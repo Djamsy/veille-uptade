@@ -610,5 +610,12 @@ def scrape_own_social_stats() -> Dict[str, Any]:
     # Recalculer les totaux campagnes
     _update_campaign_totals(db)
 
+    # Détection d'alertes (viral / bad buzz) sur les posts récents — non bloquant.
+    try:
+        from backend.services.social_alerts_service import check_social_alerts
+        results["alerts"] = check_social_alerts(db)
+    except Exception as e:
+        logger.warning(f"Détection d'alertes RS échouée: {e}")
+
     logger.info(f"📊 Scraping terminé: {results['updated']} MAJ, {results['created']} créés")
     return results

@@ -901,6 +901,25 @@ async def job_daily_report():
         return {"status": "error", "reason": str(e)}
 
 
+async def job_weekly_digest():
+    """Envoie le bilan hebdomadaire RS (digest texte) par Telegram (lundi)."""
+    if _db is None:
+        logger.warning("⚠️ Bilan hebdo: DB indisponible")
+        return {"status": "skip", "reason": "no_db"}
+
+    try:
+        from backend.services.weekly_digest_service import send_weekly_digest
+
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, send_weekly_digest, 7, _db)
+        logger.info(f"📊 Bilan hebdo RS — envoyé: {result.get('sent')}")
+        return result
+
+    except Exception as e:
+        logger.error(f"❌ Erreur bilan hebdo RS: {e}")
+        return {"status": "error", "reason": str(e)}
+
+
 async def job_predictive_analysis():
     """Lance l'analyse prédictive IA sur les affaires actives et stocke le résultat."""
     if _db is None:
@@ -1145,6 +1164,14 @@ def _ensure_scheduler():
         CronTrigger(hour=7, minute=0, timezone=TZ),
         id="daily_report",
         name="Bilan PDF quotidien (Telegram)"
+    )
+
+    # 📊 Bilan hebdomadaire RS (digest Telegram) — lundi 8h
+    _scheduler.add_job(
+        job_weekly_digest,
+        CronTrigger(day_of_week="mon", hour=8, minute=0, timezone=TZ),
+        id="weekly_digest",
+        name="Bilan hebdomadaire RS (Telegram, lundi 8h)"
     )
 
     # ☀️ Briefing matinal à 7h15 (après les captures radio de 7h)

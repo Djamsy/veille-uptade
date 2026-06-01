@@ -2671,6 +2671,26 @@ async def trigger_media_backfill(limit: int = 200, admin: dict = Depends(require
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/social-stats/check-alerts")
+async def trigger_social_alerts(admin: dict = Depends(require_admin)):
+    """Lance la détection d'alertes RS (viral / bad buzz) + Telegram. (admin)"""
+    try:
+        from backend.services.social_alerts_service import check_social_alerts
+        return check_social_alerts(db)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/social-stats/weekly-digest")
+async def trigger_weekly_digest(days: int = 7, admin: dict = Depends(require_admin)):
+    """Envoie le bilan hebdomadaire RS (digest texte) sur Telegram. (admin)"""
+    try:
+        from backend.services.weekly_digest_service import send_weekly_digest
+        return send_weekly_digest(days=days, db=db)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/social-stats/scrape-post/{post_id}")
 async def trigger_single_post_scrape(post_id: str, admin: dict = Depends(require_admin)):
     """Scrape les stats/commentaires d'un post spécifique (cas viral). (admin)"""
