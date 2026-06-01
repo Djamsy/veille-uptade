@@ -1133,6 +1133,45 @@ export interface CampaignPost {
 export const fetchCampaigns = (status?: string) =>
   apiFetch<{ campaigns: Campaign[]; total: number }>(`/api/campaigns${status ? `?status=${status}` : ''}`);
 
+// ── Outil de décision : insights agrégés (top post, ce qui marche, sentiment) ──
+
+export interface InsightPost {
+  _id: string;
+  title: string;
+  media_url: string;
+  media_type: string;
+  campaign_name: string;
+  published_at: string;
+  platform: string | null;
+  stats: { views: number; likes: number; comments: number; shares: number };
+  engagement: number;
+  sentiment?: { global: string; score: number } | null;
+  top_comments: Array<{ author: string; text: string; likes: number }>;
+}
+
+export interface DecisionInsights {
+  ok: boolean;
+  days: number;
+  top_post: InsightPost | null;
+  top_posts: InsightPost[];
+  totals: { posts: number; views: number; likes: number; comments: number; engagement: number };
+  what_works: {
+    best_format?: string;
+    best_platform?: string;
+    best_time?: string;
+    best_day?: string;
+    engagement_rate?: number;
+    from_campaign?: string;
+    analyzed_at?: string;
+  } | null;
+  sentiment?: { global: string; score: number; themes?: string[] } | null;
+  recommendations: string[];
+  summary: string;
+}
+
+export const fetchDecisionInsights = (days = 7) =>
+  apiFetch<DecisionInsights>(`/api/campaigns/insights?days=${days}`);
+
 export const createCampaign = (data: { name: string; description?: string; keywords?: string[]; start_date?: string; end_date?: string }) =>
   apiFetch<{ ok: boolean; campaign: Campaign }>('/api/campaigns', { method: 'POST', body: JSON.stringify(data) });
 

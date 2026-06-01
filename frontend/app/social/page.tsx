@@ -18,6 +18,7 @@ import {
   CampaignPost,
   ServiceStatus,
 } from '../../lib/api'
+import { DecisionInsights } from '../_components/dashboard/DecisionInsights'
 
 // ── Couleurs plateformes ──
 const PLAT_COLORS: Record<string, { icon: string; color: string; bg: string }> = {
@@ -1354,6 +1355,11 @@ export default function SocialPage() {
             </div>
           ) : view === 'calendrier' ? (
             <>
+              {/* Barre insights décisionnels (top post, ce qui marche, sentiment) */}
+              <div className="mb-6">
+                <DecisionInsights days={7} compact />
+              </div>
+
               {/* Stats bar — only show when there are actual stats */}
               {totalStats && (totalStats.views + totalStats.likes + totalStats.comments + totalStats.clicks + totalStats.reach) > 0 && (
                 <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
