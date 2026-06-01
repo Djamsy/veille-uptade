@@ -2657,6 +2657,20 @@ async def trigger_social_stats_scrape(admin: dict = Depends(require_admin)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/social-stats/backfill-media")
+async def trigger_media_backfill(limit: int = 200, admin: dict = Depends(require_admin)):
+    """Met en cache (Cloudinary) les vignettes des posts déjà en base. (admin)
+
+    À lancer une fois pour fiabiliser l'export PNG du bilan sans attendre le
+    prochain scrape. Les URLs CDN déjà expirées sont ignorées.
+    """
+    try:
+        from backend.services.social_stats_scraper import backfill_media_cache
+        return backfill_media_cache(limit=limit)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/social-stats/scrape-post/{post_id}")
 async def trigger_single_post_scrape(post_id: str, admin: dict = Depends(require_admin)):
     """Scrape les stats/commentaires d'un post spécifique (cas viral). (admin)"""

@@ -300,6 +300,49 @@ def _cache_media(url: str) -> Optional[str]:
         return None
 
 
+def backfill_media_cache(limit: int = 200) -> Dict[str, Any]:
+    """Met en cache (Cloudinary) les vignettes des posts déjà en base.
+
+    Évite d'attendre le prochain scrape : parcourt les posts non encore
+    cachés et copie leur média sur notre Cloudinary. Les URLs CDN déjà
+    expirées échouent simplement (comptées dans `failed`), sans bloquer.
+
+    Args:
+        limit: nombre maximum de posts à traiter en un appel.
+    """
+    from bson import ObjectId
+    db = _get_db()
+
+    candidates = list(db["campaign_posts"].find(
+        {
+            "media_cached": {"$ne": True},
+            "media_url": {"$regex": "^https?://", "$options": "i"},
+        },
+        {"_id": 1, "media_url": 1},
+    ).sort("published_at", -1).limit(max(1, limit)))
+
+    cached = failed = skipped = 0
+    for post in candidates:
+        url = post.get("media_url", "")
+        if "res.cloudinary.com" in url:
+            # Déjà une URL Cloudinary : marquer comme caché sans ré-uploader.
+            db["campaign_posts"].update_one({"_id": post["_id"]}, {"$set": {"media_cached": True}})
+            skipped += 1
+            continue
+        new_url = _cache_media(url)
+        if new_url:
+            db["campaign_posts"].update_one(
+                {"_id": post["_id"]},
+                {"$set": {"media_url": new_url, "media_original_url": url, "media_cached": True}},
+            )
+            cached += 1
+        else:
+            failed += 1
+
+    logger.info(f"🖼️ Backfill média: {cached} cachés, {failed} échecs, {skipped} déjà OK (sur {len(candidates)})")
+    return {"ok": True, "scanned": len(candidates), "cached": cached, "failed": failed, "skipped": skipped}
+
+
 def _create_external_post(scraped: Dict, db) -> str:
     """Crée un post en base pour un post publié hors bot."""
     from backend.services.campaign_service import detect_campaign
