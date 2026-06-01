@@ -85,7 +85,7 @@ from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
 from bson import ObjectId
 
-from fastapi import FastAPI, HTTPException, Query, Request, BackgroundTasks, Body, Depends
+from fastapi import FastAPI, HTTPException, Query, Request, BackgroundTasks, Body, Depends, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse, FileResponse, StreamingResponse
 import uvicorn
@@ -2677,6 +2677,30 @@ async def trigger_social_alerts(admin: dict = Depends(require_admin)):
     try:
         from backend.services.social_alerts_service import check_social_alerts
         return check_social_alerts(db)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/social-stats/send-report-image")
+async def send_report_image(
+    file: UploadFile = File(...),
+    caption: str = Form(""),
+    admin: dict = Depends(require_admin),
+):
+    """Relaie une image de bilan (générée côté navigateur) sur Telegram. (admin)
+
+    Le PNG du bilan est dessiné dans le navigateur (canvas) ; cet endpoint
+    reçoit les octets et les transmet à Telegram via sendPhoto.
+    """
+    try:
+        from backend.services.telegram_service import send_photo_bytes, is_configured
+        if not is_configured():
+            return {"ok": False, "error": "Telegram non configuré (TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID)"}
+        data = await file.read()
+        if not data:
+            return {"ok": False, "error": "Image vide"}
+        ok = send_photo_bytes(data, caption=caption, filename=file.filename or "bilan.png")
+        return {"ok": bool(ok), "sent": bool(ok), "bytes": len(data)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -1244,6 +1244,24 @@ export const sendWeeklyDigest = (days = 7) =>
     `/api/social-stats/weekly-digest?days=${days}`, { method: 'POST' }
   );
 
+/** Envoie une image de bilan (Blob généré côté navigateur) sur Telegram. */
+export const sendReportImage = async (blob: Blob, caption = '') => {
+  const formData = new FormData();
+  formData.append('file', blob, `bilan-reseaux-${new Date().toISOString().slice(0, 10)}.png`);
+  formData.append('caption', caption);
+  const res = await fetch(`${BACKEND_URL}/api/social-stats/send-report-image`, {
+    method: 'POST',
+    headers: { ...authHeaders() }, // pas de Content-Type : le navigateur fixe le boundary multipart
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = new Error(`API ${res.status}`) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
+  }
+  return res.json() as Promise<{ ok: boolean; sent?: boolean; bytes?: number; error?: string }>;
+};
+
 // ============================================================
 // OBSERVATOIRE SOCIAL — historique & évolution
 // ============================================================

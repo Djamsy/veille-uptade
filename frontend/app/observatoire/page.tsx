@@ -8,7 +8,7 @@ import { DecisionInsights } from '../_components/dashboard/DecisionInsights'
 import {
   triggerSocialSnapshot,
   backfillMediaCache,
-  sendWeeklyDigest,
+  sendReportImage,
   fetchWebHistory,
   fetchSocialEvolution,
   fetchDecisionInsights,
@@ -19,7 +19,7 @@ import {
   type DecisionInsights as DecisionInsightsData,
   type AccountSnapshot,
 } from '../../lib/api'
-import { exportWeeklyReportPNG } from '../../lib/weeklyReport'
+import { exportWeeklyReportPNG, renderWeeklyReportBlob } from '../../lib/weeklyReport'
 
 function fmt(n?: number | null): string {
   if (n === null || n === undefined) return '—'
@@ -86,11 +86,14 @@ export default function ObservatoirePage() {
   }
 
   const [sendingDigest, setSendingDigest] = useState(false)
-  const handleSendDigest = async () => {
+  const handleSendPng = async () => {
     setSendingDigest(true); setMsg(null)
     try {
-      const r = await sendWeeklyDigest(days)
-      setMsg(r.sent ? 'Bilan hebdo envoyé sur Telegram ✓' : (r.error || 'Envoi du bilan échoué'))
+      const blob = await renderWeeklyReportBlob({ web, webPrev, evolution, insights, history })
+      if (!blob) { setMsg('Impossible de générer le PNG'); return }
+      const caption = `📊 Bilan réseaux sociaux — ${days} derniers jours`
+      const r = await sendReportImage(blob, caption)
+      setMsg(r.sent ? 'Bilan PNG envoyé sur Telegram ✓' : (r.error || 'Envoi du bilan échoué'))
     } catch (e) {
       setMsg(apiErrorMessage(e, 'envoi du bilan Telegram'))
     } finally { setSendingDigest(false) }
@@ -152,11 +155,11 @@ export default function ObservatoirePage() {
                 style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
                 {backfilling ? 'Mise en cache…' : 'Cacher les vignettes'}
               </button>
-              <button onClick={handleSendDigest} disabled={sendingDigest}
-                title="Envoie le bilan de la période sélectionnée sur Telegram"
+              <button onClick={handleSendPng} disabled={sendingDigest}
+                title="Génère le PNG du bilan et l'envoie sur Telegram"
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-sm transition-colors disabled:opacity-50"
                 style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
-                {sendingDigest ? 'Envoi…' : 'Envoyer sur Telegram'}
+                {sendingDigest ? 'Envoi…' : 'Envoyer PNG sur Telegram'}
               </button>
               <button onClick={handleCapture} disabled={capturing}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-sm transition-colors disabled:opacity-50"

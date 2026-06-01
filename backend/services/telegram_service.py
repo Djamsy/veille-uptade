@@ -90,6 +90,53 @@ def send_message(text: str, parse_mode: str = "HTML", disable_preview: bool = Tr
         return False
 
 
+def send_photo_bytes(image_bytes: bytes, caption: str = "", filename: str = "bilan.png") -> bool:
+    """Envoie une image (bytes PNG/JPG) sur Telegram via sendPhoto.
+
+    Pour préserver la pleine résolution du bilan (image A4 haute déf), on
+    bascule automatiquement sur sendDocument si l'image dépasse les limites
+    de sendPhoto (10 Mo / dimensions). Retourne True si succès.
+    """
+    if not is_configured():
+        logger.debug("Telegram non configuré — image ignorée")
+        return False
+
+    # sendPhoto compresse et limite à 10 Mo ; au-delà → sendDocument.
+    method = "sendPhoto" if len(image_bytes) < 10 * 1024 * 1024 else "sendDocument"
+    field = "photo" if method == "sendPhoto" else "document"
+
+    try:
+        import time
+        boundary = f"----TGBoundary{int(time.time())}"
+        parts = []
+        # caption + chat_id
+        for name, val in (("chat_id", str(CHAT_ID)), ("caption", caption[:1024]), ("parse_mode", "HTML")):
+            parts.append(
+                f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{val}\r\n".encode("utf-8")
+            )
+        # fichier
+        head = (
+            f"--{boundary}\r\nContent-Disposition: form-data; name=\"{field}\"; "
+            f"filename=\"{filename}\"\r\nContent-Type: image/png\r\n\r\n"
+        ).encode("utf-8")
+        body = b"".join(parts) + head + image_bytes + f"\r\n--{boundary}--\r\n".encode("utf-8")
+
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/{method}"
+        req = urllib.request.Request(
+            url, data=body, method="POST",
+            headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        )
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            result = json.loads(resp.read())
+            if result.get("ok"):
+                return True
+            logger.warning(f"Telegram {method} erreur: {result}")
+            return False
+    except Exception as e:
+        logger.warning(f"Telegram envoi image échoué: {e}")
+        return False
+
+
 # ── Templates de notification ──────────────────────────────
 
 def _gravity_emoji(gravity: float) -> str:

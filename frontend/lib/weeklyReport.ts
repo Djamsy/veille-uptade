@@ -556,8 +556,8 @@ export async function drawWeeklyReport(
   ctx.fillText(`Généré le ${frDate(now)} · Observatoire interne — données ${ins?.days ?? 7} derniers jours`, PAD, y + 26)
 }
 
-/** Wrapper navigateur : dessine le bilan et déclenche le téléchargement du PNG. */
-export async function exportWeeklyReportPNG(data: WeeklyReportData): Promise<void> {
+/** Dessine le bilan sur un canvas hors-écran et renvoie le PNG en Blob. */
+export async function renderWeeklyReportBlob(data: WeeklyReportData): Promise<Blob | null> {
   const scale = 2
   const canvas = document.createElement('canvas')
   canvas.width = REPORT_W * scale
@@ -567,19 +567,21 @@ export async function exportWeeklyReportPNG(data: WeeklyReportData): Promise<voi
 
   await drawWeeklyReport(ctx, data)
 
-  await new Promise<void>(resolve => {
-    canvas.toBlob(blob => {
-      if (blob) {
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `bilan-reseaux-${new Date().toISOString().slice(0, 10)}.png`
-        a.click()
-        URL.revokeObjectURL(url)
-      }
-      resolve()
-    }, 'image/png')
+  return await new Promise<Blob | null>(resolve => {
+    canvas.toBlob(blob => resolve(blob), 'image/png')
   })
+}
+
+/** Wrapper navigateur : dessine le bilan et déclenche le téléchargement du PNG. */
+export async function exportWeeklyReportPNG(data: WeeklyReportData): Promise<void> {
+  const blob = await renderWeeklyReportBlob(data)
+  if (!blob) return
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `bilan-reseaux-${new Date().toISOString().slice(0, 10)}.png`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 // Texte multi-ligne avec ellipse sur la dernière ligne.
