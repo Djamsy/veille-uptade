@@ -59,6 +59,12 @@ snscrape==0.7.0.20230622
 reportlab==4.0.7
 pillow==10.1.0
 
+# --- Rendu serveur du bilan PNG (navigateur headless) ---
+# Nécessite aussi le navigateur : `python -m playwright install chromium`
+# (ajouté en buildCommand, non bloquant). Si indisponible, le bilan hebdo
+# retombe automatiquement sur le digest texte.
+playwright==1.49.0
+
 # --- Telegram (léger) ---
 python-telegram-bot==20.7
 

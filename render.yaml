@@ -2,7 +2,10 @@ services:
   - type: web
     name: veille-api
     env: python
-    buildCommand: pip install -r backend/requirements.txt
+    # Installation de Chromium pour le rendu PNG du bilan (non bloquante :
+    # si l'env natif Render manque des libs système, le bilan hebdo retombe
+    # sur le digest texte sans casser le build).
+    buildCommand: pip install -r backend/requirements.txt && (python -m playwright install chromium || echo "playwright chromium install skipped")
     startCommand: >-
       uvicorn backend.server:app
       --host=0.0.0.0
@@ -15,3 +18,7 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
+      # URL publique du front (pour le rendu PNG serveur du bilan).
+      # À définir dans le dashboard Render. Si absent → digest texte.
+      - key: FRONTEND_URL
+        sync: false

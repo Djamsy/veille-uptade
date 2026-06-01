@@ -902,17 +902,37 @@ async def job_daily_report():
 
 
 async def job_weekly_digest():
-    """Envoie le bilan hebdomadaire RS (digest texte) par Telegram (lundi)."""
+    """Bilan hebdomadaire RS par Telegram (lundi).
+
+    Tente d'abord le rendu PNG serveur (Playwright) ; si indisponible,
+    retombe sur le digest texte — aucune semaine sans bilan.
+    """
     if _db is None:
         logger.warning("⚠️ Bilan hebdo: DB indisponible")
         return {"status": "skip", "reason": "no_db"}
 
     try:
-        from backend.services.weekly_digest_service import send_weekly_digest
+        # 1) Tentative PNG (navigateur headless)
+        try:
+            from backend.services.report_render_service import render_weekly_png
+            from backend.services.telegram_service import send_photo_bytes, is_configured as tg_ok
+            png = await render_weekly_png(days=7)
+            if png and tg_ok():
+                sent = await asyncio.get_running_loop().run_in_executor(
+                    None, send_photo_bytes, png, "📊 Bilan hebdomadaire — réseaux sociaux", "bilan-hebdo.png"
+                )
+                if sent:
+                    logger.info("📊 Bilan hebdo PNG envoyé")
+                    return {"ok": True, "mode": "png", "sent": True}
+        except Exception as e:
+            logger.warning(f"Bilan hebdo PNG indisponible, fallback texte: {e}")
 
+        # 2) Fallback : digest texte
+        from backend.services.weekly_digest_service import send_weekly_digest
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, send_weekly_digest, 7, _db)
-        logger.info(f"📊 Bilan hebdo RS — envoyé: {result.get('sent')}")
+        result["mode"] = "text"
+        logger.info(f"📊 Bilan hebdo (texte) — envoyé: {result.get('sent')}")
         return result
 
     except Exception as e:

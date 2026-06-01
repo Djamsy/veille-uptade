@@ -2715,6 +2715,23 @@ async def trigger_weekly_digest(days: int = 7, admin: dict = Depends(require_adm
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/social-stats/weekly-png")
+async def trigger_weekly_png(days: int = 7, admin: dict = Depends(require_admin)):
+    """Rend le bilan en PNG côté serveur (Playwright) et l'envoie sur Telegram. (admin)"""
+    try:
+        from backend.services.report_render_service import render_weekly_png
+        from backend.services.telegram_service import send_photo_bytes, is_configured
+        if not is_configured():
+            return {"ok": False, "error": "Telegram non configuré"}
+        png = await render_weekly_png(days=days)
+        if not png:
+            return {"ok": False, "error": "Rendu PNG indisponible (FRONTEND_URL / Chromium ?). Voir logs."}
+        sent = send_photo_bytes(png, caption=f"📊 Bilan réseaux sociaux — {days} derniers jours", filename="bilan-hebdo.png")
+        return {"ok": bool(sent), "sent": bool(sent), "bytes": len(png)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/social-stats/scrape-post/{post_id}")
 async def trigger_single_post_scrape(post_id: str, admin: dict = Depends(require_admin)):
     """Scrape les stats/commentaires d'un post spécifique (cas viral). (admin)"""
