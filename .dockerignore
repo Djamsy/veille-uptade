@@ -1,0 +1,10 @@
+# L'image backend n'a besoin que du dossier backend/.
+frontend
+node_modules
+.git
+.next
+**/__pycache__
+**/*.pyc
+*.log
+.env
+.env.*
