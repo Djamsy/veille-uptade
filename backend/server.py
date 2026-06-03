@@ -2009,14 +2009,16 @@ async def list_campaigns(status: str = Query(None)):
 # IMPORTANT : route statique déclarée AVANT /api/campaigns/{id} (sinon « insights »
 # serait capturé comme un campaign_id).
 @app.get("/api/campaigns/insights")
-async def campaign_insights(days: int = Query(7, ge=1, le=365)):
+async def campaign_insights(days: int = Query(7, ge=1, le=365), refresh: bool = False):
     """Données décisionnelles agrégées (top post, ce qui marche, sentiment, reco).
 
-    Source unique pour les cartes des pages Observatoire et Campagnes.
+    Source unique pour les cartes des pages Observatoire et Campagnes. Résultat
+    caché par horizon (cache mensuel pour la fenêtre 12 mois) ; `refresh=true`
+    force le recalcul.
     """
     try:
-        from backend.services.campaign_service import get_decision_insights
-        return get_decision_insights(days=days, db=db)
+        from backend.services.campaign_service import get_decision_insights_cached
+        return get_decision_insights_cached(days=days, db=db, force=refresh)
     except Exception as e:
         logger.error(f"Erreur insights: {e}")
         raise HTTPException(status_code=500, detail=str(e))

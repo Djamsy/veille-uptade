@@ -943,6 +943,27 @@ async def job_weekly_digest():
         return {"status": "error", "reason": str(e)}
 
 
+async def job_refresh_insights_cache():
+    """Recalcule le cache des insights pour les horizons longs (le 1er du mois).
+
+    Rend le snapshot « Mois » et « Évolution globale (12 mois) » déterministe et
+    instantané au chargement, sans faire payer le recalcul au premier visiteur.
+    L'horizon semaine n'est pas pré-calculé (il se rafraîchit tout seul).
+    """
+    if _db is None:
+        return {"status": "skip", "reason": "no_db"}
+    try:
+        from backend.services.campaign_service import get_decision_insights_cached
+        loop = asyncio.get_running_loop()
+        for d in (30, 365):
+            await loop.run_in_executor(None, lambda dd=d: get_decision_insights_cached(days=dd, db=_db, force=True))
+        logger.info("📅 Cache insights (30j + 12 mois) pré-calculé")
+        return {"ok": True, "refreshed": [30, 365]}
+    except Exception as e:
+        logger.error(f"❌ Erreur pré-calcul cache insights: {e}")
+        return {"status": "error", "reason": str(e)}
+
+
 async def job_predictive_analysis():
     """Lance l'analyse prédictive IA sur les affaires actives et stocke le résultat."""
     if _db is None:
@@ -1169,6 +1190,14 @@ def _ensure_scheduler():
         CronTrigger(day="*/2", hour="9", minute="0", timezone=TZ),
         id="campaign_auto_analysis",
         name="Auto-analyse campagnes RS (tous les 2j)"
+    )
+
+    # 📅 Pré-calcul du cache des insights longs (mois + 12 mois) le 1er du mois
+    _scheduler.add_job(
+        job_refresh_insights_cache,
+        CronTrigger(day=1, hour=0, minute=30, timezone=TZ),
+        id="refresh_insights_cache",
+        name="Pré-calcul insights mensuel/global (1er du mois)"
     )
 
     # Analyse predictive IA toutes les heures (minute 30)

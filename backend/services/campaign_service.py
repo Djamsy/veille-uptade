@@ -331,6 +331,52 @@ def get_decision_insights(days: int = 7, db=None) -> Dict[str, Any]:
     }
 
 
+# Fraîcheur du cache par horizon (en secondes) : la semaine bouge chaque jour,
+# le mois se rafraîchit quotidiennement, l'évolution globale (12 mois) est
+# stable → cache mensuel. Les autres valeurs retombent sur 24 h.
+_INSIGHTS_TTL = {7: 6 * 3600, 30: 24 * 3600, 365: 30 * 24 * 3600}
+
+
+def get_decision_insights_cached(days: int = 7, db=None, force: bool = False) -> Dict[str, Any]:
+    """Version cachée de get_decision_insights (collection `insights_cache`).
+
+    Lecture « read-through » : renvoie le cache s'il est plus récent que le TTL
+    de l'horizon, sinon recalcule et le stocke. `force=True` recalcule toujours
+    (utilisé par le pré-calcul mensuel planifié). Le calcul reste une simple
+    agrégation Mongo — le cache évite surtout de la refaire à chaque chargement
+    de page, notamment pour la fenêtre 12 mois.
+    """
+    if db is None:
+        db = _get_db()
+
+    ttl = _INSIGHTS_TTL.get(days, 24 * 3600)
+    now_ts = datetime.now(timezone.utc).timestamp()
+    cache_id = f"insights_{days}"
+    col = db["insights_cache"]
+
+    if not force:
+        try:
+            doc = col.find_one({"_id": cache_id})
+            if doc and (now_ts - doc.get("cached_ts", 0)) < ttl:
+                data = doc.get("data") or {}
+                data["cached"] = True
+                return data
+        except Exception as e:
+            logger.warning(f"Lecture cache insights échouée: {e}")
+
+    data = get_decision_insights(days=days, db=db)
+    try:
+        col.update_one(
+            {"_id": cache_id},
+            {"$set": {"data": data, "cached_ts": now_ts}},
+            upsert=True,
+        )
+    except Exception as e:
+        logger.warning(f"Écriture cache insights échouée: {e}")
+    data["cached"] = False
+    return data
+
+
 
 # ============================================================
 # BUFFER API (GraphQL — nouvelle API officielle)
