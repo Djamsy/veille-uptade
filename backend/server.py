@@ -2009,7 +2009,7 @@ async def list_campaigns(status: str = Query(None)):
 # IMPORTANT : route statique déclarée AVANT /api/campaigns/{id} (sinon « insights »
 # serait capturé comme un campaign_id).
 @app.get("/api/campaigns/insights")
-async def campaign_insights(days: int = Query(7, ge=1, le=90)):
+async def campaign_insights(days: int = Query(7, ge=1, le=365)):
     """Données décisionnelles agrégées (top post, ce qui marche, sentiment, reco).
 
     Source unique pour les cartes des pages Observatoire et Campagnes.

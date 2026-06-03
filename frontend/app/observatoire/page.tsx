@@ -27,6 +27,19 @@ function fmt(n?: number | null): string {
   return String(Math.round(n))
 }
 
+// Trois horizons d'analyse : semaine, mois, évolution globale (12 mois).
+const PERIODS: { d: number; label: string; title: string }[] = [
+  { d: 7, label: 'Semaine', title: '7 derniers jours' },
+  { d: 30, label: 'Mois', title: '30 derniers jours' },
+  { d: 365, label: '12 mois', title: 'Évolution globale (12 derniers mois)' },
+]
+
+/** Libellé lisible d'un horizon (ex. 365 → « 12 derniers mois »). */
+function periodLabel(days: number): string {
+  if (days >= 365) return '12 derniers mois'
+  return `${days} derniers jours`
+}
+
 const WEB_CARDS: { key: keyof WebTrafficPoint; label: string; suffix?: string }[] = [
   { key: 'sessions', label: 'Sessions' },
   { key: 'pageviews', label: 'Pages vues' },
@@ -50,7 +63,9 @@ export default function ObservatoirePage() {
   const [days, setDays] = useState(7)
 
   const loadData = useCallback(() => {
-    fetchWebHistory(90).then(r => {
+    // Trafic web : on garde une fenêtre ≥ 90j pour toujours disposer du
+    // dernier point (saisi manuellement, parfois espacé) et de sa tendance.
+    fetchWebHistory(Math.max(days, 90)).then(r => {
       setWeb(r.latest)
       // avant-dernier point (pour les tendances du bilan)
       const pts = r.points || []
@@ -58,7 +73,8 @@ export default function ObservatoirePage() {
     }).catch(() => {})
     fetchSocialEvolution().then(setEvolution).catch(() => {})
     fetchDecisionInsights(days).then(setInsights).catch(() => {})
-    fetchSocialHistory(undefined, 30).then(r => setHistory(r.series || {})).catch(() => {})
+    // L'historique social suit l'horizon sélectionné (7j / 30j / 12 mois).
+    fetchSocialHistory(undefined, days).then(r => setHistory(r.series || {})).catch(() => {})
   }, [days])
 
   useEffect(() => { loadData() }, [loadData, refreshKey])
@@ -91,7 +107,7 @@ export default function ObservatoirePage() {
     try {
       const blob = await renderWeeklyReportBlob({ web, webPrev, evolution, insights, history })
       if (!blob) { setMsg('Impossible de générer le PNG'); return }
-      const caption = `📊 Bilan réseaux sociaux — ${days} derniers jours`
+      const caption = `📊 Bilan réseaux sociaux — ${periodLabel(days)}`
       const r = await sendReportImage(blob, caption)
       setMsg(r.sent ? 'Bilan PNG envoyé sur Telegram ✓' : (r.error || 'Envoi du bilan échoué'))
     } catch (e) {
@@ -128,14 +144,14 @@ export default function ObservatoirePage() {
             </div>
             <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
               {msg && <span className="font-mono text-[11px] w-full text-right mb-1" style={{ color: 'var(--text-muted)' }}>{msg}</span>}
-              <div className="inline-flex rounded-sm overflow-hidden" style={{ border: '1px solid var(--border)' }} role="group" aria-label="Période d'analyse">
-                {[7, 30, 90].map(d => (
-                  <button key={d} onClick={() => setDays(d)}
+              <div className="inline-flex rounded-sm overflow-hidden" style={{ border: '1px solid var(--border)' }} role="group" aria-label="Horizon d'analyse">
+                {PERIODS.map(({ d, label, title }) => (
+                  <button key={d} onClick={() => setDays(d)} title={title}
                     className="px-2.5 py-1.5 text-xs font-medium transition-colors"
                     style={days === d
                       ? { background: 'var(--accent-press)', color: 'var(--on-accent)' }
                       : { background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>
-                    {d}j
+                    {label}
                   </button>
                 ))}
               </div>
@@ -195,7 +211,7 @@ export default function ObservatoirePage() {
           </div>
 
           {/* Évolution sociale */}
-          <SocialEvolutionPanel key={refreshKey} />
+          <SocialEvolutionPanel key={refreshKey} days={days} />
 
           <p className="font-mono text-[11px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
             L'engagement est figé chaque soir, les abonnés une fois par semaine. Le trafic web et les

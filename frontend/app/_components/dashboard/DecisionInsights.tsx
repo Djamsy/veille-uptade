@@ -187,7 +187,7 @@ export function DecisionInsights({ days = 7, compact = false }: { days?: number;
     return (
       <Card>
         <Label>Outil de décision</Label>
-        <p className="text-[12px] text-white/40">Aucun post avec des statistiques sur les {data.days} derniers jours. Publie et lance un scrape pour alimenter ces cartes.</p>
+        <p className="text-[12px] text-white/40">Aucun post avec des statistiques sur {data.days >= 365 ? 'les 12 derniers mois' : `les ${data.days} derniers jours`}. Publie et lance un scrape pour alimenter ces cartes.</p>
       </Card>
     )
   }
