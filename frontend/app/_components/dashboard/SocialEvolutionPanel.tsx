@@ -67,7 +67,7 @@ function Sparkline({ data, color }: { data: AccountSnapshot[]; color: string }) 
   )
 }
 
-export function SocialEvolutionPanel({ days = 30 }: { days?: number }) {
+export function SocialEvolutionPanel({ days = 30, end = null }: { days?: number; end?: string | null }) {
   const [evo, setEvo] = useState<SocialEvolution | null>(null)
   const [history, setHistory] = useState<Record<string, AccountSnapshot[]>>({})
   const [loading, setLoading] = useState(true)
@@ -75,8 +75,8 @@ export function SocialEvolutionPanel({ days = 30 }: { days?: number }) {
 
   useEffect(() => {
     let alive = true
-    // Les courbes suivent l'horizon sélectionné (semaine / mois / 12 mois).
-    Promise.all([fetchSocialEvolution(), fetchSocialHistory(undefined, days)])
+    // Les courbes suivent l'horizon et la période choisis.
+    Promise.all([fetchSocialEvolution(), fetchSocialHistory(undefined, days, end)])
       .then(([e, h]) => {
         if (!alive) return
         setEvo(e)
@@ -85,7 +85,7 @@ export function SocialEvolutionPanel({ days = 30 }: { days?: number }) {
       .catch(() => { if (alive) setError(true) })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
-  }, [days])
+  }, [days, end])
 
   if (loading) {
     return (

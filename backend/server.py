@@ -2009,16 +2009,17 @@ async def list_campaigns(status: str = Query(None)):
 # IMPORTANT : route statique déclarée AVANT /api/campaigns/{id} (sinon « insights »
 # serait capturé comme un campaign_id).
 @app.get("/api/campaigns/insights")
-async def campaign_insights(days: int = Query(7, ge=1, le=365), refresh: bool = False):
+async def campaign_insights(days: int = Query(7, ge=1, le=365),
+                            end: str = Query(None), refresh: bool = False):
     """Données décisionnelles agrégées (top post, ce qui marche, sentiment, reco).
 
     Source unique pour les cartes des pages Observatoire et Campagnes. Résultat
-    caché par horizon (cache mensuel pour la fenêtre 12 mois) ; `refresh=true`
-    force le recalcul.
+    caché par horizon (cache mensuel pour la fenêtre 12 mois) ; `end` (YYYY-MM-DD)
+    cible une période passée ; `refresh=true` force le recalcul.
     """
     try:
         from backend.services.campaign_service import get_decision_insights_cached
-        return get_decision_insights_cached(days=days, db=db, force=refresh)
+        return get_decision_insights_cached(days=days, db=db, force=refresh, end=end)
     except Exception as e:
         logger.error(f"Erreur insights: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -2780,16 +2781,18 @@ async def social_stats_status():
 # ========== OBSERVATOIRE SOCIAL — historique & évolution ==========
 
 @app.get("/api/social-stats/history")
-async def social_stats_history(platform: str = Query(None), days: int = Query(30, ge=1, le=365)):
+async def social_stats_history(platform: str = Query(None), days: int = Query(30, ge=1, le=365),
+                               end: str = Query(None)):
     """Série temporelle des snapshots d'engagement par plateforme.
 
     Args:
         platform: filtre une plateforme (instagram/facebook/tiktok), ou toutes si absent.
         days: profondeur d'historique (1–365, défaut 30).
+        end: date de fin de fenêtre (YYYY-MM-DD) pour observer une période passée.
     """
     try:
         from backend.services.social_snapshot_service import get_history
-        return get_history(platform=platform, days=days)
+        return get_history(platform=platform, days=days, end=end)
     except Exception as e:
         logger.error(f"Social history error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -2859,11 +2862,14 @@ async def set_manual_web_traffic(payload: dict = Body(...), admin: dict = Depend
 
 
 @app.get("/api/social-stats/web-history")
-async def social_web_history(days: int = Query(90, ge=1, le=365)):
-    """Série temporelle du trafic web (pour la vue Évolution + l'export hebdo)."""
+async def social_web_history(days: int = Query(90, ge=1, le=365), end: str = Query(None)):
+    """Série temporelle du trafic web (pour la vue Évolution + l'export hebdo).
+
+    `end` (YYYY-MM-DD) borne la fenêtre pour observer une période passée.
+    """
     try:
         from backend.services.social_snapshot_service import get_web_history
-        return get_web_history(days=days)
+        return get_web_history(days=days, end=end)
     except Exception as e:
         logger.error(f"Web history error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

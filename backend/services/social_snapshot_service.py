@@ -169,20 +169,34 @@ def capture_followers_weekly() -> Dict[str, Any]:
     return capture_snapshots(include_followers=True)
 
 
-def get_history(platform: Optional[str] = None, days: int = 30) -> Dict[str, Any]:
+def _parse_end_date(end: Optional[str]):
+    """Date de fin de fenêtre (datetime UTC). None ou invalide → aujourd'hui."""
+    if end:
+        try:
+            return datetime.strptime(end, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        except ValueError:
+            pass
+    return datetime.now(timezone.utc)
+
+
+def get_history(platform: Optional[str] = None, days: int = 30,
+                end: Optional[str] = None) -> Dict[str, Any]:
     """Renvoie la série temporelle des snapshots sur `days` jours.
 
     Args:
         platform: filtre une plateforme, ou None pour toutes.
         days: profondeur d'historique (défaut 30).
+        end: date de fin de fenêtre (YYYY-MM-DD, incluse). None = aujourd'hui.
 
     Returns:
         {ok, days, series: {platform: [{snapshot_date, engagement, followers, ...}]}}
     """
     db = _get_db()
-    since = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+    end_date = _parse_end_date(end)
+    since = (end_date - timedelta(days=days)).strftime("%Y-%m-%d")
+    until = end_date.strftime("%Y-%m-%d")
 
-    query: Dict[str, Any] = {"snapshot_date": {"$gte": since}}
+    query: Dict[str, Any] = {"snapshot_date": {"$gte": since, "$lte": until}}
     if platform:
         query["platform"] = platform
 
@@ -193,7 +207,7 @@ def get_history(platform: Optional[str] = None, days: int = 30) -> Dict[str, Any
     for snap in cursor:
         series.setdefault(snap["platform"], []).append(snap)
 
-    return {"ok": True, "days": days, "series": series}
+    return {"ok": True, "days": days, "end": end, "series": series}
 
 
 def get_evolution() -> Dict[str, Any]:
@@ -316,14 +330,20 @@ def set_web_traffic(metrics: Dict[str, Any], date_str: Optional[str] = None) -> 
     return {"ok": True, "snapshot_date": snapshot_date, "metrics": {k: doc[k] for k in _WEB_METRICS if k in doc}}
 
 
-def get_web_history(days: int = 90) -> Dict[str, Any]:
-    """Série temporelle du trafic web sur `days` jours (pour la vue + l'export)."""
+def get_web_history(days: int = 90, end: Optional[str] = None) -> Dict[str, Any]:
+    """Série temporelle du trafic web sur `days` jours (pour la vue + l'export).
+
+    `end` (YYYY-MM-DD, incluse) borne la fenêtre à droite ; None = aujourd'hui.
+    `latest` est alors le dernier point ≤ end (cohérent pour une période passée).
+    """
     db = _get_db()
-    since = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+    end_date = _parse_end_date(end)
+    since = (end_date - timedelta(days=days)).strftime("%Y-%m-%d")
+    until = end_date.strftime("%Y-%m-%d")
     points = list(
         db["account_snapshots"].find(
-            {"platform": WEB_SOURCE, "snapshot_date": {"$gte": since}}, {"_id": 0}
+            {"platform": WEB_SOURCE, "snapshot_date": {"$gte": since, "$lte": until}}, {"_id": 0}
         ).sort("snapshot_date", 1)
     )
     latest = points[-1] if points else None
-    return {"ok": True, "days": days, "points": points, "latest": latest}
+    return {"ok": True, "days": days, "end": end, "points": points, "latest": latest}

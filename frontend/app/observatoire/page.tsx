@@ -40,6 +40,27 @@ function periodLabel(days: number): string {
   return `${days} derniers jours`
 }
 
+// ── Navigation de la période d'observation (date de fin) ──
+const isoDay = (d: Date) => d.toISOString().slice(0, 10)
+const todayIso = () => isoDay(new Date())
+
+/** Décale une date (YYYY-MM-DD, ou aujourd'hui si null) de `delta` jours. */
+function shiftDay(end: string | null, delta: number): string {
+  const d = end ? new Date(end + 'T00:00:00') : new Date()
+  d.setDate(d.getDate() + delta)
+  return isoDay(d)
+}
+
+/** Plage observée « 19 mai → 25 mai 2026 » pour un horizon donné. */
+function rangeLabel(end: string | null, days: number): string {
+  const endD = end ? new Date(end + 'T00:00:00') : new Date()
+  const startD = new Date(endD)
+  startD.setDate(startD.getDate() - days)
+  const f = (d: Date, withYear: boolean) =>
+    d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', ...(withYear ? { year: 'numeric' } : {}) })
+  return `${f(startD, startD.getFullYear() !== endD.getFullYear())} → ${f(endD, true)}`
+}
+
 const WEB_CARDS: { key: keyof WebTrafficPoint; label: string; suffix?: string }[] = [
   { key: 'sessions', label: 'Sessions' },
   { key: 'pageviews', label: 'Pages vues' },
@@ -61,21 +82,23 @@ export default function ObservatoirePage() {
   const [insights, setInsights] = useState<DecisionInsightsData | null>(null)
   const [history, setHistory] = useState<Record<string, AccountSnapshot[]>>({})
   const [days, setDays] = useState(7)
+  // Date de fin de la fenêtre d'observation (null = aujourd'hui).
+  const [endDate, setEndDate] = useState<string | null>(null)
 
   const loadData = useCallback(() => {
     // Trafic web : on garde une fenêtre ≥ 90j pour toujours disposer du
     // dernier point (saisi manuellement, parfois espacé) et de sa tendance.
-    fetchWebHistory(Math.max(days, 90)).then(r => {
+    fetchWebHistory(Math.max(days, 90), endDate).then(r => {
       setWeb(r.latest)
       // avant-dernier point (pour les tendances du bilan)
       const pts = r.points || []
       setWebPrev(pts.length >= 2 ? pts[pts.length - 2] : null)
     }).catch(() => {})
     fetchSocialEvolution().then(setEvolution).catch(() => {})
-    fetchDecisionInsights(days).then(setInsights).catch(() => {})
-    // L'historique social suit l'horizon sélectionné (7j / 30j / 12 mois).
-    fetchSocialHistory(undefined, days).then(r => setHistory(r.series || {})).catch(() => {})
-  }, [days])
+    fetchDecisionInsights(days, endDate).then(setInsights).catch(() => {})
+    // L'historique social suit l'horizon et la période choisis.
+    fetchSocialHistory(undefined, days, endDate).then(r => setHistory(r.series || {})).catch(() => {})
+  }, [days, endDate])
 
   useEffect(() => { loadData() }, [loadData, refreshKey])
 
@@ -141,6 +164,9 @@ export default function ObservatoirePage() {
               <p className="font-mono text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
                 Évolution de l'engagement, des abonnés et du trafic web
               </p>
+              <p className="font-mono text-[11px] mt-1" style={{ color: 'var(--accent)' }}>
+                Période observée : {rangeLabel(endDate, days)}{!endDate && ' (en cours)'}
+              </p>
             </div>
             <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
               {msg && <span className="font-mono text-[11px] w-full text-right mb-1" style={{ color: 'var(--text-muted)' }}>{msg}</span>}
@@ -154,6 +180,30 @@ export default function ObservatoirePage() {
                     {label}
                   </button>
                 ))}
+              </div>
+
+              {/* Période d'observation : navigation ◀ ▶ + choix d'une date de fin */}
+              <div className="inline-flex items-center rounded-sm overflow-hidden" style={{ border: '1px solid var(--border)' }} role="group" aria-label="Période d'observation">
+                <button onClick={() => setEndDate(shiftDay(endDate, -days))}
+                  title="Période précédente" aria-label="Période précédente"
+                  className="px-2 py-1.5 text-xs transition-colors"
+                  style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>◀</button>
+                <input type="date" value={endDate ?? todayIso()} max={todayIso()}
+                  onChange={e => setEndDate(e.target.value >= todayIso() ? null : e.target.value)}
+                  title={`Fin de la période observée — ${rangeLabel(endDate, days)}`}
+                  className="px-1 py-1 text-xs font-medium bg-transparent outline-none"
+                  style={{ color: 'var(--text-secondary)', colorScheme: 'dark' }} />
+                <button onClick={() => { const n = shiftDay(endDate, days); setEndDate(n >= todayIso() ? null : n) }}
+                  disabled={!endDate}
+                  title="Période suivante" aria-label="Période suivante"
+                  className="px-2 py-1.5 text-xs transition-colors disabled:opacity-30"
+                  style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>▶</button>
+                <button onClick={() => setEndDate(null)} disabled={!endDate}
+                  title="Revenir à aujourd'hui"
+                  className="px-2 py-1.5 text-[11px] font-medium transition-colors disabled:opacity-30"
+                  style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)', borderLeft: '1px solid var(--border)' }}>
+                  Aujourd'hui
+                </button>
               </div>
               <button onClick={() => setShowEntry(true)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-sm transition-colors"
@@ -211,7 +261,7 @@ export default function ObservatoirePage() {
           </div>
 
           {/* Évolution sociale */}
-          <SocialEvolutionPanel key={refreshKey} days={days} />
+          <SocialEvolutionPanel key={refreshKey} days={days} end={endDate} />
 
           <p className="font-mono text-[11px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
             L'engagement est figé chaque soir, les abonnés une fois par semaine. Le trafic web et les

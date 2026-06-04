@@ -212,13 +212,18 @@ def get_campaign_posts(campaign_id: str = None, limit: int = 50, db=None) -> Lis
     return posts
 
 
-def get_decision_insights(days: int = 7, db=None) -> Dict[str, Any]:
+def get_decision_insights(days: int = 7, db=None, end: Optional[str] = None) -> Dict[str, Any]:
     """Agrège les données décisionnelles d'une période (défaut 7j).
 
     Source unique pour les cartes « outil de décision » des pages Observatoire et
     Campagnes — évite des dizaines d'appels côté front. Tout est calculé à partir
     de `campaign_posts` (stats maintenues par le scraper) et de l'`ai_analysis`
     des campagnes (sentiment, performance, recommandations).
+
+    Args:
+        days: profondeur de la fenêtre d'observation.
+        end: date de fin de la fenêtre (YYYY-MM-DD, incluse). None = aujourd'hui.
+             Permet de revoir le bilan d'une semaine/période passée.
 
     Renvoie : top_post, top_posts (3), what_works (issu IA), sentiment + reco,
     totaux de période.
@@ -227,7 +232,16 @@ def get_decision_insights(days: int = 7, db=None) -> Dict[str, Any]:
         db = _get_db()
 
     from datetime import datetime, timezone, timedelta
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    if end:
+        try:
+            end_dt = datetime.strptime(end, "%Y-%m-%d").replace(
+                hour=23, minute=59, second=59, tzinfo=timezone.utc)
+        except ValueError:
+            end_dt = datetime.now(timezone.utc)
+    else:
+        end_dt = datetime.now(timezone.utc)
+    cutoff = (end_dt - timedelta(days=days)).isoformat()
+    upper = end_dt.isoformat()
 
     def _v(post, key):
         return (post.get("stats") or {}).get(key, 0) or 0
@@ -270,7 +284,7 @@ def get_decision_insights(days: int = 7, db=None) -> Dict[str, Any]:
 
     # Posts de la période (avec au moins une vue, pour ignorer les coquilles vides)
     recent = list(db["campaign_posts"].find(
-        {"published_at": {"$gte": cutoff}},
+        {"published_at": {"$gte": cutoff, "$lte": upper}},
         {"title": 1, "media_url": 1, "media_type": 1, "campaign_name": 1,
          "published_at": 1, "stats": 1, "platform_stats": 1, "sentiment": 1, "comments_scraped": 1},
     ))
@@ -321,6 +335,7 @@ def get_decision_insights(days: int = 7, db=None) -> Dict[str, Any]:
     return {
         "ok": True,
         "days": days,
+        "end": end,
         "top_post": top_post,
         "top_posts": top_posts,
         "totals": totals,
@@ -337,21 +352,22 @@ def get_decision_insights(days: int = 7, db=None) -> Dict[str, Any]:
 _INSIGHTS_TTL = {7: 6 * 3600, 30: 24 * 3600, 365: 30 * 24 * 3600}
 
 
-def get_decision_insights_cached(days: int = 7, db=None, force: bool = False) -> Dict[str, Any]:
+def get_decision_insights_cached(days: int = 7, db=None, force: bool = False,
+                                 end: Optional[str] = None) -> Dict[str, Any]:
     """Version cachée de get_decision_insights (collection `insights_cache`).
 
     Lecture « read-through » : renvoie le cache s'il est plus récent que le TTL
     de l'horizon, sinon recalcule et le stocke. `force=True` recalcule toujours
-    (utilisé par le pré-calcul mensuel planifié). Le calcul reste une simple
-    agrégation Mongo — le cache évite surtout de la refaire à chaque chargement
-    de page, notamment pour la fenêtre 12 mois.
+    (utilisé par le pré-calcul mensuel planifié). `end` cible une période passée
+    (clé de cache distincte). Le calcul reste une simple agrégation Mongo — le
+    cache évite surtout de la refaire à chaque chargement, notamment sur 12 mois.
     """
     if db is None:
         db = _get_db()
 
     ttl = _INSIGHTS_TTL.get(days, 24 * 3600)
     now_ts = datetime.now(timezone.utc).timestamp()
-    cache_id = f"insights_{days}"
+    cache_id = f"insights_{days}" if not end else f"insights_{days}_{end}"
     col = db["insights_cache"]
 
     if not force:
@@ -364,7 +380,7 @@ def get_decision_insights_cached(days: int = 7, db=None, force: bool = False) ->
         except Exception as e:
             logger.warning(f"Lecture cache insights échouée: {e}")
 
-    data = get_decision_insights(days=days, db=db)
+    data = get_decision_insights(days=days, db=db, end=end)
     try:
         col.update_one(
             {"_id": cache_id},

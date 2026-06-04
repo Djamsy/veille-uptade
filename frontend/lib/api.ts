@@ -1169,8 +1169,8 @@ export interface DecisionInsights {
   summary: string;
 }
 
-export const fetchDecisionInsights = (days = 7) =>
-  apiFetch<DecisionInsights>(`/api/campaigns/insights?days=${days}`);
+export const fetchDecisionInsights = (days = 7, end?: string | null) =>
+  apiFetch<DecisionInsights>(`/api/campaigns/insights?days=${days}${end ? `&end=${end}` : ''}`);
 
 export const createCampaign = (data: { name: string; description?: string; keywords?: string[]; start_date?: string; end_date?: string }) =>
   apiFetch<{ ok: boolean; campaign: Campaign }>('/api/campaigns', { method: 'POST', body: JSON.stringify(data) });
@@ -1302,9 +1302,9 @@ export interface SocialEvolution {
   platforms: Record<string, PlatformEvolution>;
 }
 
-export const fetchSocialHistory = (platform?: string, days = 30) =>
+export const fetchSocialHistory = (platform?: string, days = 30, end?: string | null) =>
   apiFetch<SocialHistory>(
-    `/api/social-stats/history?days=${days}${platform ? `&platform=${platform}` : ''}`
+    `/api/social-stats/history?days=${days}${platform ? `&platform=${platform}` : ''}${end ? `&end=${end}` : ''}`
   );
 
 export const fetchSocialEvolution = () =>
@@ -1345,7 +1345,7 @@ export const setManualWebTraffic = (metrics: WebTrafficMetrics, date?: string) =
     { method: 'POST', body: JSON.stringify({ ...metrics, date }) }
   );
 
-export const fetchWebHistory = (days = 90) =>
+export const fetchWebHistory = (days = 90, end?: string | null) =>
   apiFetch<{ ok: boolean; days: number; points: WebTrafficPoint[]; latest: WebTrafficPoint | null }>(
-    `/api/social-stats/web-history?days=${days}`
+    `/api/social-stats/web-history?days=${days}${end ? `&end=${end}` : ''}`
   );
