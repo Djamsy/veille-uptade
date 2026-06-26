@@ -36,7 +36,14 @@ except ImportError:
         _tg_unlinked = None
 
 # ── Auth ──────────────────────────────────────────────────────
-SECRET_KEY = os.getenv("JWT_SECRET", "dev-secret-change-me")
+SECRET_KEY = os.getenv("JWT_SECRET")
+if not SECRET_KEY or SECRET_KEY == "dev-secret-change-me":
+    # Sécurité : on refuse de démarrer avec un secret faible/par défaut.
+    # Doit être identique à celui utilisé dans auth_routes.py pour valider les tokens.
+    raise RuntimeError(
+        "JWT_SECRET environment variable is required and must not be the default value. "
+        "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+    )
 ALGORITHM = "HS256"
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 

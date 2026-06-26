@@ -37,7 +37,7 @@ class ModernSocialMediaService:
             logger.error(f"❌ Erreur MongoDB: {e}")
         
         # Configuration Twitter API v2
-        self.twitter_bearer_token = "AAAAAAAAAAAAAAAAAAAAAFJR3QEAAAAAnkX1t%2FDFat7Ew%2BhH2QcTOtKrXOY%3D7b9DPe3oIMTcRDnM51YVO3XswfI6ckZLlbg7UCU9S1Xl6OeHD7"
+        self.twitter_bearer_token = os.environ.get("TWITTER_BEARER_TOKEN", "")
         self.twitter_headers = {
             'Authorization': f'Bearer {self.twitter_bearer_token}',
             'Content-Type': 'application/json'

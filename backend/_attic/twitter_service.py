@@ -45,7 +45,7 @@ class TwitterService:
         self.twitter_actor_id = '61RPP7dywgiy0JPD0'  # Actor Twitter Apify
         
         # Configuration Twitter API v2 (fallback)
-        self.bearer_token = "AAAAAAAAAAAAAAAAAAAAAFJR3QEAAAAAnkX1t%2FDFat7Ew%2BhH2QcTOtKrXOY%3D7b9DPe3oIMTcRDnM51YVO3XswfI6ckZLlbg7UCU9S1Xl6OeHD7"
+        self.bearer_token = os.environ.get("TWITTER_BEARER_TOKEN", "")
         self.twitter_headers = {
             'Authorization': f'Bearer {self.bearer_token}',
             'Content-Type': 'application/json',
