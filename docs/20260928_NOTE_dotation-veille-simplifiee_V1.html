@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8">
+<title>Note de dotation — Plateforme Veille Média Guadeloupe (version courte)</title>
+<style>
+ @page { size: A4; margin: 18mm 17mm; }
+ body { font-family: "DejaVu Sans", Arial, sans-serif; color:#1b1f2a; font-size:10.5pt; line-height:1.45; margin:0; }
+ h1 { font-size:19pt; color:#1e40af; margin:0 0 2px; }
+ h2 { font-size:12.5pt; color:#1e40af; border-bottom:2px solid #1e40af; padding-bottom:3px; margin:20px 0 8px; }
+ .sub { color:#5b6270; margin-bottom:12px; }
+ .kpis { display:flex; gap:10px; margin:14px 0; }
+ .kpi { flex:1; border:1px solid #d9dce3; border-radius:8px; padding:10px; text-align:center; }
+ .kpi .v { font-size:22pt; font-weight:800; color:#1e40af; } .kpi.cur .v { color:#5b6270; }
+ .kpi .l { font-size:9pt; color:#5b6270; }
+ table { width:100%; border-collapse:collapse; margin:8px 0; }
+ th, td { border:1px solid #d9dce3; padding:5px 8px; font-size:9.8pt; vertical-align:top; text-align:left; }
+ th { background:#f3f5f9; } td.n, th.n { text-align:right; white-space:nowrap; }
+ tr.total td { font-weight:700; background:#e8eefc; }
+ ul { margin:4px 0 6px 18px; padding:0; } li { margin:3px 0; }
+ .box { border-left:4px solid #1e40af; background:#e8eefc; padding:9px 12px; margin:10px 0; border-radius:0 6px 6px 0; }
+ .small { font-size:8.8pt; color:#5b6270; }
+</style></head><body>
+
+<div class="small">NOTE INTERNE · 28 SEPTEMBRE 2026 · PÉRIODE OCTOBRE 2026 – SEPTEMBRE 2027</div>
+<h1>Demande de dotation budgétaire</h1>
+<div class="sub">Plateforme de veille média Guadeloupe — passage à la captation radio intégrale</div>
+
+<div class="kpis">
+ <div class="kpi cur"><div class="v">≈ 165 €</div><div class="l">dépense actuelle par mois</div></div>
+ <div class="kpi"><div class="v">200 €</div><div class="l">dotation demandée par mois</div></div>
+ <div class="kpi cur"><div class="v">+ 35 €</div><div class="l">écart mensuel, pour 5,5 × plus de radio</div></div>
+</div>
+
+<h2>1. Ce que fait la plateforme aujourd'hui</h2>
+<ul>
+ <li><strong>Presse en ligne</strong> : France-Antilles, RCI, La 1<sup>ère</sup>, KaribInfo, collectés en continu et analysés par IA (thèmes, communes, élus, sentiment, affaires, bruit médiatique).</li>
+ <li><strong>Réseaux sociaux</strong> : Facebook, Instagram et TikTok des médias et institutions locales, 3 fois par jour, plus le suivi des comptes propres (statistiques, commentaires, observatoire).</li>
+ <li><strong>Radio</strong> : 10 journaux d'information par jour (RCI et La 1<sup>ère</sup>), 7 jours sur 7, soit 112 heures transcrites par mois.</li>
+ <li><strong>Cartographie et alertes</strong> : carte des 32 communes, présence médiatique des élus (96 élus référencés), alertes et briefing quotidien Telegram.</li>
+</ul>
+<p>Depuis la note d'avril, le module de présence des élus, l'observatoire des réseaux sociaux et la sécurisation du socle ont été livrés <strong>sans augmentation de budget</strong>. Le seul poste resté bridé est la radio.</p>
+
+<h2>2. Le problème</h2>
+<p>Seuls les journaux d'information sont captés. Or les prises de parole d'élus, les réactions citoyennes et les annonces institutionnelles surviennent surtout dans les matinales, les magazines de la rédaction, les libres antennes et les talks. Aujourd'hui la plateforme voit <strong>environ 14 %</strong> de la matière radio utile.</p>
+
+<h2>3. La proposition</h2>
+<div class="box">Capter l'intégralité de la grille de RCI Guadeloupe et Guadeloupe La 1<sup>ère</sup> de 6h à 19h30, du lundi au vendredi, journaux du week-end maintenus : <strong>≈ 620 heures transcrites par mois</strong> au lieu de 112.</div>
+<p>Ce volume est absorbé sans explosion des coûts grâce à trois choix techniques :</p>
+<ul>
+ <li><strong>Changer de moteur de transcription</strong> : même modèle Whisper, hébergé par Groq à 0,04 $ l'heure au lieu de 0,36 $ chez OpenAI. Testé le premier mois sur les 10 journaux actuels avant d'étendre.</li>
+ <li><strong>Filtrer avant d'analyser</strong> : tout est transcrit, mais seuls les passages qui citent un élu, une commune ou un thème suivi passent par l'analyse IA payante.</li>
+ <li><strong>Isoler la capture</strong> : un petit processus dédié à l'enregistrement, pour ne pas fragiliser l'interface.</li>
+</ul>
+
+<h2>4. Les chiffres</h2>
+<table>
+<tr><th>Poste</th><th>Aujourd'hui</th><th class="n">$/mois</th><th>Avec la captation intégrale</th><th class="n">$/mois</th></tr>
+<tr><td>Transcription radio</td><td>OpenAI Whisper, 112 h</td><td class="n">≈ 40</td><td>Groq Whisper, 620 h</td><td class="n">≈ 25</td></tr>
+<tr><td>Analyse IA</td><td>OpenAI GPT-4o-mini</td><td class="n">≈ 35</td><td>Idem, avec filtrage</td><td class="n">≈ 65</td></tr>
+<tr><td>Réseaux sociaux (Apify)</td><td>Plan Starter</td><td class="n">29</td><td>Inchangé</td><td class="n">29</td></tr>
+<tr><td>Base de données (MongoDB)</td><td>Flex à l'usage</td><td class="n">≈ 27</td><td>Flex au plafond</td><td class="n">30</td></tr>
+<tr><td>Hébergement (Render)</td><td>1 instance</td><td class="n">25</td><td>+ processus de capture</td><td class="n">32</td></tr>
+<tr><td>Outil de développement (Claude)</td><td>Pro</td><td class="n">20</td><td>Inchangé</td><td class="n">20</td></tr>
+<tr><td>Frontend, Buffer, images, cartes, Telegram</td><td>Offres gratuites</td><td class="n">0</td><td>Inchangé</td><td class="n">0</td></tr>
+<tr class="total"><td>Total</td><td>≈ 165 € / mois</td><td class="n">≈ 176</td><td>≈ 190 € / mois, arrondi à 200 €</td><td class="n">≈ 201</td></tr>
+</table>
+<p class="small">Estimation à partir de la configuration de production et des tarifs publics de septembre 2026 ; euros indicatifs (≈ 0,93 € pour 1 $). À rapprocher des factures de l'été avant diffusion. Une prestation externe équivalente est facturée entre 1 500 € et 4 000 € par mois.</p>
+
+<h2>5. Calendrier</h2>
+<table>
+<tr><th>Quand</th><th>Quoi</th><th class="n">Coût</th></tr>
+<tr><td>Octobre 2026</td><td>Bascule de la transcription vers Groq sur les 10 journaux actuels, validation de la qualité</td><td class="n">≈ 150 €</td></tr>
+<tr><td>Novembre 2026</td><td>Captation intégrale 6h-19h30 sur les deux stations, filtrage IA</td><td class="n">≈ 180 €</td></tr>
+<tr><td>Décembre 2026</td><td>Régime de croisière, premier bilan sur factures</td><td class="n">200 €</td></tr>
+<tr><td>2027 (option)</td><td>Week-end, soirée, podcasts et replays, presse nationale</td><td class="n">≈ 280 €</td></tr>
+</table>
+
+<h2>6. Demande</h2>
+<div class="box">Il est demandé une <strong>dotation mensuelle ferme de 200 €</strong> à compter du mois suivant validation, pour la captation intégrale des deux principales radios guadeloupéennes en jours ouvrés. L'extension au périmètre complet (≈ 280 € par mois) sera proposée en 2027 au vu des premières factures.</div>
+
+</body></html>
