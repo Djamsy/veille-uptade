@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Note de dotation budgétaire — Plateforme Veille Média Guadeloupe — V3</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm 18mm 15mm; }
+  :root { --ink:#1b1f2a; --muted:#5b6270; --line:#d9dce3; --soft:#f3f5f9; --brand:#1e40af; --brand-soft:#e8eefc; --ok:#166534; --ok-soft:#e6f4ea; --warn:#92400e; --warn-soft:#fdf3e3; --bad:#991b1b; --bad-soft:#fde8e8; }
+  * { box-sizing: border-box; }
+  body { font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif; color: var(--ink); font-size: 9.7pt; line-height: 1.38; margin: 0; }
+  h1 { font-size: 20pt; margin: 0 0 4px; color: var(--brand); letter-spacing: -0.2px; }
+  h2 { font-size: 13pt; margin: 22px 0 8px; padding-bottom: 4px; border-bottom: 2px solid var(--brand); color: var(--brand); page-break-after: avoid; }
+  h3 { font-size: 11pt; margin: 14px 0 6px; color: var(--ink); page-break-after: avoid; }
+  p { margin: 6px 0; }
+  .kicker { text-transform: uppercase; letter-spacing: 1.5px; font-size: 8.5pt; color: var(--muted); }
+  .subtitle { font-size: 11pt; color: var(--muted); margin-bottom: 14px; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 10px; page-break-inside: auto; }
+  tr { page-break-inside: avoid; }
+  th, td { border: 1px solid var(--line); padding: 4px 6px; vertical-align: top; text-align: left; font-size: 9pt; }
+  th { background: var(--soft); font-weight: 700; }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+  tr.total td { font-weight: 700; background: var(--brand-soft); }
+  .meta { border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; margin: 12px 0; background: var(--soft); }
+  .meta table { margin: 0; } .meta td { border: none; padding: 3px 6px; font-size: 9.6pt; }
+  .meta td:first-child { font-weight: 700; width: 160px; color: var(--muted); }
+  .kpis { display: flex; gap: 10px; margin: 14px 0 6px; }
+  .kpi { flex: 1; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; text-align: center; }
+  .kpi .v { font-size: 22pt; font-weight: 800; color: var(--brand); line-height: 1.1; }
+  .kpi .l { font-size: 8.8pt; color: var(--muted); margin-top: 4px; }
+  .kpi.cur .v { color: var(--muted); }
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 8.3pt; font-weight: 700; white-space: nowrap; }
+  .ok { background: var(--ok-soft); color: var(--ok); }
+  .warn { background: var(--warn-soft); color: var(--warn); }
+  .bad { background: var(--bad-soft); color: var(--bad); }
+  .neutral { background: var(--soft); color: var(--muted); }
+  .callout { border-left: 4px solid var(--brand); background: var(--brand-soft); padding: 8px 12px; margin: 10px 0; border-radius: 0 6px 6px 0; }
+  .callout.warn { border-color: var(--warn); background: var(--warn-soft); }
+  .callout strong { display: block; margin-bottom: 2px; }
+  .small { font-size: 8.8pt; color: var(--muted); }
+  ul { margin: 4px 0 6px 18px; padding: 0; } li { margin: 2px 0; }
+  .footer-note { margin-top: 26px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 8.4pt; color: var(--muted); }
+  .cols { display: flex; gap: 14px; } .cols > div { flex: 1; }
+  .pb { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<div class="kicker">Note interne · Septembre 2026 · Version 3 (remplace la V2 du 29 avril 2026)</div>
+<h1>Demande de dotation budgétaire</h1>
+<div class="subtitle">Plateforme de veille média — Guadeloupe<br>Outil interne d'intelligence média pour la communication institutionnelle</div>
+
+<div class="meta">
+<table>
+<tr><td>Objet</td><td>Actualisation du cadrage budgétaire de la plateforme et demande de dotation pour assurer la captation intégrale des radios généralistes guadeloupéennes, sur la base de l'état de fonctionnement constaté en septembre 2026.</td></tr>
+<tr><td>Date</td><td>28 septembre 2026</td></tr>
+<tr><td>Période concernée</td><td>Octobre 2026 — septembre 2027 (12 mois glissants)</td></tr>
+<tr><td>Références</td><td>Audit technique du 28 avril 2026 · Note V2 du 29 avril 2026 · Revue de projet du 6 mai 2026 · État du code de production au 1<sup>er</sup> juin 2026 (dernière mise en production)</td></tr>
+</table>
+</div>
+
+<div class="kpis">
+  <div class="kpi cur"><div class="v">≈ 165 €</div><div class="l">Dépense actuelle estimée<br>(périmètre radio bridé : 10 journaux/jour)</div></div>
+  <div class="kpi"><div class="v">200 €</div><div class="l">Dotation demandée — palier 1<br>captation intégrale 6h-19h30, lun.-ven.</div></div>
+  <div class="kpi"><div class="v">≈ 280 €</div><div class="l">Trajectoire — palier 2<br>périmètre complet 7j/7 + soirée + replays</div></div>
+</div>
+
+<div class="callout">
+<strong>Ce qui change par rapport à la note V2 (avril 2026)</strong>
+La demande est revue à la baisse (200 € au lieu de 250 € pour le palier 1, ≈ 280 € au lieu de 440 € pour le palier 2). Deux raisons : une partie de ce que le palier 1 devait financer a déjà été livrée à budget constant (module « présence des élus », extension réseaux sociaux, observatoire RS), et les optimisations de coût mises en production le 1<sup>er</sup> juin 2026 réduisent la base de départ. En revanche, l'extension de la captation radio, cœur de la demande d'avril, n'a pas été engagée : le périmètre radio est strictement le même qu'en avril.
+</div>
+
+<h2>1. Contexte et positionnement</h2>
+<p>La plateforme de veille média Guadeloupe est un outil interne développé pour assurer un suivi automatisé, structuré et continu de l'actualité régionale concernant le territoire. Elle agrège, transcrit, traite et analyse en continu des contenus issus de la presse en ligne, des réseaux sociaux et des radios guadeloupéennes, et en tire des « affaires » suivies dans le temps, un indicateur de bruit médiatique (BMG) et des alertes.</p>
+
+<h3>1.1 Périmètre fonctionnel constaté (septembre 2026)</h3>
+<table>
+<tr><th style="width:150px">Domaine</th><th>Fonctionnement réel</th><th style="width:135px">État</th></tr>
+<tr><td>Transcription radio</td><td>10 journaux d'information par jour, 7 jours sur 7 : RCI (6h20, 7h, 12h, 18h, 19h) et Guadeloupe La 1<sup>ère</sup> (6h, 6h15, 7h, 12h, 18h). 224 minutes d'antenne captées par jour, soit ≈ 112 heures par mois. Moteur : OpenAI Whisper (whisper-1). Conservation 90 jours.</td><td><span class="tag warn">Opérationnel — périmètre limité</span></td></tr>
+<tr><td>Veille presse</td><td>Collecte toutes les 5 minutes de France-Antilles, RCI, La 1<sup>ère</sup> et KaribInfo ; enrichissement IA (GPT-4o-mini) : entités, communes, thèmes, sentiment, résumé ; vecteurs sémantiques pour le rapprochement des articles. Conservation 120 jours. Presse nationale : script existant, non branché.</td><td><span class="tag ok">Opérationnel</span></td></tr>
+<tr><td>Réseaux sociaux — veille territoriale</td><td>Facebook, Instagram et TikTok via Apify, 3 fois par jour, sur 5 comptes de référence (RCI, La 1<sup>ère</sup>, Canal 10, La Pause Sans Filtre, Département) et des hashtags TikTok locaux. X/Twitter volontairement retiré (coût, faible pertinence locale) ; YouTube non collecté.</td><td><span class="tag ok">Opérationnel (3 réseaux)</span></td></tr>
+<tr><td>Réseaux sociaux — comptes propres</td><td>Statistiques des publications via Buffer (gratuit, 6 fois par jour), commentaires FB/IG/TikTok via Apify (2 fois par jour), instantanés quotidiens d'engagement et hebdomadaires d'abonnés, analyse IA des campagnes tous les 2 jours. Observatoire RS avec vue d'évolution, saisie manuelle (trafic web, abonnés), export PNG hebdomadaire et outil de décision (meilleur post, ce qui marche, sentiment).</td><td><span class="tag ok">Opérationnel — livré mai 2026</span></td></tr>
+<tr><td>Analyse IA et affaires</td><td>Classification, sentiment, BMG, création et consolidation d'affaires avec gardes-fous anti « boule de neige », dédoublonnage par empreinte de contenu, analyse prédictive 4 fois par jour (au lieu de 24 avant juin), bilan PDF et briefing Telegram quotidiens, alertes watchlist horaires.</td><td><span class="tag ok">Opérationnel</span></td></tr>
+<tr><td>Cartographie</td><td>Carte des 32 communes, tableau de bord « carte vivante », cycle de vie des affaires, monitoring administrateur des créations d'affaires.</td><td><span class="tag ok">Opérationnel</span></td></tr>
+<tr><td>Module personnalités (présence des élus)</td><td>Base officielle data.gouv.fr de 96 élus (32 maires, 42 conseillers départementaux, 39 conseillers régionaux), extraction IA à chaque cycle d'enrichissement, distinction présence physique / réaction à distance, carte choroplèthe et sélecteur de période. Accès administrateur uniquement. Historique conservé sans limite.</td><td><span class="tag ok">Déployé — mai 2026</span></td></tr>
+<tr><td>Publication</td><td>Bot de publication Telegram vers Buffer (immédiat ou file d'attente), hébergement d'images Cloudinary. Migration du schéma Buffer du 25 mai 2026 effectuée.</td><td><span class="tag ok">Opérationnel</span></td></tr>
+<tr><td>Socle technique</td><td>Sécurisation (secret JWT obligatoire, CORS explicite, routes destructives réservées aux administrateurs), restructuration du backend en paquets, contrôle d'import automatisé avant déploiement.</td><td><span class="tag ok">Livré mai 2026</span></td></tr>
+</table>
+
+<h3>1.2 Ce qui a été fait depuis la note V2 et ce qui ne l'a pas été</h3>
+<table>
+<tr><th style="width:290px">Engagement ou hypothèse de la note V2</th><th>Situation au 28 septembre 2026</th></tr>
+<tr><td>Déploiement du module cartographique des personnalités (palier 1)</td><td><span class="tag ok">Fait</span> — livré en mai 2026, sans surcoût d'abonnement.</td></tr>
+<tr><td>Couverture Facebook + Instagram + X + début TikTok, passage Apify Starter → Bronze (palier 1)</td><td><span class="tag ok">Fait autrement</span> — Facebook, Instagram et TikTok couverts dans le budget Apify existant (≈ 30 $/mois) grâce à 3 passages par jour au lieu de 24 et à des limites de résultats resserrées. X abandonné volontairement. Aucune montée de plan Apify nécessaire.</td></tr>
+<tr><td>Bascule du moteur de transcription vers Groq (levier n° 1)</td><td><span class="tag bad">Non fait</span> — la transcription reste sur OpenAI whisper-1. La décision de juin a porté sur l'enrichissement IA (GPT-4o-mini conservé pour préserver la qualité), pas sur la transcription. Le levier reste entièrement disponible.</td></tr>
+<tr><td>Captation intégrale 6h-19h30 sous 3 mois (palier 1)</td><td><span class="tag bad">Non engagé</span> — même grille qu'en avril : 10 journaux, 112 h/mois, soit ≈ 14 % de la matière radio utile.</td></tr>
+<tr><td>Rétention des données portée à 6 mois</td><td><span class="tag warn">Partiel</span> — articles 120 jours, transcriptions radio et posts sociaux 90 jours, présences d'élus et instantanés sociaux sans limite.</td></tr>
+<tr><td>Dépense mensuelle ≈ 177 $ / 165 €</td><td><span class="tag ok">Base réduite</span> — depuis le 1<sup>er</sup> juin : analyse prédictive ramenée de 24 à 4 exécutions par jour et un seul processus applicatif sur Render. La facture OpenAI de l'été est attendue en baisse ; à confirmer sur factures (voir section 4).</td></tr>
+</table>
+
+<h2>2. Enjeu éditorial — pourquoi étendre la captation radio</h2>
+<p>Le périmètre actuel se limite aux journaux d'information formels. Or, en radio, les sujets politiques, institutionnels ou sociétaux à enjeu ne sont pas confinés aux seuls journaux. Ils émergent dans les matinales avec invités, les magazines de la rédaction, les libres antennes, les talks d'après-midi et les chroniques. Une déclaration d'élu, une réaction citoyenne sur un sujet sensible ou une annonce institutionnelle peuvent intervenir à tout moment de la grille.</p>
+<p>Pour que la veille soit représentative de la conversation publique guadeloupéenne, la plateforme doit capter l'intégralité de la grille en plage utile (6h-19h30) sur les deux stations généralistes : RCI Guadeloupe et Guadeloupe La 1<sup>ère</sup>.</p>
+<div class="callout">
+<strong>Volume cible avec captation intégrale 6h-19h30</strong>
+27 heures d'antenne par jour (2 stations × 13h30). En jours ouvrés, avec maintien des journaux du week-end déjà captés : ≈ 620 heures de transcription par mois. En 7j/7 avec soirée (19h30-22h) : ≈ 960 heures par mois. Le périmètre actuel (112 h/mois) représente ≈ 14 % de la matière potentielle en semaine.
+</div>
+
+<h3>2.1 Couverture cible de la grille</h3>
+<table>
+<tr><th style="width:90px">Tranche</th><th>RCI Guadeloupe</th><th>Guadeloupe La 1<sup>ère</sup></th></tr>
+<tr><td>6h-9h</td><td>Grande Matinale (info, chroniques, invités, journaux 6h20 et 7h)</td><td>Matinale, journaux 6h, 6h15 et 7h</td></tr>
+<tr><td>9h-13h</td><td>Émissions de service et magazines</td><td>Émissions de service et de proximité, magazines</td></tr>
+<tr><td>13h-15h</td><td>Journal de la mi-journée et tranche d'enchaînement</td><td>Journal de midi et magazines</td></tr>
+<tr><td>15h-18h</td><td>Interviews, talks, libre antenne</td><td>Tranches culture, talk, proximité</td></tr>
+<tr><td>18h-19h30</td><td>Journal 18h, magazine de la rédaction (angle thématique quotidien : politique, économie, société…), journal 19h</td><td>Journal du soir et tranche de fin de journée</td></tr>
+</table>
+<p class="small">Le magazine de la rédaction de RCI en fin de journée constitue un point particulièrement stratégique : un angle thématique différent chaque jour de la semaine, donc une matière éditoriale dense pour la veille institutionnelle. Les horaires exacts sont à recaler sur les grilles de rentrée 2026-2027 au moment de la mise en production.</p>
+
+<h2>3. Stratégie technique — captation intégrale à coût maîtrisé</h2>
+<p>Multiplier par cinq à six le volume transcrit avec le moteur actuel coûterait à lui seul ≈ 220 $ par mois (620 h × 0,36 $). L'architecture proposée atteint la couverture intégrale pour une fraction de ce montant.</p>
+<table>
+<tr><th style="width:170px">Levier</th><th>Description</th><th style="width:190px">Effet sur le coût</th></tr>
+<tr><td>1. Bascule du moteur de transcription (OpenAI whisper-1 → Groq Whisper Large v3 Turbo)</td><td>Même famille de modèle (Whisper), hébergée par Groq à 0,04 $ par heure d'audio au lieu de 0,36 $. Bascule transparente côté fonctionnel. Le modèle complet Whisper Large v3 (0,111 $/h) reste disponible en secours si la qualité sur le français et le créole l'exige. Cette bascule peut être validée dès le premier mois sur les 10 journaux actuels, avant toute extension de grille.</td><td>620 h/mois : de ≈ 220 $ à ≈ 25 $ (≈ 70 $ avec le modèle complet).</td></tr>
+<tr><td>2. Filtrage IA en aval</td><td>Toute la grille est transcrite, mais l'enrichissement coûteux (sentiment, classification, BMG, rattachement aux affaires) ne s'applique qu'aux segments contenant des marqueurs de veille (élus de la base officielle, communes, thématiques suivies). Musique et pure animation sont transcrites mais non analysées. L'enrichissement reste sur GPT-4o-mini, conformément à la décision de juin de ne pas dégrader la qualité.</td><td>Le poste enrichissement ne suit pas le volume : ≈ +30 $/mois au lieu de ×5.</td></tr>
+<tr><td>3. Processus de capture dédié</td><td>La capture continue de deux flux 13h30 par jour ne doit pas cohabiter avec l'API dans le même processus (un seul processus applicatif depuis juin). Un « background worker » Render dédié à la capture et à la transcription isole cette charge.</td><td>+7 $/mois (Starter) au palier 1, +25 $/mois (Standard) au palier 2.</td></tr>
+</table>
+
+<h2>4. Postes de dépense actuels</h2>
+<p>Estimation établie à partir de la configuration de production et des tarifs publics de septembre 2026. Les montants marqués « à confirmer » doivent être rapprochés des factures de juin à septembre 2026 avant diffusion de la note.</p>
+<table>
+<tr><th>Service</th><th>Fonction</th><th class="num">USD / mois</th><th class="num">EUR / mois</th><th style="width:150px">Base</th></tr>
+<tr><td>OpenAI</td><td>Transcription des 10 journaux (whisper-1 : 6 720 min × 0,006 $ ≈ 40 $) + enrichissement, affaires, analyse prédictive, présences (GPT-4o-mini) + vecteurs sémantiques</td><td class="num">≈ 75</td><td class="num">≈ 70</td><td><span class="tag warn">À confirmer</span> borne haute (base avril, avant l'optimisation de juin)</td></tr>
+<tr><td>Apify</td><td>Collecte réseaux sociaux (plan Starter) : veille 3×/jour + commentaires comptes propres 2×/jour</td><td class="num">≈ 29-30</td><td class="num">≈ 28</td><td>Plan public 29 $ ; budget codé 30 $</td></tr>
+<tr><td>MongoDB Atlas</td><td>Base de données (plan Flex à l'usage, plafonné à 30 $)</td><td class="num">≈ 27</td><td class="num">≈ 25</td><td><span class="tag warn">À confirmer</span></td></tr>
+<tr><td>Render</td><td>Hébergement du backend (1 instance Standard, 2 Go, 1 processus)</td><td class="num">25</td><td class="num">≈ 23</td><td>Tarif public</td></tr>
+<tr><td>Claude Pro</td><td>Outil de développement et de maintenance</td><td class="num">20</td><td class="num">≈ 19</td><td><span class="tag warn">À confirmer</span> (plan en vigueur)</td></tr>
+<tr><td>Vercel, Buffer, Cloudinary, Mapbox, Telegram</td><td>Frontend, statistiques et publication sociales, images, cartes, alertes — tous sur offres gratuites</td><td class="num">0</td><td class="num">0</td><td>Gratuit dans les volumes actuels</td></tr>
+<tr class="total"><td>TOTAL MENSUEL</td><td></td><td class="num">≈ 176</td><td class="num">≈ 165</td><td></td></tr>
+<tr class="total"><td>Projection annuelle</td><td></td><td class="num">≈ 2 110</td><td class="num">≈ 1 980</td><td></td></tr>
+</table>
+<p class="small">Depuis le 1<sup>er</sup> juin 2026, l'analyse prédictive tourne 4 fois par jour au lieu de 24 (estimation interne : −70 € par mois sur les appels GPT). Si cette économie se confirme sur les factures, la dépense réelle est inférieure au total ci-dessus, qui est donc une borne haute. Le passage à un seul processus applicatif sur Render ne change pas le tarif du plan Standard.</p>
+
+<h2>5. Proposition de dotation budgétaire</h2>
+<p>La proposition conserve la logique en deux paliers de la note V2, avec des montants revus à la baisse.</p>
+
+<h3>Palier 1 — Captation intégrale 6h-19h30, du lundi au vendredi &nbsp;|&nbsp; ≈ 200 $ / 190 € estimés, dotation demandée 200 €/mois</h3>
+<p>Horizon : mise en place sous 3 mois. Écart par rapport à l'actuel : + 35 € par mois (+ 420 € par an), pour un volume radio multiplié par 5,5.</p>
+<table>
+<tr><th>Poste</th><th>Palier 1</th><th class="num">USD / mois</th></tr>
+<tr><td>Groq</td><td>Transcription ≈ 620 h/mois (Whisper Large v3 Turbo)</td><td class="num">≈ 25</td></tr>
+<tr><td>OpenAI</td><td>Enrichissement GPT-4o-mini avec filtrage aval, vecteurs sémantiques ; plus de transcription</td><td class="num">≈ 65</td></tr>
+<tr><td>Apify</td><td>Plan Starter inchangé</td><td class="num">29</td></tr>
+<tr><td>MongoDB Atlas</td><td>Flex au plafond (volume de transcriptions ×5, rétention 90 jours)</td><td class="num">30</td></tr>
+<tr><td>Render</td><td>Web Standard 25 $ + worker de capture Starter 7 $</td><td class="num">32</td></tr>
+<tr><td>Claude Pro</td><td>Inchangé</td><td class="num">20</td></tr>
+<tr class="total"><td>Total</td><td>≈ 190 € au taux indicatif ; dotation arrondie à 200 € (marge ≈ 5 % pour la variabilité des API)</td><td class="num">≈ 201</td></tr>
+</table>
+<p>Ce que ce palier débloque :</p>
+<ul>
+<li>Captation intégrale de RCI Guadeloupe et Guadeloupe La 1<sup>ère</sup> sur la plage 6h-19h30 du lundi au vendredi, journaux du week-end maintenus : ≈ 620 heures de transcription par mois (× 5,5 le volume actuel).</li>
+<li>Couverture des matinales avec invités, des magazines de la rédaction, des libres antennes et des tranches talk et culture où les sujets sensibles émergent.</li>
+<li>Rattachement automatique des séquences radio pertinentes aux affaires, au BMG et au module de présence des élus, déjà en production.</li>
+<li>Rétention des transcriptions portée de 90 à 120 jours, alignée sur les articles.</li>
+<li>Isolation de la capture dans un processus dédié : moins de risque d'indisponibilité de l'interface pendant les captures.</li>
+</ul>
+
+<h3>Palier 2 — Périmètre opérationnel complet &nbsp;|&nbsp; ≈ 300 $ / ≈ 280 € par mois</h3>
+<p>Horizon : 6 à 12 mois. Écart par rapport à l'actuel : + 115 € par mois (+ 1 380 € par an). Montant à réviser sur la base des factures du palier 1.</p>
+<table>
+<tr><th>Poste</th><th>Palier 2</th><th class="num">USD / mois</th></tr>
+<tr><td>Groq</td><td>Transcription ≈ 1 000 h/mois (7j/7, soirée 19h30-22h, replays et podcasts)</td><td class="num">≈ 40</td></tr>
+<tr><td>OpenAI</td><td>Enrichissement filtré sur un volume ×1,6, synthèses longues, analyses multi-périodes, BMG quotidien automatisé</td><td class="num">≈ 90</td></tr>
+<tr><td>Apify</td><td>Starter + marge pour un acteur YouTube et la presse nationale</td><td class="num">≈ 39</td></tr>
+<tr><td>MongoDB Atlas</td><td>Cluster dédié M10 si le plafond Flex est atteint (sinon Flex 30 $)</td><td class="num">≈ 57</td></tr>
+<tr><td>Render</td><td>Web Standard 25 $ + worker Standard 25 $</td><td class="num">50</td></tr>
+<tr><td>Claude Pro</td><td>Inchangé</td><td class="num">20</td></tr>
+<tr class="total"><td>Total</td><td>≈ 275 € au taux indicatif ; trajectoire arrondie à 280 €</td><td class="num">≈ 296</td></tr>
+</table>
+<p>Ce que ce palier ajoute par rapport au palier 1 :</p>
+<ul>
+<li>Extension de la captation au week-end et à la soirée (19h30-22h), couvrant les débats politiques de fin de journée.</li>
+<li>Captation des podcasts, replays et émissions thématiques (entretiens longs, magazines de société).</li>
+<li>Collecte automatisée de la presse nationale (script existant à brancher) et, si pertinent, de YouTube.</li>
+<li>Base de données dédiée si les agrégations cartographiques et tendancielles saturent le plan Flex.</li>
+<li>Worker de capture dimensionné pour 32 heures d'antenne par jour et parallélisation des collectes.</li>
+</ul>
+
+<h2>6. Synthèse comparative</h2>
+<table>
+<tr><th></th><th>Aujourd'hui (bridé)</th><th>Palier 1 (3 mois)</th><th>Palier 2 (12 mois)</th></tr>
+<tr><td>Coût mensuel (USD)</td><td class="num">≈ 176 $</td><td class="num">≈ 201 $</td><td class="num">≈ 296 $</td></tr>
+<tr><td>Coût mensuel (EUR)</td><td class="num">≈ 165 €</td><td class="num">200 €</td><td class="num">≈ 280 €</td></tr>
+<tr><td>Coût annuel (EUR)</td><td class="num">≈ 1 980 €</td><td class="num">2 400 €</td><td class="num">≈ 3 360 €</td></tr>
+<tr><td>Captation radio</td><td>10 journaux/jour, 7j/7 (≈ 112 h/mois)</td><td>Intégrale 6h-19h30 lun.-ven. + journaux le week-end (≈ 620 h/mois)</td><td>Intégrale 7j/7 + soirée + replays (≈ 1 000 h/mois)</td></tr>
+<tr><td>Moteur de transcription</td><td>OpenAI whisper-1 (0,36 $/h)</td><td>Groq Whisper v3 Turbo (0,04 $/h)</td><td>Groq Whisper v3 Turbo</td></tr>
+<tr><td>Couverture sociale</td><td>FB + IG + TikTok (veille) ; comptes propres FB/IG/TikTok</td><td>Inchangée</td><td>+ YouTube, + presse nationale</td></tr>
+<tr><td>Module personnalités</td><td>Déployé (96 élus, accès admin)</td><td>Alimenté par la radio intégrale</td><td>Pleinement exploité (tendances multi-périodes)</td></tr>
+<tr><td>Rétention</td><td>Articles 120 j, radio et social 90 j</td><td>Radio 120 j</td><td>Selon capacité base dédiée</td></tr>
+</table>
+
+<h2>7. Justification de la demande</h2>
+<h3>7.1 Comparaison avec une prestation externe équivalente</h3>
+<p>Une prestation externe de veille média couvrant un périmètre comparable (presse, radio en captation intégrale, réseaux sociaux, analyse de sentiment, cartographie territoriale) est facturée par les agences spécialisées entre 1 500 € et 4 000 € par mois, hors développement spécifique. La plateforme interne, même au palier complet (≈ 280 € par mois), reste plusieurs fois inférieure au prix de marché, avec une maîtrise totale des données, une adaptation au contexte guadeloupéen et un accès en temps réel.</p>
+<h3>7.2 Capital technique déjà investi</h3>
+<p>La plateforme représente plusieurs centaines d'heures de développement capitalisées, et le premier semestre 2026 a livré à budget constant le module de présence des élus, l'observatoire des réseaux sociaux, le monitoring des affaires et la sécurisation du socle. La dotation demandée vise uniquement à libérer la capacité de captation radio, seul poste resté bridé.</p>
+<h3>7.3 Optimisation technique et responsabilité budgétaire</h3>
+<p>Multiplier par 5,5 le volume de transcription radio entraîne, grâce aux leviers décrits en section 3, une augmentation budgétaire limitée à ≈ 20 % (165 € → 200 €). Les choix de juin 2026 (analyse prédictive 4 fois par jour, processus unique) montrent que l'équipe pilote déjà la dépense à la baisse sans dégrader la qualité de la veille.</p>
+<h3>7.4 Retour sur investissement attendu</h3>
+<ul>
+<li>Anticipation des sujets et des controverses, captés dès leur émergence quel que soit le format radio.</li>
+<li>Mesure objective de la couverture médiatique des actions et des élus, y compris sur les prises de parole hors journaux.</li>
+<li>Réactivité renforcée grâce aux alertes automatiques sur les pics de couverture et les signaux faibles.</li>
+<li>Mémoire institutionnelle structurée et interrogeable.</li>
+<li>Souveraineté sur les données de veille, sans dépendance à un prestataire externe.</li>
+</ul>
+
+<h2>8. Calendrier de déploiement budgétaire</h2>
+<table>
+<tr><th style="width:110px">Période</th><th>Étape</th><th class="num" style="width:110px">Coût mensuel</th></tr>
+<tr><td>Mois 1 (oct. 2026)</td><td>Bascule de la transcription vers Groq sur les 10 journaux actuels (validation qualité français/créole, comparaison Turbo / modèle complet) ; création du worker de capture. Économie immédiate ≈ 35 $/mois sur la transcription.</td><td class="num">≈ 150 €</td></tr>
+<tr><td>Mois 2 (nov. 2026)</td><td>Mise en production progressive de la captation intégrale 6h-19h30 sur les deux stations (une station puis deux) + filtrage IA en aval + rétention radio 120 jours.</td><td class="num">≈ 180 €</td></tr>
+<tr><td>Fin de mois 3 (déc. 2026)</td><td>Palier 1 atteint ; premier bilan de consommation sur factures.</td><td class="num">200 €</td></tr>
+<tr><td>Mois 4-6</td><td>Extension au week-end et à la soirée (19h30-22h) ; worker Standard ; décision Flex / M10 sur la base du volume constaté.</td><td class="num">≈ 230 €</td></tr>
+<tr><td>Mois 7-12</td><td>Podcasts, replays et émissions thématiques ; presse nationale ; YouTube si pertinent.</td><td class="num">≈ 280 €</td></tr>
+<tr><td>Régime de croisière</td><td>Palier 2 atteint, plateforme pleinement opérationnelle.</td><td class="num">≈ 280 €</td></tr>
+</table>
+
+<h2>9. Demande</h2>
+<div class="callout">
+Au regard des éléments présentés, il est demandé l'allocation d'une <strong style="display:inline">dotation mensuelle ferme de 200 €</strong> à compter du mois suivant validation, correspondant au palier de captation intégrale 6h-19h30 sur les deux principales stations de radio guadeloupéennes en jours ouvrés, avec une trajectoire d'évolution vers <strong style="display:inline">≈ 280 € par mois à horizon 12 mois</strong> pour atteindre le périmètre opérationnel complet (week-end, soirée, podcasts et replays, presse nationale). Le montant du palier 2 sera confirmé au vu des factures des trois premiers mois.
+</div>
+
+<h2>10. Hypothèses et points à confirmer avant diffusion</h2>
+<ul>
+<li><strong>Factures réelles.</strong> Les dépenses actuelles sont estimées à partir de la configuration de production et des tarifs publics ; les factures OpenAI, Apify, MongoDB et Render de juin à septembre 2026 doivent être rapprochées de la section 4. L'effet de l'optimisation de juin (analyse prédictive 4 fois par jour) n'a pas encore été mesuré sur facture.</li>
+<li><strong>Qualité Groq.</strong> La bascule de transcription n'a pas encore été testée sur les flux guadeloupéens ; le mois 1 sert à la valider. En cas de qualité insuffisante avec le modèle Turbo, le modèle complet porte le palier 1 à ≈ 245 $ (≈ 230 €).</li>
+<li><strong>Grilles de rentrée.</strong> Les créneaux de la section 2.1 sont à recaler sur les grilles 2026-2027 de RCI et La 1<sup>ère</sup>.</li>
+<li><strong>Taux de change.</strong> Les montants en euros sont indicatifs (≈ 0,93 € pour 1 $) ; la facturation effective est en dollars américains pour la plupart des fournisseurs.</li>
+<li><strong>Plan Claude.</strong> Le montant de 20 $ correspond au plan Pro ; à ajuster si le plan a changé.</li>
+</ul>
+
+<div class="footer-note">Document de cadrage budgétaire — version 3 du 28 septembre 2026, établie sur la base de l'audit technique du 28 avril 2026, de la note V2 du 29 avril 2026, de l'état du code de production au 1<sup>er</sup> juin 2026 (dépôt veille-uptade) et des tarifs publics des fournisseurs en septembre 2026 (OpenAI whisper-1 : 0,006 $/min ; Groq Whisper Large v3 Turbo : 0,04 $/h, Large v3 : 0,111 $/h ; Apify Starter : 29 $/mois ; Render Starter 7 $, Standard 25 $ ; MongoDB Atlas Flex plafonné à 30 $/mois, M10 ≈ 57 $/mois). Les volumes de transcription sont calculés à partir des flux configurés dans la plateforme (224 min/jour) et d'une plage utile de 13h30 par station.</div>
+
+</body>
+</html>

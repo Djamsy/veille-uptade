@@ -298,6 +298,36 @@ Implication majeure : abandonner le modèle `affair_lifecycle_service.py` (5 653
 
 ---
 
+## 2026-09-28 — Analyse de la note de dotation V2 et rédaction de la V3
+
+### Demande
+Djamsy soumet `Note_dotation_veille_v2_2026-04-29.pdf` : « analyse cette note et dis-moi si c'est bon, sinon refais-la avec les données actuelles de fonctionnement ».
+
+### Verdict sur la V2
+Périmée sur plusieurs points, sans être fausse au moment de sa rédaction :
+- **Module personnalités** annoncé « à déployer » au palier 1 → livré en mai 2026 (V1 → V2, base officielle 96 élus, `backend/services/entity_presence_service.py`).
+- **Réseaux sociaux** « partiel, 1-2 réseaux » → FB + IG + TikTok en veille 3×/jour + commentaires comptes propres 2×/jour + observatoire RS (`backend/services/scheduler_service.py` L1085-1130). X retiré volontairement, YouTube non collecté. Pas de montée de plan Apify.
+- **Bascule Groq** (levier n° 1 de la note) → jamais implémentée. `ai_groq_service.py` utilise en réalité OpenAI GPT-4o-mini ; la transcription reste sur `whisper-1` (`radio_service.py` L427). La décision du 1er juin (commit 4cc45c0) ne portait que sur l'enrichissement.
+- **Captation intégrale 6h-19h30 sous 3 mois** → non engagée : toujours 10 JT/jour 7j/7, 224 min/jour ≈ 112 h/mois (`radio_service.py` L84-198). Le chiffre 112 h de la V2 est exact.
+- **Coûts** : depuis le 1er juin, analyse prédictive 24 → 4×/jour et 1 worker uvicorn (commit 4cc45c0). L'économie « -15 €/mois Render » annoncée dans ce commit est douteuse : le nombre de workers uvicorn ne change pas le tarif du plan Standard.
+- **Rétention** : V2 visait 6 mois ; réel = articles 120 j, radio et social 90 j, présences sans TTL (`backend/db.py`).
+
+### Livrable
+- `docs/20260928_NOTE_dotation-veille_V3.pdf` (+ source HTML à côté) — note refaite : périmètre constaté, tableau « fait / non fait » vs V2, coûts actuels ≈ 176 $ / 165 € (borne haute, à confirmer sur factures), palier 1 revu à **200 €/mois** (au lieu de 250 €), palier 2 ≈ **280 €/mois** (au lieu de 440 €), calendrier oct. 2026 → sept. 2027.
+- Tarifs publics vérifiés le 28/09/2026 : OpenAI whisper-1 0,006 $/min ; Groq Whisper Large v3 Turbo 0,04 $/h (Large v3 0,111 $/h) ; Apify Starter 29 $ ; Render Starter 7 $ / Standard 25 $ ; Atlas Flex plafonné 30 $, M10 ≈ 57 $.
+
+### Hypothèses posées (à valider par Djamsy)
+- Les dépenses actuelles sont estimées depuis le code et les tarifs publics, pas depuis les factures. Section 10 de la note liste les points à confirmer.
+- Palier 1 inclut un background worker Render Starter (7 $) pour isoler la capture continue de l'API (1 seul processus applicatif depuis juin).
+- Groq n'a pas été testé sur les flux guadeloupéens : le mois 1 du calendrier sert à le valider sur les 10 JT existants avant d'étendre la grille.
+
+### Observations annexes
+- Aucun commit depuis le 1er juin 2026 : la production tourne sur l'état de juin.
+- `backend/scripts/national_scrap.py` existe mais n'est pas branché au scheduler (palier 2).
+- Le flux `rci_1300` est en réalité planifié à 12h00 (`radio_service.py` L115) ; le libellé « 13H RCI » est trompeur.
+
+---
+
 ## Conventions
 - **Nommage des livrables figés (PDF, images)** : `AAAAMMJJ_TYPE_nom-du-fichier_V` (ex : `20260506_REVUE_projet_V1.docx`). Réécriture autorisée, on incrémente le V.
 - **Autres fichiers** (md, code, configs) : nommage libre, Djamsy précisera s'il faut respecter la convention.
