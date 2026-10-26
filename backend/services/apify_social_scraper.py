@@ -106,16 +106,10 @@ class ApifySocialScraper:
 
     def _connect_mongo(self):
         try:
-            if MONGO_URL.startswith("mongodb+srv"):
-                client = MongoClient(MONGO_URL, tlsCAFile=certifi.where(),
-                                     serverSelectionTimeoutMS=15000, maxPoolSize=5)
-            else:
-                client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=15000, maxPoolSize=5)
-            client.admin.command("ping")
-            try:
-                self.db = client.get_default_database()
-            except Exception:
-                self.db = client["veille_media"]
+            from backend.db import get_db_or_none
+            self.db = get_db_or_none()
+            if self.db is None:
+                raise RuntimeError("ping MongoDB échoué")
             self.collection = self.db["social_media_posts"]
             # Index unique pour éviter les doublons
             self.collection.create_index("post_hash", unique=True, sparse=True)

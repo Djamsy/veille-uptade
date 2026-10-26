@@ -588,7 +588,9 @@ def stream_audio(file_id: str, request: Request):
         if not file_id or len(file_id) != 24:
             raise HTTPException(status_code=400, detail="ID audio invalide")
         
-        bucket = GridFSBucket(db, bucket_name="radio_audio")
+        # GridFSBucket exige une vraie Database ; l'audio n'existe que sur le principal
+        from backend.db import get_primary_db
+        bucket = GridFSBucket(get_primary_db(), bucket_name="radio_audio")
         grid_out = bucket.open_download_stream(ObjectId(file_id))
         
     except Exception as e:

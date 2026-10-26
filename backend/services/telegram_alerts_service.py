@@ -41,10 +41,10 @@ class TelegramAlertsService:
                 logger.warning(f"⚠️ Impossible d'initialiser Bot (env): {e}")
         
         # MongoDB connection
-        MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
         try:
-            self.client = MongoClient(MONGO_URL)
-            self.db = self.client.veille_media
+            from backend.db import get_client, get_db
+            self.client = get_client()  # client partagé, ne pas fermer
+            self.db = get_db()
             
             # Collections
             self.articles_collection = self.db.articles_guadeloupe
@@ -56,7 +56,10 @@ class TelegramAlertsService:
             logger.info("✅ Connexion MongoDB réussie pour alertes Telegram")
             # Si pas de token en env, tenter un chargement Mongo (fallback)
             if not self.telegram_token or not self.default_chat_id:
+                from backend.db import is_available
                 try:
+                    if not is_available():
+                        raise RuntimeError("MongoDB injoignable")
                     cfg = self.db.alerts_config.find_one({"type": "telegram_config", "status": "active"})
                     if cfg:
                         self.telegram_token = self.telegram_token or cfg.get("token")

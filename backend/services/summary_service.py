@@ -827,8 +827,8 @@ ARTICLES_COLLECTION = os.environ.get("ARTICLES_COLLECTION", "articles")
 TRANSCRIPTS_COLLECTION = os.environ.get("TRANSCRIPTS_COLLECTION", "radio_transcriptions")
 DIGEST_COLLECTION = os.environ.get("DIGEST_COLLECTION", "daily_digests")
 
-_mongo_client = MongoClient(MONGO_URL)
-_db = _mongo_client[DB_NAME]
+from backend.db import get_db as _shared_get_db  # client partagé, création paresseuse
+_db = _shared_get_db()
 _articles = _db.get_collection(ARTICLES_COLLECTION)
 _trans = _db.get_collection(TRANSCRIPTS_COLLECTION)
 _digests = _db.get_collection(DIGEST_COLLECTION)

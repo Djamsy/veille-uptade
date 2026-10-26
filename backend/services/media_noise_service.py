@@ -70,13 +70,10 @@ class MediaNoiseService:
             return None
         
         try:
-            client = MongoClient(
-                mongo_url,
-                tlsCAFile=certifi.where(),
-                serverSelectionTimeoutMS=20000,
-            )
-            client.admin.command("ping")
-            return client
+            from backend.db import get_client, is_available
+            if not is_available():
+                raise RuntimeError("ping MongoDB échoué")
+            return get_client()  # client partagé, ne pas fermer
         except Exception as e:
             logger.error(f"Erreur connexion MongoDB MediaNoiseService: {e}")
             return None
@@ -86,8 +83,8 @@ class MediaNoiseService:
         if self.mongo_client is None:
             return None
         
-        db_name = os.environ.get("MONGO_DB_NAME", "").strip()
-        return self.mongo_client[db_name] if db_name else self.mongo_client.get_default_database()
+        from backend.db import get_db
+        return get_db()
     
     def _parse_period(self, period: str) -> Tuple[datetime, datetime]:
         """Parse une période (24h, 7d, 30d) en dates de début/fin"""

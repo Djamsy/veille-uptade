@@ -109,34 +109,13 @@ def _is_guadeloupe_relevant(title: str, content: str, url: str = "") -> bool:
 class GuadeloupeScraper:
     def __init__(self) -> None:
         # Connexion MongoDB
-        MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017/veille_media")
-        
         try:
-            if "mongodb+srv://" in MONGO_URL or "atlas" in MONGO_URL.lower():
-                try:
-                    import certifi
-                    self.client = MongoClient(
-                        MONGO_URL,
-                        tlsCAFile=certifi.where(),
-                        serverSelectionTimeoutMS=20000,
-                    )
-                except ImportError:
-                    self.client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=20000)
-            else:
-                self.client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=20000)
-            
-            self.client.admin.command("ping")
+            from backend.db import get_client, get_db_or_none
+            self.db = get_db_or_none()
+            if self.db is None:
+                raise RuntimeError("ping MongoDB échoué")
+            self.client = get_client()  # client partagé, ne pas fermer
             logger.info("✅ Scraper connecté à MongoDB")
-            
-            # Résolution DB
-            try:
-                dbname = MONGO_URL.rsplit("/", 1)[-1].split("?")[0] or "veille_media"
-                if "mongodb+srv://" in MONGO_URL and ("?" in dbname or not dbname):
-                    dbname = os.environ.get("MONGO_DB_NAME", "veille_media")
-            except Exception:
-                dbname = os.environ.get("MONGO_DB_NAME", "veille_media")
-            
-            self.db = self.client[dbname]
             self.articles_collection = self.db["articles_guadeloupe"]
             
         except Exception as e:
