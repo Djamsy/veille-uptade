@@ -154,6 +154,8 @@ def test_failover_resync():
     db.users.insert_one({"_id": "u2", "email": "nouveau@x"})
     # Upsert partiel d'un document qui n'existe que sur le principal -> conflit
     db.affairs.update_one({"_id": "aff1"}, {"$set": {"score": 99}}, upsert=True)
+    # Rush audio stocké directement sur le secours (GridFS, hors proxy)
+    f.raw()["radio_audio.files"].insert_one({"_id": "audio1", "length": 10})
 
     p.state["down"] = False
     r.switch_to_primary()
@@ -169,6 +171,9 @@ def test_failover_resync():
     check(f.raw().articles_guadeloupe.count_documents({}) == 0, "le secours est vidé de ce qui a été recopié")
     check(f.raw().affairs.find_one({"_id": "aff1"}) is not None, "le conflit reste sur le secours pour examen")
     check(f.raw().users.count_documents({}) == 2, "le miroir users reste en place sur le secours")
+    check(p.raw()["radio_audio.files"].count_documents({}) == 0
+          and f.raw()["radio_audio.files"].count_documents({}) == 1,
+          "l'audio radio reste sur le secours, jamais recopié vers le principal")
 
     again = r.resync()
     check(again["copied"] == 0 and again["errors"] == 0, "relancer la resync ne recopie rien (idempotent)")

@@ -404,6 +404,13 @@ async def get_predictive_analysis(force: bool = Query(default=False), user: Dict
         except ImportError:
             raise HTTPException(503, "Service IA non disponible")
 
+    try:
+        from backend.services.ai_groq_service import predictive_enabled
+    except ImportError:
+        from ai_groq_service import predictive_enabled
+    if not predictive_enabled():
+        return {"success": False, "error": "Analyse prédictive désactivée temporairement (économie de crédit OpenAI)"}
+
     result = analyze_trends_predictive(active)
     if result is None:
         return {"success": False, "error": "Analyse IA échouée (clé API manquante ou erreur)"}

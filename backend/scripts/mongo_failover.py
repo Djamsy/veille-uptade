@@ -9,6 +9,7 @@ Usage (depuis la racine du repo) :
     python backend/scripts/mongo_failover.py resync --dry-run
     python backend/scripts/mongo_failover.py resync          # secours -> principal
     python backend/scripts/mongo_failover.py prepare         # index + miroir principal -> secours
+    python backend/scripts/mongo_failover.py audio-cleanup --dry-run   # nettoyage audio radio
 
 La resync n'écrase jamais un document du principal : elle insère ce qui manque.
 """
@@ -37,9 +38,14 @@ from backend.db_failover import FALLBACK, PRIMARY  # noqa: E402
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("command", choices=["check", "status", "resync", "prepare"])
+    parser.add_argument("command", choices=["check", "status", "resync", "prepare", "audio-cleanup"])
     parser.add_argument("--dry-run", action="store_true", help="resync : compter sans rien écrire")
     args = parser.parse_args()
+
+    if args.command == "audio-cleanup":  # fonctionne aussi sans cluster de secours
+        from backend.services.radio_audio_store import cleanup_all
+        print(json.dumps(cleanup_all(dry_run=args.dry_run), indent=2, ensure_ascii=False, default=str))
+        return 0
 
     router = get_failover_router()
     if router is None:
@@ -62,7 +68,10 @@ def main() -> int:
         print(f"Base : {router.db_name}   collections miroir : {', '.join(sorted(mirrored))}")
         for coll in sorted(c for c in db.list_collection_names() if not c.startswith("system.")):
             n = db[coll].estimated_document_count()
-            tag = "miroir" if coll in mirrored else ("à resynchroniser" if n else "vide")
+            if coll.startswith("radio_audio."):
+                tag = "audio radio (reste sur le secours)"
+            else:
+                tag = "miroir" if coll in mirrored else ("à resynchroniser" if n else "vide")
             print(f"  {coll:32} {n:>7}  {tag}")
         return 0
 

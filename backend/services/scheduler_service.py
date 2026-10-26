@@ -304,7 +304,10 @@ async def job_enrich():
             # ── Notifications Telegram (après le batch) ──
             if telegram_queue:
                 try:
-                    from backend.services.telegram_service import notify_new_article
+                    from backend.services.telegram_service import notify_new_article, article_alerts_mode
+                    # En mode "all", chaque article est déjà alerté à l'enregistrement
+                    if article_alerts_mode() != "relevant":
+                        telegram_queue = []
                     for merged_article in telegram_queue[:10]:  # Max 10 notifs par cycle
                         merged_article["_id"] = str(merged_article.get("_id", ""))
                         notify_new_article(merged_article)
@@ -681,6 +684,17 @@ async def job_radio_capture():
 # JOB 6: Health-check automatique des flux radio
 # ============================================================
 
+async def job_radio_audio_cleanup():
+    """Nettoyage horaire des rushs audio radio (âge + plafond de taille sur le secours)."""
+    try:
+        from backend.services.radio_audio_store import cleanup_all
+        loop = asyncio.get_running_loop()
+        return {"results": await loop.run_in_executor(None, cleanup_all)}
+    except Exception as e:
+        logger.error(f"❌ Nettoyage audio radio: {e}")
+        return {"success": False, "error": str(e)}
+
+
 async def job_radio_health_check():
     """Vérifie l'accessibilité de tous les flux radio configurés."""
     try:
@@ -924,6 +938,10 @@ async def job_daily_report():
 @_skip_when_degraded
 async def job_predictive_analysis():
     """Lance l'analyse prédictive IA sur les affaires actives et stocke le résultat."""
+    from backend.services.ai_groq_service import predictive_enabled
+    if not predictive_enabled():
+        logger.info("⏸️ Predictive: désactivée (PREDICTIVE_ANALYSIS_ENABLED=false)")
+        return {"status": "skip", "reason": "disabled"}
     if _db is None:
         logger.warning("⚠️ Predictive: DB indisponible")
         return {"status": "skip", "reason": "no_db"}
@@ -1150,6 +1168,14 @@ def _ensure_scheduler():
         CronTrigger(day="*/2", hour="9", minute="0", timezone=TZ),
         id="campaign_auto_analysis",
         name="Auto-analyse campagnes RS (tous les 2j)"
+    )
+
+    # 🧹 Nettoyage des rushs audio radio — toutes les heures
+    _scheduler.add_job(
+        job_radio_audio_cleanup,
+        CronTrigger(minute="50", timezone=TZ),
+        id="radio_audio_cleanup",
+        name="Nettoyage audio radio (rétention + plafond secours)"
     )
 
     # Analyse predictive IA toutes les heures (minute 30)

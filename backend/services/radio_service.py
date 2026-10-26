@@ -45,6 +45,26 @@ MONGO_URL = (os.environ.get("MONGO_URL") or "mongodb://localhost:27017").strip()
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
 MAX_CONCURRENCY = int(os.environ.get("RADIO_CONCURRENCY", "3"))
 
+def _fix_streamlink_urllib3_override() -> None:
+    """Corrige un bug streamlink 6.x + urllib3 >= 2.x qui casse TOUT le process.
+
+    À l'import, streamlink remplace globalement urllib3.util.url._PERCENT_RE par
+    une classe qui n'a que subn(). Les urllib3 récents appellent aussi .sub() :
+    toutes les requêtes HTTP (scraping compris) échouent ensuite avec
+    « 'Urllib3UtilUrlPercentReOverride' has no attribute 'sub' ».
+    On ajoute la méthode manquante, avec le comportement standard d'urllib3.
+    """
+    try:
+        import urllib3.util.url as _u
+        override = getattr(_u, "_PERCENT_RE", None)
+        pattern = getattr(override, "_re_percent_encoding", None)
+        if override is not None and pattern is not None and not hasattr(override, "sub"):
+            override.sub = staticmethod(lambda repl, string, count=0: pattern.sub(repl, string, count))
+            logger.info("🩹 Correctif streamlink/urllib3 appliqué (_PERCENT_RE.sub)")
+    except Exception as e:
+        logger.warning("Correctif streamlink/urllib3 non appliqué : %s", e)
+
+
 # =========================
 # Service Principal
 # =========================
@@ -73,9 +93,12 @@ class RadioTranscriptionService:
                 self.locks_collection.create_index("expireAt", expireAfterSeconds=0)
             except Exception as idx_err:
                 logger.warning("⚠️ Index creation radio: %s", idx_err)
-            # GridFS exige une vraie Database : on le lie au cluster principal
-            from backend.db import get_primary_db
-            self.grid_fs = gridfs.GridFS(get_primary_db(), collection="radio_audio")
+            # GridFS exige une vraie Database : stockage audio dédié
+            # (cluster de secours si configuré, sinon principal — voir radio_audio_store)
+            from backend.services.radio_audio_store import get_audio_db, store_target
+            self.audio_store = store_target()
+            self.grid_fs = gridfs.GridFS(get_audio_db(), collection="radio_audio")
+            logger.info("🎧 Audio radio stocké sur le cluster : %s", self.audio_store)
         else:
             self.transcriptions_collection = self.locks_collection = self.grid_fs = None
 
@@ -216,9 +239,30 @@ class RadioTranscriptionService:
 
         # Validation de config streams
         self._validate_streams()
+        self._apply_stream_allowlist()
 
         # Nettoyage initial des statuts
         self.cleanup_stale_status()
+
+    def _apply_stream_allowlist(self) -> None:
+        """RADIO_STREAMS=rci_0700,gp_radio_1200 : ne capture/transcrit que ces flux.
+
+        Vide (défaut) : tous les flux. Sert à limiter le coût Whisper
+        (facturé à la minute d'audio transcrite).
+        """
+        raw = (os.environ.get("RADIO_STREAMS") or "").strip()
+        if not raw:
+            return
+        allowed = {k.strip() for k in raw.split(",") if k.strip()}
+        unknown = allowed - set(self.streams)
+        if unknown:
+            logger.warning("⚠️ RADIO_STREAMS : flux inconnus ignorés : %s", ", ".join(sorted(unknown)))
+        for key, cfg in self.streams.items():
+            if key not in allowed:
+                cfg["enabled"] = False
+        kept = [k for k, c in self.streams.items() if c.get("enabled", True)]
+        minutes = sum(self.streams[k]["duration_minutes"] for k in kept)
+        logger.info("🎙️ RADIO_STREAMS : %s flux actifs (%s min/jour) : %s", len(kept), minutes, ", ".join(kept))
 
     def _validate_streams(self) -> None:
         """Validation de la configuration des streams"""
@@ -286,6 +330,7 @@ class RadioTranscriptionService:
             # API Streamlink
             try:
                 from streamlink import Streamlink
+                _fix_streamlink_urllib3_override()
                 session = Streamlink()
                 streams = session.streams(url)
                 if streams:
@@ -443,8 +488,9 @@ class RadioTranscriptionService:
             _degraded = _is_degraded()
         except Exception:
             _degraded = False
-        # Mode dégradé : on garde la transcription, pas l'audio (secours limité à 512 Mo)
-        if self.grid_fs is not None and not _degraded and os.path.exists(audio_path):
+        # Audio stocké sur le principal + principal en panne : on garde seulement la transcription
+        _skip_audio = _degraded and getattr(self, "audio_store", "primary") == "primary"
+        if self.grid_fs is not None and not _skip_audio and os.path.exists(audio_path):
             try:
                 with open(audio_path, "rb") as f:
                     audio_file_id = self.grid_fs.put(
