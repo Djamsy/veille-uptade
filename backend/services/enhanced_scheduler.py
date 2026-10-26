@@ -256,7 +256,9 @@ async def cleanup_job():
         cleanup_stats["audio_chunks_freed_mb"] = 0
         try:
             import gridfs
-            grid_fs = gridfs.GridFS(db, collection="radio_audio")
+            from backend.db import get_primary_db
+            # GridFS exige une vraie Database ; l'audio n'existe que sur le principal
+            grid_fs = gridfs.GridFS(get_primary_db(), collection="radio_audio")
             audio_files_col = db["radio_audio.files"]
             audio_chunks_col = db["radio_audio.chunks"]
 

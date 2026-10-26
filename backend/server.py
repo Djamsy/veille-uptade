@@ -125,7 +125,10 @@ logger.info(f"Environment: {ENVIRONMENT}")
 logger.info(f"Seuil gravité affaires: {GRAVITY_THRESHOLD}")
 
 # Connexion MongoDB — client partagé (backend/db.py), plus de client propre au serveur
-from backend.db import get_client as _get_shared_client, get_db_name as _get_db_name, is_available as _mongo_is_available
+from backend.db import (
+    get_client as _get_shared_client, get_db as _get_shared_db, get_db_name as _get_db_name,
+    is_available as _mongo_is_available, get_failover_status as _get_failover_status,
+)
 
 DB_NAME = _get_db_name()
 mongo_client = None
@@ -133,7 +136,7 @@ db = None
 
 if _mongo_is_available():
     mongo_client = _get_shared_client()
-    db = mongo_client[DB_NAME]
+    db = _get_shared_db()  # proxy avec bascule si MONGO_URL_FALLBACK est défini
     logger.info("✅ MongoDB connecté avec succès")
 else:
     logger.error("❌ Échec connexion MongoDB")
@@ -937,10 +940,16 @@ async def root():
 async def health():
     """Vérification de santé"""
     db_status = "connected" if mongo_client else "disconnected"
+    failover = _get_failover_status()
     
     return {
-        "status": "healthy" if db_status == "connected" else "degraded",
+        "status": "healthy" if db_status == "connected" and not failover.get("degraded") else "degraded",
         "database": db_status,
+        "database_failover": {
+            "fallback_configured": failover.get("fallback_configured"),
+            "active": failover.get("active"),
+            "degraded": failover.get("degraded"),
+        },
         "services": {
             "enrichment": enrichment_service is not None,
             "ai_service": ai_service is not None,

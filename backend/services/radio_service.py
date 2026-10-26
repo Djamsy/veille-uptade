@@ -73,7 +73,9 @@ class RadioTranscriptionService:
                 self.locks_collection.create_index("expireAt", expireAfterSeconds=0)
             except Exception as idx_err:
                 logger.warning("⚠️ Index creation radio: %s", idx_err)
-            self.grid_fs = gridfs.GridFS(self.db, collection="radio_audio")
+            # GridFS exige une vraie Database : on le lie au cluster principal
+            from backend.db import get_primary_db
+            self.grid_fs = gridfs.GridFS(get_primary_db(), collection="radio_audio")
         else:
             self.transcriptions_collection = self.locks_collection = self.grid_fs = None
 
@@ -436,7 +438,13 @@ class RadioTranscriptionService:
         
         # Sauvegarde audio dans GridFS
         audio_file_id = None
-        if self.grid_fs is not None and os.path.exists(audio_path):
+        try:
+            from backend.db import is_degraded as _is_degraded
+            _degraded = _is_degraded()
+        except Exception:
+            _degraded = False
+        # Mode dégradé : on garde la transcription, pas l'audio (secours limité à 512 Mo)
+        if self.grid_fs is not None and not _degraded and os.path.exists(audio_path):
             try:
                 with open(audio_path, "rb") as f:
                     audio_file_id = self.grid_fs.put(

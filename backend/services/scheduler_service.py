@@ -53,6 +53,29 @@ def _get_db():
         return None
 
 _db = _get_db()
+
+
+def _skip_when_degraded(job):
+    """Met une tâche d'analyse en pause quand l'app tourne sur le cluster de secours.
+
+    Le secours ne contient que l'activité de la panne : y lancer le clustering
+    des affaires ou les rapports créerait des doublons d'affaires à la resync
+    et des rapports faux. La collecte (scraping, radio, réseaux) continue.
+    """
+    import functools
+
+    @functools.wraps(job)
+    async def wrapper(*args, **kwargs):
+        try:
+            from backend.db import is_degraded
+            degraded = is_degraded()
+        except Exception:
+            degraded = False
+        if degraded:
+            logger.warning(f"⏸️ {job.__name__} ignorée : mode dégradé (cluster MongoDB de secours)")
+            return {"skipped": "degraded_mode"}
+        return await job(*args, **kwargs)
+    return wrapper
 _scheduler = None
 _locks = {
     'scrape': asyncio.Lock(),
@@ -358,6 +381,7 @@ async def job_enrich():
 # JOB 3: Cycle V2 affaires (clustering → promotion → lifecycle)
 # ============================================================
 
+@_skip_when_degraded
 async def job_affair_cycle():
     """Lance le cycle simplifié des affaires :
     1. Chaque article enrichi → crée une affaire (ou fusionne si similaire)
@@ -465,6 +489,7 @@ def _ingest_enriched_articles(svc) -> int:
 # JOB 4: Mise à jour automatique des affaires actives
 # ============================================================
 
+@_skip_when_degraded
 async def job_update_affairs():
     """Met à jour les affaires avec nouveaux contenus liés.
     MATCHING STRICT : exige au moins 2 entités nommées en commun
@@ -785,6 +810,7 @@ async def job_social_followers_weekly():
 # JOB Auto-analyse campagnes RS (tous les 2 jours)
 # ============================================================
 
+@_skip_when_degraded
 async def job_campaign_auto_analysis():
     """Re-analyse les campagnes RS dont l'analyse a expiré (>2j)."""
     try:
@@ -867,6 +893,7 @@ async def job_full_pipeline():
 # Job: Analyse prédictive IA (toutes les heures)
 # ============================================================
 
+@_skip_when_degraded
 async def job_daily_report():
     """Génère et envoie le bilan PDF quotidien par Telegram (7h du matin)."""
     if _db is None:
@@ -894,6 +921,7 @@ async def job_daily_report():
         return {"status": "error", "reason": str(e)}
 
 
+@_skip_when_degraded
 async def job_predictive_analysis():
     """Lance l'analyse prédictive IA sur les affaires actives et stocke le résultat."""
     if _db is None:
@@ -942,6 +970,7 @@ async def job_predictive_analysis():
 # BRIEFING MATINAL + WATCHLIST
 # ============================================================
 
+@_skip_when_degraded
 async def job_morning_briefing():
     """Envoie le briefing matinal Telegram (7h15, après captures radio 7h)."""
     if _db is None:
@@ -966,6 +995,7 @@ async def job_morning_briefing():
         return {"status": "error", "reason": str(e)}
 
 
+@_skip_when_degraded
 async def job_watchlist_check():
     """Vérifie les mots-clés watchlist et envoie les alertes Telegram."""
     if _db is None:

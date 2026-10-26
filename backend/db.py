@@ -10,15 +10,24 @@ qui s'accumulent côté Atlas, et impossible de basculer sur une base de secours
 sans toucher à une dizaine de fichiers.
 
 API :
-    get_client()      -> MongoClient partagé (création paresseuse, pas d'I/O)
-    get_db()          -> Database partagée
+    get_client()      -> MongoClient partagé du cluster principal (création paresseuse)
+    get_db()          -> Database partagée (proxy avec bascule si un secours est configuré)
     is_available()    -> bool, ping court mis en cache quelques secondes
     get_db_or_none()  -> Database si MongoDB répond, sinon None
+    is_degraded()     -> True si l'app tourne sur le cluster de secours
+    get_primary_db()  -> Database brute du principal (ex. GridFS)
+    get_failover_status() -> état de la bascule (pour /health)
+
+Bascule automatique : voir backend/db_failover.py (active si MONGO_URL_FALLBACK).
 
 Ne JAMAIS appeler .close() sur le client partagé depuis un service.
 
 Variables d'environnement :
     MONGO_URL               URL de connexion (défaut : mongodb://localhost:27017/veille_media)
+    MONGO_URL_FALLBACK      URL du cluster de secours (optionnel, active la bascule)
+    MONGO_FALLBACK_MIRROR   collections recopiées sur le secours (défaut : users,alerts_config,
+                            watchlist,campaigns,push_subscriptions)
+    MONGO_FAILOVER_TELEGRAM 0 pour couper les alertes Telegram de bascule
     MONGO_DB_NAME / DB_NAME nom de la base (sinon : chemin de l'URL, sinon veille_media)
     MONGO_MAX_POOL_SIZE     taille du pool partagé (défaut 25)
     MONGO_SOCKET_TIMEOUT_MS timeout d'une opération réseau (défaut 60000)
@@ -78,10 +87,7 @@ def _int_env(name: str, default: int) -> int:
         return default
 
 
-@lru_cache(maxsize=1)
-def get_client() -> MongoClient:
-    """Client MongoDB partagé (Atlas ou local). Créé une seule fois, à la demande."""
-    mongo_url = get_mongo_url()
+def _make_client(mongo_url: str) -> MongoClient:
     options = dict(
         serverSelectionTimeoutMS=20000,
         connectTimeoutMS=20000,
@@ -96,13 +102,69 @@ def get_client() -> MongoClient:
     return MongoClient(mongo_url, **options)
 
 
+@lru_cache(maxsize=1)
+def get_client() -> MongoClient:
+    """Client MongoDB partagé du cluster principal. Créé une seule fois, à la demande."""
+    return _make_client(get_mongo_url())
+
+
 # Alias historique (ancien nom privé)
 _client = get_client
 
 
+def get_fallback_url() -> str:
+    return (os.getenv("MONGO_URL_FALLBACK") or "").strip()
+
+
+@lru_cache(maxsize=1)
+def _get_router():
+    """Routeur de bascule, ou None si aucun cluster de secours n'est configuré."""
+    fallback_url = get_fallback_url()
+    if not fallback_url:
+        return None
+    if fallback_url == get_mongo_url():
+        logger.error("❌ MONGO_URL_FALLBACK identique à MONGO_URL — bascule désactivée")
+        return None
+    from backend.db_failover import FailoverRouter
+    router = FailoverRouter(get_client(), _make_client(fallback_url), get_db_name())
+    if os.getenv("MONGO_FAILOVER_MONITOR", "1").strip().lower() not in ("0", "false", "no", "off"):
+        router.start_monitor()
+    logger.info("🛟 Cluster MongoDB de secours configuré — bascule automatique active")
+    return router
+
+
+def get_failover_router():
+    return _get_router()
+
+
 def get_db() -> Database:
-    """Renvoie la base partagée. N'effectue aucun appel réseau."""
+    """Renvoie la base partagée. N'effectue aucun appel réseau.
+
+    Avec un cluster de secours : proxy qui choisit la base active à chaque opération.
+    """
+    router = _get_router()
+    if router is None:
+        return get_client()[get_db_name()]
+    from backend.db_failover import FailoverDatabase
+    return FailoverDatabase(router)
+
+
+def get_primary_db() -> Database:
+    """Database brute du cluster principal (pour les API qui exigent une vraie Database)."""
     return get_client()[get_db_name()]
+
+
+def is_degraded() -> bool:
+    """True si l'app tourne actuellement sur le cluster de secours."""
+    router = _get_router()
+    return router is not None and router.is_degraded()
+
+
+def get_failover_status() -> dict:
+    router = _get_router()
+    if router is None:
+        return {"fallback_configured": False, "active": "primary", "degraded": False}
+    return router.status()
 
 
 # ── Disponibilité (ping court, résultat mis en cache) ──
@@ -121,13 +183,22 @@ def is_available(timeout_s: float = 5.0, max_age_s: float = 30.0) -> bool:
     with _availability_lock:
         if _availability["ok"] is not None and now - _availability["checked_at"] < max_age_s:
             return _availability["ok"]
-        try:
-            with pymongo.timeout(timeout_s):
-                get_client().admin.command("ping")
-            ok = True
-        except Exception as e:
-            logger.error(f"❌ MongoDB indisponible: {e}")
-            ok = False
+        router = _get_router()
+        if router is not None:
+            # Avec secours : disponible si la base active répond, ou si on peut basculer
+            ok = router.ping(router.active, timeout_s)
+            if not ok and not router.is_degraded():
+                ok = router.switch_to_fallback("principal injoignable")
+            if not ok:
+                logger.error(f"❌ MongoDB indisponible (principal et secours): {router.last_error}")
+        else:
+            try:
+                with pymongo.timeout(timeout_s):
+                    get_client().admin.command("ping")
+                ok = True
+            except Exception as e:
+                logger.error(f"❌ MongoDB indisponible: {e}")
+                ok = False
         _availability["ok"] = ok
         _availability["checked_at"] = time.monotonic()
         return ok
