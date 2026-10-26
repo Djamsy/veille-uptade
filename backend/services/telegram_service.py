@@ -336,7 +336,8 @@ def notify_new_article(article: Dict[str, Any], queued: bool = False) -> bool:
         text += f"\n📝 <i>{summary}</i>\n"
 
     if url:
-        text += f"\n🔗 <a href=\"{_html.escape(url, quote=True)}\">Lire l'article</a>"
+        # Lien de l'article en clair (Telegram le rend cliquable), pas caché derrière un texte
+        text += f"\n🔗 {_html.escape(url, quote=False)}"
 
     if queued:
         result = enqueue_message(text)

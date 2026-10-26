@@ -44,7 +44,7 @@ def test_message_html():
     })
     t = sent[-1]
     check("Routes &amp; ponts : &lt;urgent&gt;" in t, "le titre est échappé pour le mode HTML")
-    check('href="https://x.fr/a?b=1&amp;c=2"' in t, "l'URL est échappée dans le lien")
+    check("🔗 https://x.fr/a?b=1&amp;c=2" in t and "href" not in t, "le lien de l'article est affiché en clair")
     check("A &amp; B" in t, "les entités sont échappées")
     check("&amp;</i>" in t, "le résumé est coupé avant d'être échappé (pas d'entité tronquée)")
     check("Gravité : 0%" in t, "une gravité absente ne fait pas planter le message")
