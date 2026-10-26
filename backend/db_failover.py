@@ -263,7 +263,9 @@ class FailoverRouter:
         stats: Dict[str, Any] = {"copied": 0, "duplicates": 0, "conflicts": 0, "errors": 0,
                                  "dry_run": dry_run, "collections": {}}
         try:
-            names = [c for c in src.list_collection_names() if not c.startswith("system.")]
+            # radio_audio.* : rushs audio stockés en permanence sur le secours, jamais recopiés
+            names = [c for c in src.list_collection_names()
+                     if not c.startswith("system.") and not c.startswith("radio_audio.")]
         except Exception as e:
             logger.error("Resync impossible (secours injoignable) : %s", e)
             stats["errors"] += 1

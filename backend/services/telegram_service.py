@@ -18,6 +18,9 @@ import urllib.parse
 import json
 import hashlib
 import threading
+import queue
+import time
+import html as _html
 from datetime import datetime
 from typing import Optional, Dict, Any
 from collections import OrderedDict
@@ -56,6 +59,52 @@ def _mark_as_sent(alert_type: str, identifier: str):
         # Éjecter les plus anciennes si le cache dépasse la taille max
         while len(_sent_cache) > _SENT_CACHE_MAX:
             _sent_cache.popitem(last=False)
+
+
+def article_alerts_mode() -> str:
+    """TELEGRAM_ARTICLE_ALERTS :
+    - "all" (défaut)  : une alerte pour chaque nouvel article enregistré
+    - "relevant"      : seulement les articles importants (gravité >= 0.4 et
+                        département / institution / affaire), après enrichissement IA
+    - "off"           : aucune alerte article
+    """
+    mode = os.getenv("TELEGRAM_ARTICLE_ALERTS", "all").strip().lower()
+    return mode if mode in ("all", "relevant", "off") else "all"
+
+
+# ── File d'envoi à débit limité ──────────────────────────
+# Telegram limite à ~20 messages/minute dans un groupe : on espace les envois
+# de 3 s dans un thread dédié, pour ne jamais bloquer le scraping.
+_SEND_INTERVAL_S = float(os.getenv("TELEGRAM_SEND_INTERVAL_S", "3"))
+_QUEUE_MAX = 500
+_send_queue: "queue.Queue[str]" = queue.Queue(maxsize=_QUEUE_MAX)
+_worker_lock = threading.Lock()
+_worker: Optional[threading.Thread] = None
+
+
+def _queue_worker():
+    while True:
+        text = _send_queue.get()
+        try:
+            send_message(text)
+        except Exception as e:
+            logger.warning(f"Telegram file d'envoi : {e}")
+        time.sleep(_SEND_INTERVAL_S)
+
+
+def enqueue_message(text: str) -> bool:
+    """Met un message en file d'envoi (non bloquant). False si la file est pleine."""
+    global _worker
+    with _worker_lock:
+        if _worker is None or not _worker.is_alive():
+            _worker = threading.Thread(target=_queue_worker, name="telegram-queue", daemon=True)
+            _worker.start()
+    try:
+        _send_queue.put_nowait(text)
+        return True
+    except queue.Full:
+        logger.warning("⚠️ File Telegram pleine (%s messages) — alerte ignorée", _QUEUE_MAX)
+        return False
 
 
 def is_configured() -> bool:
@@ -241,8 +290,11 @@ def notify_pipeline_result(
 
 # ── Notification nouvel article département ──────────────
 
-def notify_new_article(article: Dict[str, Any]) -> bool:
-    """Notifie un nouvel article pertinent (département, affaires, institutions)."""
+def notify_new_article(article: Dict[str, Any], queued: bool = False) -> bool:
+    """Notifie un nouvel article.
+
+    queued=True : passe par la file à débit limité (pour les envois en masse).
+    """
     if not is_configured():
         return False
 
@@ -252,18 +304,22 @@ def notify_new_article(article: Dict[str, Any]) -> bool:
         logger.debug(f"🔇 Notification doublon ignorée: new_article {article_id[:30]}")
         return False
 
-    title = article.get("title", "Sans titre")[:150]
-    source = article.get("source", "?")
-    theme = article.get("theme", "")
-    gravity = article.get("gravity_score", 0)
-    sentiment = article.get("sentiment", "")
+    esc = lambda v: _html.escape(str(v or ""), quote=False)  # noqa: E731 — mode HTML Telegram
+    title = esc((article.get("title") or "Sans titre")[:150])
+    source = esc(article.get("source", "?"))
+    theme = esc(article.get("theme", ""))
+    try:
+        gravity = float(article.get("gravity_score", 0) or 0)
+    except (TypeError, ValueError):
+        gravity = 0.0
+    sentiment = esc(article.get("sentiment", ""))
     elected = article.get("elected", []) or []
     institutions = article.get("institutions", []) or []
     url = article.get("url", "")
-    summary = article.get("ai_summary", "")
+    summary = esc(str(article.get("ai_summary", "") or "")[:200])  # couper AVANT d'échapper
 
     emoji = _gravity_emoji(gravity)
-    entities = ", ".join((elected + institutions)[:4]) or "—"
+    entities = esc(", ".join(map(str, (elected + institutions)[:4]))) or "—"
     sentiment_emoji = {"positif": "🟢", "négatif": "🔴", "neutre": "⚪", "mitigé": "🟡"}.get(sentiment, "⚪")
 
     text = (
@@ -277,12 +333,15 @@ def notify_new_article(article: Dict[str, Any]) -> bool:
     )
 
     if summary:
-        text += f"\n📝 <i>{summary[:200]}</i>\n"
+        text += f"\n📝 <i>{summary}</i>\n"
 
     if url:
-        text += f"\n🔗 <a href=\"{url}\">Lire l'article</a>"
+        text += f"\n🔗 <a href=\"{_html.escape(url, quote=True)}\">Lire l'article</a>"
 
-    result = send_message(text)
+    if queued:
+        result = enqueue_message(text)
+    else:
+        result = send_message(text)
     if result:
         _mark_as_sent("new_article", article_id)
     return result

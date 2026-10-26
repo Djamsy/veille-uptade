@@ -1628,12 +1628,23 @@ Réponds en français. Sois concret et spécifique au contexte guadeloupéen.
 Retourne UNIQUEMENT du JSON valide."""
 
 
+def predictive_enabled() -> bool:
+    """Analyse prédictive IA activée ? Désactivée par défaut (économie de crédit OpenAI).
+
+    Pour la réactiver : PREDICTIVE_ANALYSIS_ENABLED=true sur Render.
+    """
+    return os.environ.get("PREDICTIVE_ANALYSIS_ENABLED", "false").strip().lower() in ("1", "true", "yes", "on")
+
+
 def analyze_trends_predictive(affairs: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """
     Analyse prédictive IA des tendances et anticipations.
     Envoie les affaires actives à GPT pour obtenir tendances, risques et recommandations.
     Coût estimé : ~$0.003 par appel.
     """
+    if not predictive_enabled():
+        logger.info("⏸️ Analyse prédictive désactivée (PREDICTIVE_ANALYSIS_ENABLED)")
+        return None
     if not affairs:
         return None
 

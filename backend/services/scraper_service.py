@@ -366,6 +366,27 @@ class GuadeloupeScraper:
         
         return articles
     
+    @staticmethod
+    def _notify_new_articles(articles: List[Dict]) -> None:
+        """Alerte Telegram pour chaque nouvel article (TELEGRAM_ARTICLE_ALERTS=all).
+
+        Envoi via une file à débit limité : ne ralentit pas le scraping et ne
+        dépend pas du crédit OpenAI (infos du pré-enrichissement par règles).
+        """
+        if not articles:
+            return
+        try:
+            from backend.services.telegram_service import (
+                article_alerts_mode, is_configured, notify_new_article,
+            )
+            if article_alerts_mode() != "all" or not is_configured():
+                return
+            for art in articles:
+                notify_new_article(art, queued=True)
+            logger.info(f"   📨 {len(articles)} alerte(s) Telegram en file")
+        except Exception as e:
+            logger.warning(f"   ⚠️ Alertes Telegram articles : {e}")
+
     def scrape_all_sites(self) -> Dict[str, Any]:
         """
         Scrape tous les sites avec détection d'affaires
@@ -395,22 +416,24 @@ class GuadeloupeScraper:
                 articles = self.scrape_site(site_key, cfg)
 
                 # ⚡ Batch insert au lieu de N × insert_one (÷N ops MongoDB)
+                inserted: List[Dict] = []
                 if articles:
                     try:
-                        insert_result = self.articles_collection.insert_many(
+                        self.articles_collection.insert_many(
                             articles, ordered=False  # continue même si un doublon
                         )
-                        saved = len(insert_result.inserted_ids)
+                        inserted = list(articles)
                     except Exception as e:
-                        # BulkWriteError si doublons — compter les succès
+                        # BulkWriteError si doublons : avec ordered=False, les échecs
+                        # peuvent être n'importe où dans la liste -> on retire leurs index
                         if hasattr(e, 'details'):
-                            saved = e.details.get('nInserted', 0)
+                            failed = {w.get('index') for w in e.details.get('writeErrors', [])}
+                            inserted = [a for i, a in enumerate(articles) if i not in failed]
                         else:
-                            saved = 0
                             logger.warning(f"   ⚠️ Erreur batch insert: {e}")
-                    all_articles.extend(articles[:saved] if saved else [])
-                else:
-                    saved = 0
+                    all_articles.extend(inserted)
+                    self._notify_new_articles(inserted)
+                saved = len(inserted)
 
                 results["articles_by_site"][site_key] = saved
                 results["sites_scraped"] += 1
