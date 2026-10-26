@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends, HTTPException, status, Body
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from pymongo import MongoClient
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["auth"])  # ✅ CORRECTION ICI
@@ -29,12 +28,9 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 def get_db():
-    """Connexion MongoDB"""
-    MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
-    MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME", "veille_media")
-    
-    client = MongoClient(MONGO_URL)
-    return client[MONGO_DB_NAME]
+    """Base MongoDB partagée (avant : un nouveau MongoClient à chaque requête)."""
+    from backend.db import get_db as _shared_get_db
+    return _shared_get_db()
 
 def create_access_token(data: Dict[str, Any]) -> str:
     """Créer un token JWT"""

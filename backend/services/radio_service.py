@@ -54,15 +54,11 @@ class RadioTranscriptionService:
     def __init__(self):
         # Connexion Mongo
         try:
-            if MONGO_URL.startswith("mongodb+srv"):
-                self.client = MongoClient(MONGO_URL, tlsCAFile=certifi.where(), serverSelectionTimeoutMS=30000)
-            else:
-                self.client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=30000)
-            self.client.admin.command("ping")
-            try:
-                self.db = self.client.get_default_database()
-            except mongo_errors.ConfigurationError:
-                self.db = self.client["veille_media"]
+            from backend.db import get_client, get_db_or_none
+            self.db = get_db_or_none()
+            if self.db is None:
+                raise RuntimeError("ping MongoDB échoué")
+            self.client = get_client()  # client partagé, ne pas fermer
             logger.info("🔗 Mongo connecté (%s)", self.db.name)
         except Exception as e:
             logger.error("💥 Mongo indisponible: %s", e)

@@ -94,17 +94,11 @@ class EntityReconciliationService:
 
     def _connect_db(self):
         """Connexion MongoDB si pas fournie."""
-        mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
-        db_name = os.environ.get("MONGO_DB_NAME", "veille_media")
         try:
-            import certifi
-            client = MongoClient(
-                mongo_url,
-                tlsCAFile=certifi.where() if "mongodb+srv" in mongo_url else None,
-                serverSelectionTimeoutMS=10000,
-            )
-            client.admin.command("ping")
-            self.db = client[db_name]
+            from backend.db import get_db_or_none
+            self.db = get_db_or_none()
+            if self.db is None:
+                raise RuntimeError("ping MongoDB échoué")
             logger.info("🔗 Reconciliation service connecté à MongoDB")
         except Exception as e:
             logger.error(f"❌ MongoDB indisponible: {e}")

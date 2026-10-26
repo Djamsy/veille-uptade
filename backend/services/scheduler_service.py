@@ -46,15 +46,8 @@ GRAVITY_THRESHOLD = float(os.environ.get("GRAVITY_THRESHOLD", "0.6"))
 
 def _get_db():
     try:
-        if MONGO_URL.startswith("mongodb+srv"):
-            client = MongoClient(MONGO_URL, tlsCAFile=certifi.where(), serverSelectionTimeoutMS=15000)
-        else:
-            client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=15000)
-        try:
-            db = client.get_default_database()
-        except ConfigurationError:
-            db = client["veille_media"]
-        return db
+        from backend.db import get_db  # client partagé, création paresseuse
+        return get_db()
     except Exception as e:
         logger.warning(f"MongoDB non disponible: {e}")
         return None

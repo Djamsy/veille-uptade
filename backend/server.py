@@ -81,8 +81,6 @@ class MemoryCache:
 
 
 _cache = MemoryCache()
-from pymongo import MongoClient
-from pymongo.errors import ConnectionFailure
 from bson import ObjectId
 
 from fastapi import FastAPI, HTTPException, Query, Request, BackgroundTasks, Body, Depends
@@ -122,23 +120,23 @@ logger.info("=" * 60)
 logger.info(f"🏝️ VEILLE MÉDIA GUADELOUPE - VERSION {VERSION}")
 logger.info("🚀 Mode: SANS OLLAMA - 100% règles déterministes")
 logger.info("=" * 60)
-logger.info(f"MONGO_URL: {MONGO_URL}")
+logger.info(f"MONGO_URL: {re.sub(r'://[^@/]+@', '://***:***@', MONGO_URL)}")
 logger.info(f"Environment: {ENVIRONMENT}")
 logger.info(f"Seuil gravité affaires: {GRAVITY_THRESHOLD}")
 
-# Connexion MongoDB
+# Connexion MongoDB — client partagé (backend/db.py), plus de client propre au serveur
+from backend.db import get_client as _get_shared_client, get_db_name as _get_db_name, is_available as _mongo_is_available
+
+DB_NAME = _get_db_name()
 mongo_client = None
 db = None
 
-try:
-    mongo_client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=5000)
+if _mongo_is_available():
+    mongo_client = _get_shared_client()
     db = mongo_client[DB_NAME]
-    mongo_client.admin.command('ismaster')
     logger.info("✅ MongoDB connecté avec succès")
-except ConnectionFailure:
+else:
     logger.error("❌ Échec connexion MongoDB")
-    mongo_client = None
-    db = None
 
 # Collections principales
 collections = {}

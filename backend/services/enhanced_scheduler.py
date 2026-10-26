@@ -338,17 +338,18 @@ async def telegram_morning_digest_job():
     """Briefing matinal GPT envoyé sur Telegram — résumé des affaires actives des dernières 24h."""
     logger.info("📰 Génération du digest matinal GPT pour Telegram...")
     try:
-        from pymongo import MongoClient
+        from backend.db import get_db
         from backend.services.telegram_alerts_service import TelegramAlertsService
         from backend.services.ai_groq_service import _call_ai, is_available as ai_available
 
-        mongo_uri = os.environ.get("MONGODB_URI") or os.environ.get("MONGO_URI")
-        if not mongo_uri:
+        # Condition d'activation historique conservée telle quelle : la tâche ne
+        # tourne que si MONGODB_URI ou MONGO_URI est défini. La base utilisée est
+        # désormais la base partagée (MONGO_URL), comme le reste de l'app.
+        if not (os.environ.get("MONGODB_URI") or os.environ.get("MONGO_URI")):
             logger.warning("MongoDB URI manquant pour digest matinal")
             return
 
-        client = MongoClient(mongo_uri, serverSelectionTimeoutMS=8000)
-        db = client.get_default_database()
+        db = get_db()
 
         # Récupérer les affaires actives triées par BMG
         affairs = list(db["affairs"].find(
@@ -360,7 +361,6 @@ async def telegram_morning_digest_job():
 
         if not affairs:
             logger.info("📰 Aucune affaire active → pas de digest")
-            client.close()
             return
 
         # Récupérer les stats des dernières 24h
@@ -458,7 +458,6 @@ Ne dépasse pas 4000 caractères."""
             "sent": True,
         })
 
-        client.close()
         logger.info(f"📰 Digest matinal envoyé ({len(digest_text)} chars, {len(affairs)} affaires)")
         return {"sent": True, "length": len(digest_text), "affairs": len(affairs)}
 
@@ -574,15 +573,15 @@ async def storage_monitor_job():
     """Tâche automatique : vérification stockage MongoDB Atlas (512 Mo free tier)"""
     logger.info("💾 Vérification stockage MongoDB...")
     try:
-        from pymongo import MongoClient
-        mongo_uri = os.environ.get("MONGODB_URI") or os.environ.get("MONGO_URI")
-        if not mongo_uri:
+        from backend.db import get_db
+        # Condition d'activation historique conservée (voir digest matinal).
+        if not (os.environ.get("MONGODB_URI") or os.environ.get("MONGO_URI")):
             logger.warning("MONGODB_URI non configuré pour le monitoring stockage")
             return
 
-        client = MongoClient(mongo_uri)
-        db_name = os.environ.get("MONGODB_DB", "veille_guadeloupe")
-        db = client[db_name]
+        # Base partagée : avant, MONGODB_DB (défaut "veille_guadeloupe") pouvait
+        # pointer vers une base vide et fausser la mesure.
+        db = get_db()
 
         # Récupérer les stats de la base
         stats = db.command("dbStats")
@@ -662,7 +661,6 @@ async def storage_monitor_job():
             except Exception as tg_err:
                 logger.warning(f"Telegram storage alert error: {tg_err}")
 
-        client.close()
         return result
 
     except Exception as e:

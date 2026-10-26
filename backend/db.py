@@ -1,9 +1,38 @@
 # backend/db.py
+"""Point d'accès UNIQUE à MongoDB pour tout le backend.
+
+Toute connexion passe par ici : un seul MongoClient partagé par le process
+(pymongo est thread-safe et gère son propre pool de connexions).
+
+Pourquoi : avant, chaque service ouvrait son propre client, et certaines routes
+en ouvraient un nouveau à CHAQUE requête sans le fermer. Résultat : connexions
+qui s'accumulent côté Atlas, et impossible de basculer sur une base de secours
+sans toucher à une dizaine de fichiers.
+
+API :
+    get_client()      -> MongoClient partagé (création paresseuse, pas d'I/O)
+    get_db()          -> Database partagée
+    is_available()    -> bool, ping court mis en cache quelques secondes
+    get_db_or_none()  -> Database si MongoDB répond, sinon None
+
+Ne JAMAIS appeler .close() sur le client partagé depuis un service.
+
+Variables d'environnement :
+    MONGO_URL               URL de connexion (défaut : mongodb://localhost:27017/veille_media)
+    MONGO_DB_NAME / DB_NAME nom de la base (sinon : chemin de l'URL, sinon veille_media)
+    MONGO_MAX_POOL_SIZE     taille du pool partagé (défaut 25)
+    MONGO_SOCKET_TIMEOUT_MS timeout d'une opération réseau (défaut 60000)
+"""
 import os
 import time
 import logging
+import threading
 from functools import lru_cache
+from typing import Optional
+
+import pymongo
 from pymongo import MongoClient, ASCENDING, DESCENDING, TEXT
+from pymongo.database import Database
 
 try:
     import certifi
@@ -12,48 +41,101 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-def _resolve_db_name(mongo_url: str, fallback: str = "veille_media") -> str:
-    """Déduit le nom de la base depuis l'URL (après le dernier /), sinon fallback."""
+DEFAULT_MONGO_URL = "mongodb://localhost:27017/veille_media"
+DEFAULT_DB_NAME = "veille_media"
+
+
+def get_mongo_url() -> str:
+    return (os.getenv("MONGO_URL") or DEFAULT_MONGO_URL).strip()
+
+
+def _resolve_db_name(mongo_url: str, fallback: str = DEFAULT_DB_NAME) -> str:
+    """Déduit le nom de la base depuis le chemin de l'URL, sinon fallback.
+
+    mongodb+srv://u:p@cluster0.x.mongodb.net/veille_media?retryWrites=true -> veille_media
+    mongodb://localhost:27017                                              -> fallback
+    """
     try:
-        part = mongo_url.rsplit("/", 1)[-1]
-        name = part.split("?", 1)[0]
+        rest = mongo_url.split("://", 1)[1]
+        if "/" not in rest:
+            return fallback
+        name = rest.split("/", 1)[1].split("?", 1)[0].strip()
         return name or fallback
     except Exception:
         return fallback
 
-@lru_cache(maxsize=1)
-def _client() -> MongoClient:
-    """Crée une connexion MongoDB (Atlas ou locale) avec timeouts raisonnables."""
-    mongo_url = os.getenv("MONGO_URL", "mongodb://localhost:27017/veille_media")
 
-    # Atlas (mongodb+srv) => utiliser le CA bundle de certifi si dispo
-    if mongo_url.startswith("mongodb+srv://") and certifi is not None:
-        return MongoClient(
-            mongo_url,
-            tlsCAFile=certifi.where(),
-            serverSelectionTimeoutMS=20000,
-            connectTimeoutMS=20000,
-            socketTimeoutMS=20000,
-            retryWrites=True,
-            retryReads=True,
-            maxPoolSize=10,
-        )
-    # Connexion locale / standard
-    return MongoClient(
-        mongo_url,
+def get_db_name() -> str:
+    """Priorité : MONGO_DB_NAME > DB_NAME > chemin de MONGO_URL > veille_media."""
+    explicit = (os.getenv("MONGO_DB_NAME") or os.getenv("DB_NAME") or "").strip()
+    return explicit or _resolve_db_name(get_mongo_url())
+
+
+def _int_env(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+@lru_cache(maxsize=1)
+def get_client() -> MongoClient:
+    """Client MongoDB partagé (Atlas ou local). Créé une seule fois, à la demande."""
+    mongo_url = get_mongo_url()
+    options = dict(
         serverSelectionTimeoutMS=20000,
         connectTimeoutMS=20000,
-        socketTimeoutMS=20000,
+        socketTimeoutMS=_int_env("MONGO_SOCKET_TIMEOUT_MS", 60000),
         retryWrites=True,
         retryReads=True,
-        maxPoolSize=10,
+        maxPoolSize=_int_env("MONGO_MAX_POOL_SIZE", 25),
     )
+    # Atlas (mongodb+srv) => CA bundle de certifi si dispo
+    if mongo_url.startswith("mongodb+srv://") and certifi is not None:
+        options["tlsCAFile"] = certifi.where()
+    return MongoClient(mongo_url, **options)
 
-def get_db():
-    """Renvoie la base définie par MONGO_DB_NAME ou extraite de MONGO_URL."""
-    mongo_url = os.getenv("MONGO_URL", "mongodb://localhost:27017/veille_media")
-    db_name = os.getenv("MONGO_DB_NAME") or _resolve_db_name(mongo_url)
-    return _client()[db_name]
+
+# Alias historique (ancien nom privé)
+_client = get_client
+
+
+def get_db() -> Database:
+    """Renvoie la base partagée. N'effectue aucun appel réseau."""
+    return get_client()[get_db_name()]
+
+
+# ── Disponibilité (ping court, résultat mis en cache) ──
+
+_availability_lock = threading.Lock()
+_availability: dict = {"ok": None, "checked_at": 0.0}
+
+
+def is_available(timeout_s: float = 5.0, max_age_s: float = 30.0) -> bool:
+    """True si MongoDB répond à un ping.
+
+    Le résultat est gardé max_age_s secondes : si la base est down au démarrage,
+    les services qui s'initialisent à la suite ne paient pas chacun le timeout.
+    """
+    now = time.monotonic()
+    with _availability_lock:
+        if _availability["ok"] is not None and now - _availability["checked_at"] < max_age_s:
+            return _availability["ok"]
+        try:
+            with pymongo.timeout(timeout_s):
+                get_client().admin.command("ping")
+            ok = True
+        except Exception as e:
+            logger.error(f"❌ MongoDB indisponible: {e}")
+            ok = False
+        _availability["ok"] = ok
+        _availability["checked_at"] = time.monotonic()
+        return ok
+
+
+def get_db_or_none(timeout_s: float = 5.0) -> Optional[Database]:
+    """Database si MongoDB répond, sinon None (pour les services qui se dégradent proprement)."""
+    return get_db() if is_available(timeout_s=timeout_s) else None
 
 
 # ── Index Setup (appelé une seule fois au démarrage) ──

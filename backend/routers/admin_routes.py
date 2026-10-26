@@ -55,11 +55,9 @@ def _svc():
 
 
 def _get_db():
-    from pymongo import MongoClient
-    MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
-    MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME", "veille_media")
-    client = MongoClient(MONGO_URL)
-    return client[MONGO_DB_NAME]
+    # Client partagé : avant, un nouveau MongoClient était ouvert à chaque requête.
+    from backend.db import get_db
+    return get_db()
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> Dict[str, Any]:
