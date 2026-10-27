@@ -159,9 +159,24 @@ def test_api_total():
     check(r["total"] == 38, "days=0 : tout l'historique")
 
 
+def test_startup_email():
+    print("E-mail de démarrage")
+    calls.clear()
+    mail._quota.update(day=None, sent=0)
+    r = mail.send_startup_email()
+    check(r["ok"] and calls[-1]["json"]["subject"] == "✅ Veille Média 971 a démarré", "envoyé au démarrage")
+    check("a@exemple.fr, b@exemple.fr" in calls[-1]["json"]["htmlContent"], "liste les destinataires")
+    os.environ["EMAIL_STARTUP_NOTIFY"] = "0"
+    calls.clear()
+    check(mail.send_startup_email().get("skipped") and not calls, "EMAIL_STARTUP_NOTIFY=0 : pas d'envoi")
+    os.environ.pop("EMAIL_STARTUP_NOTIFY")
+    mail._quota.update(day=None, sent=0)
+
+
 if __name__ == "__main__":
     test_send()
     test_build_and_modes()
+    test_startup_email()
     test_scraper()
     test_api_total()
     print("\n✅ TOUS LES TESTS PASSENT")

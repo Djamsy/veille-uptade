@@ -1698,6 +1698,13 @@ try:
     from backend.routers.email_routes import router as email_router
     app.include_router(email_router, prefix="/api")
     logger.info("✅ Routes e-mail chargées (/api/email/*)")
+
+    @app.on_event("startup")
+    async def _email_startup_notify():
+        """E-mail « service démarré » (test Brevo à chaque déploiement), sans bloquer le démarrage."""
+        import threading
+        from backend.services.email_service import send_startup_email
+        threading.Thread(target=send_startup_email, name="brevo-startup", daemon=True).start()
 except Exception as e:
     logger.warning(f"⚠️ Routes e-mail non disponibles: {e}")
 

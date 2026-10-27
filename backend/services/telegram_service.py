@@ -303,6 +303,10 @@ def notify_new_article(article: Dict[str, Any], queued: bool = False) -> bool:
     if _is_already_sent("new_article", article_id):
         logger.debug(f"🔇 Notification doublon ignorée: new_article {article_id[:30]}")
         return False
+    # Même annonce (titre normalisé), même si republiée par un autre média ou re-scrapée
+    from backend.services.alert_dedup import claim
+    if not claim("telegram_article", article.get("title", ""), str(article.get("url", ""))):
+        return False
 
     esc = lambda v: _html.escape(str(v or ""), quote=False)  # noqa: E731 — mode HTML Telegram
     title = esc((article.get("title") or "Sans titre")[:150])
@@ -360,30 +364,34 @@ def notify_radio_summary(transcription: Dict[str, Any]) -> bool:
     if _is_already_sent("radio", radio_id):
         logger.debug(f"🔇 Notification doublon ignorée: radio {radio_id[:20]}")
         return False
+    # Un seul résumé par journal (flux + date + heure), même avec plusieurs instances
+    from backend.services.alert_dedup import claim
+    journal = " ".join(str(transcription.get(k, "")) for k in ("stream_key", "date", "time")).strip()
+    if not claim("telegram_radio", journal or radio_id):
+        return False
 
-    stream_name = transcription.get("stream_name", "") or transcription.get("section", "Radio")
-    summary = (transcription.get("ai_summary", "") or transcription.get("gpt_analysis", "")
-               or transcription.get("topic_summary", ""))
-    # Fallback : texte brut tronqué si pas de résumé IA
-    if not summary:
-        raw = transcription.get("text", "") or transcription.get("transcription", "")
-        if raw and len(raw) > 30:
-            summary = raw[:400] + ("..." if len(raw) > 400 else "")
-    topic = transcription.get("topic_title", "")
+    esc = lambda v: _html.escape(str(v or ""), quote=False)  # noqa: E731
+    stream_name = esc(transcription.get("stream_name", "") or transcription.get("section", "Radio"))
+    # Uniquement le résumé IA : jamais la transcription brute
+    summary = str(transcription.get("ai_summary", "") or transcription.get("gpt_analysis", "")
+                  or transcription.get("topic_summary", "") or "")
+    if not summary.strip():
+        logger.info(f"📻 Pas de résumé IA pour {stream_name} — notification radio non envoyée")
+        return False
+    summary = esc(summary[:1500])  # couper AVANT d'échapper
+    topic = esc(str(transcription.get("topic_title", "") or "")[:100])
     gravity = transcription.get("gravity", 0) or 0
-    captured_at = transcription.get("captured_at", "")
-
-    if not summary:
-        return False  # Rien à envoyer
+    # Heure locale (Guadeloupe) si disponible : captured_at est en UTC (+4 h)
+    captured_at = transcription.get("captured_at_local") or transcription.get("captured_at", "")
 
     emoji = _gravity_emoji(gravity) if gravity else "📻"
 
     text = f"🎙️ <b>RADIO — {stream_name}</b>\n\n"
 
     if topic:
-        text += f"📌 <b>{topic[:100]}</b>\n\n"
+        text += f"📌 <b>{topic}</b>\n\n"
 
-    text += f"{summary[:500]}\n"
+    text += f"{summary}\n"
 
     if gravity:
         text += f"\n{emoji} Gravité : {gravity:.0%}"

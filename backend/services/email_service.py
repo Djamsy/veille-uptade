@@ -127,6 +127,47 @@ def send_email_async(subject: str, html_content: str, text_content: Optional[str
                      name="brevo-send", daemon=True).start()
 
 
+def send_startup_email() -> Dict[str, Any]:
+    """E-mail « service démarré » envoyé à chaque démarrage (donc à chaque déploiement).
+
+    Sert de test de bout en bout de Brevo : le résultat est écrit dans les logs.
+    Désactivable avec EMAIL_STARTUP_NOTIFY=0.
+    """
+    if _env("EMAIL_STARTUP_NOTIFY", "1").lower() in ("0", "false", "no", "off"):
+        return {"ok": False, "skipped": "EMAIL_STARTUP_NOTIFY=0"}
+    if not is_configured():
+        logger.info("📧 Brevo non configuré — pas d'e-mail de démarrage "
+                    "(BREVO_API_KEY, BREVO_SENDER_EMAIL, EMAIL_ALERT_TO)")
+        return {"ok": False, "skipped": "non configuré"}
+    try:
+        from backend.db import get_failover_status
+        db_state = get_failover_status()
+        cluster = "secours (mode dégradé)" if db_state.get("degraded") else "principal"
+    except Exception:
+        cluster = "inconnu"
+    now = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M UTC")
+    mode = article_alerts_mode()
+    html_content = (
+        '<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto">'
+        '<h2 style="font-size:18px;color:#111827">✅ Veille Média 971 a démarré</h2>'
+        f'<p style="font-size:14px;color:#374151">Démarrage le {html.escape(now)}.</p>'
+        '<ul style="font-size:14px;color:#374151">'
+        f'<li>Base de données : cluster {html.escape(cluster)}</li>'
+        f'<li>Alertes articles par e-mail : {html.escape(mode)}</li>'
+        f'<li>Destinataires : {html.escape(", ".join(recipients()))}</li>'
+        '</ul>'
+        '<p style="font-size:11px;color:#9ca3af">Cet e-mail confirme que les alertes Brevo fonctionnent. '
+        'Pour ne plus le recevoir à chaque déploiement : EMAIL_STARTUP_NOTIFY=0.</p></div>'
+    )
+    result = send_email("✅ Veille Média 971 a démarré", html_content,
+                        f"Veille Média 971 a démarré le {now}. Cluster : {cluster}. Alertes : {mode}.")
+    if result.get("ok"):
+        logger.info("📧 E-mail de démarrage envoyé via Brevo à %s", ", ".join(recipients()))
+    else:
+        logger.error("📧 E-mail de démarrage NON envoyé — Brevo : %s", result.get("error"))
+    return result
+
+
 # ── Alertes articles ─────────────────────────────────────────────────────────
 
 def _relevant(article: Dict[str, Any]) -> bool:
@@ -189,6 +230,9 @@ def notify_new_articles(articles: List[Dict[str, Any]]) -> bool:
     if mode == "off":
         return False
     selected = articles if mode == "all" else [a for a in articles if _relevant(a)]
+    # Anti-doublon : une annonce déjà envoyée par e-mail (titre normalisé) n'est pas renvoyée
+    from backend.services.alert_dedup import claim
+    selected = [a for a in selected if claim("email_article", a.get("title", ""), str(a.get("url", "")))]
     if not selected:
         return False
     mail = build_articles_email(selected)
