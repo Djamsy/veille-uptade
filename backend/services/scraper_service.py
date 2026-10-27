@@ -152,7 +152,10 @@ class GuadeloupeScraper:
             "karibinfo": {
                 "name": "KaribInfo",
                 "url": "https://www.karibinfo.com/",
-                "selectors": ["h1 a", "h2 a", "h3 a", "article a"],
+                # Articles : /news/<slug>/ (les rubriques sont sous /actualite/).
+                # Les anciens sélecteurs « h1 a, h2 a, h3 a, article a » ramenaient
+                # surtout menus et rubriques, qui occupaient les 20 places.
+                "selectors": ["a[href*='/news/']"],
                 "content_selectors": [".entry-content", ".post-content", "article"],
                 "base_url": "https://www.karibinfo.com",
             }
@@ -286,8 +289,18 @@ class GuadeloupeScraper:
             soup = BeautifulSoup(response.content, 'html.parser')
             links = []
             
+            seen_hrefs = set()
             for selector in config['selectors']:
-                links.extend(soup.select(selector))
+                for link in soup.select(selector):
+                    href_raw = (link.get('href') or '').split('#')[0].rstrip('/')
+                    text = link.get_text(strip=True)
+                    # Un même article apparaît souvent 2-3 fois (image, titre, « lire la suite »)
+                    # et les menus/rubriques ont des intitulés courts : on les écarte pour ne
+                    # pas gâcher les 20 places du cycle.
+                    if not href_raw or href_raw in seen_hrefs or len(text) < 15:
+                        continue
+                    seen_hrefs.add(href_raw)
+                    links.append(link)
             
             logger.info(f"   🔗 {len(links)} liens trouvés")
             
