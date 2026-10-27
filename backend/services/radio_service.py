@@ -531,6 +531,16 @@ class RadioTranscriptionService:
             "status": "completed"
         }
 
+        # Résumé IA du journal (envoyé sur Telegram, affiché dans les fiches radio)
+        try:
+            from backend.services.ai_groq_service import summarize_radio_transcription
+            ai_summary = summarize_radio_transcription(text, cfg["name"])
+            if ai_summary:
+                doc["ai_summary"] = ai_summary
+                doc["ai_summary_at"] = now_utc.isoformat()
+        except Exception as e:
+            logger.warning("Résumé IA radio échoué: %s", e)
+
         # Sauvegarde en collection
         if self.transcriptions_collection is not None:
             try:

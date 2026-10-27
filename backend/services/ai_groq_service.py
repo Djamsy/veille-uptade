@@ -508,6 +508,38 @@ def summarize_groq(text: str, max_sentences: int = 3) -> Optional[str]:
         return None
 
 
+def summarize_radio_transcription(text: str, stream_name: str = "") -> Optional[str]:
+    """Résumé IA d'un journal radio : les sujets traités, une phrase chacun.
+
+    Le texte est pris jusqu'à ~24 000 caractères (un journal de 30 min entier ;
+    summarize_groq s'arrêtait à 4 000, soit les premières minutes).
+    Coût GPT-4o-mini : ~0,001 $ par journal.
+    """
+    if not text or len(text.strip()) < 50 or text.lstrip().startswith("[Erreur"):
+        return None
+    try:
+        result = _call_ai(
+            messages=[
+                {"role": "system", "content": (
+                    "Tu résumes un journal radio d'information de Guadeloupe, transcrit "
+                    "automatiquement (il peut contenir des erreurs de transcription). "
+                    "Donne les sujets traités, du plus important au moins important, "
+                    "sous forme de 3 à 6 puces commençant par « • », une phrase factuelle "
+                    "chacune. Ignore publicités, jingles, météo et annonces sauf alerte. "
+                    "Pas d'introduction ni de conclusion."
+                )},
+                {"role": "user", "content": f"Journal : {stream_name}\n\n{text[:24000]}"},
+            ],
+            temperature=0.2,
+            max_tokens=500,
+            json_mode=False,
+        )
+        return (result or "").strip() or None
+    except Exception as e:
+        logger.warning(f"⚠️ Résumé radio IA échoué: {e}")
+        return None
+
+
 # ============================================================
 # Clustering IA — regrouper des articles par événement
 # ============================================================
