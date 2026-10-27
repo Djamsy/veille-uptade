@@ -109,6 +109,8 @@ export interface Article {
   gravity_score?: number;
   sentiment?: string;
   is_affair?: boolean;
+  /** Corps inaccessible (souvent réservé aux abonnés) : content = chapô seul */
+  content_restricted?: boolean;
 }
 
 export interface TimelineEvent {

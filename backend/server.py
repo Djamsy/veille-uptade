@@ -1049,18 +1049,21 @@ async def get_stats():
 @app.get("/api/articles")
 async def get_articles(
     limit: int = Query(50, ge=1, le=200),
-    skip: int = Query(0, ge=0)
+    skip: int = Query(0, ge=0),
+    days: int = Query(7, ge=0, le=365, description="Fenêtre en jours (0 = tout)"),
 ):
-    """Récupérer les articles"""
+    """Récupérer les articles (les plus récents d'abord) + le total pour la pagination."""
     try:
-        articles = list(
-            collections['articles_guadeloupe']
-            .find()
-            .sort("scraped_at", -1)
-            .skip(skip)
-            .limit(limit)
-        )
-        return {"articles": [serialize_doc(a) for a in articles]}
+        query: Dict[str, Any] = {}
+        if days:
+            cutoff = datetime.now() - timedelta(days=days)
+            # scraped_at est un datetime (scraper actuel) ou une chaîne ISO (anciens docs)
+            query = {"$or": [{"scraped_at": {"$gte": cutoff}},
+                             {"scraped_at": {"$gte": cutoff.isoformat()}}]}
+        col = collections['articles_guadeloupe']
+        articles = list(col.find(query).sort("scraped_at", -1).skip(skip).limit(limit))
+        total = col.count_documents(query)
+        return {"articles": [serialize_doc(a) for a in articles], "total": total, "days": days}
     except Exception as e:
         logger.error(f"Erreur récupération articles: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1689,6 +1692,14 @@ try:
 
 except Exception as e:
     logger.warning(f"⚠️ Routes Telegram non disponibles: {e}")
+
+# ── Alertes e-mail Brevo (/api/email/status, /api/email/test — admin) ──
+try:
+    from backend.routers.email_routes import router as email_router
+    app.include_router(email_router, prefix="/api")
+    logger.info("✅ Routes e-mail chargées (/api/email/*)")
+except Exception as e:
+    logger.warning(f"⚠️ Routes e-mail non disponibles: {e}")
 
 # ── Auto-register Publication Bot Webhook ──
 @app.on_event("startup")

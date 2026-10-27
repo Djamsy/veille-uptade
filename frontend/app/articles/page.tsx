@@ -62,8 +62,17 @@ function ArticleRow({ a }: { a: Article }) {
           <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{a.source}</span>
           <span className="font-mono text-[11px]" style={{ color: 'var(--text-muted)' }}>·</span>
           <span className="font-mono text-[11px]" style={{ color: 'var(--text-muted)' }}>
-            {timeAgo(a.date || a.scraped_at || '')}
+            {timeAgo(a.scraped_at || a.date || '')}
           </span>
+          {a.content_restricted && (
+            <span
+              className="text-[10px] font-medium px-1.5 py-0.5 rounded-sm"
+              style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+              title="Corps de l'article inaccessible (réservé aux abonnés) : seul le chapô est indexé"
+            >
+              Réservé abonnés
+            </span>
+          )}
           {a.theme && (
             <>
               <span className="font-mono text-[11px]" style={{ color: 'var(--text-muted)' }}>·</span>

@@ -6,7 +6,10 @@
 export function timeAgo(dateStr: string): string {
   if (!dateStr) return ''
   const now = Date.now()
-  const then = new Date(dateStr).getTime()
+  // Le backend sérialise des datetimes UTC sans fuseau ("2026-10-27T14:05:00") :
+  // sans suffixe, le navigateur les lirait en heure locale (décalage de 4 h en Guadeloupe).
+  const isNaiveDateTime = /T\d{2}:\d{2}/.test(dateStr) && !/(Z|[+-]\d{2}:?\d{2})$/.test(dateStr)
+  const then = new Date(isNaiveDateTime ? `${dateStr}Z` : dateStr).getTime()
   if (isNaN(then)) return ''
   const diff = Math.floor((now - then) / 1000)
   if (diff < 60) return "à l'instant"

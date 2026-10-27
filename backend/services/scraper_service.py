@@ -186,10 +186,20 @@ class GuadeloupeScraper:
         Extrait le contenu ÉDITORIAL d'un article (3000 premiers mots).
         Exclut : navigation, sidebar, footer, bylines auteur, publicités.
         """
+        self.last_extraction = "empty"  # body | description | empty (lu par scrape_site)
         try:
             response = requests.get(url, headers=self.headers, timeout=10)
             response.raise_for_status()
             soup = BeautifulSoup(response.content, 'html.parser')
+
+            # Chapô depuis les métadonnées (lu AVANT le nettoyage du DOM)
+            description = ""
+            for attrs in ({"property": "og:description"}, {"name": "description"},
+                          {"name": "twitter:description"}):
+                tag = soup.find("meta", attrs=attrs)
+                if tag and (tag.get("content") or "").strip():
+                    description = tag["content"].strip()
+                    break
 
             # 1. Supprimer les éléments non-éditoriaux AVANT extraction
             for tag in soup(["script", "style", "nav", "header", "footer",
@@ -224,14 +234,16 @@ class GuadeloupeScraper:
                     if len(content) > 100:
                         break
 
-            # 3. Fallback : tous les <p> du body
-            if not content or len(content) < 100:
-                paragraphs = []
-                for p in soup.find_all('p'):
-                    text = p.get_text(strip=True)
-                    if text and len(text) > 30:
-                        paragraphs.append(text)
-                content = " ".join(paragraphs)
+            # 3. Pas de corps éditorial (souvent : article réservé aux abonnés).
+            # On NE prend PAS tous les <p> de la page : ce sont les accroches
+            # d'AUTRES articles, qui faussaient résumé, thème, gravité et
+            # sentiment, et déclenchaient de faux « contenu dupliqué ».
+            if content and len(content) >= 100:
+                self.last_extraction = "body"
+            elif description:
+                content = description
+                self.last_extraction = "description"
+            # sinon : on garde le peu de texte trouvé (marqué restreint)
 
             # 4. Nettoyer et limiter à 3000 mots
             content = re.sub(r'\s+', ' ', content).strip()
@@ -310,6 +322,7 @@ class GuadeloupeScraper:
 
                     # EXTRAIRE LE CONTENU
                     content = self.extract_article_content(href, config)
+                    content_restricted = getattr(self, "last_extraction", "body") != "body"
 
                     # FILTRE GUADELOUPE — rejeter les articles hors-zone
                     if not _is_guadeloupe_relevant(title, content, href):
@@ -339,7 +352,9 @@ class GuadeloupeScraper:
                         'site_key': site_key,
                         'date': datetime.now().strftime('%Y-%m-%d'),
                         'scraped_at': datetime.now(),
-                        'word_count': len(content.split()) if content else 0
+                        'word_count': len(content.split()) if content else 0,
+                        # True : corps inaccessible (abonnés…), contenu = chapô seul
+                        'content_restricted': content_restricted,
                     }
 
                     # ENRICHIR AVEC TAGS_INDEX (pré-enrichissement léger)
@@ -379,13 +394,13 @@ class GuadeloupeScraper:
             from backend.services.telegram_service import (
                 article_alerts_mode, is_configured, notify_new_article,
             )
-            if article_alerts_mode() != "all" or not is_configured():
-                return
-            for art in articles:
-                notify_new_article(art, queued=True)
-            logger.info(f"   📨 {len(articles)} alerte(s) Telegram en file")
+            if article_alerts_mode() == "all" and is_configured():
+                for art in articles:
+                    notify_new_article(art, queued=True)
+                logger.info(f"   📨 {len(articles)} alerte(s) Telegram en file")
         except Exception as e:
             logger.warning(f"   ⚠️ Alertes Telegram articles : {e}")
+
 
     def scrape_all_sites(self) -> Dict[str, Any]:
         """
@@ -450,6 +465,13 @@ class GuadeloupeScraper:
                 logger.error(msg)
 
         results["total_articles"] = results["articles_saved"]
+
+        # E-mail Brevo : UN seul e-mail par cycle, tous sites confondus (EMAIL_ARTICLE_ALERTS)
+        try:
+            from backend.services.email_service import notify_new_articles as _email_articles
+            _email_articles(all_articles)
+        except Exception as e:
+            logger.warning(f"⚠️ Alerte e-mail articles : {e}")
         results["execution_time_seconds"] = round(time.time() - start, 2)
 
         # Ingérer les articles dans le pipeline V2 (clustering contextuel)
