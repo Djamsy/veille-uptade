@@ -188,7 +188,13 @@ def is_available(timeout_s: float = 5.0, max_age_s: float = 30.0) -> bool:
             # Avec secours : disponible si la base active répond, ou si on peut basculer
             ok = router.ping(router.active, timeout_s)
             if not ok and not router.is_degraded():
-                ok = router.switch_to_fallback("principal injoignable")
+                # Un ping raté ne suffit pas (1re connexion lente, pic de charge) :
+                # ping de confirmation plus long avant toute bascule
+                if router.confirm_primary_down():
+                    ok = router.switch_to_fallback(
+                        "principal injoignable (2 pings ratés)" + router._cause())
+                else:
+                    ok = True
             if not ok:
                 logger.error(f"❌ MongoDB indisponible (principal et secours): {router.last_error}")
         else:
