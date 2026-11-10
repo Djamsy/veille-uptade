@@ -29,6 +29,10 @@ class _Admin:
         self._s = state
 
     def command(self, *a, **k):
+        import time as _t
+        import pymongo._csot as csot
+        deadline = csot.get_deadline()  # délai réellement disponible pour ce ping
+        self._s["ping_remaining_s"] = None if deadline == float("inf") else deadline - _t.monotonic()
         if self._s["down"]:
             raise ServerSelectionTimeoutError("SSL handshake failed (simulé)")
         return {"ok": 1}
@@ -75,7 +79,7 @@ class _Flaky:
         def call(*a, **k):
             if name == "find":  # paresseux, comme pymongo : l'erreur arrive à l'itération
                 return _FlakyCursor(attr(*a, **k), self._s)
-            if self._s["down"]:
+            if self._s["down"] or self._s.get("ops_slow"):
                 raise ServerSelectionTimeoutError("SSL handshake failed (simulé)")
             res = attr(*a, **k)
             if isinstance(res, (mongomock.Database, mongomock.Collection)):
@@ -202,7 +206,7 @@ def test_monitor():
     deadline = time.time() + 3
     while r.active != FALLBACK and time.time() < deadline:
         time.sleep(0.02)
-    check(r.active == FALLBACK, "2 pings ratés -> bascule sans aucune requête applicative")
+    check(r.active == FALLBACK, f"{r.fail_threshold} pings ratés -> bascule sans aucune requête applicative")
     db.radio_transcriptions.insert_one({"_id": "t1", "text": "flash info"})
     p.state["down"] = False
     deadline = time.time() + 3
@@ -239,10 +243,51 @@ def test_skip_when_degraded():
         dbmod.is_degraded = orig
 
 
+def test_no_switch_on_slow_op():
+    print("Opération lente, principal joignable")
+    import pymongo
+    p, f, r, db = make()
+    p.state["ops_slow"] = True  # l'opération échoue, mais le ping répond
+    try:
+        with pymongo.timeout(3):  # comme l'anti-doublon des alertes
+            db.articles_guadeloupe.insert_one({"x": 1})
+        raise AssertionError("aurait dû lever")
+    except ServerSelectionTimeoutError:
+        pass
+    check(r.active == PRIMARY, "pas de bascule : l'erreur remonte, le principal reste actif")
+    check(f.raw().articles_guadeloupe.count_documents({}) == 0, "rien n'est écrit sur le secours")
+    check(p.state["ping_remaining_s"] is not None and p.state["ping_remaining_s"] > 5,
+          f"le ping de confirmation dispose de ~{p.state['ping_remaining_s']:.0f} s, "
+          "pas des 3 s de l'appelant")
+
+
+def test_monitor_threshold():
+    print("Seuil de la surveillance")
+    p, f, r, db = make()
+    r.check_interval = 0.05
+    r.mirror_every = 10_000
+    r.start_monitor()
+    time.sleep(0.2)
+    p.state["down"] = True
+    time.sleep(0.07)                 # 1 ou 2 pings ratés seulement
+    p.state["down"] = False
+    time.sleep(0.3)
+    check(r.active == PRIMARY, "1 à 2 pings ratés puis rétablissement : pas de bascule")
+    p.state["down"] = True
+    deadline = time.time() + 3
+    while r.active != FALLBACK and time.time() < deadline:
+        time.sleep(0.02)
+    r.stop_monitor()
+    check(r.active == FALLBACK, f"{r.fail_threshold} pings ratés d'affilée : bascule")
+    p.state["down"] = False
+
+
 if __name__ == "__main__":
     test_normal_mode()
     test_failover_resync()
     test_both_down()
+    test_no_switch_on_slow_op()
+    test_monitor_threshold()
     test_monitor()
     test_skip_when_degraded()
     print("\n✅ TOUS LES TESTS PASSENT")

@@ -82,7 +82,13 @@ class FailoverRouter:
         self._stop = threading.Event()
         self._both_down_logged_at = 0.0
         self.check_interval = _env_float("MONGO_FAILOVER_CHECK_S", 15.0)
-        self.ping_timeout = _env_float("MONGO_FAILOVER_PING_TIMEOUT_S", 5.0)
+        self.ping_timeout = _env_float("MONGO_FAILOVER_PING_TIMEOUT_S", 10.0)
+        # Pings ratés d'affilée avant bascule (~45 s avec un ping toutes les 15 s)
+        self.fail_threshold = max(1, int(_env_float("MONGO_FAILOVER_FAILS", 3)))
+        # Délai du ping de confirmation après l'échec d'une opération
+        self.confirm_timeout = _env_float("MONGO_FAILOVER_CONFIRM_TIMEOUT_S", 10.0)
+        self._confirm_lock = threading.Lock()
+        self._last_confirm: Dict[str, Any] = {"at": 0.0, "down": False}
         self.mirror_every = _env_float("MONGO_FALLBACK_MIRROR_EVERY_S", 6 * 3600)
         self.mirror_collections = _env_list("MONGO_FALLBACK_MIRROR", DEFAULT_MIRROR)
         self.telegram_enabled = os.getenv("MONGO_FAILOVER_TELEGRAM", "1").strip().lower() not in ("0", "false", "no", "off")
@@ -106,6 +112,42 @@ class FailoverRouter:
             self.last_error = f"{target}: {type(e).__name__}: {str(e)[:200]}"
             return False
 
+    def _ping_isolated(self, target: str, timeout_s: float) -> bool:
+        """Ping dans un thread séparé : il n'hérite pas du délai court de l'appelant
+        (pymongo.timeout est lié au contexte ; un ping de confirmation lancé sous
+        un `with pymongo.timeout(3)` échouerait pour la même raison que l'opération)."""
+        result = {"ok": False}
+
+        def _do():
+            result["ok"] = self.ping(target, timeout_s)
+
+        t = threading.Thread(target=_do, name=f"mongo-ping-{target}", daemon=True)
+        t.start()
+        t.join(timeout_s + 2)
+        return result["ok"]
+
+    def confirm_primary_down(self) -> bool:
+        """Vrai seulement si un ping dédié du principal (confirm_timeout, 10 s) échoue aussi.
+
+        Une opération lente (charge, délai court imposé par l'appelant, connexion
+        en cours d'ouverture) ne suffit plus à faire basculer toute l'application.
+        Résultat partagé 10 s : plusieurs opérations en échec simultané ne
+        lancent qu'un seul ping.
+        """
+        with self._confirm_lock:
+            now = time.monotonic()
+            if now - self._last_confirm["at"] < 10:
+                return self._last_confirm["down"]
+            down = not self._ping_isolated(PRIMARY, self.confirm_timeout)
+            self._last_confirm = {"at": time.monotonic(), "down": down}
+        if not down:
+            logger.warning("⚠️ MongoDB : opération lente sur le principal, mais il répond au ping "
+                           "— pas de bascule")
+        return down
+
+    def _cause(self) -> str:
+        return f" — cause : {self.last_error}" if self.last_error else ""
+
     # ── Exécution avec bascule ───────────────────────────────────────────────
     def run(self, fn: Callable[[Database], Any]) -> Any:
         target = self.active
@@ -118,10 +160,15 @@ class FailoverRouter:
             return fn(fallback_db)
 
     def failover_from(self, failed_target: str) -> Optional[Database]:
-        """Le principal vient d'échouer : bascule si possible, renvoie la base de secours."""
+        """Une opération a échoué sur le principal : bascule SEULEMENT si un ping de
+        confirmation échoue aussi. Renvoie la base de secours, ou None (l'erreur
+        d'origine remonte alors à l'appelant, sans bascule)."""
         if failed_target != PRIMARY:
             return None
-        self.switch_to_fallback("échec d'une opération sur le principal")
+        if self.active == PRIMARY:
+            if not self.confirm_primary_down():
+                return None
+            self.switch_to_fallback("opération en échec puis ping de confirmation raté" + self._cause())
         return self.raw_db(FALLBACK) if self.active == FALLBACK else None
 
     def switch_to_fallback(self, reason: str) -> bool:
@@ -173,7 +220,7 @@ class FailoverRouter:
     def _monitor_loop(self) -> None:
         fails = oks = 0
         last_mirror = 0.0
-        first = True
+        first = True  # 1er tour sans attente ; même seuil qu'ensuite (la 1re connexion à Atlas peut être lente)
         while not self._stop.is_set():
             if not first:
                 self._stop.wait(self.check_interval)
@@ -184,9 +231,12 @@ class FailoverRouter:
                 if self.active == PRIMARY:
                     fails = 0 if primary_ok else fails + 1
                     oks = 0
-                    # Au démarrage, un seul échec suffit (personne n'a encore écrit nulle part)
-                    if fails >= (1 if first else 2):
-                        self.switch_to_fallback("le principal ne répond plus au ping")
+                    if not primary_ok:
+                        logger.warning("⚠️ MongoDB : ping du principal raté (%s/%s)%s",
+                                       fails, self.fail_threshold, self._cause())
+                    if fails >= self.fail_threshold:
+                        self.switch_to_fallback(
+                            f"{fails} pings du principal ratés d'affilée" + self._cause())
                         fails = 0
                     elif primary_ok and time.time() - last_mirror >= self.mirror_every and self.ping(FALLBACK):
                         self.sync_indexes()
