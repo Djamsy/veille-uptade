@@ -172,13 +172,13 @@ class RadioTranscriptionService:
                 "priority": 8,
                 "enabled": True,
             },
-            "gp_radio_1200": {
-                "name": "Guadeloupe 1ère Radio 12h00",
-                "section": "12H Guadeloupe 1ère",
+            "gp_radio_1300": {
+                "name": "Guadeloupe 1ère Radio 13h00",
+                "section": "13H Guadeloupe 1ère",
                 "description": "Guadeloupe 1ère — Journal de midi",
                 "type": "radio",
                 "url": "http://guadeloupe.ice.infomaniak.ch/guadeloupe-128.mp3",
-                "duration_minutes": 20,
+                "duration_minutes": 25,
                 "schedule": {"days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"], "hour": 12, "minute": 0},
                 "priority": 9,
                 "enabled": True,
