@@ -173,13 +173,13 @@ export default function AdminPublicationsPage() {
             <div className="flex gap-2 flex-wrap">
               <button type="button" className="btn-primary px-4 py-2 text-sm" onClick={() => setShowCreate((v) => !v)}>+ Nouvelle demande</button>
               <button type="button" className="px-4 py-2 text-sm rounded-md" style={{ ...input }} disabled={busy === 'sync' || !status?.sheet.configured}
-                title={status?.sheet.configured ? 'Lire la feuille Google maintenant' : 'Feuille Google non configurée'}
+                title={status?.sheet.configured ? 'Lire le planning Google maintenant' : 'Planning Google non configuré'}
                 onClick={() => run('sync', async () => {
                   const r = await syncPublicationSheet()
                   if (!r.ok) throw Object.assign(new Error(r.error), { status: 400 })
-                  flash(`Feuille lue : ${r.created?.length ?? 0} créée(s), ${r.skipped ?? 0} ignorée(s)`)
+                  flash(`Planning lu (${r.tabs?.length ?? 0} onglet(s)) : ${r.created?.length ?? 0} créée(s), ${r.skipped ?? 0} ignorée(s)`)
                 }, 'Import terminé', 'import de la feuille')}>
-                {busy === 'sync' ? 'Lecture…' : '⟳ Lire la feuille'}
+                {busy === 'sync' ? 'Lecture…' : '⟳ Lire le planning'}
               </button>
             </div>
           </div>
@@ -264,7 +264,7 @@ export default function AdminPublicationsPage() {
                             <div className="flex items-center gap-2 flex-wrap mb-1">
                               <Badge status={p.status} />
                               <span className="font-mono text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                                {p.source === 'sheet' ? `Feuille · ligne ${p.sheet_row}` : 'Manuelle'} · {fmt(p.created_at)}
+                                {p.source === 'sheet' ? `${p.sheet_tab ?? 'Planning'} · ligne ${p.sheet_row}` : 'Manuelle'} · {fmt(p.created_at)}
                               </span>
                               {p.token.active && !p.token.expired && <span className="font-mono text-[10px]" style={{ color: 'var(--caution)' }}>🔗 lien actif → {fmt(p.token.expires_at)}</span>}
                             </div>
@@ -273,6 +273,8 @@ export default function AdminPublicationsPage() {
                             </button>
                             <p className="text-xs mt-1 line-clamp-2" style={{ color: 'var(--text-secondary)' }}>{p.payload?.text}</p>
                             <div className="flex gap-3 mt-1.5 font-mono text-[10px] flex-wrap" style={{ color: 'var(--text-muted)' }}>
+                              {p.payload?.scheduled_for && <span>📅 {p.payload.scheduled_for}</span>}
+                              {p.payload?.location && <span>📍 {p.payload.location}</span>}
                               {p.payload?.requester && <span>👤 {p.payload.requester}</span>}
                               {p.payload?.networks?.length > 0 && <span>📣 {p.payload.networks.join(', ')}</span>}
                               {p.payload?.media_urls?.length > 0 && <span>🖼 {p.payload.media_urls.length} média(s)</span>}
@@ -303,8 +305,12 @@ export default function AdminPublicationsPage() {
                   <ul className="text-xs space-y-2" style={{ color: 'var(--text-secondary)' }}>
                     <li><Dot ok={status.encryption.configured || status.encryption.dev_derived_key} warn={status.encryption.dev_derived_key} />
                       Chiffrement {status.encryption.configured ? `actif (clé v${status.encryption.key_version})` : 'clé DEV dérivée — à configurer'}</li>
-                    <li><Dot ok={status.sheet.configured} />Feuille Google {status.sheet.configured ? `· onglet ${status.sheet.tab}` : 'non configurée'}</li>
-                    {status.sheet.service_account && <li className="font-mono text-[10px] break-all pl-4" style={{ color: 'var(--text-muted)' }}>{status.sheet.service_account}</li>}
+                    <li><Dot ok={status.sheet.configured} />Planning Google {status.sheet.configured ? (status.sheet.tab === '(premier onglet)' ? '· tous les onglets' : `· onglet ${status.sheet.tab}`) : 'non configuré'}</li>
+                    {status.sheet.configured && <li className="pl-4" style={{ color: 'var(--text-muted)' }}>Import : statuts {status.import_statuses.join(', ')} · retour dans « {status.writeback_column ?? 'aucune colonne'} »</li>}
+                    {status.sheet.service_account
+                      ? <li className="font-mono text-[10px] break-all pl-4" style={{ color: 'var(--text-muted)' }}>{status.sheet.service_account} ({status.sheet.service_account_origin})</li>
+                      : <li className="pl-4" style={{ color: 'var(--negative)' }}>Compte de service Google introuvable dans les variables Render</li>}
+                    {!status.sheet.sheet_id_set && <li className="pl-4" style={{ color: 'var(--negative)' }}>PUBLICATION_SHEET_ID manquant</li>}
                     <li><Dot ok={status.buffer_configured} />Buffer {status.buffer_configured ? 'configuré' : 'non configuré'}</li>
                     <li><Dot ok />Publication manuelle après validation (bouton « Publier »)</li>
                     <li><Dot ok={status.notify_telegram || status.notify_emails > 0} />Notifications : {[status.notify_telegram && 'Telegram', status.notify_emails > 0 && `${status.notify_emails} e-mail(s)`].filter(Boolean).join(' + ') || 'aucune'}</li>
@@ -313,8 +319,8 @@ export default function AdminPublicationsPage() {
                 ) : <div className="text-xs" style={{ color: 'var(--text-muted)' }}>…</div>}
               </div>
               <div className="p-4 elev-card text-[11px] leading-relaxed" style={{ ...card, color: 'var(--text-muted)' }}>
-                <div className={`${label} mb-2`}>Feuille attendue</div>
-                Première ligne = en-têtes. Colonnes reconnues : <b>Titre</b>, <b>Texte</b> (obligatoire), Médias (URL), Réseaux, Date, Demandeur, E-mail, Campagne, Notes, <b>Statut</b> (écrit en retour). Lecture toutes les 10 min ; seules les lignes au statut vide ou « à valider » sont importées.
+                <div className={`${label} mb-2`}>Planning lu</div>
+                « Suivi hebdomadaire des prestataires audiovisuels » : tous les onglets (un par semaine), en-têtes repérés automatiquement (Date, Événement, Heure, Prestation, Lieu, Précisions, Prestataire, Statut, Source / flyer). Toutes les 10 min, chaque événement <b>Confirmé</b> ou <b>Réalisé</b> devient une publication à valider ; le texte proposé est composé depuis la ligne et reste modifiable par le validateur. L'état de validation est écrit dans une colonne <b>Publication</b> ajoutée à droite ; la colonne Statut du planning n'est jamais modifiée.
               </div>
             </aside>
           </div>
@@ -339,6 +345,8 @@ export default function AdminPublicationsPage() {
             )}
             <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mb-4" style={{ color: 'var(--text-secondary)' }}>
               <dt style={{ color: 'var(--text-muted)' }}>Demandeur</dt><dd>{detail.payload.requester || '—'} {detail.payload.requester_email && `· ${detail.payload.requester_email}`}</dd>
+              <dt style={{ color: 'var(--text-muted)' }}>Lieu</dt><dd>{detail.payload.location || '—'}</dd>
+              <dt style={{ color: 'var(--text-muted)' }}>Prestation</dt><dd>{[detail.payload.service, detail.payload.provider].filter(Boolean).join(' · ') || '—'}</dd>
               <dt style={{ color: 'var(--text-muted)' }}>Réseaux</dt><dd>{detail.payload.networks.join(', ') || '—'}</dd>
               <dt style={{ color: 'var(--text-muted)' }}>Date souhaitée</dt><dd>{detail.payload.scheduled_for || '—'}</dd>
               <dt style={{ color: 'var(--text-muted)' }}>Campagne</dt><dd>{detail.payload.campaign_name || '—'}</dd>

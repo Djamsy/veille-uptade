@@ -1339,13 +1339,14 @@ export interface PubPayload {
   title: string; text: string; hashtags: string[]; media_urls: string[]; networks: string[];
   scheduled_for: string; requester: string; requester_email: string; campaign_id: string;
   campaign_name: string; notes: string; external_id: string; original_text?: string; edited_by?: string;
+  location?: string; event_time?: string; service?: string; provider?: string;
 }
 
 export interface PubDecision { decision: 'approve' | 'reject'; by: string; comment: string; at: string }
 export interface PubPublish { ok: boolean; published_at: string; platforms: number; error: string | null; buffer_ids?: string[] }
 
 export interface PendingPublication {
-  id: string; created_at: string; updated_at: string; source: 'sheet' | 'manual'; sheet_row: number | null;
+  id: string; created_at: string; updated_at: string; source: 'sheet' | 'manual'; sheet_row: number | null; sheet_tab?: string | null;
   status: PubValidationStatus | string; payload: PubPayload; decision: PubDecision | null; publish: PubPublish | null;
   token: { active: boolean; revoked: boolean; created_at: string | null; expires_at: string | null; expired: boolean };
   audit?: Array<{ at: string; action: string; actor: string; detail?: string }>;
@@ -1358,15 +1359,17 @@ export interface PubValidationView {
   id: string; status: PubValidationStatus | string; status_label: string; created_at: string; expires_at: string | null;
   title: string; text: string; hashtags: string[]; media_urls: string[]; networks: string[]; scheduled_for: string;
   requester: string; campaign_name: string; notes: string; decision: PubDecision | null;
+  location?: string; event_time?: string; service?: string; provider?: string;
   publish: { ok: boolean; published_at: string; platforms: number } | null;
 }
 
 export const fetchPubValidationStatus = () =>
   adminFetch<{
     encryption: { configured: boolean; dev_derived_key: boolean; key_version: number; rotation_key_loaded: boolean; algorithm: string };
-    sheet: { configured: boolean; sheet_id_set: boolean; service_account: string; tab: string };
+    sheet: { configured: boolean; sheet_id_set: boolean; service_account: string; service_account_origin?: string; tab: string };
     buffer_configured: boolean; ttl_hours: number; base_url: string;
-    notify_emails: number; notify_telegram: boolean; counts: Record<string, number>;
+    notify_emails: number; notify_telegram: boolean; import_statuses: string[]; writeback_column: string | null;
+    counts: Record<string, number>;
   }>('/api/publications/status');
 
 export const fetchPendingPublications = (status?: string, limit = 100) =>
@@ -1396,7 +1399,7 @@ export const deletePendingPublication = (id: string) =>
   adminFetch<{ ok: boolean }>(`/api/publications/pending/${id}`, { method: 'DELETE' });
 
 export const syncPublicationSheet = () =>
-  adminFetch<{ ok: boolean; error?: string; created?: Array<{ id: string; row: number }>; skipped?: number; superseded?: number; errors?: unknown[]; mapping?: Record<string, string> }>(
+  adminFetch<{ ok: boolean; error?: string; created?: Array<{ id: string; tab: string; row: number; title: string }>; skipped?: number; superseded?: number; errors?: unknown[]; tabs?: Array<{ tab: string; rows?: number; created?: number; skipped?: string; mapping?: Record<string, string> }> }>(
     '/api/publications/sync-sheet', { method: 'POST', body: JSON.stringify({}) }
   );
 

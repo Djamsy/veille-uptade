@@ -49,25 +49,41 @@ Frontend
 - `frontend/app/admin/publications/page.tsx` — suivi, création manuelle, liens, publication, diagnostic.
 - `frontend/lib/api.ts`, `frontend/components/Sidebar.tsx` — client API et entrée « Validations ».
 
-## Feuille Google attendue
+## Feuille Google : le planning existant
 
-Première ligne = en-têtes, repérés par leur nom (insensible aux accents / casse, correspondance partielle) :
-`Titre`, `Texte` (obligatoire), `Médias` (URL, séparées par virgule ou saut de ligne), `Réseaux`, `Date`,
-`Demandeur`, `E-mail`, `Campagne`, `Notes`, `Statut` (colonne écrite en retour), `ID` (facultatif).
+Source : « Suivi hebdomadaire des prestataires audiovisuels » (id `1JOUzjT49gHf0u4l6e9jLtSiw0P2f3RNOl-tM-EBkE6w`),
+un onglet par semaine (`S46 - 09 au 15 nov 2026`, …). Dans chaque onglet : titre, semaine, légende, ligne vide,
+puis la ligne d'en-têtes (ligne 5) `Date | Événement | Heure | Prestation nécessaire | Lieu | Précisions / consignes |
+Prestataire affecté | Statut | Source / flyer` (+ un second bloc Précisions / Prestataire / Statut / Source), puis trois
+lignes pré-remplies par jour avec la date seule.
 
-Règles d'import : lignes dont le statut est vide ou « à valider » ; dédoublonnage par
-empreinte du contenu ; une ligne modifiée après import annule l'ancienne demande en attente et en crée une nouvelle.
+Lecture : tous les onglets en un appel (`values:batchGet`), ligne d'en-têtes détectée automatiquement (cherche « Date » + « Événement »),
+colonnes reconnues par alias (accents / casse ignorés). Le second bloc de colonnes est lu comme complément (notes).
+
+Import (toutes les 10 min) : une ligne devient une publication à valider si Événement est renseigné, si son Statut est
+**Confirmé** ou **Réalisé** (`PUBLICATION_SHEET_IMPORT_STATUSES`, `*` pour tout prendre) et si la colonne de retour est vide.
+Dédoublonnage par empreinte (onglet + ligne + contenu) ; une ligne modifiée après import annule l'ancienne demande et en crée une nouvelle.
+
+Transformation en post : titre = Événement ; texte proposé = `📅 date · heure` / `📍 lieu` / précisions (modifiable par le
+validateur) ; médias = URL trouvées dans Source / flyer ; notes = prestation, prestataire, source non-URL, second bloc.
+
+Retour : l'état de validation (« En attente de validation », « Validée par X », « Refusée — … », « Publiée ») est écrit dans
+une colonne **Publication** ajoutée à droite des en-têtes (`PUBLICATION_SHEET_WRITEBACK_COLUMN`, vide pour désactiver).
+**La colonne Statut du planning n'est jamais modifiée.**
 
 ## Mise en service
 
 1. Générer la clé et la poser dans Render : `PUBLICATION_ENCRYPTION_KEY`.
-2. Créer un compte de service Google (API Sheets activée), télécharger le JSON,
-   le coller dans `GOOGLE_SERVICE_ACCOUNT_JSON`, partager la feuille avec l'adresse du compte (Éditeur).
+2. Compte de service Google : le JSON déjà présent sur Render est détecté automatiquement (noms usuels,
+   toute variable contenant un JSON `service_account`, ou Secret File sous `/etc/secrets`). L'API Sheets doit être
+   activée sur son projet et la feuille partagée avec son adresse `client_email` (Éditeur). Le panneau
+   « Configuration » de `/admin/publications` affiche l'adresse et la variable utilisées.
 3. Renseigner `PUBLICATION_SHEET_ID`, `PUBLICATION_VALIDATION_BASE_URL` (URL du front).
 4. Vérifier dans `/admin/publications` le panneau « Configuration », puis « Lire la feuille ».
 
 ## Hypothèses prises (à confirmer)
 
 - Validateurs externes via le lien ; l'admin connecté supervise.
-- Publication manuelle par un admin, sur tous les canaux Buffer connectés (la colonne Réseaux est informative en V1).
-- La colonne Date est informative (pas de programmation à l'heure dite en V1).
+- Publication manuelle par un admin, sur tous les canaux Buffer connectés.
+- Seuls les événements Confirmé / Réalisé du planning sont proposés à la validation (réglable).
+- La date de l'événement est reprise dans le texte, pas de programmation à l'heure dite en V1.
