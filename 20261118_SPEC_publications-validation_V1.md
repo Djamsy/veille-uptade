@@ -74,8 +74,10 @@ une colonne **Publication** ajoutée à droite des en-têtes (`PUBLICATION_SHEET
 ## Mise en service
 
 1. Générer la clé et la poser dans Render : `PUBLICATION_ENCRYPTION_KEY`.
-2. Créer un compte de service Google (API Sheets activée), télécharger le JSON,
-   le coller dans `GOOGLE_SERVICE_ACCOUNT_JSON`, partager la feuille avec l'adresse du compte (Éditeur).
+2. Compte de service Google : le JSON déjà présent sur Render est détecté automatiquement (noms usuels,
+   toute variable contenant un JSON `service_account`, ou Secret File sous `/etc/secrets`). L'API Sheets doit être
+   activée sur son projet et la feuille partagée avec son adresse `client_email` (Éditeur). Le panneau
+   « Configuration » de `/admin/publications` affiche l'adresse et la variable utilisées.
 3. Renseigner `PUBLICATION_SHEET_ID`, `PUBLICATION_VALIDATION_BASE_URL` (URL du front).
 4. Vérifier dans `/admin/publications` le panneau « Configuration », puis « Lire la feuille ».
 

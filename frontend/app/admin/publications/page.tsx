@@ -307,7 +307,10 @@ export default function AdminPublicationsPage() {
                       Chiffrement {status.encryption.configured ? `actif (clé v${status.encryption.key_version})` : 'clé DEV dérivée — à configurer'}</li>
                     <li><Dot ok={status.sheet.configured} />Planning Google {status.sheet.configured ? (status.sheet.tab === '(premier onglet)' ? '· tous les onglets' : `· onglet ${status.sheet.tab}`) : 'non configuré'}</li>
                     {status.sheet.configured && <li className="pl-4" style={{ color: 'var(--text-muted)' }}>Import : statuts {status.import_statuses.join(', ')} · retour dans « {status.writeback_column ?? 'aucune colonne'} »</li>}
-                    {status.sheet.service_account && <li className="font-mono text-[10px] break-all pl-4" style={{ color: 'var(--text-muted)' }}>{status.sheet.service_account}</li>}
+                    {status.sheet.service_account
+                      ? <li className="font-mono text-[10px] break-all pl-4" style={{ color: 'var(--text-muted)' }}>{status.sheet.service_account} ({status.sheet.service_account_origin})</li>
+                      : <li className="pl-4" style={{ color: 'var(--negative)' }}>Compte de service Google introuvable dans les variables Render</li>}
+                    {!status.sheet.sheet_id_set && <li className="pl-4" style={{ color: 'var(--negative)' }}>PUBLICATION_SHEET_ID manquant</li>}
                     <li><Dot ok={status.buffer_configured} />Buffer {status.buffer_configured ? 'configuré' : 'non configuré'}</li>
                     <li><Dot ok />Publication manuelle après validation (bouton « Publier »)</li>
                     <li><Dot ok={status.notify_telegram || status.notify_emails > 0} />Notifications : {[status.notify_telegram && 'Telegram', status.notify_emails > 0 && `${status.notify_emails} e-mail(s)`].filter(Boolean).join(' + ') || 'aucune'}</li>

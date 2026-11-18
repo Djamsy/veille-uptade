@@ -6,9 +6,11 @@ Aucune dépendance supplémentaire : le JWT RS256 est signé avec python-jose
 (déjà présent) et les appels REST passent par `requests`.
 
 Configuration (variables d'environnement) :
-  GOOGLE_SERVICE_ACCOUNT_JSON — contenu du fichier JSON du compte de service
-                                (brut, ou encodé en base64). Le compte doit être
-                                ajouté en partage (Éditeur) sur la feuille.
+  GOOGLE_SERVICE_ACCOUNT_JSON — contenu du fichier JSON du compte de service (brut, base64,
+                                ou chemin d'un fichier). D'autres noms sont acceptés, voir
+                                SERVICE_ACCOUNT_ENV_NAMES ; à défaut, toute variable contenant
+                                un JSON « service_account » ou un fichier sous /etc/secrets.
+                                Le compte doit être ajouté en partage (Éditeur) sur la feuille.
   PUBLICATION_SHEET_ID        — identifiant de la feuille (dans l'URL, entre /d/ et /edit)
   PUBLICATION_SHEET_TAB       — (optionnel) nom de l'onglet. Défaut : premier onglet.
 
@@ -44,24 +46,82 @@ def sheet_tab() -> str:
     return os.getenv("PUBLICATION_SHEET_TAB", "").strip()
 
 
-def _service_account() -> Optional[Dict[str, Any]]:
-    raw = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
+# Noms de variables acceptés pour le compte de service (le 1er trouvé gagne). Chacune peut
+# contenir le JSON brut, le JSON en base64, ou le CHEMIN d'un fichier (ex. Secret File Render
+# monté sous /etc/secrets/...).
+SERVICE_ACCOUNT_ENV_NAMES = [
+    "GOOGLE_SERVICE_ACCOUNT_JSON", "GOOGLE_SERVICE_ACCOUNT", "GOOGLE_SERVICE_ACCOUNT_KEY",
+    "GOOGLE_CREDENTIALS_JSON", "GOOGLE_CREDENTIALS", "GOOGLE_APPLICATION_CREDENTIALS_JSON",
+    "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_SHEETS_CREDENTIALS", "GSHEETS_CREDENTIALS",
+    "GCP_SERVICE_ACCOUNT", "GCP_SA_KEY", "SERVICE_ACCOUNT_JSON",
+]
+SECRET_FILE_DIRS = ["/etc/secrets", "/run/secrets"]
+
+_sa_cache: Dict[str, Any] = {"loaded": False, "data": None, "origin": ""}
+
+
+def _parse_sa(raw: str) -> Optional[Dict[str, Any]]:
+    raw = (raw or "").strip()
     if not raw:
         return None
+    if os.path.isfile(raw):  # chemin de fichier
+        try:
+            with open(raw, "r", encoding="utf-8") as f:
+                raw = f.read().strip()
+        except Exception as e:
+            logger.warning("Compte de service : fichier illisible %s (%s)", raw, e)
+            return None
     if not raw.startswith("{"):
         try:
             raw = base64.b64decode(raw).decode("utf-8")
         except Exception:
-            logger.warning("GOOGLE_SERVICE_ACCOUNT_JSON : ni JSON ni base64 valide")
             return None
     try:
         data = json.loads(raw)
-    except Exception as e:
-        logger.warning("GOOGLE_SERVICE_ACCOUNT_JSON : JSON invalide (%s)", e)
+    except Exception:
+        return None
+    if not isinstance(data, dict) or data.get("type") != "service_account":
         return None
     if not data.get("client_email") or not data.get("private_key"):
-        logger.warning("GOOGLE_SERVICE_ACCOUNT_JSON : client_email / private_key manquants")
         return None
+    return data
+
+
+def _service_account() -> Optional[Dict[str, Any]]:
+    """Trouve le compte de service : variables connues, puis n'importe quelle variable
+    d'environnement contenant un JSON « service_account », puis les fichiers secrets."""
+    if _sa_cache["loaded"]:
+        return _sa_cache["data"]
+    data, origin = None, ""
+    for name in SERVICE_ACCOUNT_ENV_NAMES:
+        data = _parse_sa(os.getenv(name, ""))
+        if data:
+            origin = f"env:{name}"
+            break
+    if not data:
+        for name, val in os.environ.items():
+            if '"service_account"' in val or (val.strip().startswith("/") and val.endswith(".json")):
+                data = _parse_sa(val)
+                if data:
+                    origin = f"env:{name}"
+                    break
+    if not data:
+        for d in SECRET_FILE_DIRS:
+            if not os.path.isdir(d):
+                continue
+            for fn in sorted(os.listdir(d)):
+                data = _parse_sa(os.path.join(d, fn))
+                if data:
+                    origin = f"file:{os.path.join(d, fn)}"
+                    break
+            if data:
+                break
+    if data:
+        logger.info("🔑 Compte de service Google chargé (%s) : %s", origin, data.get("client_email"))
+    else:
+        logger.info("Compte de service Google : introuvable (variables %s, fichiers %s)",
+                    ", ".join(SERVICE_ACCOUNT_ENV_NAMES[:3]) + "…", ", ".join(SECRET_FILE_DIRS))
+    _sa_cache.update({"loaded": True, "data": data, "origin": origin})
     return data
 
 
@@ -75,6 +135,7 @@ def status() -> Dict[str, Any]:
         "configured": is_configured(),
         "sheet_id_set": bool(sheet_id()),
         "service_account": (sa or {}).get("client_email", "") if sa else "",
+        "service_account_origin": _sa_cache.get("origin", ""),
         "tab": sheet_tab() or "(premier onglet)",
     }
 
