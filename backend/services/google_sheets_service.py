@@ -60,26 +60,45 @@ SECRET_FILE_DIRS = ["/etc/secrets", "/run/secrets"]
 _sa_cache: Dict[str, Any] = {"loaded": False, "data": None, "origin": ""}
 
 
+def _looks_base64(v: str) -> bool:
+    v = v.strip()
+    return len(v) > 200 and " " not in v and all(c.isalnum() or c in "+/=_-\n\r" for c in v)
+
+
 def _parse_sa(raw: str) -> Optional[Dict[str, Any]]:
     raw = (raw or "").strip()
     if not raw:
         return None
-    if os.path.isfile(raw):  # chemin de fichier
+    if len(raw) < 1024 and raw.startswith("/") and os.path.isfile(raw):  # chemin de fichier
+        in_secret_dir = any(raw.startswith(d + "/") for d in SECRET_FILE_DIRS)
+        if not (raw.lower().endswith(".json") or in_secret_dir):
+            return None  # SHELL, PATH, binaires… : on ne lit que des .json ou des fichiers secrets
         try:
+            if os.path.getsize(raw) > 64 * 1024:
+                return None
             with open(raw, "r", encoding="utf-8") as f:
                 raw = f.read().strip()
         except Exception as e:
-            logger.warning("Compte de service : fichier illisible %s (%s)", raw, e)
+            logger.debug("Compte de service : fichier illisible %s (%s)", raw, e)
             return None
     if not raw.startswith("{"):
-        try:
-            raw = base64.b64decode(raw).decode("utf-8")
-        except Exception:
+        if not _looks_base64(raw):
             return None
+        try:
+            raw = base64.b64decode(raw, validate=False).decode("utf-8")
+        except Exception:
+            try:
+                raw = base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)).decode("utf-8")
+            except Exception:
+                return None
     try:
         data = json.loads(raw)
     except Exception:
-        return None
+        # JSON collé avec des retours à la ligne échappés (\n → vrais sauts) : seconde chance
+        try:
+            data = json.loads(raw.replace("\\n", "\n").replace("\n", "\\n"))
+        except Exception:
+            return None
     if not isinstance(data, dict) or data.get("type") != "service_account":
         return None
     if not data.get("client_email") or not data.get("private_key"):
@@ -89,7 +108,7 @@ def _parse_sa(raw: str) -> Optional[Dict[str, Any]]:
 
 def _service_account() -> Optional[Dict[str, Any]]:
     """Trouve le compte de service : variables connues, puis n'importe quelle variable
-    d'environnement contenant un JSON « service_account », puis les fichiers secrets."""
+    d'environnement contenant un JSON « service_account » (brut ou base64), puis les fichiers secrets."""
     if _sa_cache["loaded"]:
         return _sa_cache["data"]
     data, origin = None, ""
@@ -100,7 +119,7 @@ def _service_account() -> Optional[Dict[str, Any]]:
             break
     if not data:
         for name, val in os.environ.items():
-            if '"service_account"' in val or (val.strip().startswith("/") and val.endswith(".json")):
+            if '"service_account"' in val or _looks_base64(val) or (val.strip().startswith("/") and len(val) < 512):
                 data = _parse_sa(val)
                 if data:
                     origin = f"env:{name}"
@@ -125,6 +144,45 @@ def _service_account() -> Optional[Dict[str, Any]]:
     return data
 
 
+def diagnostics() -> Dict[str, Any]:
+    """Aide au repérage du compte de service : NOMS des variables candidates (jamais les valeurs)
+    et fichiers secrets présents, avec une description de leur forme."""
+    cands = []
+    for name, val in sorted(os.environ.items()):
+        n = name.upper()
+        hint = None
+        if any(k in n for k in ("GOOGLE", "GCP", "GSHEET", "SHEET", "SERVICE_ACCOUNT", "CREDENTIAL", "SA_KEY")):
+            hint = "nom évocateur"
+        v = val.strip()
+        shape = ("json" if v.startswith("{") else "chemin" if v.startswith("/") else
+                 "base64 ?" if _looks_base64(v) else "texte")
+        if '"service_account"' in v:
+            hint = (hint + ", " if hint else "") + "contient service_account"
+        if hint:
+            reason = []
+            if v.startswith("{"):
+                try:
+                    json.loads(v)
+                except Exception as e:
+                    reason.append(f"JSON invalide : {str(e)[:60]}")
+            cands.append({"name": name, "shape": shape, "length": len(v), "hint": hint,
+                          "problem": "; ".join(reason) or None})
+    files = []
+    for d in SECRET_FILE_DIRS:
+        if os.path.isdir(d):
+            for fn in sorted(os.listdir(d)):
+                p = os.path.join(d, fn)
+                try:
+                    size = os.path.getsize(p)
+                    with open(p, "r", encoding="utf-8", errors="replace") as f:
+                        head = f.read(2).strip()
+                    files.append({"path": p, "size": size, "shape": "json" if head.startswith("{") else "texte"})
+                except Exception as e:
+                    files.append({"path": p, "error": str(e)[:80]})
+    return {"candidate_env_vars": cands, "secret_files": files, "checked_dirs": SECRET_FILE_DIRS,
+            "known_names": SERVICE_ACCOUNT_ENV_NAMES}
+
+
 def is_configured() -> bool:
     return bool(sheet_id() and _service_account())
 
@@ -137,6 +195,7 @@ def status() -> Dict[str, Any]:
         "service_account": (sa or {}).get("client_email", "") if sa else "",
         "service_account_origin": _sa_cache.get("origin", ""),
         "tab": sheet_tab() or "(premier onglet)",
+        "diagnostics": None if sa else diagnostics(),
     }
 
 

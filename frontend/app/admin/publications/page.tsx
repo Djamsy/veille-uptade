@@ -310,6 +310,25 @@ export default function AdminPublicationsPage() {
                     {status.sheet.service_account
                       ? <li className="font-mono text-[10px] break-all pl-4" style={{ color: 'var(--text-muted)' }}>{status.sheet.service_account} ({status.sheet.service_account_origin})</li>
                       : <li className="pl-4" style={{ color: 'var(--negative)' }}>Compte de service Google introuvable dans les variables Render</li>}
+                    {!status.sheet.service_account && status.sheet.diagnostics && (
+                      <li className="pl-4 space-y-1" style={{ color: 'var(--text-muted)' }}>
+                        <div>Variables au nom évocateur vues par le backend (noms seulement) :</div>
+                        {status.sheet.diagnostics.candidate_env_vars.length === 0
+                          ? <div className="font-mono text-[10px]">aucune — le JSON n'est pas sur ce service Render</div>
+                          : status.sheet.diagnostics.candidate_env_vars.map((v) => (
+                            <div key={v.name} className="font-mono text-[10px] break-all">
+                              {v.name} · {v.shape} · {v.length} car.{v.problem && <span style={{ color: 'var(--negative)' }}> · {v.problem}</span>}
+                            </div>
+                          ))}
+                        <div>Fichiers secrets ({status.sheet.diagnostics.checked_dirs.join(', ')}) :</div>
+                        {status.sheet.diagnostics.secret_files.length === 0
+                          ? <div className="font-mono text-[10px]">aucun</div>
+                          : status.sheet.diagnostics.secret_files.map((f) => (
+                            <div key={f.path} className="font-mono text-[10px] break-all">{f.path} · {f.shape ?? f.error} · {f.size ?? '?'} o</div>
+                          ))}
+                        <div>Nom le plus simple à utiliser : <code>GOOGLE_SERVICE_ACCOUNT_JSON</code> (JSON brut, base64, ou chemin d'un Secret File).</div>
+                      </li>
+                    )}
                     {!status.sheet.sheet_id_set && <li className="pl-4" style={{ color: 'var(--negative)' }}>PUBLICATION_SHEET_ID manquant</li>}
                     <li><Dot ok={status.buffer_configured} />Buffer {status.buffer_configured ? 'configuré' : 'non configuré'}</li>
                     <li><Dot ok />Publication manuelle après validation (bouton « Publier »)</li>

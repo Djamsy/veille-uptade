@@ -1366,7 +1366,14 @@ export interface PubValidationView {
 export const fetchPubValidationStatus = () =>
   adminFetch<{
     encryption: { configured: boolean; dev_derived_key: boolean; key_version: number; rotation_key_loaded: boolean; algorithm: string };
-    sheet: { configured: boolean; sheet_id_set: boolean; service_account: string; service_account_origin?: string; tab: string };
+    sheet: {
+      configured: boolean; sheet_id_set: boolean; service_account: string; service_account_origin?: string; tab: string;
+      diagnostics?: {
+        candidate_env_vars: Array<{ name: string; shape: string; length: number; hint: string; problem: string | null }>;
+        secret_files: Array<{ path: string; size?: number; shape?: string; error?: string }>;
+        checked_dirs: string[]; known_names: string[];
+      } | null;
+    };
     buffer_configured: boolean; ttl_hours: number; base_url: string;
     notify_emails: number; notify_telegram: boolean; import_statuses: string[]; writeback_column: string | null;
     counts: Record<string, number>;
