@@ -151,9 +151,37 @@ def cancel(pub_id: str, admin: dict = Depends(require_admin)):
 
 
 @router.post("/pending/{pub_id}/publish")
-def publish(pub_id: str, admin: dict = Depends(require_admin)):
+async def publish(pub_id: str, request: Request, admin: dict = Depends(require_admin)):
+    """Publie sur Buffer. Accepte en option un multipart/form-data avec un champ `media`
+    (image ou vidéo) : utile quand la feuille ne donne qu'un lien WeTransfer / Purevision."""
+    extra: list = []
     try:
-        return {"ok": True, **svc.publish_now(pub_id, actor=admin.get("email", ""))}
+        if request.headers.get("content-type", "").startswith("multipart/"):
+            form = await request.form()
+            media_file = form.get("media")
+            if media_file is not None and hasattr(media_file, "read"):
+                import tempfile, os
+                from backend.services.campaign_service import upload_to_cloudinary
+                content = await media_file.read()
+                if content:
+                    ctype = getattr(media_file, "content_type", "") or ""
+                    is_video = "video" in ctype or str(getattr(media_file, "filename", "")).lower().endswith((".mp4", ".mov", ".m4v", ".webm"))
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4" if is_video else ".jpg") as tmp:
+                        tmp.write(content)
+                        tmp_path = tmp.name
+                    try:
+                        hosted = upload_to_cloudinary(f"file://{tmp_path}", "video" if is_video else "image")
+                    finally:
+                        try:
+                            os.unlink(tmp_path)
+                        except Exception:
+                            pass
+                    if not hosted:
+                        raise HTTPException(502, "Upload Cloudinary échoué (vérifier CLOUDINARY_*)")
+                    extra.append(hosted)
+        return {"ok": True, **svc.publish_now(pub_id, actor=admin.get("email", ""), extra_media_urls=extra)}
+    except HTTPException:
+        raise
     except Exception as e:
         raise _translate(e)
 

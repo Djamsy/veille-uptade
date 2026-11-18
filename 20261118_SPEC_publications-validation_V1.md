@@ -67,6 +67,18 @@ Dédoublonnage par empreinte (onglet + ligne + contenu) ; une ligne modifiée ap
 Transformation en post : titre = Événement ; texte proposé = `📅 date · heure` / `📍 lieu` / précisions (modifiable par le
 validateur) ; médias = URL trouvées dans Source / flyer ; notes = prestation, prestataire, source non-URL, second bloc.
 
+**Tableaux secondaires « Livraisons »** : sous le planning, un bloc dont l'en-tête commence par `Vidéo` (`Vidéo | Prestataire |
+Validée le | Validation | Fichier reçu de Purevision | Envoi aux médias | Envoyé le | Lien WeTransfer | Retours / prochaine étape`)
+liste les montages livrés. Chaque ligne dont Validation = **Validé** (`PUBLICATION_VIDEO_IMPORT_STATUSES`) devient une
+publication « vidéo livrée » : titre = nom de la vidéo, texte proposé = « 🎬 Vidéo réalisée par <prestataire> », liens
+Purevision / WeTransfer conservés comme **liens** (pas comme médias : ce sont des pages, pas des fichiers), retours et dates
+en notes. Le bloc « Téléchargements » (suivi par destinataire) est reconnu et ignoré.
+
+**Publication avec fichier joint** : `POST /api/publications/pending/{id}/publish` accepte un `multipart/form-data` avec un
+champ `media` (image ou vidéo) hébergé sur Cloudinary puis joint au post Buffer. Seules les URL de fichiers directs
+(extension média ou Cloudinary) sont envoyées à Buffer ; les liens sont ignorés côté Buffer. Depuis `/admin/publications`,
+le bouton « Publier » ouvre une boîte qui rappelle les liens et permet de joindre le fichier.
+
 Retour : l'état de validation (« En attente de validation », « Validée par X », « Refusée — … », « Publiée ») est écrit dans
 une colonne **Publication** ajoutée à droite des en-têtes (`PUBLICATION_SHEET_WRITEBACK_COLUMN`, vide pour désactiver).
 **La colonne Statut du planning n'est jamais modifiée.**

@@ -284,30 +284,69 @@ def _detect_header_row(values: List[List[str]], required: Optional[List[str]] = 
     return best
 
 
-def _parse_table(tab: str, values: List[List[str]], header_markers: Optional[List[str]] = None) -> Dict[str, Any]:
-    if not values:
-        return {"tab": tab, "headers": [], "header_row": 1, "rows": []}
-    h = _detect_header_row(values, header_markers)
-    headers = [str(x).strip() for x in values[h]]
+SUB_BLOCK_MARKERS = {"video", "videos", "photo", "photos", "livrable", "livrables", "montage", "montages", "audio", "podcast"}
+
+
+def _norm_cell(x: str) -> str:
+    try:
+        from unidecode import unidecode
+        x = unidecode(x)
+    except Exception:
+        pass
+    return " ".join(x.lower().replace("/", " ").split())
+
+
+def _is_sub_header(line: List[str]) -> bool:
+    """Ligne d'en-têtes d'un tableau secondaire (ex. « Vidéo | Prestataire | Validée le | Validation … »)."""
+    cells = [str(c).strip() for c in line]
+    non_empty = [c for c in cells if c]
+    if len(non_empty) < 3 or not cells or not cells[0].strip():
+        return False
+    first = _norm_cell(cells[0])
+    if first not in SUB_BLOCK_MARKERS:
+        return False
+    return not any(ch.isdigit() for ch in "".join(non_empty))  # pas de dates / horaires : ce sont des libellés
+
+
+def _rows_of(block_lines: List[Any], headers: List[str], start_row: int) -> List[Dict[str, Any]]:
     rows = []
-    for i, line in enumerate(values[h + 1:], start=h + 2):
+    for i, line in enumerate(block_lines, start=start_row):
         if not any(str(c).strip() for c in line):
             continue
-        cells = {}
-        for j, name in enumerate(headers):
-            if not name or name in cells:  # en-têtes dupliqués : la 1re occurrence gagne
-                continue
-            cells[name] = str(line[j]).strip() if j < len(line) else ""
-        # colonnes dupliquées (ex. 2e bloc « Précisions / consignes ») → suffixe « (2) »
+        cells: Dict[str, str] = {}
         seen: Dict[str, int] = {}
         for j, name in enumerate(headers):
             if not name:
                 continue
             seen[name] = seen.get(name, 0) + 1
-            if seen[name] > 1:
-                cells[f"{name} ({seen[name]})"] = str(line[j]).strip() if j < len(line) else ""
-        rows.append({"row_number": i, "values": cells})
-    return {"tab": tab, "headers": headers, "header_row": h + 1, "rows": rows}
+            key = name if seen[name] == 1 else f"{name} ({seen[name]})"  # en-têtes dupliqués → suffixe
+            cells[key] = str(line[j]).strip() if j < len(line) else ""
+        rows.append({"row_number": i, "values": cells, "raw": [str(c).strip() for c in line]})
+    return rows
+
+
+def _parse_table(tab: str, values: List[List[str]], header_markers: Optional[List[str]] = None) -> Dict[str, Any]:
+    """Découpe un onglet en blocs : le tableau principal (ligne d'en-têtes repérée par
+    `header_markers`) puis d'éventuels tableaux secondaires (en-tête commençant par Vidéo / Photo /
+    Livrables…). Les clés headers / header_row / rows décrivent le bloc principal (compatibilité) ;
+    `blocks` les liste tous."""
+    if not values:
+        return {"tab": tab, "headers": [], "header_row": 1, "rows": [], "blocks": []}
+    h = _detect_header_row(values, header_markers)
+    blocks = []
+    cur_headers, cur_start, cur_lines, cur_kind = [str(x).strip() for x in values[h]], h + 1, [], "main"
+    for idx in range(h + 1, len(values)):
+        line = values[idx]
+        if _is_sub_header(line):
+            blocks.append({"kind": cur_kind, "headers": cur_headers, "header_row": cur_start,
+                           "rows": _rows_of(cur_lines, cur_headers, cur_start + 1)})
+            cur_headers, cur_start, cur_lines, cur_kind = [str(x).strip() for x in line], idx + 1, [], "sub"
+            continue
+        cur_lines.append(line)
+    blocks.append({"kind": cur_kind, "headers": cur_headers, "header_row": cur_start,
+                   "rows": _rows_of(cur_lines, cur_headers, cur_start + 1)})
+    main = blocks[0]
+    return {"tab": tab, "headers": main["headers"], "header_row": main["header_row"], "rows": main["rows"], "blocks": blocks}
 
 
 def read_tables(tabs: Optional[List[str]] = None, header_markers: Optional[List[str]] = None) -> List[Dict[str, Any]]:

@@ -188,7 +188,11 @@ export default function ValidatePublicationPage() {
             <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-sm"
               style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>📍 {data.location}</span>
           )}
-          {data.service && (
+          {data.kind === 'video' && (
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-sm"
+              style={{ background: 'var(--bg-elevated)', color: 'var(--accent-link)', border: '1px solid var(--border)' }}>🎬 Vidéo livrée</span>
+          )}
+          {data.service && data.kind !== 'video' && (
             <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-sm"
               style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>🎥 {data.service}</span>
           )}
@@ -232,6 +236,23 @@ export default function ValidatePublicationPage() {
           </div>
         )}
       </div>
+
+      {/* Liens (WeTransfer, Purevision…) */}
+      {(data.links?.length ?? 0) > 0 && (
+        <div className="p-6 elev-card" style={card}>
+          <div className={`${label} mb-3`} style={{ color: 'var(--text-muted)' }}>Fichiers à consulter ({data.links!.length})</div>
+          <ul className="space-y-1.5">
+            {data.links!.map((u) => (
+              <li key={u}>
+                <a href={u} target="_blank" rel="noopener noreferrer nofollow" className="text-sm underline break-all" style={{ color: 'var(--accent-link)' }}>
+                  {u.includes('we.tl') || u.includes('wetransfer') ? '📦 WeTransfer · ' : u.includes('filemail') ? '🎬 Purevision · ' : '🔗 '}{u.replace(/^https?:\/\//, '')}
+                </a>
+              </li>
+            ))}
+          </ul>
+          <p className="text-[11px] mt-3" style={{ color: 'var(--text-muted)' }}>Ouvrez le fichier pour le visionner avant de décider. Il sera joint par l’équipe au moment de publier.</p>
+        </div>
+      )}
 
       {/* Médias */}
       {data.media_urls.length > 0 && (
