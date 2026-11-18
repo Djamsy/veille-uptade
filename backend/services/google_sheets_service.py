@@ -38,6 +38,16 @@ SCOPE = "https://www.googleapis.com/auth/spreadsheets"
 _token_cache: Dict[str, Any] = {"access_token": None, "expires_at": 0}
 
 
+def strip_accents(s: str) -> str:
+    """Retire les accents avec la bibliothèque standard (NFKD + suppression des diacritiques).
+    Ne dépend pas d'unidecode : « Confirmé » → « Confirme », « Événement » → « Evenement »."""
+    import unicodedata
+    s = unicodedata.normalize("NFKD", s or "")
+    return "".join(ch for ch in s if not unicodedata.combining(ch))
+
+
+
+
 def sheet_id() -> str:
     return os.getenv("PUBLICATION_SHEET_ID", "").strip()
 
@@ -60,26 +70,45 @@ SECRET_FILE_DIRS = ["/etc/secrets", "/run/secrets"]
 _sa_cache: Dict[str, Any] = {"loaded": False, "data": None, "origin": ""}
 
 
+def _looks_base64(v: str) -> bool:
+    v = v.strip()
+    return len(v) > 200 and " " not in v and all(c.isalnum() or c in "+/=_-\n\r" for c in v)
+
+
 def _parse_sa(raw: str) -> Optional[Dict[str, Any]]:
     raw = (raw or "").strip()
     if not raw:
         return None
-    if os.path.isfile(raw):  # chemin de fichier
+    if len(raw) < 1024 and raw.startswith("/") and os.path.isfile(raw):  # chemin de fichier
+        in_secret_dir = any(raw.startswith(d + "/") for d in SECRET_FILE_DIRS)
+        if not (raw.lower().endswith(".json") or in_secret_dir):
+            return None  # SHELL, PATH, binaires… : on ne lit que des .json ou des fichiers secrets
         try:
+            if os.path.getsize(raw) > 64 * 1024:
+                return None
             with open(raw, "r", encoding="utf-8") as f:
                 raw = f.read().strip()
         except Exception as e:
-            logger.warning("Compte de service : fichier illisible %s (%s)", raw, e)
+            logger.debug("Compte de service : fichier illisible %s (%s)", raw, e)
             return None
     if not raw.startswith("{"):
-        try:
-            raw = base64.b64decode(raw).decode("utf-8")
-        except Exception:
+        if not _looks_base64(raw):
             return None
+        try:
+            raw = base64.b64decode(raw, validate=False).decode("utf-8")
+        except Exception:
+            try:
+                raw = base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)).decode("utf-8")
+            except Exception:
+                return None
     try:
         data = json.loads(raw)
     except Exception:
-        return None
+        # JSON collé avec des retours à la ligne échappés (\n → vrais sauts) : seconde chance
+        try:
+            data = json.loads(raw.replace("\\n", "\n").replace("\n", "\\n"))
+        except Exception:
+            return None
     if not isinstance(data, dict) or data.get("type") != "service_account":
         return None
     if not data.get("client_email") or not data.get("private_key"):
@@ -89,7 +118,7 @@ def _parse_sa(raw: str) -> Optional[Dict[str, Any]]:
 
 def _service_account() -> Optional[Dict[str, Any]]:
     """Trouve le compte de service : variables connues, puis n'importe quelle variable
-    d'environnement contenant un JSON « service_account », puis les fichiers secrets."""
+    d'environnement contenant un JSON « service_account » (brut ou base64), puis les fichiers secrets."""
     if _sa_cache["loaded"]:
         return _sa_cache["data"]
     data, origin = None, ""
@@ -100,7 +129,7 @@ def _service_account() -> Optional[Dict[str, Any]]:
             break
     if not data:
         for name, val in os.environ.items():
-            if '"service_account"' in val or (val.strip().startswith("/") and val.endswith(".json")):
+            if '"service_account"' in val or _looks_base64(val) or (val.strip().startswith("/") and len(val) < 512):
                 data = _parse_sa(val)
                 if data:
                     origin = f"env:{name}"
@@ -125,6 +154,47 @@ def _service_account() -> Optional[Dict[str, Any]]:
     return data
 
 
+def diagnostics() -> Dict[str, Any]:
+    """Aide au repérage du compte de service : NOMS des variables candidates (jamais les valeurs)
+    et fichiers secrets présents, avec une description de leur forme."""
+    cands = []
+    for name, val in sorted(os.environ.items()):
+        n = name.upper()
+        hint = None
+        if any(k in n for k in ("GOOGLE", "GCP", "GSHEET", "SHEET", "SERVICE_ACCOUNT", "CREDENTIAL", "SA_KEY")):
+            hint = "nom évocateur"
+        v = val.strip()
+        shape = ("json" if v.startswith("{") else "chemin" if v.startswith("/") else
+                 "identifiant client OAuth (…apps.googleusercontent.com) — ce n'est PAS une clé de compte de service"
+                 if v.endswith(".apps.googleusercontent.com") else
+                 "base64 ?" if _looks_base64(v) else "texte")
+        if '"service_account"' in v:
+            hint = (hint + ", " if hint else "") + "contient service_account"
+        if hint:
+            reason = []
+            if v.startswith("{"):
+                try:
+                    json.loads(v)
+                except Exception as e:
+                    reason.append(f"JSON invalide : {str(e)[:60]}")
+            cands.append({"name": name, "shape": shape, "length": len(v), "hint": hint,
+                          "problem": "; ".join(reason) or None})
+    files = []
+    for d in SECRET_FILE_DIRS:
+        if os.path.isdir(d):
+            for fn in sorted(os.listdir(d)):
+                p = os.path.join(d, fn)
+                try:
+                    size = os.path.getsize(p)
+                    with open(p, "r", encoding="utf-8", errors="replace") as f:
+                        head = f.read(2).strip()
+                    files.append({"path": p, "size": size, "shape": "json" if head.startswith("{") else "texte"})
+                except Exception as e:
+                    files.append({"path": p, "error": str(e)[:80]})
+    return {"candidate_env_vars": cands, "secret_files": files, "checked_dirs": SECRET_FILE_DIRS,
+            "known_names": SERVICE_ACCOUNT_ENV_NAMES}
+
+
 def is_configured() -> bool:
     return bool(sheet_id() and _service_account())
 
@@ -137,6 +207,7 @@ def status() -> Dict[str, Any]:
         "service_account": (sa or {}).get("client_email", "") if sa else "",
         "service_account_origin": _sa_cache.get("origin", ""),
         "tab": sheet_tab() or "(premier onglet)",
+        "diagnostics": None if sa else diagnostics(),
     }
 
 
@@ -203,12 +274,7 @@ def _detect_header_row(values: List[List[str]], required: Optional[List[str]] = 
     contenant au moins 3 cellules non vides et, si `required` est fourni, tous ces mots
     (comparaison insensible à la casse/accents). Repli : ligne 0."""
     def norm(x: str) -> str:
-        try:
-            from unidecode import unidecode
-            x = unidecode(x)
-        except Exception:
-            pass
-        return x.lower().strip()
+        return strip_accents(x).lower().strip()
 
     req = [norm(r) for r in (required or [])]
     best, best_count = 0, 0
@@ -223,30 +289,64 @@ def _detect_header_row(values: List[List[str]], required: Optional[List[str]] = 
     return best
 
 
-def _parse_table(tab: str, values: List[List[str]], header_markers: Optional[List[str]] = None) -> Dict[str, Any]:
-    if not values:
-        return {"tab": tab, "headers": [], "header_row": 1, "rows": []}
-    h = _detect_header_row(values, header_markers)
-    headers = [str(x).strip() for x in values[h]]
+SUB_BLOCK_MARKERS = {"video", "videos", "photo", "photos", "livrable", "livrables", "montage", "montages", "audio", "podcast"}
+
+
+def _norm_cell(x: str) -> str:
+    return " ".join(strip_accents(x).lower().replace("/", " ").split())
+
+
+def _is_sub_header(line: List[str]) -> bool:
+    """Ligne d'en-têtes d'un tableau secondaire (ex. « Vidéo | Prestataire | Validée le | Validation … »)."""
+    cells = [str(c).strip() for c in line]
+    non_empty = [c for c in cells if c]
+    if len(non_empty) < 3 or not cells or not cells[0].strip():
+        return False
+    first = _norm_cell(cells[0])
+    if first not in SUB_BLOCK_MARKERS:
+        return False
+    return not any(ch.isdigit() for ch in "".join(non_empty))  # pas de dates / horaires : ce sont des libellés
+
+
+def _rows_of(block_lines: List[Any], headers: List[str], start_row: int) -> List[Dict[str, Any]]:
     rows = []
-    for i, line in enumerate(values[h + 1:], start=h + 2):
+    for i, line in enumerate(block_lines, start=start_row):
         if not any(str(c).strip() for c in line):
             continue
-        cells = {}
-        for j, name in enumerate(headers):
-            if not name or name in cells:  # en-têtes dupliqués : la 1re occurrence gagne
-                continue
-            cells[name] = str(line[j]).strip() if j < len(line) else ""
-        # colonnes dupliquées (ex. 2e bloc « Précisions / consignes ») → suffixe « (2) »
+        cells: Dict[str, str] = {}
         seen: Dict[str, int] = {}
         for j, name in enumerate(headers):
             if not name:
                 continue
             seen[name] = seen.get(name, 0) + 1
-            if seen[name] > 1:
-                cells[f"{name} ({seen[name]})"] = str(line[j]).strip() if j < len(line) else ""
-        rows.append({"row_number": i, "values": cells})
-    return {"tab": tab, "headers": headers, "header_row": h + 1, "rows": rows}
+            key = name if seen[name] == 1 else f"{name} ({seen[name]})"  # en-têtes dupliqués → suffixe
+            cells[key] = str(line[j]).strip() if j < len(line) else ""
+        rows.append({"row_number": i, "values": cells, "raw": [str(c).strip() for c in line]})
+    return rows
+
+
+def _parse_table(tab: str, values: List[List[str]], header_markers: Optional[List[str]] = None) -> Dict[str, Any]:
+    """Découpe un onglet en blocs : le tableau principal (ligne d'en-têtes repérée par
+    `header_markers`) puis d'éventuels tableaux secondaires (en-tête commençant par Vidéo / Photo /
+    Livrables…). Les clés headers / header_row / rows décrivent le bloc principal (compatibilité) ;
+    `blocks` les liste tous."""
+    if not values:
+        return {"tab": tab, "headers": [], "header_row": 1, "rows": [], "blocks": []}
+    h = _detect_header_row(values, header_markers)
+    blocks = []
+    cur_headers, cur_start, cur_lines, cur_kind = [str(x).strip() for x in values[h]], h + 1, [], "main"
+    for idx in range(h + 1, len(values)):
+        line = values[idx]
+        if _is_sub_header(line):
+            blocks.append({"kind": cur_kind, "headers": cur_headers, "header_row": cur_start,
+                           "rows": _rows_of(cur_lines, cur_headers, cur_start + 1)})
+            cur_headers, cur_start, cur_lines, cur_kind = [str(x).strip() for x in line], idx + 1, [], "sub"
+            continue
+        cur_lines.append(line)
+    blocks.append({"kind": cur_kind, "headers": cur_headers, "header_row": cur_start,
+                   "rows": _rows_of(cur_lines, cur_headers, cur_start + 1)})
+    main = blocks[0]
+    return {"tab": tab, "headers": main["headers"], "header_row": main["header_row"], "rows": main["rows"], "blocks": blocks}
 
 
 def read_tables(tabs: Optional[List[str]] = None, header_markers: Optional[List[str]] = None) -> List[Dict[str, Any]]:

@@ -76,11 +76,13 @@ export default function AdminPublicationsPage() {
   const [busy, setBusy] = useState<string>('')
 
   const [issued, setIssued] = useState<PubIssuedLink | null>(null)
+  const [publishTarget, setPublishTarget] = useState<PendingPublication | null>(null)
+  const [publishFile, setPublishFile] = useState<File | null>(null)
   const [detail, setDetail] = useState<PendingPublication | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState({ title: '', text: '', media_urls: '', networks: '', scheduled_for: '', requester: '', requester_email: '', notes: '', ttl_hours: 72, notify: true })
 
-  const flash = (m: string) => { setMsg(m); setErr(''); setTimeout(() => setMsg(''), 5000) }
+  const flash = (m: string) => { setMsg(m); setErr(''); setTimeout(() => setMsg(''), m.length > 120 ? 20000 : 5000) }
   const fail = (e: unknown, ctx: string) => { setErr(apiErrorMessage(e, ctx)); setMsg('') }
 
   const load = useCallback(async () => {
@@ -177,7 +179,10 @@ export default function AdminPublicationsPage() {
                 onClick={() => run('sync', async () => {
                   const r = await syncPublicationSheet()
                   if (!r.ok) throw Object.assign(new Error(r.error), { status: 400 })
-                  flash(`Planning lu (${r.tabs?.length ?? 0} onglet(s)) : ${r.created?.length ?? 0} créée(s), ${r.skipped ?? 0} ignorée(s)`)
+                  const videos = (r.created ?? []).filter((c) => c.kind === 'video').length
+                  const errs = r.errors?.length ? ` · ${r.errors.length} erreur(s) : ${r.errors.slice(0, 3).map((e) => `${e.tab ?? ''} L${e.row ?? '?'} ${e.error}`).join(' | ')}` : ''
+                  const reasons = r.skipped_reasons ? ' · ignorées : ' + Object.entries(r.skipped_reasons).filter(([k]) => k !== 'ligne_vide').map(([k, v]) => `${k} ×${v}`).join(', ') : ''
+                  flash(`Planning lu (${r.tabs?.length ?? 0} onglet(s)) : ${r.created?.length ?? 0} créée(s) dont ${videos} vidéo(s), ${r.skipped ?? 0} ignorée(s)${reasons}${errs}`)
                 }, 'Import terminé', 'import de la feuille')}>
                 {busy === 'sync' ? 'Lecture…' : '⟳ Lire le planning'}
               </button>
@@ -277,7 +282,9 @@ export default function AdminPublicationsPage() {
                               {p.payload?.location && <span>📍 {p.payload.location}</span>}
                               {p.payload?.requester && <span>👤 {p.payload.requester}</span>}
                               {p.payload?.networks?.length > 0 && <span>📣 {p.payload.networks.join(', ')}</span>}
+                              {p.payload?.kind === 'video' && <span style={{ color: 'var(--accent-link)' }}>🎬 vidéo livrée</span>}
                               {p.payload?.media_urls?.length > 0 && <span>🖼 {p.payload.media_urls.length} média(s)</span>}
+                              {(p.payload?.links?.length ?? 0) > 0 && <span>🔗 {p.payload.links!.length} lien(s)</span>}
                               {p.decision && <span>{p.decision.decision === 'approve' ? '✓' : '✕'} {p.decision.by}</span>}
                               {p.publish && <span>{p.publish.ok ? `📤 ${p.publish.platforms} réseau(x)` : `⚠️ ${p.publish.error}`}</span>}
                             </div>
@@ -285,7 +292,7 @@ export default function AdminPublicationsPage() {
                           <div className="flex gap-1.5 flex-wrap">
                             {canLink && <button type="button" className="text-xs px-2.5 py-1.5 rounded-md" style={input} disabled={b('token')} onClick={() => onRegenerate(p.id)}>{b('token') ? '…' : '🔗 Nouveau lien'}</button>}
                             {p.token.active && p.status === 'pending' && <button type="button" className="text-xs px-2.5 py-1.5 rounded-md" style={input} disabled={b('revoke')} onClick={() => run(`revoke-${p.id}`, () => revokePublicationLink(p.id), 'Lien révoqué', 'révocation')}>Révoquer</button>}
-                            {canPublish && <button type="button" className="text-xs px-2.5 py-1.5 rounded-md" style={{ background: 'var(--positive)', color: '#fff' }} disabled={b('publish')} onClick={() => run(`publish-${p.id}`, () => publishPendingPublication(p.id), 'Publication envoyée', 'publication')}>{b('publish') ? 'Envoi…' : '📤 Publier'}</button>}
+                            {canPublish && <button type="button" className="text-xs px-2.5 py-1.5 rounded-md" style={{ background: 'var(--positive)', color: '#fff' }} disabled={b('publish')} onClick={() => { setPublishFile(null); setPublishTarget(p) }}>{b('publish') ? 'Envoi…' : '📤 Publier'}</button>}
                             {(p.status === 'pending' || p.status === 'approved' || p.status === 'expired') && <button type="button" className="text-xs px-2.5 py-1.5 rounded-md" style={input} disabled={b('cancel')} onClick={() => { if (confirm('Annuler cette demande ?')) run(`cancel-${p.id}`, () => cancelPendingPublication(p.id), 'Demande annulée', 'annulation') }}>Annuler</button>}
                             <button type="button" className="text-xs px-2.5 py-1.5 rounded-md" style={{ ...input, color: 'var(--negative)' }} disabled={b('delete')} onClick={() => { if (confirm('Supprimer définitivement ? Le journal d’audit sera perdu.')) run(`delete-${p.id}`, () => deletePendingPublication(p.id), 'Supprimée', 'suppression') }}>Supprimer</button>
                           </div>
@@ -306,10 +313,29 @@ export default function AdminPublicationsPage() {
                     <li><Dot ok={status.encryption.configured || status.encryption.dev_derived_key} warn={status.encryption.dev_derived_key} />
                       Chiffrement {status.encryption.configured ? `actif (clé v${status.encryption.key_version})` : 'clé DEV dérivée — à configurer'}</li>
                     <li><Dot ok={status.sheet.configured} />Planning Google {status.sheet.configured ? (status.sheet.tab === '(premier onglet)' ? '· tous les onglets' : `· onglet ${status.sheet.tab}`) : 'non configuré'}</li>
-                    {status.sheet.configured && <li className="pl-4" style={{ color: 'var(--text-muted)' }}>Import : statuts {status.import_statuses.join(', ')} · retour dans « {status.writeback_column ?? 'aucune colonne'} »</li>}
+                    {status.sheet.configured && <li className="pl-4" style={{ color: 'var(--text-muted)' }}>Événements : statuts {status.import_statuses.join(', ')} · vidéos livrées : {(status.video_import_statuses ?? ['validé']).join(', ')} · retour dans « {status.writeback_column ?? 'aucune colonne'} »</li>}
                     {status.sheet.service_account
                       ? <li className="font-mono text-[10px] break-all pl-4" style={{ color: 'var(--text-muted)' }}>{status.sheet.service_account} ({status.sheet.service_account_origin})</li>
                       : <li className="pl-4" style={{ color: 'var(--negative)' }}>Compte de service Google introuvable dans les variables Render</li>}
+                    {!status.sheet.service_account && status.sheet.diagnostics && (
+                      <li className="pl-4 space-y-1" style={{ color: 'var(--text-muted)' }}>
+                        <div>Variables au nom évocateur vues par le backend (noms seulement) :</div>
+                        {status.sheet.diagnostics.candidate_env_vars.length === 0
+                          ? <div className="font-mono text-[10px]">aucune — le JSON n'est pas sur ce service Render</div>
+                          : status.sheet.diagnostics.candidate_env_vars.map((v) => (
+                            <div key={v.name} className="font-mono text-[10px] break-all">
+                              {v.name} · {v.shape} · {v.length} car.{v.problem && <span style={{ color: 'var(--negative)' }}> · {v.problem}</span>}
+                            </div>
+                          ))}
+                        <div>Fichiers secrets ({status.sheet.diagnostics.checked_dirs.join(', ')}) :</div>
+                        {status.sheet.diagnostics.secret_files.length === 0
+                          ? <div className="font-mono text-[10px]">aucun</div>
+                          : status.sheet.diagnostics.secret_files.map((f) => (
+                            <div key={f.path} className="font-mono text-[10px] break-all">{f.path} · {f.shape ?? f.error} · {f.size ?? '?'} o</div>
+                          ))}
+                        <div>Attendu dans <code>GOOGLE_SERVICE_ACCOUNT_JSON</code> : le fichier JSON d'une <b>clé de compte de service</b> (commence par {'{"type": "service_account"'}), pas un identifiant client OAuth. Console Google Cloud → IAM → Comptes de service → Clés → Créer une clé JSON, puis partager la feuille avec l'adresse <code>client_email</code>.</div>
+                      </li>
+                    )}
                     {!status.sheet.sheet_id_set && <li className="pl-4" style={{ color: 'var(--negative)' }}>PUBLICATION_SHEET_ID manquant</li>}
                     <li><Dot ok={status.buffer_configured} />Buffer {status.buffer_configured ? 'configuré' : 'non configuré'}</li>
                     <li><Dot ok />Publication manuelle après validation (bouton « Publier »)</li>
@@ -320,12 +346,40 @@ export default function AdminPublicationsPage() {
               </div>
               <div className="p-4 elev-card text-[11px] leading-relaxed" style={{ ...card, color: 'var(--text-muted)' }}>
                 <div className={`${label} mb-2`}>Planning lu</div>
-                « Suivi hebdomadaire des prestataires audiovisuels » : tous les onglets (un par semaine), en-têtes repérés automatiquement (Date, Événement, Heure, Prestation, Lieu, Précisions, Prestataire, Statut, Source / flyer). Toutes les 10 min, chaque événement <b>Confirmé</b> ou <b>Réalisé</b> devient une publication à valider ; le texte proposé est composé depuis la ligne et reste modifiable par le validateur. L'état de validation est écrit dans une colonne <b>Publication</b> ajoutée à droite ; la colonne Statut du planning n'est jamais modifiée.
+                « Suivi hebdomadaire des prestataires audiovisuels » : tous les onglets (un par semaine), en-têtes repérés automatiquement (Date, Événement, Heure, Prestation, Lieu, Précisions, Prestataire, Statut, Source / flyer). Toutes les 10 min, chaque événement <b>Confirmé</b> ou <b>Réalisé</b> devient une publication à valider, ainsi que chaque ligne <b>Validé</b> du tableau « Livraisons » (Vidéo, Prestataire, Validée le, Validation, liens Purevision / WeTransfer). Le texte proposé est composé depuis la ligne et reste modifiable par le validateur. Les liens WeTransfer / Purevision ne sont pas des fichiers directs : joignez la vidéo au moment de publier. L'état de validation est écrit dans une colonne <b>Publication</b> ajoutée à droite ; la colonne Statut du planning n'est jamais modifiée.
               </div>
             </aside>
           </div>
         </div>
       </main>
+
+      {/* Publication (fichier joint facultatif) */}
+      {publishTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setPublishTarget(null)}>
+          <div className="max-w-lg w-full p-6 elev-card" style={card} onClick={(e) => e.stopPropagation()}>
+            <div className={`${label} mb-1`} style={{ color: 'var(--text-muted)' }}>Publier sur Buffer</div>
+            <h2 className="font-serif text-xl italic mb-3">{publishTarget.payload.title || '(sans titre)'}</h2>
+            {(publishTarget.payload.links?.length ?? 0) > 0 && (
+              <div className="text-xs mb-3 p-3 rounded-md" style={{ background: 'var(--warn-soft)', color: 'var(--warning)' }}>
+                Cette publication n’a que des liens (WeTransfer / Purevision), pas de fichier direct. Téléchargez la vidéo puis joignez-la ci-dessous, sinon le post partira sans média (Instagram / TikTok seront ignorés).
+                <div className="mt-1 space-y-0.5">
+                  {publishTarget.payload.links!.map((u) => <a key={u} href={u} target="_blank" rel="noopener noreferrer" className="underline block break-all" style={{ color: 'var(--accent-link)' }}>{u}</a>)}
+                </div>
+              </div>
+            )}
+            <label className="text-xs block mb-1" style={{ color: 'var(--text-secondary)' }}>Fichier à joindre (image ou vidéo, facultatif)</label>
+            <input type="file" accept="image/*,video/*" className="text-xs mb-4 w-full" onChange={(e) => setPublishFile(e.target.files?.[0] ?? null)} />
+            {publishFile && <div className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>{publishFile.name} · {(publishFile.size / 1048576).toFixed(1)} Mo</div>}
+            <div className="flex gap-2">
+              <button type="button" className="btn-primary px-4 py-2 text-sm" disabled={busy === `publish-${publishTarget.id}`}
+                onClick={() => { const t = publishTarget; setPublishTarget(null); run(`publish-${t.id}`, () => publishPendingPublication(t.id, publishFile ?? undefined), 'Publication envoyée', 'publication') }}>
+                {publishFile ? '📤 Publier avec le fichier' : '📤 Publier sans média'}
+              </button>
+              <button type="button" className="text-sm underline" style={{ color: 'var(--text-muted)' }} onClick={() => setPublishTarget(null)}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Détail */}
       {detail && (
@@ -351,6 +405,7 @@ export default function AdminPublicationsPage() {
               <dt style={{ color: 'var(--text-muted)' }}>Date souhaitée</dt><dd>{detail.payload.scheduled_for || '—'}</dd>
               <dt style={{ color: 'var(--text-muted)' }}>Campagne</dt><dd>{detail.payload.campaign_name || '—'}</dd>
               <dt style={{ color: 'var(--text-muted)' }}>Médias</dt><dd className="break-all">{detail.payload.media_urls.join(' · ') || '—'}</dd>
+              <dt style={{ color: 'var(--text-muted)' }}>Liens</dt><dd className="break-all">{(detail.payload.links ?? []).length ? detail.payload.links!.map((u) => <a key={u} href={u} target="_blank" rel="noopener noreferrer" className="underline block" style={{ color: 'var(--accent-link)' }}>{u}</a>) : '—'}</dd>
               <dt style={{ color: 'var(--text-muted)' }}>Notes</dt><dd>{detail.payload.notes || '—'}</dd>
               {detail.decision && <><dt style={{ color: 'var(--text-muted)' }}>Décision</dt><dd>{detail.decision.decision === 'approve' ? 'Validée' : 'Refusée'} par {detail.decision.by} le {fmt(detail.decision.at)} {detail.decision.comment && `— « ${detail.decision.comment} »`}</dd></>}
               {detail.publish && <><dt style={{ color: 'var(--text-muted)' }}>Publication</dt><dd>{detail.publish.ok ? `OK sur ${detail.publish.platforms} réseau(x) le ${fmt(detail.publish.published_at)}` : `Échec : ${detail.publish.error}`}</dd></>}

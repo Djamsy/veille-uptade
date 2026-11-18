@@ -1340,10 +1340,11 @@ export interface PubPayload {
   scheduled_for: string; requester: string; requester_email: string; campaign_id: string;
   campaign_name: string; notes: string; external_id: string; original_text?: string; edited_by?: string;
   location?: string; event_time?: string; service?: string; provider?: string;
+  links?: string[]; kind?: 'event' | 'video' | string;
 }
 
 export interface PubDecision { decision: 'approve' | 'reject'; by: string; comment: string; at: string }
-export interface PubPublish { ok: boolean; published_at: string; platforms: number; error: string | null; buffer_ids?: string[] }
+export interface PubPublish { ok: boolean; published_at: string; platforms: number; error: string | null; buffer_ids?: string[]; media_count?: number }
 
 export interface PendingPublication {
   id: string; created_at: string; updated_at: string; source: 'sheet' | 'manual'; sheet_row: number | null; sheet_tab?: string | null;
@@ -1360,15 +1361,23 @@ export interface PubValidationView {
   title: string; text: string; hashtags: string[]; media_urls: string[]; networks: string[]; scheduled_for: string;
   requester: string; campaign_name: string; notes: string; decision: PubDecision | null;
   location?: string; event_time?: string; service?: string; provider?: string;
+  links?: string[]; kind?: 'event' | 'video' | string;
   publish: { ok: boolean; published_at: string; platforms: number } | null;
 }
 
 export const fetchPubValidationStatus = () =>
   adminFetch<{
     encryption: { configured: boolean; dev_derived_key: boolean; key_version: number; rotation_key_loaded: boolean; algorithm: string };
-    sheet: { configured: boolean; sheet_id_set: boolean; service_account: string; service_account_origin?: string; tab: string };
+    sheet: {
+      configured: boolean; sheet_id_set: boolean; service_account: string; service_account_origin?: string; tab: string;
+      diagnostics?: {
+        candidate_env_vars: Array<{ name: string; shape: string; length: number; hint: string; problem: string | null }>;
+        secret_files: Array<{ path: string; size?: number; shape?: string; error?: string }>;
+        checked_dirs: string[]; known_names: string[];
+      } | null;
+    };
     buffer_configured: boolean; ttl_hours: number; base_url: string;
-    notify_emails: number; notify_telegram: boolean; import_statuses: string[]; writeback_column: string | null;
+    notify_emails: number; notify_telegram: boolean; import_statuses: string[]; video_import_statuses?: string[]; writeback_column: string | null;
     counts: Record<string, number>;
   }>('/api/publications/status');
 
@@ -1392,14 +1401,27 @@ export const revokePublicationLink = (id: string) =>
 export const cancelPendingPublication = (id: string) =>
   adminFetch<{ ok: boolean }>(`/api/publications/pending/${id}/cancel`, { method: 'POST' });
 
-export const publishPendingPublication = (id: string) =>
-  adminFetch<{ ok: boolean; id: string; status: string; publish: PubPublish }>(`/api/publications/pending/${id}/publish`, { method: 'POST' });
+/** Publie sur Buffer ; `media` (image ou vidéo) est facultatif — indispensable quand la feuille ne donne qu'un lien WeTransfer / Purevision. */
+export const publishPendingPublication = async (id: string, media?: File) => {
+  if (!media) {
+    return adminFetch<{ ok: boolean; id: string; status: string; publish: PubPublish }>(`/api/publications/pending/${id}/publish`, { method: 'POST' });
+  }
+  const fd = new FormData();
+  fd.append('media', media);
+  const res = await fetch(`${BACKEND_URL}/api/publications/pending/${id}/publish`, { method: 'POST', headers: authHeaders(), body: fd });
+  if (!res.ok) {
+    const err = new Error(`API ${res.status}: ${res.statusText}`) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
+  }
+  return res.json() as Promise<{ ok: boolean; id: string; status: string; publish: PubPublish }>;
+};
 
 export const deletePendingPublication = (id: string) =>
   adminFetch<{ ok: boolean }>(`/api/publications/pending/${id}`, { method: 'DELETE' });
 
 export const syncPublicationSheet = () =>
-  adminFetch<{ ok: boolean; error?: string; created?: Array<{ id: string; tab: string; row: number; title: string }>; skipped?: number; superseded?: number; errors?: unknown[]; tabs?: Array<{ tab: string; rows?: number; created?: number; skipped?: string; mapping?: Record<string, string> }> }>(
+  adminFetch<{ ok: boolean; error?: string; created?: Array<{ id: string; tab: string; row: number; title: string; kind?: string }>; skipped?: number; skipped_reasons?: Record<string, number>; statuses_seen?: Record<string, number>; superseded?: number; errors?: Array<{ tab?: string; row?: number; error: string }>; tabs?: Array<{ tab: string; rows?: number; blocks?: number; created?: number; videos?: number; skipped?: string; mapping?: Record<string, string> }> }>(
     '/api/publications/sync-sheet', { method: 'POST', body: JSON.stringify({}) }
   );
 

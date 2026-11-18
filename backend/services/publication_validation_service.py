@@ -22,6 +22,7 @@ Configuration (variables d'environnement) :
   PUBLICATION_ENCRYPTION_KEY            — voir crypto_service.py (obligatoire en prod)
   GOOGLE_SERVICE_ACCOUNT_JSON / PUBLICATION_SHEET_ID / PUBLICATION_SHEET_TAB — voir google_sheets_service.py
   PUBLICATION_SHEET_IMPORT_STATUSES     — statuts du planning à importer (défaut "confirmé,réalisé" ; "*" = tous)
+  PUBLICATION_VIDEO_IMPORT_STATUSES     — colonne Validation du tableau « Livraisons » (défaut "validé" ; "*" = toutes)
   PUBLICATION_SHEET_WRITEBACK_COLUMN    — colonne où écrire l'état de validation (défaut "Publication",
                                            créée si absente ; "" = aucun retour dans la feuille).
                                            La colonne « Statut » du planning n'est JAMAIS modifiée.
@@ -93,6 +94,21 @@ COLUMN_ALIASES: Dict[str, List[str]] = {
 }
 HEADER_MARKERS = ["date", "evenement"]  # repère la ligne d'en-têtes dans un onglet du planning
 
+# Tableau secondaire « Livraisons » (vidéos montées) : Vidéo | Prestataire | Validée le | Validation |
+# Fichier reçu de Purevision | Envoi aux médias | Envoyé le | Lien WeTransfer | Retours / prochaine étape
+VIDEO_ALIASES: Dict[str, List[str]] = {
+    "title": ["video", "videos", "montage", "film", "livrable", "titre"],
+    "provider": ["prestataire", "prestataire affecte", "realise par"],
+    "validated_on": ["validee le", "valide le", "date de validation", "validation le"],
+    "validation": ["validation", "valide", "statut", "status", "etat"],
+    "file": ["fichier recu de purevision", "fichier recu", "fichier", "lien purevision", "purevision", "lien fichier"],
+    "sent": ["envoi aux medias", "envoi", "diffusion"],
+    "sent_on": ["envoye le", "envoyee le", "date d envoi"],
+    "link": ["lien wetransfer", "wetransfer", "lien de telechargement", "lien"],
+    "feedback": ["retours prochaine etape", "retours", "prochaine etape", "remarque", "remarques", "commentaire"],
+}
+DEFAULT_VIDEO_IMPORT_STATUSES = ["valide", "validee", "ok", "approuve", "approuvee"]
+
 # Exceptions métier (le router les traduit en codes HTTP)
 class TokenInvalid(Exception): ...
 class TokenExpired(Exception): ...
@@ -142,6 +158,24 @@ def _import_statuses() -> List[str]:
     return lst or DEFAULT_IMPORT_STATUSES
 
 
+def _video_import_statuses() -> List[str]:
+    raw = os.getenv("PUBLICATION_VIDEO_IMPORT_STATUSES", "")
+    if raw.strip() == "*":
+        return ["*"]
+    lst = [_norm(x) for x in raw.split(",") if x.strip()]
+    return lst or DEFAULT_VIDEO_IMPORT_STATUSES
+
+
+_DIRECT_MEDIA_RE = re.compile(r"\.(jpe?g|png|gif|webp|mp4|mov|m4v|webm)(\?|$)", re.I)
+
+
+def is_direct_media(url: str) -> bool:
+    """URL de fichier exploitable par Cloudinary/Buffer (extension média, ou déjà Cloudinary).
+    Les pages WeTransfer, Filemail, Drive… sont des liens, pas des médias."""
+    u = (url or "").strip().lower()
+    return u.startswith("http") and (bool(_DIRECT_MEDIA_RE.search(u)) or "res.cloudinary.com" in u)
+
+
 def _writeback_column() -> str:
     return os.getenv("PUBLICATION_SHEET_WRITEBACK_COLUMN", "Publication").strip()
 
@@ -155,13 +189,11 @@ def validation_url(token: str) -> str:
 
 
 def _norm(s: str) -> str:
-    """Normalisation d'en-tête / de cellule : minuscules, sans accents ni ponctuation."""
-    try:
-        from unidecode import unidecode
-        s = unidecode(s or "")
-    except Exception:
-        s = s or ""
-    return re.sub(r"[^a-z0-9]+", " ", s.lower()).strip()
+    """Normalisation d'en-tête / de cellule : minuscules, sans accents ni ponctuation.
+    Bibliothèque standard uniquement (pas d'unidecode : son absence rendait « Confirmé » → « confirm »
+    et écartait silencieusement toutes les lignes)."""
+    from backend.services.google_sheets_service import strip_accents
+    return re.sub(r"[^a-z0-9]+", " ", strip_accents(s or "").lower()).strip()
 
 
 def _ip_hash(ip: Optional[str]) -> str:
@@ -290,6 +322,8 @@ def _clean_payload(p: Dict[str, Any]) -> Dict[str, Any]:
         "campaign_name": str(p.get("campaign_name") or "")[:200],
         "notes": str(p.get("notes") or "")[:2000],
         "external_id": str(p.get("external_id") or "")[:100],
+        "links": [str(u)[:1000] for u in (p.get("links") or [])][:10],
+        "kind": str(p.get("kind") or "event")[:20],
         "location": str(p.get("location") or "")[:200],
         "event_time": str(p.get("event_time") or "")[:50],
         "service": str(p.get("service") or "")[:100],
@@ -453,6 +487,8 @@ def get_by_token(token: str, ip: Optional[str] = None, db=None) -> Dict[str, Any
         "requester": p.get("requester", ""),
         "campaign_name": p.get("campaign_name", ""),
         "notes": p.get("notes", ""),
+        "links": p.get("links", []),
+        "kind": p.get("kind", "event"),
         "location": p.get("location", ""),
         "event_time": p.get("event_time", ""),
         "service": p.get("service", ""),
@@ -520,8 +556,9 @@ def _compose_text(p: Dict[str, Any]) -> str:
     return body.strip()
 
 
-def publish_now(pub_id: str, actor: str = "", db=None) -> Dict[str, Any]:
-    """Publie une publication validée via Buffer (action manuelle d'un admin)."""
+def publish_now(pub_id: str, actor: str = "", extra_media_urls: Optional[List[str]] = None, db=None) -> Dict[str, Any]:
+    """Publie une publication validée via Buffer (action manuelle d'un admin).
+    extra_media_urls : médias déjà hébergés (ex. vidéo uploadée sur Cloudinary par l'admin) ajoutés au post."""
     db = db or _db()
     doc = _find(db, pub_id)
     aad = _aad(doc["_id"])
@@ -534,13 +571,15 @@ def publish_now(pub_id: str, actor: str = "", db=None) -> Dict[str, Any]:
                                                     detect_campaign, get_campaign)
 
     text = _compose_text(payload)
-    media_urls: List[str] = []
+    media_urls: List[str] = list(extra_media_urls or [])
     for url in payload.get("media_urls", []):
-        if not url.lower().startswith("http"):
-            continue
+        if not is_direct_media(url):
+            continue  # liens WeTransfer / Filemail / Drive : non exploitables par Buffer
         rtype = "video" if re.search(r"\.(mp4|mov|m4v|webm)(\?|$)", url, re.I) else "image"
         hosted = upload_to_cloudinary(url, rtype) or url
         media_urls.append(hosted)
+    if not media_urls and (payload.get("links") or payload.get("kind") == "video"):
+        logger.warning("Publication %s : aucun média direct (liens seulement) — post texte, ou joindre un fichier", pub_id)
 
     campaign_name, campaign_id = payload.get("campaign_name", ""), payload.get("campaign_id", "")
     try:
@@ -567,6 +606,7 @@ def publish_now(pub_id: str, actor: str = "", db=None) -> Dict[str, Any]:
         "error": None if res.get("ok") else str(res.get("error", ""))[:500],
         "skipped": res.get("skipped"),
         "actor": actor,
+        "media_count": len(media_urls),
     }
     new_status = PUBLISHED if record["ok"] else PUBLISH_FAILED
     _set_status(db, doc, new_status, {"publish_enc": crypto.encrypt_json(record, aad)})
@@ -590,18 +630,19 @@ def publish_now(pub_id: str, actor: str = "", db=None) -> Dict[str, Any]:
 
 # ── Import depuis Google Sheets ────────────────────────────
 
-def _map_headers(headers: List[str]) -> Dict[str, int]:
-    """{champ: index de colonne} d'après COLUMN_ALIASES.
+def _map_headers(headers: List[str], aliases_map: Optional[Dict[str, List[str]]] = None) -> Dict[str, int]:
+    """{champ: index de colonne} d'après COLUMN_ALIASES (ou un autre jeu d'alias).
     Passe 1 : en-tête égal à un alias. Passe 2 : en-tête contenant un alias (mot entier,
     ≥ 3 lettres) — ex. « Texte du post » → text, « Date de publication » → scheduled_for."""
+    aliases_map = aliases_map or COLUMN_ALIASES
     norm = [_norm(h) for h in headers]
     mapping: Dict[str, int] = {}
-    for field, aliases in COLUMN_ALIASES.items():
+    for field, aliases in aliases_map.items():
         for i, h in enumerate(norm):
             if h and h in aliases and i not in mapping.values():
                 mapping[field] = i
                 break
-    for field, aliases in COLUMN_ALIASES.items():
+    for field, aliases in aliases_map.items():
         if field in mapping:
             continue
         for i, h in enumerate(norm):
@@ -642,87 +683,164 @@ def sync_from_sheet(notify: bool = True, db=None) -> Dict[str, Any]:
 
     tables = sheets.read_tables(header_markers=HEADER_MARKERS)
     statuses = _import_statuses()
+    video_statuses = _video_import_statuses()
     wb_name = _writeback_column()
     created, skipped, superseded, errors, tabs_report = [], 0, 0, [], []
+    skipped_reasons: Dict[str, int] = {}
+    seen_statuses: Dict[str, int] = {}
+
+    def _skip(reason: str) -> None:
+        nonlocal skipped
+        skipped += 1
+        skipped_reasons[reason] = skipped_reasons.get(reason, 0) + 1
+
+    def _supersede(tab: str, row_number: int) -> int:
+        n = 0
+        for old in db[COLLECTION].find({"sheet_tab": tab, "sheet_row": row_number, "source": "sheet",
+                                        "status_idx": crypto.blind_index(PENDING)}):
+            _set_status(db, old, CANCELLED, {"token_revoked": True})
+            _append_audit(db, old, "superseded", "sheet-sync")
+            n += 1
+        return n
 
     for table in tables:
-        headers, rows, tab = table["headers"], table["rows"], table["tab"]
-        mapping = _map_headers(headers)
+        tab = table["tab"]
+        main_headers = table["headers"]
+        mapping = _map_headers(main_headers)
         if "title" not in mapping and "text" not in mapping:
-            tabs_report.append({"tab": tab, "skipped": "aucune colonne Événement/Texte", "headers": headers[:8]})
+            tabs_report.append({"tab": tab, "skipped": "aucune colonne Événement/Texte", "headers": main_headers[:8]})
             continue
         wb_idx = None
         if wb_name:
             wb_idx = sheets.ensure_column(table, wb_name)
             if wb_idx is None:
                 errors.append({"tab": tab, "error": f"impossible de créer la colonne « {wb_name} »"})
-        tab_created = 0
+        tab_created, tab_videos = 0, 0
 
-        def cell(row: Dict[str, Any], field: str) -> str:
-            idx = mapping.get(field)
-            if idx is None or idx >= len(headers):
-                return ""
-            return row["values"].get(headers[idx], "")
+        def _already_marked(row: Dict[str, Any], headers: List[str]) -> bool:
+            # colonne de retour renseignée → déjà traitée (le bloc principal porte l'en-tête ; les
+            # blocs secondaires n'ont pas cet en-tête mais partagent la colonne : on lit la cellule brute)
+            if wb_idx is None:
+                return False
+            if wb_idx < len(headers) and headers[wb_idx]:
+                return bool(row["values"].get(headers[wb_idx], ""))
+            raw = row.get("raw") or []
+            return wb_idx < len(raw) and bool(raw[wb_idx])
 
-        for row in rows:
-            try:
-                title, details = cell(row, "title"), cell(row, "text")
-                if not title and not details:
-                    skipped += 1  # ligne de date pré-remplie, sans événement
-                    continue
-                if wb_idx is not None and headers[wb_idx] and row["values"].get(headers[wb_idx], ""):
-                    skipped += 1  # déjà traitée (colonne de retour renseignée)
-                    continue
-                st = _norm(cell(row, "sheet_status"))
-                if statuses != ["*"] and "sheet_status" in mapping and st not in statuses:
-                    skipped += 1
-                    continue
-                date, time_, place = cell(row, "date"), cell(row, "time"), cell(row, "location")
-                source = cell(row, "source")
-                extra_details = row["values"].get(f"{headers[mapping['text']]} (2)", "") if "text" in mapping else ""
-                fp = crypto.fingerprint(sheets.sheet_id(), tab, row["row_number"], title, details, extra_details,
-                                        date, time_, place, source)
-                if db[COLLECTION].find_one({"fingerprint": fp}, {"_id": 1}):
-                    skipped += 1
-                    continue
-                for old in db[COLLECTION].find({"sheet_tab": tab, "sheet_row": row["row_number"], "source": "sheet",
-                                                "status_idx": crypto.blind_index(PENDING)}):
-                    _set_status(db, old, CANCELLED, {"token_revoked": True})
-                    _append_audit(db, old, "superseded", "sheet-sync")
-                    superseded += 1
+        for block in table.get("blocks") or [{"kind": "main", "headers": main_headers, "rows": table["rows"]}]:
+            headers, rows = block["headers"], block["rows"]
+            if block["kind"] == "main":
+                bmap = mapping
+            else:
+                bmap = _map_headers(headers, VIDEO_ALIASES)
+                if "title" not in bmap or "validation" not in bmap:
+                    continue  # ex. tableau des téléchargements par destinataire : pas une livraison
 
-                media = _URL_RE.findall(source)
-                notes_parts = [x for x in [
-                    f"Prestation : {cell(row, 'service')}" if cell(row, "service") else "",
-                    f"Prestataire : {cell(row, 'provider')}" if cell(row, "provider") else "",
-                    f"Source : {source}" if source and not media else "",
-                    extra_details, cell(row, "notes"),
-                ] if x]
-                res = create_pending({
-                    "title": title or details[:120],
-                    "text": _compose_from_planning(title, date, time_, place, details),
-                    "media_urls": media, "networks": cell(row, "networks"),
-                    "scheduled_for": " · ".join(x for x in [date, time_] if x),
-                    "location": place, "event_time": time_, "service": cell(row, "service"),
-                    "provider": cell(row, "provider"), "requester": cell(row, "requester"),
-                    "requester_email": cell(row, "requester_email"), "campaign_name": cell(row, "campaign"),
-                    "notes": " · ".join(notes_parts), "external_id": cell(row, "id"),
-                }, source="sheet", sheet_row=row["row_number"], sheet_tab=tab, sheet_writeback_col=wb_idx,
-                    fingerprint=fp, actor="sheet-sync", notify=notify, db=db)
-                created.append({"id": res["id"], "tab": tab, "row": row["row_number"], "title": title[:80]})
-                tab_created += 1
-                if wb_idx is not None:
-                    sheets.write_cell(row["row_number"], wb_idx, STATUS_LABELS_FR[PENDING], tab=tab)
-            except Exception as e:
-                logger.warning("%s ligne %s : %s", tab, row.get("row_number"), e)
-                errors.append({"tab": tab, "row": row.get("row_number"), "error": str(e)[:200]})
-        tabs_report.append({"tab": tab, "rows": len(rows), "created": tab_created,
-                            "mapping": {k: headers[v] for k, v in mapping.items()}})
+            def cell(row: Dict[str, Any], field: str, _m=bmap, _h=headers) -> str:
+                idx = _m.get(field)
+                if idx is None or idx >= len(_h):
+                    return ""
+                return row["values"].get(_h[idx], "")
+
+            for row in rows:
+                try:
+                    if _already_marked(row, headers):
+                        _skip("deja_traitee")
+                        continue
+                    if block["kind"] == "main":
+                        title, details = cell(row, "title"), cell(row, "text")
+                        if not title and not details:
+                            _skip("ligne_vide")  # ligne de date pré-remplie, ou titre de section
+                            continue
+                        st = _norm(cell(row, "sheet_status"))
+                        seen_statuses[st or "(vide)"] = seen_statuses.get(st or "(vide)", 0) + 1
+                        if statuses != ["*"] and "sheet_status" in bmap and st not in statuses:
+                            _skip(f"statut:{st or '(vide)'}")
+                            continue
+                        date, time_, place = cell(row, "date"), cell(row, "time"), cell(row, "location")
+                        source = cell(row, "source")
+                        extra_details = row["values"].get(f"{headers[bmap['text']]} (2)", "") if "text" in bmap else ""
+                        fp = crypto.fingerprint(sheets.sheet_id(), tab, row["row_number"], title, details, extra_details,
+                                                date, time_, place, source)
+                        if db[COLLECTION].find_one({"fingerprint": fp}, {"_id": 1}):
+                            _skip("deja_importee")
+                            continue
+                        superseded += _supersede(tab, row["row_number"])
+                        urls = _URL_RE.findall(source)
+                        media = [u for u in urls if is_direct_media(u)]
+                        links = [u for u in urls if not is_direct_media(u)]
+                        notes_parts = [x for x in [
+                            f"Prestation : {cell(row, 'service')}" if cell(row, "service") else "",
+                            f"Prestataire : {cell(row, 'provider')}" if cell(row, "provider") else "",
+                            f"Source : {source}" if source and not urls else "",
+                            extra_details, cell(row, "notes"),
+                        ] if x]
+                        payload = {
+                            "kind": "event", "title": title or details[:120],
+                            "text": _compose_from_planning(title, date, time_, place, details),
+                            "media_urls": media, "links": links, "networks": cell(row, "networks"),
+                            "scheduled_for": " · ".join(x for x in [date, time_] if x),
+                            "location": place, "event_time": time_, "service": cell(row, "service"),
+                            "provider": cell(row, "provider"), "requester": cell(row, "requester"),
+                            "requester_email": cell(row, "requester_email"), "campaign_name": cell(row, "campaign"),
+                            "notes": " · ".join(notes_parts), "external_id": cell(row, "id"),
+                        }
+                    else:
+                        title = cell(row, "title")
+                        if not title or _norm(title) in ("total", "totaux"):
+                            _skip("ligne_vide")
+                            continue
+                        st = _norm(cell(row, "validation"))
+                        if video_statuses != ["*"] and st not in video_statuses:
+                            _skip(f"video_validation:{st or '(vide)'}")
+                            continue
+                        provider, validated_on = cell(row, "provider"), cell(row, "validated_on")
+                        file_url, link_url, feedback = cell(row, "file"), cell(row, "link"), cell(row, "feedback")
+                        fp = crypto.fingerprint(sheets.sheet_id(), tab, row["row_number"], title, provider,
+                                                validated_on, file_url, link_url)
+                        if db[COLLECTION].find_one({"fingerprint": fp}, {"_id": 1}):
+                            _skip("deja_importee")
+                            continue
+                        superseded += _supersede(tab, row["row_number"])
+                        urls = _URL_RE.findall(" ".join([file_url, link_url]))
+                        media = [u for u in urls if is_direct_media(u)]
+                        links = [u for u in urls if not is_direct_media(u)]
+                        text_lines = [f"🎬 Vidéo réalisée par {provider}" if provider else "🎬 Vidéo"]
+                        notes_parts = [x for x in [
+                            f"Vidéo validée le {validated_on}" if validated_on else "",
+                            f"Envoi aux médias : {cell(row, 'sent')} {cell(row, 'sent_on')}".strip() if cell(row, "sent") else "",
+                            f"Retours : {feedback}" if feedback else "",
+                            "Le fichier vidéo doit être joint au moment de publier (liens WeTransfer / Purevision non exploitables directement)."
+                            if links and not media else "",
+                        ] if x]
+                        payload = {
+                            "kind": "video", "title": title, "text": "\n".join(text_lines),
+                            "media_urls": media, "links": links, "provider": provider,
+                            "service": "Vidéo", "scheduled_for": f"Validée le {validated_on}" if validated_on else "",
+                            "notes": " · ".join(notes_parts),
+                        }
+                    res = create_pending(payload, source="sheet", sheet_row=row["row_number"], sheet_tab=tab,
+                                         sheet_writeback_col=wb_idx, fingerprint=fp, actor="sheet-sync",
+                                         notify=notify, db=db)
+                    created.append({"id": res["id"], "tab": tab, "row": row["row_number"], "title": payload["title"][:80],
+                                    "kind": payload["kind"]})
+                    tab_created += 1
+                    tab_videos += payload["kind"] == "video"
+                    if wb_idx is not None:
+                        sheets.write_cell(row["row_number"], wb_idx, STATUS_LABELS_FR[PENDING], tab=tab)
+                except Exception as e:
+                    logger.warning("%s ligne %s : %s", tab, row.get("row_number"), e)
+                    errors.append({"tab": tab, "row": row.get("row_number"), "error": str(e)[:200]})
+        tabs_report.append({"tab": tab, "rows": len(table["rows"]), "blocks": len(table.get("blocks") or []),
+                            "created": tab_created, "videos": tab_videos,
+                            "mapping": {k: main_headers[v] for k, v in mapping.items()}})
 
     logger.info("📋 Sync planning : %d onglets, %d créées, %d ignorées, %d remplacées, %d erreurs",
                 len(tables), len(created), skipped, superseded, len(errors))
     return {"ok": True, "tabs": tabs_report, "created": created, "skipped": skipped,
-            "superseded": superseded, "errors": errors, "import_statuses": statuses, "writeback_column": wb_name}
+            "skipped_reasons": skipped_reasons, "statuses_seen": seen_statuses,
+            "superseded": superseded, "errors": errors, "import_statuses": statuses,
+            "video_import_statuses": video_statuses, "writeback_column": wb_name}
 
 
 def _write_sheet_status(doc: Dict[str, Any], status: str, detail: Optional[str] = None) -> None:
@@ -844,5 +962,6 @@ def status_report() -> Dict[str, Any]:
         "notify_emails": len(_notify_emails()),
         "notify_telegram": _telegram_enabled(),
         "import_statuses": _import_statuses(),
+        "video_import_statuses": _video_import_statuses(),
         "writeback_column": _writeback_column() or None,
     }

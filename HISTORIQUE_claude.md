@@ -336,6 +336,16 @@ Statut / Source). Import adapté : lecture de tous les onglets en un appel, dét
 Confirmé / Réalisé → post proposé (titre = événement, texte = date · heure / lieu / précisions), état de validation écrit
 dans une colonne « Publication » créée à droite — la colonne Statut du planning n'est jamais touchée.
 
+### Vidéos livrées (même jour)
+Djamsy : « le planning a des vidéos, pourquoi ne sont-elles pas converties en publication ? » Les vidéos sont dans un
+tableau secondaire « Livraisons » sous le planning de S46 (Vidéo / Prestataire / Validée le / Validation / Fichier reçu de
+Purevision / Envoi aux médias / Envoyé le / Lien WeTransfer / Retours). Ajouté : découpage de chaque onglet en blocs
+(principal + blocs dont l'en-tête commence par Vidéo / Photo / Livrables), import des lignes « Validé » en publications
+« vidéo livrée », liens Purevision / WeTransfer conservés comme liens (jamais envoyés à Buffer), fichier joint possible au
+moment de publier (multipart sur /publish → Cloudinary). Rejoué sur le classeur réel : 11 publications dont 3 vidéos.
+Constat non résolu : la colonne Publication est vide dans l'export Drive alors que l'en-tête a été créé — à vérifier dans
+la feuille en direct / via « Lire le planning ».
+
 ---
 
 ## Conventions
