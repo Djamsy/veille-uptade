@@ -326,7 +326,7 @@ export default function AdminPublicationsPage() {
                           : status.sheet.diagnostics.secret_files.map((f) => (
                             <div key={f.path} className="font-mono text-[10px] break-all">{f.path} · {f.shape ?? f.error} · {f.size ?? '?'} o</div>
                           ))}
-                        <div>Nom le plus simple à utiliser : <code>GOOGLE_SERVICE_ACCOUNT_JSON</code> (JSON brut, base64, ou chemin d'un Secret File).</div>
+                        <div>Attendu dans <code>GOOGLE_SERVICE_ACCOUNT_JSON</code> : le fichier JSON d'une <b>clé de compte de service</b> (commence par {'{"type": "service_account"'}), pas un identifiant client OAuth. Console Google Cloud → IAM → Comptes de service → Clés → Créer une clé JSON, puis partager la feuille avec l'adresse <code>client_email</code>.</div>
                       </li>
                     )}
                     {!status.sheet.sheet_id_set && <li className="pl-4" style={{ color: 'var(--negative)' }}>PUBLICATION_SHEET_ID manquant</li>}

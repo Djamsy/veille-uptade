@@ -155,6 +155,8 @@ def diagnostics() -> Dict[str, Any]:
             hint = "nom évocateur"
         v = val.strip()
         shape = ("json" if v.startswith("{") else "chemin" if v.startswith("/") else
+                 "identifiant client OAuth (…apps.googleusercontent.com) — ce n'est PAS une clé de compte de service"
+                 if v.endswith(".apps.googleusercontent.com") else
                  "base64 ?" if _looks_base64(v) else "texte")
         if '"service_account"' in v:
             hint = (hint + ", " if hint else "") + "contient service_account"
