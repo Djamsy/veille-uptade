@@ -189,13 +189,11 @@ def validation_url(token: str) -> str:
 
 
 def _norm(s: str) -> str:
-    """Normalisation d'en-tête / de cellule : minuscules, sans accents ni ponctuation."""
-    try:
-        from unidecode import unidecode
-        s = unidecode(s or "")
-    except Exception:
-        s = s or ""
-    return re.sub(r"[^a-z0-9]+", " ", s.lower()).strip()
+    """Normalisation d'en-tête / de cellule : minuscules, sans accents ni ponctuation.
+    Bibliothèque standard uniquement (pas d'unidecode : son absence rendait « Confirmé » → « confirm »
+    et écartait silencieusement toutes les lignes)."""
+    from backend.services.google_sheets_service import strip_accents
+    return re.sub(r"[^a-z0-9]+", " ", strip_accents(s or "").lower()).strip()
 
 
 def _ip_hash(ip: Optional[str]) -> str:
@@ -688,6 +686,13 @@ def sync_from_sheet(notify: bool = True, db=None) -> Dict[str, Any]:
     video_statuses = _video_import_statuses()
     wb_name = _writeback_column()
     created, skipped, superseded, errors, tabs_report = [], 0, 0, [], []
+    skipped_reasons: Dict[str, int] = {}
+    seen_statuses: Dict[str, int] = {}
+
+    def _skip(reason: str) -> None:
+        nonlocal skipped
+        skipped += 1
+        skipped_reasons[reason] = skipped_reasons.get(reason, 0) + 1
 
     def _supersede(tab: str, row_number: int) -> int:
         n = 0
@@ -740,16 +745,17 @@ def sync_from_sheet(notify: bool = True, db=None) -> Dict[str, Any]:
             for row in rows:
                 try:
                     if _already_marked(row, headers):
-                        skipped += 1
+                        _skip("deja_traitee")
                         continue
                     if block["kind"] == "main":
                         title, details = cell(row, "title"), cell(row, "text")
                         if not title and not details:
-                            skipped += 1  # ligne de date pré-remplie, ou titre de section
+                            _skip("ligne_vide")  # ligne de date pré-remplie, ou titre de section
                             continue
                         st = _norm(cell(row, "sheet_status"))
+                        seen_statuses[st or "(vide)"] = seen_statuses.get(st or "(vide)", 0) + 1
                         if statuses != ["*"] and "sheet_status" in bmap and st not in statuses:
-                            skipped += 1
+                            _skip(f"statut:{st or '(vide)'}")
                             continue
                         date, time_, place = cell(row, "date"), cell(row, "time"), cell(row, "location")
                         source = cell(row, "source")
@@ -757,7 +763,7 @@ def sync_from_sheet(notify: bool = True, db=None) -> Dict[str, Any]:
                         fp = crypto.fingerprint(sheets.sheet_id(), tab, row["row_number"], title, details, extra_details,
                                                 date, time_, place, source)
                         if db[COLLECTION].find_one({"fingerprint": fp}, {"_id": 1}):
-                            skipped += 1
+                            _skip("deja_importee")
                             continue
                         superseded += _supersede(tab, row["row_number"])
                         urls = _URL_RE.findall(source)
@@ -782,18 +788,18 @@ def sync_from_sheet(notify: bool = True, db=None) -> Dict[str, Any]:
                     else:
                         title = cell(row, "title")
                         if not title or _norm(title) in ("total", "totaux"):
-                            skipped += 1
+                            _skip("ligne_vide")
                             continue
                         st = _norm(cell(row, "validation"))
                         if video_statuses != ["*"] and st not in video_statuses:
-                            skipped += 1  # vidéo pas encore validée par le prestataire / la direction
+                            _skip(f"video_validation:{st or '(vide)'}")
                             continue
                         provider, validated_on = cell(row, "provider"), cell(row, "validated_on")
                         file_url, link_url, feedback = cell(row, "file"), cell(row, "link"), cell(row, "feedback")
                         fp = crypto.fingerprint(sheets.sheet_id(), tab, row["row_number"], title, provider,
                                                 validated_on, file_url, link_url)
                         if db[COLLECTION].find_one({"fingerprint": fp}, {"_id": 1}):
-                            skipped += 1
+                            _skip("deja_importee")
                             continue
                         superseded += _supersede(tab, row["row_number"])
                         urls = _URL_RE.findall(" ".join([file_url, link_url]))
@@ -832,6 +838,7 @@ def sync_from_sheet(notify: bool = True, db=None) -> Dict[str, Any]:
     logger.info("📋 Sync planning : %d onglets, %d créées, %d ignorées, %d remplacées, %d erreurs",
                 len(tables), len(created), skipped, superseded, len(errors))
     return {"ok": True, "tabs": tabs_report, "created": created, "skipped": skipped,
+            "skipped_reasons": skipped_reasons, "statuses_seen": seen_statuses,
             "superseded": superseded, "errors": errors, "import_statuses": statuses,
             "video_import_statuses": video_statuses, "writeback_column": wb_name}
 

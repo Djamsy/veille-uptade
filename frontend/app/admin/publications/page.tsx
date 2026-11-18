@@ -82,7 +82,7 @@ export default function AdminPublicationsPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState({ title: '', text: '', media_urls: '', networks: '', scheduled_for: '', requester: '', requester_email: '', notes: '', ttl_hours: 72, notify: true })
 
-  const flash = (m: string) => { setMsg(m); setErr(''); setTimeout(() => setMsg(''), 5000) }
+  const flash = (m: string) => { setMsg(m); setErr(''); setTimeout(() => setMsg(''), m.length > 120 ? 20000 : 5000) }
   const fail = (e: unknown, ctx: string) => { setErr(apiErrorMessage(e, ctx)); setMsg('') }
 
   const load = useCallback(async () => {
@@ -181,7 +181,8 @@ export default function AdminPublicationsPage() {
                   if (!r.ok) throw Object.assign(new Error(r.error), { status: 400 })
                   const videos = (r.created ?? []).filter((c) => c.kind === 'video').length
                   const errs = r.errors?.length ? ` · ${r.errors.length} erreur(s) : ${r.errors.slice(0, 3).map((e) => `${e.tab ?? ''} L${e.row ?? '?'} ${e.error}`).join(' | ')}` : ''
-                  flash(`Planning lu (${r.tabs?.length ?? 0} onglet(s)) : ${r.created?.length ?? 0} créée(s) dont ${videos} vidéo(s), ${r.skipped ?? 0} ignorée(s)${errs}`)
+                  const reasons = r.skipped_reasons ? ' · ignorées : ' + Object.entries(r.skipped_reasons).filter(([k]) => k !== 'ligne_vide').map(([k, v]) => `${k} ×${v}`).join(', ') : ''
+                  flash(`Planning lu (${r.tabs?.length ?? 0} onglet(s)) : ${r.created?.length ?? 0} créée(s) dont ${videos} vidéo(s), ${r.skipped ?? 0} ignorée(s)${reasons}${errs}`)
                 }, 'Import terminé', 'import de la feuille')}>
                 {busy === 'sync' ? 'Lecture…' : '⟳ Lire le planning'}
               </button>

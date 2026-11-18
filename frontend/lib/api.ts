@@ -1421,7 +1421,7 @@ export const deletePendingPublication = (id: string) =>
   adminFetch<{ ok: boolean }>(`/api/publications/pending/${id}`, { method: 'DELETE' });
 
 export const syncPublicationSheet = () =>
-  adminFetch<{ ok: boolean; error?: string; created?: Array<{ id: string; tab: string; row: number; title: string; kind?: string }>; skipped?: number; superseded?: number; errors?: Array<{ tab?: string; row?: number; error: string }>; tabs?: Array<{ tab: string; rows?: number; blocks?: number; created?: number; videos?: number; skipped?: string; mapping?: Record<string, string> }> }>(
+  adminFetch<{ ok: boolean; error?: string; created?: Array<{ id: string; tab: string; row: number; title: string; kind?: string }>; skipped?: number; skipped_reasons?: Record<string, number>; statuses_seen?: Record<string, number>; superseded?: number; errors?: Array<{ tab?: string; row?: number; error: string }>; tabs?: Array<{ tab: string; rows?: number; blocks?: number; created?: number; videos?: number; skipped?: string; mapping?: Record<string, string> }> }>(
     '/api/publications/sync-sheet', { method: 'POST', body: JSON.stringify({}) }
   );
 

@@ -38,6 +38,16 @@ SCOPE = "https://www.googleapis.com/auth/spreadsheets"
 _token_cache: Dict[str, Any] = {"access_token": None, "expires_at": 0}
 
 
+def strip_accents(s: str) -> str:
+    """Retire les accents avec la bibliothèque standard (NFKD + suppression des diacritiques).
+    Ne dépend pas d'unidecode : « Confirmé » → « Confirme », « Événement » → « Evenement »."""
+    import unicodedata
+    s = unicodedata.normalize("NFKD", s or "")
+    return "".join(ch for ch in s if not unicodedata.combining(ch))
+
+
+
+
 def sheet_id() -> str:
     return os.getenv("PUBLICATION_SHEET_ID", "").strip()
 
@@ -264,12 +274,7 @@ def _detect_header_row(values: List[List[str]], required: Optional[List[str]] = 
     contenant au moins 3 cellules non vides et, si `required` est fourni, tous ces mots
     (comparaison insensible à la casse/accents). Repli : ligne 0."""
     def norm(x: str) -> str:
-        try:
-            from unidecode import unidecode
-            x = unidecode(x)
-        except Exception:
-            pass
-        return x.lower().strip()
+        return strip_accents(x).lower().strip()
 
     req = [norm(r) for r in (required or [])]
     best, best_count = 0, 0
@@ -288,12 +293,7 @@ SUB_BLOCK_MARKERS = {"video", "videos", "photo", "photos", "livrable", "livrable
 
 
 def _norm_cell(x: str) -> str:
-    try:
-        from unidecode import unidecode
-        x = unidecode(x)
-    except Exception:
-        pass
-    return " ".join(x.lower().replace("/", " ").split())
+    return " ".join(strip_accents(x).lower().replace("/", " ").split())
 
 
 def _is_sub_header(line: List[str]) -> bool:
