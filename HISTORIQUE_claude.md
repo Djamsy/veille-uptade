@@ -298,6 +298,39 @@ Implication majeure : abandonner le modèle `affair_lifecycle_service.py` (5 653
 
 ---
 
+## 2026-11-18 — Feature « publications pour validation » (feuille Google → lien chiffré → Buffer)
+
+### Demande de Djamsy
+Un tableau Drive consulté périodiquement crée des « publications pour validation » ; il faut une
+interface dédiée avec un chemin sécurisé, **et les données elles-mêmes chiffrées** (texte, état
+de validation, etc.). La feuille Drive elle-même n'est pas à chiffrer.
+
+### Livré (branche `claude/dazzling-gates-76jng6`)
+- `backend/services/crypto_service.py` — AES-256-GCM + HKDF, index aveugle HMAC pour filtrer par statut,
+  jetons 256 bits dont seule l'empreinte est stockée, rotation de clé, fail closed en prod.
+- `backend/services/google_sheets_service.py` — compte de service Google sans nouvelle dépendance.
+- `backend/services/publication_validation_service.py` — collection `pending_publications` entièrement
+  chiffrée (payload, statut, décision, publication, audit), import feuille idempotent, décision,
+  publication Buffer, retour de statut dans la feuille, notifications Telegram/Brevo (titre + lien seulement).
+- `backend/routers/publication_validation_routes.py` — `/api/publications/*` : admin (JWT) + routes par jeton
+  (rate-limit, no-store, usage unique). Router monté dans server.py, règle « pas de route dans server.py » respectée.
+- Job scheduler `publication_sheet_sync` (10 min).
+- Front : `/valider/[token]` (validateur, sans connexion) et `/admin/publications` (suivi, création, liens, diagnostic).
+- Spec : `20261118_SPEC_publications-validation_V1.md`.
+
+### Validation
+- Test fonctionnel complet avec Mongo simulé : aucune donnée en clair dans le document stocké
+  (titre, texte, demandeur, statut, jeton absents du dump), AAD vérifiée, liste/filtre, jeton invalide/expiré/
+  régénéré, refus, validation avec texte modifié, publication (Buffer mocké), expiration, mapping d'en-têtes,
+  sync idempotente, routes HTTP (404/409/410/429, no-store). `tsc --noEmit` OK côté front.
+
+### Hypothèses à confirmer
+- Qui valide : validateurs externes via lien (admin en supervision).
+- Après validation : publication immédiate sur tous les canaux Buffer (`PUBLICATION_AUTO_PUBLISH=0` pour passer en manuel).
+- Colonnes Réseaux / Date informatives en V1.
+
+---
+
 ## Conventions
 - **Nommage des livrables figés (PDF, images)** : `AAAAMMJJ_TYPE_nom-du-fichier_V` (ex : `20260506_REVUE_projet_V1.docx`). Réécriture autorisée, on incrémente le V.
 - **Autres fichiers** (md, code, configs) : nommage libre, Djamsy précisera s'il faut respecter la convention.

@@ -746,6 +746,28 @@ async def job_social_scrape():
 # JOB Buffer Stats Sync (gratuit — 6×/jour)
 # ============================================================
 
+async def job_publication_sheet_sync():
+    """Import des publications à valider depuis la feuille Google + expiration des liens périmés.
+    Contenu stocké chiffré (voir publication_validation_service)."""
+    try:
+        from backend.services import publication_validation_service as pv
+        from backend.services import google_sheets_service as sheets
+
+        loop = asyncio.get_running_loop()
+        expired = await loop.run_in_executor(None, pv.expire_stale)
+        if not sheets.is_configured():
+            return {"ok": True, "sheet": "non configurée", "expired": expired}
+        result = await loop.run_in_executor(None, pv.sync_from_sheet)
+        result["expired"] = expired
+        if result.get("created") or expired:
+            logger.info(f"📋 Publications/validation: {len(result.get('created', []))} créées, {expired} expirées")
+        return result
+
+    except Exception as e:
+        logger.error(f"❌ Erreur sync publications/validation: {e}")
+        return {"success": False, "error": str(e)}
+
+
 async def job_buffer_stats_sync():
     """Synchronise les stats des publications via Buffer API (gratuit)."""
     try:
@@ -1136,6 +1158,14 @@ def _ensure_scheduler():
         CronTrigger(hour="6,10,13,16,22,23", minute="0", timezone=TZ),
         id="buffer_stats_sync",
         name="Buffer stats sync (gratuit) 6x/jour"
+    )
+
+    # 📋 Publications à valider : lecture de la feuille Google + expiration des liens (10 min)
+    _scheduler.add_job(
+        job_publication_sheet_sync,
+        CronTrigger(minute="*/10", timezone=TZ),
+        id="publication_sheet_sync",
+        name="Publications/validation — import feuille + expiration des liens"
     )
 
     # 💬 Apify Comments Scrape 2×/jour (payant ~$0.43/run) — 8h, 19h

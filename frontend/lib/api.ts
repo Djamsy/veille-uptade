@@ -1323,3 +1323,89 @@ export const fetchWebHistory = (days = 90) =>
   apiFetch<{ ok: boolean; days: number; points: WebTrafficPoint[]; latest: WebTrafficPoint | null }>(
     `/api/social-stats/web-history?days=${days}`
   );
+
+// ============================================================
+// PUBLICATIONS POUR VALIDATION (contenu chiffré, liens à jeton)
+// ============================================================
+export type PubValidationStatus =
+  | 'pending' | 'approved' | 'rejected' | 'published' | 'publish_failed' | 'expired' | 'cancelled';
+
+export const PUB_STATUS_LABEL: Record<PubValidationStatus | string, string> = {
+  pending: 'En attente', approved: 'Validée', rejected: 'Refusée', published: 'Publiée',
+  publish_failed: 'Échec publication', expired: 'Lien expiré', cancelled: 'Annulée',
+};
+
+export interface PubPayload {
+  title: string; text: string; hashtags: string[]; media_urls: string[]; networks: string[];
+  scheduled_for: string; requester: string; requester_email: string; campaign_id: string;
+  campaign_name: string; notes: string; external_id: string; original_text?: string; edited_by?: string;
+}
+
+export interface PubDecision { decision: 'approve' | 'reject'; by: string; comment: string; at: string }
+export interface PubPublish { ok: boolean; published_at: string; platforms: number; error: string | null; buffer_ids?: string[] }
+
+export interface PendingPublication {
+  id: string; created_at: string; updated_at: string; source: 'sheet' | 'manual'; sheet_row: number | null;
+  status: PubValidationStatus | string; payload: PubPayload; decision: PubDecision | null; publish: PubPublish | null;
+  token: { active: boolean; revoked: boolean; created_at: string | null; expires_at: string | null; expired: boolean };
+  audit?: Array<{ at: string; action: string; actor: string; detail?: string }>;
+  error?: string;
+}
+
+export interface PubIssuedLink { ok: boolean; id: string; token: string; url: string; expires_at: string }
+
+export interface PubValidationView {
+  id: string; status: PubValidationStatus | string; status_label: string; created_at: string; expires_at: string | null;
+  title: string; text: string; hashtags: string[]; media_urls: string[]; networks: string[]; scheduled_for: string;
+  requester: string; campaign_name: string; notes: string; decision: PubDecision | null;
+  publish: { ok: boolean; published_at: string; platforms: number } | null; auto_publish: boolean;
+}
+
+export const fetchPubValidationStatus = () =>
+  adminFetch<{
+    encryption: { configured: boolean; dev_derived_key: boolean; key_version: number; rotation_key_loaded: boolean; algorithm: string };
+    sheet: { configured: boolean; sheet_id_set: boolean; service_account: string; tab: string };
+    buffer_configured: boolean; auto_publish: boolean; ttl_hours: number; base_url: string;
+    notify_emails: number; notify_telegram: boolean; counts: Record<string, number>;
+  }>('/api/publications/status');
+
+export const fetchPendingPublications = (status?: string, limit = 100) =>
+  adminFetch<{ publications: PendingPublication[]; counts: Record<string, number> }>(
+    `/api/publications/pending?limit=${limit}${status ? `&status=${status}` : ''}`
+  );
+
+export const fetchPendingPublication = (id: string) =>
+  adminFetch<PendingPublication>(`/api/publications/pending/${id}`);
+
+export const createPendingPublication = (data: Partial<PubPayload> & { ttl_hours?: number; notify?: boolean }) =>
+  adminFetch<PubIssuedLink>('/api/publications/pending', { method: 'POST', body: JSON.stringify(data) });
+
+export const regeneratePublicationLink = (id: string, ttl_hours?: number) =>
+  adminFetch<PubIssuedLink>(`/api/publications/pending/${id}/token`, { method: 'POST', body: JSON.stringify({ ttl_hours }) });
+
+export const revokePublicationLink = (id: string) =>
+  adminFetch<{ ok: boolean }>(`/api/publications/pending/${id}/token`, { method: 'DELETE' });
+
+export const cancelPendingPublication = (id: string) =>
+  adminFetch<{ ok: boolean }>(`/api/publications/pending/${id}/cancel`, { method: 'POST' });
+
+export const publishPendingPublication = (id: string) =>
+  adminFetch<{ ok: boolean; id: string; status: string; publish: PubPublish }>(`/api/publications/pending/${id}/publish`, { method: 'POST' });
+
+export const deletePendingPublication = (id: string) =>
+  adminFetch<{ ok: boolean }>(`/api/publications/pending/${id}`, { method: 'DELETE' });
+
+export const syncPublicationSheet = () =>
+  adminFetch<{ ok: boolean; error?: string; created?: Array<{ id: string; row: number }>; skipped?: number; superseded?: number; errors?: unknown[]; mapping?: Record<string, string> }>(
+    '/api/publications/sync-sheet', { method: 'POST', body: JSON.stringify({}) }
+  );
+
+/** Accès validateur (sans authentification) — le jeton est dans l'URL /valider/<token>. */
+export const fetchPublicationByToken = (token: string) =>
+  apiFetch<PubValidationView>(`/api/publications/validate/${encodeURIComponent(token)}`, { cache: 'no-store' });
+
+export const decidePublication = (token: string, data: { decision: 'approve' | 'reject'; validator_name: string; comment?: string; edited_text?: string }) =>
+  apiFetch<{ id: string; status: string; status_label: string; publish?: PubPublish }>(
+    `/api/publications/validate/${encodeURIComponent(token)}`,
+    { method: 'POST', body: JSON.stringify(data), cache: 'no-store' }
+  );

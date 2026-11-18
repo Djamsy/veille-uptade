@@ -1761,6 +1761,17 @@ except Exception as e:
     logger.warning(f"⚠️ Routes Affairs Monitor non disponibles: {e}")
 
 
+# ========== PUBLICATIONS POUR VALIDATION (contenu chiffré, liens à jeton) ==========
+# Fail closed : sans PUBLICATION_ENCRYPTION_KEY en production, crypto_service lève
+# et le router n'est pas monté (aucune donnée en clair n'est écrite).
+try:
+    from backend.routers.publication_validation_routes import router as publication_validation_router
+    app.include_router(publication_validation_router)
+    logger.info("✅ Routes Publications/Validation chargées (/api/publications/* — admin + liens à jeton)")
+except Exception as e:
+    logger.warning(f"⚠️ Routes Publications/Validation non disponibles: {e}")
+
+
 # ============================================================
 # RÉSUMÉ AUTOMATIQUE (journalier / hebdomadaire)
 # ============================================================
