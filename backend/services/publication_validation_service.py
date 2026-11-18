@@ -337,7 +337,7 @@ def create_pending(payload: Dict[str, Any], source: str = "manual", sheet_row: O
                    db=None) -> Dict[str, Any]:
     """Crée une publication à valider. Renvoie {id, token, url, ...} — le jeton n'est
     JAMAIS récupérable ensuite (seule son empreinte est stockée)."""
-    db = db or _db()
+    db = db if db is not None else _db()
     _ensure_indexes(db)
     clean = _clean_payload(payload)
     doc_id = ObjectId()
@@ -374,7 +374,7 @@ def create_pending(payload: Dict[str, Any], source: str = "manual", sheet_row: O
 # ── Lecture admin ──────────────────────────────────────────
 
 def list_publications(status: Optional[str] = None, limit: int = 100, db=None) -> List[Dict[str, Any]]:
-    db = db or _db()
+    db = db if db is not None else _db()
     q: Dict[str, Any] = {}
     if status:
         q["status_idx"] = crypto.blind_index(status)
@@ -390,7 +390,7 @@ def list_publications(status: Optional[str] = None, limit: int = 100, db=None) -
 
 
 def get_publication(pub_id: str, db=None) -> Dict[str, Any]:
-    db = db or _db()
+    db = db if db is not None else _db()
     doc = _find(db, pub_id)
     return _read(doc, include_audit=True)
 
@@ -407,14 +407,14 @@ def _find(db, pub_id: str) -> Dict[str, Any]:
 
 
 def counts(db=None) -> Dict[str, int]:
-    db = db or _db()
+    db = db if db is not None else _db()
     return {s: db[COLLECTION].count_documents({"status_idx": crypto.blind_index(s)}) for s in ALL_STATUSES}
 
 
 # ── Gestion des jetons (admin) ─────────────────────────────
 
 def regenerate_token(pub_id: str, actor: str = "", ttl_hours: Optional[int] = None, db=None) -> Dict[str, Any]:
-    db = db or _db()
+    db = db if db is not None else _db()
     doc = _find(db, pub_id)
     status = crypto.decrypt_str(doc.get("status_enc"), _aad(doc["_id"]))
     if status in (EXPIRED,):
@@ -426,14 +426,14 @@ def regenerate_token(pub_id: str, actor: str = "", ttl_hours: Optional[int] = No
 
 
 def revoke_token(pub_id: str, actor: str = "", db=None) -> None:
-    db = db or _db()
+    db = db if db is not None else _db()
     doc = _find(db, pub_id)
     db[COLLECTION].update_one({"_id": doc["_id"]}, {"$set": {"token_revoked": True, "updated_at": _now()}})
     _append_audit(db, doc, "token_revoked", actor)
 
 
 def cancel_publication(pub_id: str, actor: str = "", db=None) -> None:
-    db = db or _db()
+    db = db if db is not None else _db()
     doc = _find(db, pub_id)
     _set_status(db, doc, CANCELLED, {"token_revoked": True})
     _append_audit(db, doc, "cancelled", actor)
@@ -441,7 +441,7 @@ def cancel_publication(pub_id: str, actor: str = "", db=None) -> None:
 
 
 def delete_publication(pub_id: str, db=None) -> None:
-    db = db or _db()
+    db = db if db is not None else _db()
     doc = _find(db, pub_id)
     db[COLLECTION].delete_one({"_id": doc["_id"]})
 
@@ -468,7 +468,7 @@ def _find_by_token(db, token: str) -> Dict[str, Any]:
 
 def get_by_token(token: str, ip: Optional[str] = None, db=None) -> Dict[str, Any]:
     """Vue validateur : contenu + état, sans données d'administration."""
-    db = db or _db()
+    db = db if db is not None else _db()
     doc = _find_by_token(db, token)
     view = _read(doc)
     p = view["payload"]
@@ -502,7 +502,7 @@ def get_by_token(token: str, ip: Optional[str] = None, db=None) -> Dict[str, Any
 def decide(token: str, decision: str, validator: str = "", comment: str = "", edited_text: Optional[str] = None,
            ip: Optional[str] = None, db=None) -> Dict[str, Any]:
     """Valide ou refuse. decision ∈ {"approve", "reject"}."""
-    db = db or _db()
+    db = db if db is not None else _db()
     decision = (decision or "").strip().lower()
     if decision not in ("approve", "reject"):
         raise ValueError("decision doit valoir approve ou reject")
@@ -559,7 +559,7 @@ def _compose_text(p: Dict[str, Any]) -> str:
 def publish_now(pub_id: str, actor: str = "", extra_media_urls: Optional[List[str]] = None, db=None) -> Dict[str, Any]:
     """Publie une publication validée via Buffer (action manuelle d'un admin).
     extra_media_urls : médias déjà hébergés (ex. vidéo uploadée sur Cloudinary par l'admin) ajoutés au post."""
-    db = db or _db()
+    db = db if db is not None else _db()
     doc = _find(db, pub_id)
     aad = _aad(doc["_id"])
     status = crypto.decrypt_str(doc.get("status_enc"), aad)
@@ -678,7 +678,7 @@ def sync_from_sheet(notify: bool = True, db=None) -> Dict[str, Any]:
     from backend.services import google_sheets_service as sheets
     if not sheets.is_configured():
         return {"ok": False, "error": "Google Sheets non configuré (GOOGLE_SERVICE_ACCOUNT_JSON, PUBLICATION_SHEET_ID)"}
-    db = db or _db()
+    db = db if db is not None else _db()
     _ensure_indexes(db)
 
     tables = sheets.read_tables(header_markers=HEADER_MARKERS)
@@ -861,7 +861,7 @@ def _write_sheet_status(doc: Dict[str, Any], status: str, detail: Optional[str] 
 
 def expire_stale(db=None) -> int:
     """Passe en « expiré » les demandes en attente dont le lien est périmé."""
-    db = db or _db()
+    db = db if db is not None else _db()
     n = 0
     for doc in db[COLLECTION].find({"status_idx": crypto.blind_index(PENDING), "token_expires_at": {"$lt": _now()}}):
         _set_status(db, doc, EXPIRED)
