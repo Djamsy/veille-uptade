@@ -343,8 +343,15 @@ Purevision / Envoi aux médias / Envoyé le / Lien WeTransfer / Retours). Ajout�
 (principal + blocs dont l'en-tête commence par Vidéo / Photo / Livrables), import des lignes « Validé » en publications
 « vidéo livrée », liens Purevision / WeTransfer conservés comme liens (jamais envoyés à Buffer), fichier joint possible au
 moment de publier (multipart sur /publish → Cloudinary). Rejoué sur le classeur réel : 11 publications dont 3 vidéos.
-Constat non résolu : la colonne Publication est vide dans l'export Drive alors que l'en-tête a été créé — à vérifier dans
-la feuille en direct / via « Lire le planning ».
+Résolu ensuite en deux temps : (1) la normalisation des accents reposait sur unidecode, absent sur Render → « Confirmé »
+devenait « confirm », toutes les lignes écartées sans erreur → remplacé par unicodedata ; (2) la base de prod est un
+FailoverDatabase qui interdit bool() → `db or _db()` levait sur chaque ligne → `db if db is not None`.
+
+### Soumission directe avec médias (même jour)
+Djamsy : « en gros c'est pour faire des publications : un champ texte, un champ médias/photos, on soumet, la personne regarde
+la page et valide ». Le formulaire admin devient un vrai formulaire de soumission : texte, dépôt de photos / vidéos (aperçus,
+compression image, hébergement Cloudinary via multipart sur POST /pending), options repliées, bouton « Soumettre à validation ».
+Le validateur voit les médias sur sa page ; l'admin publie ensuite (médias déjà hébergés, donc directement exploitables par Buffer).
 
 ---
 

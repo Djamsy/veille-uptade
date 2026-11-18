@@ -1389,8 +1389,30 @@ export const fetchPendingPublications = (status?: string, limit = 100) =>
 export const fetchPendingPublication = (id: string) =>
   adminFetch<PendingPublication>(`/api/publications/pending/${id}`);
 
-export const createPendingPublication = (data: Partial<PubPayload> & { ttl_hours?: number; notify?: boolean }) =>
-  adminFetch<PubIssuedLink>('/api/publications/pending', { method: 'POST', body: JSON.stringify(data) });
+/** Soumet une publication à validation. Avec `files` (photos / vidéos), envoi en multipart : les fichiers sont hébergés côté serveur. */
+export const createPendingPublication = async (
+  data: Partial<PubPayload> & { ttl_hours?: number; notify?: boolean },
+  files?: File[]
+) => {
+  if (!files || files.length === 0) {
+    return adminFetch<PubIssuedLink & { media_count?: number }>('/api/publications/pending', { method: 'POST', body: JSON.stringify(data) });
+  }
+  const fd = new FormData();
+  (['title', 'text', 'requester', 'requester_email', 'notes', 'scheduled_for', 'campaign_id', 'campaign_name'] as const)
+    .forEach((k) => { if (data[k]) fd.append(k, String(data[k])) });
+  if (data.networks?.length) fd.append('networks', data.networks.join(', '));
+  if (data.media_urls?.length) fd.append('media_urls', data.media_urls.join(','));
+  if (data.ttl_hours) fd.append('ttl_hours', String(data.ttl_hours));
+  fd.append('notify', data.notify === false ? '0' : '1');
+  files.forEach((f) => fd.append('media', f));
+  const res = await fetch(`${BACKEND_URL}/api/publications/pending`, { method: 'POST', headers: authHeaders(), body: fd });
+  if (!res.ok) {
+    const err = new Error(`API ${res.status}: ${res.statusText}`) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
+  }
+  return res.json() as Promise<PubIssuedLink & { media_count?: number }>;
+};
 
 export const regeneratePublicationLink = (id: string, ttl_hours?: number) =>
   adminFetch<PubIssuedLink>(`/api/publications/pending/${id}/token`, { method: 'POST', body: JSON.stringify({ ttl_hours }) });

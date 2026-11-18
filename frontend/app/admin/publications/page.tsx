@@ -11,7 +11,7 @@
  * le serveur n'en conserve que l'empreinte.
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import Sidebar from '../../../components/Sidebar'
 import { useAuth } from '../../../components/AuthGuard'
 import {
@@ -79,8 +79,13 @@ export default function AdminPublicationsPage() {
   const [publishTarget, setPublishTarget] = useState<PendingPublication | null>(null)
   const [publishFile, setPublishFile] = useState<File | null>(null)
   const [detail, setDetail] = useState<PendingPublication | null>(null)
-  const [showCreate, setShowCreate] = useState(false)
-  const [form, setForm] = useState({ title: '', text: '', media_urls: '', networks: '', scheduled_for: '', requester: '', requester_email: '', notes: '', ttl_hours: 72, notify: true })
+  const [showCreate, setShowCreate] = useState(true)
+  const [showMore, setShowMore] = useState(false)
+  const emptyForm = { title: '', text: '', media_urls: '', networks: '', scheduled_for: '', requester: '', requester_email: '', notes: '', ttl_hours: 72, notify: true }
+  const [form, setForm] = useState(emptyForm)
+  const [files, setFiles] = useState<File[]>([])
+  const previews = useMemo(() => files.map((f) => ({ f, url: URL.createObjectURL(f), video: f.type.startsWith('video') })), [files])
+  useEffect(() => () => { previews.forEach((p) => URL.revokeObjectURL(p.url)) }, [previews])
 
   const flash = (m: string) => { setMsg(m); setErr(''); setTimeout(() => setMsg(''), m.length > 120 ? 20000 : 5000) }
   const fail = (e: unknown, ctx: string) => { setErr(apiErrorMessage(e, ctx)); setMsg('') }
@@ -106,6 +111,7 @@ export default function AdminPublicationsPage() {
   }
 
   const onCreate = async () => {
+    if (!form.text.trim() && files.length === 0) { setErr('Saisissez un texte ou déposez au moins un média.'); return }
     setBusy('create')
     try {
       const r = await createPendingPublication({
@@ -114,12 +120,17 @@ export default function AdminPublicationsPage() {
         networks: form.networks.split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean),
         scheduled_for: form.scheduled_for, requester: form.requester, requester_email: form.requester_email, notes: form.notes,
         ttl_hours: form.ttl_hours, notify: form.notify,
-      })
-      setIssued(r); setShowCreate(false)
-      setForm({ title: '', text: '', media_urls: '', networks: '', scheduled_for: '', requester: '', requester_email: '', notes: '', ttl_hours: 72, notify: true })
-      flash('Publication créée — copiez le lien maintenant, il ne sera plus affiché.')
+      }, files)
+      setIssued(r); setForm(emptyForm); setFiles([])
+      flash(`Soumise à validation${r.media_count ? ` avec ${r.media_count} média(s)` : ''} — ${form.notify ? 'lien envoyé aux validateurs, ' : ''}copiez-le maintenant, il ne sera plus affiché.`)
       await load()
-    } catch (e) { fail(e, 'création') } finally { setBusy('') }
+    } catch (e) {
+      const st = (e as { status?: number })?.status
+      if (st === 400) setErr('Fichier non pris en charge (image ou vidéo attendue).')
+      else if (st === 413) setErr('Fichier trop volumineux (200 Mo max).')
+      else if (st === 502) setErr('Hébergement du média échoué — vérifier la configuration Cloudinary.')
+      else fail(e, 'soumission')
+    } finally { setBusy('') }
   }
 
   const onRegenerate = async (id: string) => {
@@ -173,7 +184,7 @@ export default function AdminPublicationsPage() {
               </p>
             </div>
             <div className="flex gap-2 flex-wrap">
-              <button type="button" className="btn-primary px-4 py-2 text-sm" onClick={() => setShowCreate((v) => !v)}>+ Nouvelle demande</button>
+              <button type="button" className="btn-primary px-4 py-2 text-sm" onClick={() => setShowCreate((v) => !v)}>{showCreate ? 'Masquer le formulaire' : '+ Nouvelle publication'}</button>
               <button type="button" className="px-4 py-2 text-sm rounded-md" style={{ ...input }} disabled={busy === 'sync' || !status?.sheet.configured}
                 title={status?.sheet.configured ? 'Lire le planning Google maintenant' : 'Planning Google non configuré'}
                 onClick={() => run('sync', async () => {
@@ -208,33 +219,67 @@ export default function AdminPublicationsPage() {
             </div>
           )}
 
-          {/* Création manuelle */}
+          {/* Soumission d'une publication */}
           {showCreate && (
             <div className="p-5 mb-4 elev-card" style={card}>
-              <div className={`${label} mb-3`} style={{ color: 'var(--text-muted)' }}>Nouvelle demande de validation</div>
-              <div className="grid md:grid-cols-2 gap-3">
-                <input className="text-sm p-2.5 rounded-md outline-none" style={input} placeholder="Titre" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-                <input className="text-sm p-2.5 rounded-md outline-none" style={input} placeholder="Demandeur" value={form.requester} onChange={(e) => setForm({ ...form, requester: e.target.value })} />
-                <textarea className="text-sm p-2.5 rounded-md outline-none md:col-span-2" style={input} rows={5} placeholder="Texte du post (obligatoire) — #hashtags détectés automatiquement" value={form.text} onChange={(e) => setForm({ ...form, text: e.target.value })} />
-                <textarea className="text-sm p-2.5 rounded-md outline-none" style={input} rows={2} placeholder="URL des médias (une par ligne)" value={form.media_urls} onChange={(e) => setForm({ ...form, media_urls: e.target.value })} />
-                <input className="text-sm p-2.5 rounded-md outline-none" style={input} placeholder="Réseaux cibles (Facebook, Instagram…)" value={form.networks} onChange={(e) => setForm({ ...form, networks: e.target.value })} />
-                <input className="text-sm p-2.5 rounded-md outline-none" style={input} placeholder="Date souhaitée (texte libre)" value={form.scheduled_for} onChange={(e) => setForm({ ...form, scheduled_for: e.target.value })} />
-                <input className="text-sm p-2.5 rounded-md outline-none" style={input} placeholder="E-mail du demandeur" value={form.requester_email} onChange={(e) => setForm({ ...form, requester_email: e.target.value })} />
-                <input className="text-sm p-2.5 rounded-md outline-none md:col-span-2" style={input} placeholder="Consignes pour le validateur" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-                <label className="text-xs flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
-                  Validité du lien (heures)
-                  <input type="number" min={1} max={720} className="text-sm p-1.5 rounded-md w-24 outline-none" style={input} value={form.ttl_hours} onChange={(e) => setForm({ ...form, ttl_hours: Number(e.target.value) || 72 })} />
-                </label>
-                <label className="text-xs flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
-                  <input type="checkbox" checked={form.notify} onChange={(e) => setForm({ ...form, notify: e.target.checked })} />
-                  Envoyer le lien aux validateurs (Telegram / e-mail)
-                </label>
+              <div className={`${label} mb-3`} style={{ color: 'var(--text-muted)' }}>Nouvelle publication à faire valider</div>
+              <div className="grid md:grid-cols-[1fr_320px] gap-4">
+                <div className="space-y-3">
+                  <textarea className="text-sm p-3 rounded-md outline-none w-full leading-relaxed" style={input} rows={8}
+                    placeholder="Texte du post — la première ligne sert de titre si le champ Titre est vide. Les #hashtags sont détectés automatiquement."
+                    value={form.text} onChange={(e) => setForm({ ...form, text: e.target.value })} />
+                  <input className="text-sm p-2.5 rounded-md outline-none w-full" style={input} placeholder="Titre (facultatif)" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+                  <button type="button" className="text-xs underline" style={{ color: 'var(--text-muted)' }} onClick={() => setShowMore((v) => !v)}>
+                    {showMore ? 'Masquer les options' : 'Plus d’options (réseaux, demandeur, consignes, validité du lien)'}
+                  </button>
+                  {showMore && (
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <input className="text-sm p-2.5 rounded-md outline-none" style={input} placeholder="Réseaux cibles (Facebook, Instagram…)" value={form.networks} onChange={(e) => setForm({ ...form, networks: e.target.value })} />
+                      <input className="text-sm p-2.5 rounded-md outline-none" style={input} placeholder="Demandeur / service" value={form.requester} onChange={(e) => setForm({ ...form, requester: e.target.value })} />
+                      <input className="text-sm p-2.5 rounded-md outline-none" style={input} placeholder="Date souhaitée (texte libre)" value={form.scheduled_for} onChange={(e) => setForm({ ...form, scheduled_for: e.target.value })} />
+                      <input className="text-sm p-2.5 rounded-md outline-none" style={input} placeholder="E-mail du demandeur" value={form.requester_email} onChange={(e) => setForm({ ...form, requester_email: e.target.value })} />
+                      <input className="text-sm p-2.5 rounded-md outline-none sm:col-span-2" style={input} placeholder="Consignes pour le validateur" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+                      <textarea className="text-sm p-2.5 rounded-md outline-none sm:col-span-2" style={input} rows={2} placeholder="URL de médias déjà en ligne (une par ligne, facultatif)" value={form.media_urls} onChange={(e) => setForm({ ...form, media_urls: e.target.value })} />
+                      <label className="text-xs flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                        Validité du lien (heures)
+                        <input type="number" min={1} max={720} className="text-sm p-1.5 rounded-md w-24 outline-none" style={input} value={form.ttl_hours} onChange={(e) => setForm({ ...form, ttl_hours: Number(e.target.value) || 72 })} />
+                      </label>
+                      <label className="text-xs flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                        <input type="checkbox" checked={form.notify} onChange={(e) => setForm({ ...form, notify: e.target.checked })} />
+                        Envoyer le lien aux validateurs (Telegram / e-mail)
+                      </label>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="block rounded-md p-4 text-center cursor-pointer" style={{ border: '1px dashed var(--border-strong)', background: 'var(--bg-elevated)' }}>
+                    <input type="file" accept="image/*,video/*" multiple className="hidden"
+                      onChange={(e) => { const add = Array.from(e.target.files ?? []); setFiles((cur) => [...cur, ...add].slice(0, 10)); e.target.value = '' }} />
+                    <div className="text-sm font-medium">📷 Photos / vidéos</div>
+                    <div className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>Cliquez pour choisir (10 max). Images recompressées à 1920 px.</div>
+                  </label>
+                  {previews.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2 mt-3">
+                      {previews.map((p, i) => (
+                        <div key={p.url} className="relative rounded-md overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                          {p.video
+                            ? <video src={p.url} className="w-full h-20 object-cover" muted />
+                            // eslint-disable-next-line @next/next/no-img-element
+                            : <img src={p.url} alt="" className="w-full h-20 object-cover" />}
+                          <button type="button" aria-label="Retirer" onClick={() => setFiles((cur) => cur.filter((_, j) => j !== i))}
+                            className="absolute top-1 right-1 w-5 h-5 rounded-full text-[10px] leading-5 text-center" style={{ background: 'rgba(0,0,0,0.65)', color: '#fff' }}>✕</button>
+                          <div className="text-[9px] px-1 truncate" style={{ color: 'var(--text-muted)' }}>{p.f.name}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="flex gap-2 mt-4">
-                <button type="button" className="btn-primary px-4 py-2 text-sm" disabled={busy === 'create' || !form.text.trim()} onClick={onCreate}>
-                  {busy === 'create' ? 'Création…' : 'Créer et générer le lien'}
+              <div className="flex items-center gap-3 mt-4">
+                <button type="button" className="btn-primary px-5 py-2.5 text-sm" disabled={busy === 'create' || (!form.text.trim() && files.length === 0)} onClick={onCreate}>
+                  {busy === 'create' ? (files.length ? 'Envoi des médias…' : 'Envoi…') : '✉ Soumettre à validation'}
                 </button>
-                <button type="button" className="text-sm underline" style={{ color: 'var(--text-muted)' }} onClick={() => setShowCreate(false)}>Annuler</button>
+                <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Le validateur reçoit un lien personnel, voit le texte et les médias, et valide ou refuse. Vous publiez ensuite depuis la liste.</span>
               </div>
             </div>
           )}
