@@ -118,17 +118,13 @@ def _headers() -> Dict[str, str]:
 
 # ── Lecture ────────────────────────────────────────────────
 
-def _resolve_tab() -> str:
-    tab = sheet_tab()
-    if tab:
-        return tab
+def list_tabs() -> List[str]:
+    """Noms des onglets, dans l'ordre de la feuille."""
     r = requests.get(f"{SHEETS_API}/{sheet_id()}", params={"fields": "sheets.properties.title"},
                      headers=_headers(), timeout=15)
-    r.raise_for_status()
-    sheets = r.json().get("sheets", [])
-    if not sheets:
-        raise RuntimeError("Feuille sans onglet")
-    return sheets[0]["properties"]["title"]
+    if r.status_code != 200:
+        raise RuntimeError(f"Google Sheets {r.status_code}: {r.text[:200]}")
+    return [sh["properties"]["title"] for sh in r.json().get("sheets", [])]
 
 
 def _col_letter(idx: int) -> str:
@@ -141,29 +137,80 @@ def _col_letter(idx: int) -> str:
     return s
 
 
-def read_table() -> Dict[str, Any]:
-    """Renvoie {"tab", "headers": [...], "rows": [{"row_number": n, "values": {header: cell}}]}.
-    row_number est le numéro de ligne réel dans la feuille (en-tête = 1)."""
-    tab = _resolve_tab()
-    rng = quote(f"'{tab}'", safe="")
-    r = requests.get(f"{SHEETS_API}/{sheet_id()}/values/{rng}",
-                     params={"valueRenderOption": "FORMATTED_VALUE"},
-                     headers=_headers(), timeout=20)
-    if r.status_code != 200:
-        raise RuntimeError(f"Google Sheets {r.status_code}: {r.text[:200]}")
-    values: List[List[str]] = r.json().get("values", [])
-    if not values:
-        return {"tab": tab, "headers": [], "rows": []}
+def _detect_header_row(values: List[List[str]], required: Optional[List[str]] = None, max_scan: int = 15) -> int:
+    """Index (0-based) de la ligne d'en-têtes : première ligne, parmi les `max_scan` premières,
+    contenant au moins 3 cellules non vides et, si `required` est fourni, tous ces mots
+    (comparaison insensible à la casse/accents). Repli : ligne 0."""
+    def norm(x: str) -> str:
+        try:
+            from unidecode import unidecode
+            x = unidecode(x)
+        except Exception:
+            pass
+        return x.lower().strip()
 
-    headers = [str(h).strip() for h in values[0]]
+    req = [norm(r) for r in (required or [])]
+    best, best_count = 0, 0
+    for i, line in enumerate(values[:max_scan]):
+        cells = [norm(str(c)) for c in line if str(c).strip()]
+        if len(cells) < 3:
+            continue
+        if req and all(any(r == c for c in cells) for r in req):
+            return i
+        if len(cells) > best_count:
+            best, best_count = i, len(cells)
+    return best
+
+
+def _parse_table(tab: str, values: List[List[str]], header_markers: Optional[List[str]] = None) -> Dict[str, Any]:
+    if not values:
+        return {"tab": tab, "headers": [], "header_row": 1, "rows": []}
+    h = _detect_header_row(values, header_markers)
+    headers = [str(x).strip() for x in values[h]]
     rows = []
-    for i, line in enumerate(values[1:], start=2):
+    for i, line in enumerate(values[h + 1:], start=h + 2):
         if not any(str(c).strip() for c in line):
             continue
-        cells = {headers[j]: (str(line[j]).strip() if j < len(line) else "")
-                 for j in range(len(headers)) if headers[j]}
+        cells = {}
+        for j, name in enumerate(headers):
+            if not name or name in cells:  # en-têtes dupliqués : la 1re occurrence gagne
+                continue
+            cells[name] = str(line[j]).strip() if j < len(line) else ""
+        # colonnes dupliquées (ex. 2e bloc « Précisions / consignes ») → suffixe « (2) »
+        seen: Dict[str, int] = {}
+        for j, name in enumerate(headers):
+            if not name:
+                continue
+            seen[name] = seen.get(name, 0) + 1
+            if seen[name] > 1:
+                cells[f"{name} ({seen[name]})"] = str(line[j]).strip() if j < len(line) else ""
         rows.append({"row_number": i, "values": cells})
-    return {"tab": tab, "headers": headers, "rows": rows}
+    return {"tab": tab, "headers": headers, "header_row": h + 1, "rows": rows}
+
+
+def read_tables(tabs: Optional[List[str]] = None, header_markers: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    """Lit plusieurs onglets en UN appel (values:batchGet).
+    Renvoie [{"tab", "headers", "header_row", "rows": [{"row_number", "values"}]}].
+    row_number / header_row sont des numéros de ligne réels (1-based)."""
+    tabs = tabs or ([sheet_tab()] if sheet_tab() else list_tabs())
+    if not tabs:
+        return []
+    params = [("valueRenderOption", "FORMATTED_VALUE"), ("majorDimension", "ROWS")]
+    params += [("ranges", f"'{t}'") for t in tabs]
+    r = requests.get(f"{SHEETS_API}/{sheet_id()}/values:batchGet", params=params, headers=_headers(), timeout=30)
+    if r.status_code != 200:
+        raise RuntimeError(f"Google Sheets {r.status_code}: {r.text[:200]}")
+    out = []
+    for tab, vr in zip(tabs, r.json().get("valueRanges", [])):
+        out.append(_parse_table(tab, vr.get("values", []), header_markers))
+    return out
+
+
+def read_table(header_markers: Optional[List[str]] = None) -> Dict[str, Any]:
+    """Un seul onglet (PUBLICATION_SHEET_TAB ou le premier)."""
+    tabs = [sheet_tab()] if sheet_tab() else list_tabs()[:1]
+    res = read_tables(tabs, header_markers)
+    return res[0] if res else {"tab": tabs[0] if tabs else "", "headers": [], "header_row": 1, "rows": []}
 
 
 # ── Écriture ───────────────────────────────────────────────
@@ -171,7 +218,7 @@ def read_table() -> Dict[str, Any]:
 def write_cell(row_number: int, header_index: int, value: str, tab: Optional[str] = None) -> bool:
     """Écrit une cellule (colonne repérée par l'index 0-based de son en-tête)."""
     try:
-        tab = tab or _resolve_tab()
+        tab = tab or sheet_tab() or list_tabs()[0]
         a1 = f"'{tab}'!{_col_letter(header_index)}{row_number}"
         r = requests.put(f"{SHEETS_API}/{sheet_id()}/values/{quote(a1, safe='')}",
                          params={"valueInputOption": "RAW"},
@@ -184,3 +231,17 @@ def write_cell(row_number: int, header_index: int, value: str, tab: Optional[str
     except Exception as e:
         logger.warning("Sheets write échoué : %s", e)
         return False
+
+
+def ensure_column(table: Dict[str, Any], name: str) -> Optional[int]:
+    """Index 0-based de la colonne `name` dans l'onglet ; la crée (en-tête écrit à droite
+    des en-têtes existants) si absente. None si l'écriture échoue."""
+    headers = table["headers"]
+    for i, h in enumerate(headers):
+        if h.strip().lower() == name.strip().lower():
+            return i
+    idx = len(headers)
+    if write_cell(table["header_row"], idx, name, tab=table["tab"]):
+        headers.append(name)
+        return idx
+    return None

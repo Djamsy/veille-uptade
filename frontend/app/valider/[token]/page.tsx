@@ -184,6 +184,18 @@ export default function ValidatePublicationPage() {
             <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-sm"
               style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>📅 {data.scheduled_for}</span>
           )}
+          {data.location && (
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-sm"
+              style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>📍 {data.location}</span>
+          )}
+          {data.service && (
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-sm"
+              style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>🎥 {data.service}</span>
+          )}
+          {data.provider && (
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-sm"
+              style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>Prestataire : {data.provider}</span>
+          )}
           {data.campaign_name && (
             <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-sm"
               style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>Campagne : {data.campaign_name}</span>

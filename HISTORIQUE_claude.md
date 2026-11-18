@@ -327,7 +327,14 @@ de validation, etc.). La feuille Drive elle-même n'est pas à chiffrer.
 ### Hypothèses à confirmer
 - Qui valide : validateurs externes via lien (admin en supervision).
 - Après validation : **publication manuelle** par un admin (bouton « Publier » dans /admin/publications) — décision Djamsy 2026-11-18, la publication automatique a été retirée.
-- Colonnes Réseaux / Date informatives en V1.
+- Seuls les événements Confirmé / Réalisé du planning sont proposés (réglable par `PUBLICATION_SHEET_IMPORT_STATUSES`).
+
+### Adaptation au planning existant (même jour)
+Djamsy a précisé la feuille réelle : « Suivi hebdomadaire des prestataires audiovisuels » (un onglet par semaine, en-têtes en
+ligne 5, lignes de dates pré-remplies, colonnes Date / Événement / Heure / Prestation / Lieu / Précisions / Prestataire /
+Statut / Source). Import adapté : lecture de tous les onglets en un appel, détection de la ligne d'en-têtes, événements
+Confirmé / Réalisé → post proposé (titre = événement, texte = date · heure / lieu / précisions), état de validation écrit
+dans une colonne « Publication » créée à droite — la colonne Statut du planning n'est jamais touchée.
 
 ---
 

@@ -3,7 +3,10 @@
 Publications « pour validation » — contenu chiffré de bout en bout côté stockage.
 
 Flux :
-  1. Un tableau Google Sheets (ou un admin, à la main) décrit une publication.
+  1. Le planning hebdomadaire Google Sheets (un onglet par semaine : Date, Événement,
+     Heure, Prestation nécessaire, Lieu, Précisions / consignes, Prestataire affecté,
+     Statut, Source / flyer) ou un admin, à la main, décrit une publication. Chaque
+     événement « Confirmé » / « Réalisé » du planning devient un post à valider.
   2. Le service crée un document `pending_publications` dont TOUT le contenu
      sensible est chiffré (AES-256-GCM, voir crypto_service) : titre, texte,
      médias, réseaux, demandeur, statut, décision, résultat de publication, journal.
@@ -18,6 +21,10 @@ Flux :
 Configuration (variables d'environnement) :
   PUBLICATION_ENCRYPTION_KEY            — voir crypto_service.py (obligatoire en prod)
   GOOGLE_SERVICE_ACCOUNT_JSON / PUBLICATION_SHEET_ID / PUBLICATION_SHEET_TAB — voir google_sheets_service.py
+  PUBLICATION_SHEET_IMPORT_STATUSES     — statuts du planning à importer (défaut "confirmé,réalisé" ; "*" = tous)
+  PUBLICATION_SHEET_WRITEBACK_COLUMN    — colonne où écrire l'état de validation (défaut "Publication",
+                                           créée si absente ; "" = aucun retour dans la feuille).
+                                           La colonne « Statut » du planning n'est JAMAIS modifiée.
   PUBLICATION_VALIDATION_BASE_URL       — URL publique du front (ex. https://veille.exemple.gp)
   PUBLICATION_VALIDATION_TTL_HOURS      — durée de vie d'un lien (défaut 72)
   PUBLICATION_VALIDATION_NOTIFY_EMAILS  — destinataires des liens (défaut : EMAIL_ALERT_TO)
@@ -59,26 +66,32 @@ STATUS_LABELS_FR = {
     CANCELLED: "Annulée",
 }
 
-# Valeurs du tableau considérées comme « à importer »
-IMPORTABLE_STATUS_CELLS = {"", "a valider", "avalider", "en attente", "pending", "nouveau", "new", "a publier", "apublier"}
+# Statuts du planning à importer (normalisés), surchargés par PUBLICATION_SHEET_IMPORT_STATUSES
+DEFAULT_IMPORT_STATUSES = ["confirme", "realise", "confirmee", "realisee"]
 
-# En-têtes reconnus (normalisés : minuscules, sans accents, sans ponctuation)
+# En-têtes reconnus (normalisés : minuscules, sans accents, sans ponctuation).
+# Calés sur le planning « Suivi hebdomadaire des prestataires audiovisuels » + alias génériques.
 COLUMN_ALIASES: Dict[str, List[str]] = {
     "id": ["id", "ref", "reference", "n", "no", "ndeg", "num", "numero"],
-    "title": ["titre", "title", "sujet", "objet", "accroche"],
-    "text": ["texte", "text", "message", "contenu", "post", "publication", "legende", "corps", "description"],
-    "media": ["media", "medias", "image", "images", "video", "videos", "visuel", "visuels", "photo", "photos",
-              "lien media", "url media", "fichier", "fichiers", "lien", "liens"],
+    "title": ["evenement", "event", "titre", "title", "sujet", "objet", "accroche"],
+    "text": ["precisions consignes", "precisions", "consignes", "texte", "text", "message", "contenu",
+             "post", "publication", "legende", "corps", "description"],
+    "date": ["date", "date de publication", "date publication", "quand", "echeance", "date souhaitee", "publier le"],
+    "time": ["heure", "horaire", "time"],
+    "location": ["lieu", "localisation", "adresse", "endroit"],
+    "service": ["prestation necessaire", "prestation", "couverture", "type de prestation"],
+    "provider": ["prestataire affecte", "prestataire", "affecte a", "couvert par"],
+    "sheet_status": ["statut", "status", "etat", "suivi"],
+    "source": ["source flyer", "source", "flyer", "visuel", "visuels", "media", "medias", "image", "images",
+               "video", "videos", "photo", "photos", "lien media", "url media", "fichier", "fichiers", "lien", "liens"],
     "networks": ["reseaux", "reseau", "reseaux sociaux", "plateformes", "plateforme", "canaux", "canal",
                  "channels", "networks", "cibles", "ou publier"],
-    "scheduled_for": ["date", "date de publication", "date publication", "quand", "programmation",
-                      "echeance", "date souhaitee", "publier le"],
-    "requester": ["demandeur", "auteur", "nom", "redacteur", "service", "direction", "de", "emetteur"],
+    "requester": ["demandeur", "auteur", "redacteur", "emetteur"],
     "requester_email": ["email", "e mail", "mail", "courriel", "contact"],
-    "campaign": ["campagne", "campaign", "evenement", "operation", "thematique"],
-    "status": ["statut", "status", "etat", "validation", "etat validation", "suivi"],
-    "notes": ["notes", "note", "commentaire", "commentaires", "remarque", "remarques", "consignes"],
+    "campaign": ["campagne", "campaign", "operation", "thematique"],
+    "notes": ["notes", "note", "commentaire", "commentaires", "remarque", "remarques"],
 }
+HEADER_MARKERS = ["date", "evenement"]  # repère la ligne d'en-têtes dans un onglet du planning
 
 # Exceptions métier (le router les traduit en codes HTTP)
 class TokenInvalid(Exception): ...
@@ -119,6 +132,18 @@ def _env_int(name: str, default: int) -> int:
 
 def _ttl_hours() -> int:
     return max(1, _env_int("PUBLICATION_VALIDATION_TTL_HOURS", 72))
+
+
+def _import_statuses() -> List[str]:
+    raw = os.getenv("PUBLICATION_SHEET_IMPORT_STATUSES", "")
+    if raw.strip() == "*":
+        return ["*"]
+    lst = [_norm(x) for x in raw.split(",") if x.strip()]
+    return lst or DEFAULT_IMPORT_STATUSES
+
+
+def _writeback_column() -> str:
+    return os.getenv("PUBLICATION_SHEET_WRITEBACK_COLUMN", "Publication").strip()
 
 
 def _base_url() -> str:
@@ -174,6 +199,7 @@ def _read(doc: Dict[str, Any], include_audit: bool = False) -> Dict[str, Any]:
         "updated_at": _iso(doc.get("updated_at")),
         "source": doc.get("source"),
         "sheet_row": doc.get("sheet_row"),
+        "sheet_tab": doc.get("sheet_tab"),
         "status": crypto.decrypt_str(doc.get("status_enc"), aad),
         "payload": payload,
         "decision": crypto.decrypt_json(doc.get("decision_enc"), aad, default=None),
@@ -264,12 +290,17 @@ def _clean_payload(p: Dict[str, Any]) -> Dict[str, Any]:
         "campaign_name": str(p.get("campaign_name") or "")[:200],
         "notes": str(p.get("notes") or "")[:2000],
         "external_id": str(p.get("external_id") or "")[:100],
+        "location": str(p.get("location") or "")[:200],
+        "event_time": str(p.get("event_time") or "")[:50],
+        "service": str(p.get("service") or "")[:100],
+        "provider": str(p.get("provider") or "")[:200],
     }
 
 
 def create_pending(payload: Dict[str, Any], source: str = "manual", sheet_row: Optional[int] = None,
                    fingerprint: Optional[str] = None, actor: str = "", ttl_hours: Optional[int] = None,
-                   notify: bool = True, db=None) -> Dict[str, Any]:
+                   notify: bool = True, sheet_tab: Optional[str] = None, sheet_writeback_col: Optional[int] = None,
+                   db=None) -> Dict[str, Any]:
     """Crée une publication à valider. Renvoie {id, token, url, ...} — le jeton n'est
     JAMAIS récupérable ensuite (seule son empreinte est stockée)."""
     db = db or _db()
@@ -284,6 +315,8 @@ def create_pending(payload: Dict[str, Any], source: str = "manual", sheet_row: O
         "updated_at": now,
         "source": source,
         "sheet_row": sheet_row,
+        "sheet_tab": sheet_tab,
+        "sheet_writeback_col": sheet_writeback_col,
         "fingerprint": fingerprint,
         "status_enc": crypto.encrypt_str(PENDING, aad),
         "status_idx": crypto.blind_index(PENDING),
@@ -420,6 +453,10 @@ def get_by_token(token: str, ip: Optional[str] = None, db=None) -> Dict[str, Any
         "requester": p.get("requester", ""),
         "campaign_name": p.get("campaign_name", ""),
         "notes": p.get("notes", ""),
+        "location": p.get("location", ""),
+        "event_time": p.get("event_time", ""),
+        "service": p.get("service", ""),
+        "provider": p.get("provider", ""),
         "decision": view["decision"],
         "publish": {"ok": (view["publish"] or {}).get("ok"), "published_at": (view["publish"] or {}).get("published_at"),
                     "platforms": (view["publish"] or {}).get("platforms")} if view["publish"] else None,
@@ -577,84 +614,129 @@ def _map_headers(headers: List[str]) -> Dict[str, int]:
     return mapping
 
 
+_URL_RE = re.compile(r"https?://[^\s,;|<>\"']+", re.I)
+
+
+def _compose_from_planning(ev: str, date: str, time_: str, place: str, details: str) -> str:
+    """Texte de post proposé au validateur à partir d'une ligne du planning (modifiable ensuite)."""
+    head = " · ".join(x for x in [date, time_] if x and _norm(x) not in ("non precisee", "non precise", "a definir"))
+    lines = []
+    if head:
+        lines.append(f"📅 {head}")
+    if place and _norm(place) not in ("non precise", "a definir"):
+        lines.append(f"📍 {place}")
+    if details:
+        lines.append("")
+        lines.append(details)
+    return "\n".join(lines).strip() or ev
+
+
 def sync_from_sheet(notify: bool = True, db=None) -> Dict[str, Any]:
-    """Lit le tableau et crée une publication à valider par nouvelle ligne."""
+    """Lit tous les onglets du planning (un appel) et crée une publication à valider
+    par événement nouveau dont le statut du planning est importable."""
     from backend.services import google_sheets_service as sheets
     if not sheets.is_configured():
         return {"ok": False, "error": "Google Sheets non configuré (GOOGLE_SERVICE_ACCOUNT_JSON, PUBLICATION_SHEET_ID)"}
     db = db or _db()
     _ensure_indexes(db)
 
-    table = sheets.read_table()
-    headers, rows = table["headers"], table["rows"]
-    mapping = _map_headers(headers)
-    if "text" not in mapping:
-        return {"ok": False, "error": f"Colonne texte introuvable. En-têtes lus : {headers}", "mapping": mapping}
+    tables = sheets.read_tables(header_markers=HEADER_MARKERS)
+    statuses = _import_statuses()
+    wb_name = _writeback_column()
+    created, skipped, superseded, errors, tabs_report = [], 0, 0, [], []
 
-    def cell(row: Dict[str, Any], field: str) -> str:
-        idx = mapping.get(field)
-        if idx is None or idx >= len(headers):
-            return ""
-        return row["values"].get(headers[idx], "")
+    for table in tables:
+        headers, rows, tab = table["headers"], table["rows"], table["tab"]
+        mapping = _map_headers(headers)
+        if "title" not in mapping and "text" not in mapping:
+            tabs_report.append({"tab": tab, "skipped": "aucune colonne Événement/Texte", "headers": headers[:8]})
+            continue
+        wb_idx = None
+        if wb_name:
+            wb_idx = sheets.ensure_column(table, wb_name)
+            if wb_idx is None:
+                errors.append({"tab": tab, "error": f"impossible de créer la colonne « {wb_name} »"})
+        tab_created = 0
 
-    created, skipped, superseded, errors = [], 0, 0, []
-    for row in rows:
-        try:
-            text, title = cell(row, "text"), cell(row, "title")
-            if not text and not title:
-                skipped += 1
-                continue
-            if _norm(cell(row, "status")) not in IMPORTABLE_STATUS_CELLS:
-                skipped += 1
-                continue
-            fp = crypto.fingerprint(sheets.sheet_id(), table["tab"], row["row_number"], title, text,
-                                    cell(row, "media"), cell(row, "networks"), cell(row, "scheduled_for"))
-            if db[COLLECTION].find_one({"fingerprint": fp}, {"_id": 1}):
-                skipped += 1
-                continue
-            # Même ligne, contenu modifié → l'ancienne demande en attente est annulée
-            for old in db[COLLECTION].find({"sheet_row": row["row_number"], "source": "sheet",
-                                            "status_idx": crypto.blind_index(PENDING)}):
-                _set_status(db, old, CANCELLED, {"token_revoked": True})
-                _append_audit(db, old, "superseded", "sheet-sync")
-                superseded += 1
+        def cell(row: Dict[str, Any], field: str) -> str:
+            idx = mapping.get(field)
+            if idx is None or idx >= len(headers):
+                return ""
+            return row["values"].get(headers[idx], "")
 
-            res = create_pending({
-                "title": title, "text": text, "media_urls": cell(row, "media"), "networks": cell(row, "networks"),
-                "scheduled_for": cell(row, "scheduled_for"), "requester": cell(row, "requester"),
-                "requester_email": cell(row, "requester_email"), "campaign_name": cell(row, "campaign"),
-                "notes": cell(row, "notes"), "external_id": cell(row, "id"),
-            }, source="sheet", sheet_row=row["row_number"], fingerprint=fp, actor="sheet-sync",
-                notify=notify, db=db)
-            created.append({"id": res["id"], "row": row["row_number"]})
-            if "status" in mapping:
-                sheets.write_cell(row["row_number"], mapping["status"], STATUS_LABELS_FR[PENDING], tab=table["tab"])
-        except Exception as e:
-            logger.warning("Ligne %s : %s", row.get("row_number"), e)
-            errors.append({"row": row.get("row_number"), "error": str(e)[:200]})
+        for row in rows:
+            try:
+                title, details = cell(row, "title"), cell(row, "text")
+                if not title and not details:
+                    skipped += 1  # ligne de date pré-remplie, sans événement
+                    continue
+                if wb_idx is not None and headers[wb_idx] and row["values"].get(headers[wb_idx], ""):
+                    skipped += 1  # déjà traitée (colonne de retour renseignée)
+                    continue
+                st = _norm(cell(row, "sheet_status"))
+                if statuses != ["*"] and "sheet_status" in mapping and st not in statuses:
+                    skipped += 1
+                    continue
+                date, time_, place = cell(row, "date"), cell(row, "time"), cell(row, "location")
+                source = cell(row, "source")
+                extra_details = row["values"].get(f"{headers[mapping['text']]} (2)", "") if "text" in mapping else ""
+                fp = crypto.fingerprint(sheets.sheet_id(), tab, row["row_number"], title, details, extra_details,
+                                        date, time_, place, source)
+                if db[COLLECTION].find_one({"fingerprint": fp}, {"_id": 1}):
+                    skipped += 1
+                    continue
+                for old in db[COLLECTION].find({"sheet_tab": tab, "sheet_row": row["row_number"], "source": "sheet",
+                                                "status_idx": crypto.blind_index(PENDING)}):
+                    _set_status(db, old, CANCELLED, {"token_revoked": True})
+                    _append_audit(db, old, "superseded", "sheet-sync")
+                    superseded += 1
 
-    logger.info("📋 Sync feuille : %d créées, %d ignorées, %d remplacées, %d erreurs",
-                len(created), skipped, superseded, len(errors))
-    return {"ok": True, "tab": table["tab"], "rows": len(rows), "created": created, "skipped": skipped,
-            "superseded": superseded, "errors": errors, "mapping": {k: headers[v] for k, v in mapping.items()}}
+                media = _URL_RE.findall(source)
+                notes_parts = [x for x in [
+                    f"Prestation : {cell(row, 'service')}" if cell(row, "service") else "",
+                    f"Prestataire : {cell(row, 'provider')}" if cell(row, "provider") else "",
+                    f"Source : {source}" if source and not media else "",
+                    extra_details, cell(row, "notes"),
+                ] if x]
+                res = create_pending({
+                    "title": title or details[:120],
+                    "text": _compose_from_planning(title, date, time_, place, details),
+                    "media_urls": media, "networks": cell(row, "networks"),
+                    "scheduled_for": " · ".join(x for x in [date, time_] if x),
+                    "location": place, "event_time": time_, "service": cell(row, "service"),
+                    "provider": cell(row, "provider"), "requester": cell(row, "requester"),
+                    "requester_email": cell(row, "requester_email"), "campaign_name": cell(row, "campaign"),
+                    "notes": " · ".join(notes_parts), "external_id": cell(row, "id"),
+                }, source="sheet", sheet_row=row["row_number"], sheet_tab=tab, sheet_writeback_col=wb_idx,
+                    fingerprint=fp, actor="sheet-sync", notify=notify, db=db)
+                created.append({"id": res["id"], "tab": tab, "row": row["row_number"], "title": title[:80]})
+                tab_created += 1
+                if wb_idx is not None:
+                    sheets.write_cell(row["row_number"], wb_idx, STATUS_LABELS_FR[PENDING], tab=tab)
+            except Exception as e:
+                logger.warning("%s ligne %s : %s", tab, row.get("row_number"), e)
+                errors.append({"tab": tab, "row": row.get("row_number"), "error": str(e)[:200]})
+        tabs_report.append({"tab": tab, "rows": len(rows), "created": tab_created,
+                            "mapping": {k: headers[v] for k, v in mapping.items()}})
+
+    logger.info("📋 Sync planning : %d onglets, %d créées, %d ignorées, %d remplacées, %d erreurs",
+                len(tables), len(created), skipped, superseded, len(errors))
+    return {"ok": True, "tabs": tabs_report, "created": created, "skipped": skipped,
+            "superseded": superseded, "errors": errors, "import_statuses": statuses, "writeback_column": wb_name}
 
 
 def _write_sheet_status(doc: Dict[str, Any], status: str, detail: Optional[str] = None) -> None:
-    """Retour d'état dans la feuille (si la ligne vient de la feuille et qu'une colonne statut existe)."""
-    if doc.get("source") != "sheet" or not doc.get("sheet_row"):
+    """Retour d'état dans la colonne de validation du planning (jamais dans « Statut »)."""
+    if doc.get("source") != "sheet" or not doc.get("sheet_row") or doc.get("sheet_writeback_col") is None:
         return
     try:
         from backend.services import google_sheets_service as sheets
         if not sheets.is_configured():
             return
-        table = sheets.read_table()
-        mapping = _map_headers(table["headers"])
-        if "status" not in mapping:
-            return
         label = STATUS_LABELS_FR.get(status, status)
         if detail:
             label = f"{label} — {detail}"[:200]
-        sheets.write_cell(int(doc["sheet_row"]), mapping["status"], label, tab=table["tab"])
+        sheets.write_cell(int(doc["sheet_row"]), int(doc["sheet_writeback_col"]), label, tab=doc.get("sheet_tab"))
     except Exception as e:
         logger.debug("retour feuille : %s", e)
 
@@ -761,4 +843,6 @@ def status_report() -> Dict[str, Any]:
         "base_url": _base_url() or "(relatif)",
         "notify_emails": len(_notify_emails()),
         "notify_telegram": _telegram_enabled(),
+        "import_statuses": _import_statuses(),
+        "writeback_column": _writeback_column() or None,
     }
