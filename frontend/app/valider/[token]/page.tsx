@@ -13,7 +13,6 @@ import {
   fetchPublicationByToken,
   decidePublication,
   type PubValidationView,
-  type PubPublish,
 } from '../../../lib/api'
 import { GuadeloupeMark } from '../../../components/GuadeloupeMark'
 
@@ -84,7 +83,7 @@ export default function ValidatePublicationPage() {
   const [confirm, setConfirm] = useState<'approve' | 'reject' | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
-  const [result, setResult] = useState<{ status: string; status_label: string; publish?: PubPublish } | null>(null)
+  const [result, setResult] = useState<{ status: string; status_label: string } | null>(null)
 
   const load = useCallback(() => {
     if (!token) return
@@ -142,14 +141,10 @@ export default function ValidatePublicationPage() {
   }
 
   if (result) {
-    const good = result.status === 'approved' || result.status === 'published'
-    const body = result.status === 'published'
-      ? `Publication envoyée sur ${result.publish?.platforms ?? 0} réseau(x). Merci !`
-      : result.status === 'publish_failed'
-        ? `Validée, mais la publication automatique a échoué (${result.publish?.error ?? 'erreur inconnue'}). L’équipe est prévenue.`
-        : result.status === 'approved'
-          ? 'Validée. La publication sera envoyée par l’équipe.'
-          : 'Refus enregistré. Le demandeur sera informé.'
+    const good = result.status === 'approved'
+    const body = good
+      ? 'Validée. L’équipe publiera la publication manuellement.'
+      : 'Refus enregistré. Le demandeur sera informé.'
     return <Shell><Message tone={good ? 'good' : 'neutral'} kicker="Décision enregistrée" title={result.status_label} body={body} /></Shell>
   }
 
@@ -279,7 +274,7 @@ export default function ValidatePublicationPage() {
           {confirm ? (
             <div className="flex items-center gap-3 flex-wrap p-3 rounded-md" style={{ background: 'var(--bg-elevated)' }}>
               <span className="text-sm">
-                Confirmer : <b>{confirm === 'approve' ? (data.auto_publish ? 'valider et publier maintenant' : 'valider') : 'refuser'}</b>
+                Confirmer : <b>{confirm === 'approve' ? 'valider' : 'refuser'}</b>
                 {editing && text.trim() !== data.text && ' (avec le texte modifié)'} ?
               </span>
               <button type="button" disabled={submitting} onClick={() => submit(confirm)}
@@ -293,7 +288,7 @@ export default function ValidatePublicationPage() {
             <div className="flex gap-3 flex-wrap">
               <button type="button" onClick={() => setConfirm('approve')}
                 className="text-sm font-medium px-5 py-2.5 rounded-md" style={{ background: 'var(--positive)', color: '#fff' }}>
-                ✓ Valider{data.auto_publish ? ' et publier' : ''}
+                ✓ Valider
               </button>
               <button type="button" onClick={() => setConfirm('reject')}
                 className="text-sm font-medium px-5 py-2.5 rounded-md" style={{ background: 'var(--bg-elevated)', color: 'var(--negative)', border: '1px solid var(--border-hover)' }}>

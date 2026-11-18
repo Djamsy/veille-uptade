@@ -12,15 +12,14 @@ Flux :
      empreinte HMAC est stockée. Le lien /valider/<jeton> est envoyé aux
      validateurs (Telegram / e-mail Brevo) — il n'est jamais réaffiché ensuite.
   4. Le validateur consulte, corrige éventuellement le texte, valide ou refuse.
-  5. Validée → publication Buffer (immédiate par défaut) ; statut écrit en retour
-     dans la feuille ; notification.
+  5. Validée → statut écrit en retour dans la feuille ; notification. La publication
+     Buffer est ensuite lancée MANUELLEMENT par un admin (/admin/publications).
 
 Configuration (variables d'environnement) :
   PUBLICATION_ENCRYPTION_KEY            — voir crypto_service.py (obligatoire en prod)
   GOOGLE_SERVICE_ACCOUNT_JSON / PUBLICATION_SHEET_ID / PUBLICATION_SHEET_TAB — voir google_sheets_service.py
   PUBLICATION_VALIDATION_BASE_URL       — URL publique du front (ex. https://veille.exemple.gp)
   PUBLICATION_VALIDATION_TTL_HOURS      — durée de vie d'un lien (défaut 72)
-  PUBLICATION_AUTO_PUBLISH              — 1 (défaut) : publier dès validation ; 0 : attendre un admin
   PUBLICATION_VALIDATION_NOTIFY_EMAILS  — destinataires des liens (défaut : EMAIL_ALERT_TO)
   PUBLICATION_VALIDATION_NOTIFY_TELEGRAM — 1 (défaut) : envoyer aussi le lien sur Telegram
 """
@@ -120,10 +119,6 @@ def _env_int(name: str, default: int) -> int:
 
 def _ttl_hours() -> int:
     return max(1, _env_int("PUBLICATION_VALIDATION_TTL_HOURS", 72))
-
-
-def auto_publish_enabled() -> bool:
-    return os.getenv("PUBLICATION_AUTO_PUBLISH", "1").strip() not in ("0", "false", "no", "off")
 
 
 def _base_url() -> str:
@@ -428,7 +423,6 @@ def get_by_token(token: str, ip: Optional[str] = None, db=None) -> Dict[str, Any
         "decision": view["decision"],
         "publish": {"ok": (view["publish"] or {}).get("ok"), "published_at": (view["publish"] or {}).get("published_at"),
                     "platforms": (view["publish"] or {}).get("platforms")} if view["publish"] else None,
-        "auto_publish": auto_publish_enabled(),
     }
 
 
@@ -474,9 +468,7 @@ def decide(token: str, decision: str, validator: str = "", comment: str = "", ed
 
     _write_sheet_status(doc, APPROVED, f"Validée par {validator}")
     _notify_decision(payload, record, new_status)
-    if auto_publish_enabled():
-        pub = publish_now(str(doc["_id"]), actor=f"auto après validation par {validator}", db=db)
-        result.update({"status": pub["status"], "status_label": STATUS_LABELS_FR[pub["status"]], "publish": pub.get("publish")})
+    # Pas de publication automatique : un admin publie depuis /admin/publications.
     return result
 
 
@@ -492,7 +484,7 @@ def _compose_text(p: Dict[str, Any]) -> str:
 
 
 def publish_now(pub_id: str, actor: str = "", db=None) -> Dict[str, Any]:
-    """Publie une publication validée via Buffer (admin ou auto)."""
+    """Publie une publication validée via Buffer (action manuelle d'un admin)."""
     db = db or _db()
     doc = _find(db, pub_id)
     aad = _aad(doc["_id"])
@@ -737,6 +729,8 @@ def _notify_decision(p: Dict[str, Any], record: Dict[str, Any], status: str) -> 
             msg = f"{emoji} <b>{STATUS_LABELS_FR[status]}</b> — {html.escape(title)}\nPar : {html.escape(record.get('by', ''))}"
             if record.get("comment"):
                 msg += f"\n💬 {html.escape(record['comment'][:300])}"
+            if status == APPROVED:
+                msg += "\n👉 À publier manuellement depuis /admin/publications"
             send_message(msg)
     except Exception as e:
         logger.debug("telegram décision : %s", e)
@@ -763,7 +757,6 @@ def status_report() -> Dict[str, Any]:
         "encryption": crypto.status(),
         "sheet": sheets.status(),
         "buffer_configured": buffer_ok,
-        "auto_publish": auto_publish_enabled(),
         "ttl_hours": _ttl_hours(),
         "base_url": _base_url() or "(relatif)",
         "notify_emails": len(_notify_emails()),

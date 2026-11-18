@@ -167,7 +167,7 @@ export default function AdminPublicationsPage() {
               <div className={`${label} mb-2`} style={{ color: 'var(--text-muted)' }}>Système / Publications</div>
               <h1 className="font-serif text-3xl font-medium tracking-tight italic">Publications pour validation</h1>
               <p className="font-mono text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
-                Contenu chiffré au repos (AES-256-GCM) · liens à jeton à usage unique
+                Contenu chiffré au repos (AES-256-GCM) · liens à jeton à usage unique · publication manuelle
               </p>
             </div>
             <div className="flex gap-2 flex-wrap">
@@ -306,7 +306,7 @@ export default function AdminPublicationsPage() {
                     <li><Dot ok={status.sheet.configured} />Feuille Google {status.sheet.configured ? `· onglet ${status.sheet.tab}` : 'non configurée'}</li>
                     {status.sheet.service_account && <li className="font-mono text-[10px] break-all pl-4" style={{ color: 'var(--text-muted)' }}>{status.sheet.service_account}</li>}
                     <li><Dot ok={status.buffer_configured} />Buffer {status.buffer_configured ? 'configuré' : 'non configuré'}</li>
-                    <li><Dot ok warn={!status.auto_publish} />Publication {status.auto_publish ? 'automatique dès validation' : 'manuelle après validation'}</li>
+                    <li><Dot ok />Publication manuelle après validation (bouton « Publier »)</li>
                     <li><Dot ok={status.notify_telegram || status.notify_emails > 0} />Notifications : {[status.notify_telegram && 'Telegram', status.notify_emails > 0 && `${status.notify_emails} e-mail(s)`].filter(Boolean).join(' + ') || 'aucune'}</li>
                     <li><Dot ok={status.base_url !== '(relatif)'} warn />Liens : {status.base_url} · validité {status.ttl_hours} h</li>
                   </ul>

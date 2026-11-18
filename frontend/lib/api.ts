@@ -1358,14 +1358,14 @@ export interface PubValidationView {
   id: string; status: PubValidationStatus | string; status_label: string; created_at: string; expires_at: string | null;
   title: string; text: string; hashtags: string[]; media_urls: string[]; networks: string[]; scheduled_for: string;
   requester: string; campaign_name: string; notes: string; decision: PubDecision | null;
-  publish: { ok: boolean; published_at: string; platforms: number } | null; auto_publish: boolean;
+  publish: { ok: boolean; published_at: string; platforms: number } | null;
 }
 
 export const fetchPubValidationStatus = () =>
   adminFetch<{
     encryption: { configured: boolean; dev_derived_key: boolean; key_version: number; rotation_key_loaded: boolean; algorithm: string };
     sheet: { configured: boolean; sheet_id_set: boolean; service_account: string; tab: string };
-    buffer_configured: boolean; auto_publish: boolean; ttl_hours: number; base_url: string;
+    buffer_configured: boolean; ttl_hours: number; base_url: string;
     notify_emails: number; notify_telegram: boolean; counts: Record<string, number>;
   }>('/api/publications/status');
 
@@ -1405,7 +1405,7 @@ export const fetchPublicationByToken = (token: string) =>
   apiFetch<PubValidationView>(`/api/publications/validate/${encodeURIComponent(token)}`, { cache: 'no-store' });
 
 export const decidePublication = (token: string, data: { decision: 'approve' | 'reject'; validator_name: string; comment?: string; edited_text?: string }) =>
-  apiFetch<{ id: string; status: string; status_label: string; publish?: PubPublish }>(
+  apiFetch<{ id: string; status: string; status_label: string }>(
     `/api/publications/validate/${encodeURIComponent(token)}`,
     { method: 'POST', body: JSON.stringify(data), cache: 'no-store' }
   );

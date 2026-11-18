@@ -10,7 +10,7 @@ Routes « publications pour validation ».
     POST   /pending/{id}/token         nouveau lien (l'ancien est invalidé)
     DELETE /pending/{id}/token         révoque le lien
     POST   /pending/{id}/cancel        annule la demande
-    POST   /pending/{id}/publish       publie une demande validée (si auto-publication coupée ou échec)
+    POST   /pending/{id}/publish       publie une demande validée sur Buffer (action manuelle admin)
     DELETE /pending/{id}               suppression définitive
     POST   /sync-sheet                 import immédiat depuis la feuille
 

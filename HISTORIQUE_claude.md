@@ -326,7 +326,7 @@ de validation, etc.). La feuille Drive elle-même n'est pas à chiffrer.
 
 ### Hypothèses à confirmer
 - Qui valide : validateurs externes via lien (admin en supervision).
-- Après validation : publication immédiate sur tous les canaux Buffer (`PUBLICATION_AUTO_PUBLISH=0` pour passer en manuel).
+- Après validation : **publication manuelle** par un admin (bouton « Publier » dans /admin/publications) — décision Djamsy 2026-11-18, la publication automatique a été retirée.
 - Colonnes Réseaux / Date informatives en V1.
 
 ---
