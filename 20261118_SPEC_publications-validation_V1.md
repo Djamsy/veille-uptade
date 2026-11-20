@@ -49,6 +49,23 @@ Frontend
 - `frontend/app/admin/publications/page.tsx` — suivi, création manuelle, liens, publication, diagnostic.
 - `frontend/lib/api.ts`, `frontend/components/Sidebar.tsx` — client API et entrée « Validations ».
 
+## Soumission directe (sans la feuille)
+
+`/admin/publications` : formulaire **Texte** + **Photos / vidéos** (dépôt de fichiers, 10 max, images recompressées à 1920 px,
+200 Mo max par fichier) + options (titre, réseaux, demandeur, consignes, validité du lien). « Soumettre à validation » envoie un
+`multipart/form-data` à `POST /api/publications/pending` : les fichiers sont hébergés sur Cloudinary (URL directes, sans
+expiration), la demande est chiffrée, le lien personnel est affiché une fois et envoyé aux validateurs. Le validateur voit
+texte et médias sur `/valider/<jeton>`, corrige éventuellement le texte, valide ou refuse. L'admin publie ensuite depuis la liste.
+
+## Modification avant validation
+
+Tout ce qui est détecté automatiquement (planning, vidéos livrées) est un brouillon. Dans la liste, « ✏️ Modifier » ouvre
+une boîte : titre, texte, réseaux, date, lieu, demandeur, consignes, médias (retrait d'un média existant, ajout de photos ou
+vidéos déposées). `PUT /api/publications/pending/{id}` (JSON ou multipart avec `media` et `remove_media`) tant que la
+publication est en attente ou le lien expiré ; refus 409 après décision. Le texte d'origine est conservé, chaque
+modification est journalisée. Le lien déjà envoyé reste valable et affiche la version à jour ; « Enregistrer et renvoyer un
+lien » invalide l'ancien et en envoie un nouveau (`POST /pending/{id}/token` avec `notify: true`).
+
 ## Feuille Google : le planning existant
 
 Source : « Suivi hebdomadaire des prestataires audiovisuels » (id `1JOUzjT49gHf0u4l6e9jLtSiw0P2f3RNOl-tM-EBkE6w`),

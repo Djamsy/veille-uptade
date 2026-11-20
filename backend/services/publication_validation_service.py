@@ -413,16 +413,83 @@ def counts(db=None) -> Dict[str, int]:
 
 # ── Gestion des jetons (admin) ─────────────────────────────
 
-def regenerate_token(pub_id: str, actor: str = "", ttl_hours: Optional[int] = None, db=None) -> Dict[str, Any]:
+def regenerate_token(pub_id: str, actor: str = "", ttl_hours: Optional[int] = None, notify: bool = False,
+                     db=None) -> Dict[str, Any]:
+    """Nouveau lien (l'ancien est invalidé). notify=True : renvoie le lien aux validateurs (Telegram / e-mail)."""
     db = db if db is not None else _db()
     doc = _find(db, pub_id)
-    status = crypto.decrypt_str(doc.get("status_enc"), _aad(doc["_id"]))
+    aad = _aad(doc["_id"])
+    status = crypto.decrypt_str(doc.get("status_enc"), aad)
     if status in (EXPIRED,):
         _set_status(db, doc, PENDING)
     elif status != PENDING:
         raise AlreadyDecided(f"Publication déjà traitée ({STATUS_LABELS_FR.get(status, status)})")
     token = _issue_token(db, doc, actor, ttl_hours)
-    return {"id": pub_id, "token": token, "url": validation_url(token), "expires_at": _iso(doc["token_expires_at"])}
+    url = validation_url(token)
+    if notify:
+        _notify_new_link(crypto.decrypt_json(doc.get("payload_enc"), aad, default={}) or {}, url, doc)
+        _append_audit(db, doc, "link_sent", actor)
+    return {"id": pub_id, "token": token, "url": url, "expires_at": _iso(doc["token_expires_at"])}
+
+
+EDITABLE_FIELDS = ("title", "text", "networks", "scheduled_for", "requester", "requester_email",
+                   "campaign_id", "campaign_name", "notes", "location", "event_time", "service", "provider", "links")
+
+
+def update_publication(pub_id: str, changes: Dict[str, Any], actor: str = "", add_media: Optional[List[str]] = None,
+                       remove_media: Optional[List[str]] = None, db=None) -> Dict[str, Any]:
+    """Modifie le contenu d'une publication tant qu'elle n'est pas décidée (en attente ou lien expiré).
+    `changes` : champs de EDITABLE_FIELDS (texte, titre, réseaux…) ; `add_media` : URL déjà hébergées à
+    ajouter ; `remove_media` : URL à retirer. Le texte d'origine est conservé (original_text) et chaque
+    modification est journalisée. Le lien en cours reste valable : la page du validateur lit la version à jour."""
+    db = db if db is not None else _db()
+    doc = _find(db, pub_id)
+    aad = _aad(doc["_id"])
+    status = crypto.decrypt_str(doc.get("status_enc"), aad)
+    if status not in (PENDING, EXPIRED):
+        raise AlreadyDecided(f"Modification impossible : {STATUS_LABELS_FR.get(status, status)}")
+    payload = crypto.decrypt_json(doc.get("payload_enc"), aad, default={}) or {}
+    changed: List[str] = []
+
+    for field in EDITABLE_FIELDS:
+        if field not in changes or changes[field] is None:
+            continue
+        val = changes[field]
+        if field in ("networks", "links"):
+            val = _split_list(val) if isinstance(val, str) else [str(x) for x in (val or [])]
+        else:
+            val = str(val).strip()
+        if payload.get(field, [] if field in ("networks", "links") else "") != val:
+            if field == "text":
+                payload.setdefault("original_text", payload.get("text", ""))
+                payload["edited_by"] = actor
+                payload["hashtags"] = re.findall(r"#(\w+)", f"{changes.get('title', payload.get('title', ''))} {val}")
+            payload[field] = val
+            changed.append(field)
+
+    media = list(payload.get("media_urls", []))
+    for u in remove_media or []:
+        if u in media:
+            media.remove(u)
+            changed.append("media-")
+    for u in add_media or []:
+        if u and u not in media:
+            media.append(u)
+            changed.append("media+")
+    payload["media_urls"] = media[:10]
+
+    if not changed:
+        return {"id": pub_id, "changed": [], "payload": payload}
+    clean = _clean_payload({**payload, "hashtags": payload.get("hashtags")})
+    # _clean_payload ne connaît pas les champs d'historique : on les remet
+    for k in ("original_text", "edited_by"):
+        if k in payload:
+            clean[k] = payload[k]
+    db[COLLECTION].update_one({"_id": doc["_id"]}, {"$set": {"payload_enc": crypto.encrypt_json(clean, aad),
+                                                            "updated_at": _now()}})
+    _append_audit(db, doc, "edited", actor, detail=", ".join(dict.fromkeys(changed)))
+    logger.info("✏️ Publication %s modifiée (%s)", pub_id, ", ".join(dict.fromkeys(changed)))
+    return {"id": pub_id, "changed": list(dict.fromkeys(changed)), "payload": clean}
 
 
 def revoke_token(pub_id: str, actor: str = "", db=None) -> None:
