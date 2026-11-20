@@ -73,6 +73,9 @@ const BottomNav = () => {
     return pathname.startsWith(href)
   }
 
+  // Pages isolées du site (espace Publications, validation par lien, consultation partagée) : pas de navigation
+  if (['/publications', '/valider', '/share'].some((r) => pathname.startsWith(r))) return null
+
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 lg:hidden z-50 bottom-nav"

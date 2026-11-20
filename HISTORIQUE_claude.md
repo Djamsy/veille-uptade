@@ -370,6 +370,13 @@ Djamsy : « comment on sécurise qu'une publi associée ne peut plus être assoc
 triées par score puis nombre de mots communs dans un même passage. Testé : doublon quasi identique non réattribué,
 la publication la plus précise gagne sur un post partagé.
 
+### Espace isolé, thème clair (2026-11-20)
+Djamsy : « une page moins sombre, on la sépare du site, une adresse isolée, on retire du menu, mais ça reste affilié ».
+Page admin déplacée en `/publications` (hors menu, redirection depuis `/admin/publications`), thème clair scopé
+`.theme-clair` (tokens « Crème & encre » de :root, sous le body `.theme-carte` sombre), bandeau Veille Média + retour au
+site, pas de barre latérale ni de navigation basse. Page validateur en clair aussi. Au passage, correctif important :
+`/valider` et `/share` n'étaient pas dans PUBLIC_ROUTES d'AuthGuard → un validateur sans compte était renvoyé au login.
+
 ---
 
 ## Conventions

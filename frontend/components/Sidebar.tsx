@@ -131,7 +131,6 @@ const SECTIONS: NavSection[] = [
     label: 'Système',
     items: [
       { href: '/admin', label: 'Admin', icon: ICON.admin, adminOnly: true },
-      { href: '/admin/publications', label: 'Validations', icon: ICON.social, adminOnly: true },
     ],
   },
 ]

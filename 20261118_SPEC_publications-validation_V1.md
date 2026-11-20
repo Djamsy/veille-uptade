@@ -45,9 +45,12 @@ Backend
 - `backend/server.py` — montage du router (aucune route ajoutée dans server.py, conformément à la règle de gel).
 
 Frontend
-- `frontend/app/valider/[token]/page.tsx` — page du validateur (sans connexion).
-- `frontend/app/admin/publications/page.tsx` — suivi, création manuelle, liens, publication, diagnostic.
-- `frontend/lib/api.ts`, `frontend/components/Sidebar.tsx` — client API et entrée « Validations ».
+- `frontend/app/valider/[token]/page.tsx` — page du validateur (sans connexion, thème clair).
+- `frontend/app/publications/page.tsx` — **Espace Publications** : adresse isolée `/publications`, hors menu, thème clair
+  (`.theme-clair`), bandeau « Veille Média Guadeloupe · Espace Publications » + retour au site ; réservé aux admins.
+  `/admin/publications` redirige vers `/publications`.
+- `frontend/lib/api.ts` — client API. Aucune entrée de menu : l'espace est accessible par son adresse seulement.
+
 
 ## Soumission directe (sans la feuille)
 
