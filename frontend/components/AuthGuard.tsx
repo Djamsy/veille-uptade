@@ -92,6 +92,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     router.push('/auth/login')
   }
 
+  // Après connexion, revenir sur la page demandée (ex. l'Espace Publications, hors menu)
+  const loginUrl = () => (pathname && pathname !== '/' ? `/auth/login?next=${encodeURIComponent(pathname)}` : '/auth/login')
+
   useEffect(() => {
     // Dev bypass: short-circuit auth check with a fake admin user
     if (DEV_BYPASS) {
@@ -115,7 +118,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       const token = localStorage.getItem('token')
 
       if (!token) {
-        router.push('/auth/login')
+        router.push(loginUrl())
         return
       }
 
@@ -137,11 +140,11 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           }
         } else {
           localStorage.removeItem('token')
-          router.push('/auth/login')
+          router.push(loginUrl())
         }
       } catch {
         localStorage.removeItem('token')
-        router.push('/auth/login')
+        router.push(loginUrl())
       } finally {
         setLoading(false)
       }
