@@ -1414,8 +1414,33 @@ export const createPendingPublication = async (
   return res.json() as Promise<PubIssuedLink & { media_count?: number }>;
 };
 
-export const regeneratePublicationLink = (id: string, ttl_hours?: number) =>
-  adminFetch<PubIssuedLink>(`/api/publications/pending/${id}/token`, { method: 'POST', body: JSON.stringify({ ttl_hours }) });
+export const regeneratePublicationLink = (id: string, ttl_hours?: number, notify = false) =>
+  adminFetch<PubIssuedLink>(`/api/publications/pending/${id}/token`, { method: 'POST', body: JSON.stringify({ ttl_hours, notify }) });
+
+/** Modifie une publication en attente (texte, titre, options, médias). Multipart si des fichiers sont ajoutés. */
+export const updatePendingPublication = async (
+  id: string,
+  changes: Partial<Pick<PubPayload, 'title' | 'text' | 'scheduled_for' | 'requester' | 'requester_email' | 'notes' | 'location' | 'campaign_name'>> & { networks?: string[]; links?: string[] },
+  opts: { files?: File[]; removeMedia?: string[]; addMediaUrls?: string[] } = {}
+) => {
+  if (!opts.files?.length) {
+    return adminFetch<{ ok: boolean; id: string; changed: string[]; payload: PubPayload }>(`/api/publications/pending/${id}`, {
+      method: 'PUT', body: JSON.stringify({ ...changes, remove_media: opts.removeMedia ?? [], media_urls_add: opts.addMediaUrls ?? [] }),
+    });
+  }
+  const fd = new FormData();
+  Object.entries(changes).forEach(([k, v]) => { if (v !== undefined && v !== null) fd.append(k, Array.isArray(v) ? v.join(', ') : String(v)) });
+  (opts.removeMedia ?? []).forEach((u) => fd.append('remove_media', u));
+  if (opts.addMediaUrls?.length) fd.append('media_urls_add', opts.addMediaUrls.join(','));
+  opts.files.forEach((f) => fd.append('media', f));
+  const res = await fetch(`${BACKEND_URL}/api/publications/pending/${id}`, { method: 'PUT', headers: authHeaders(), body: fd });
+  if (!res.ok) {
+    const err = new Error(`API ${res.status}: ${res.statusText}`) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
+  }
+  return res.json() as Promise<{ ok: boolean; id: string; changed: string[]; payload: PubPayload }>;
+};
 
 export const revokePublicationLink = (id: string) =>
   adminFetch<{ ok: boolean }>(`/api/publications/pending/${id}/token`, { method: 'DELETE' });

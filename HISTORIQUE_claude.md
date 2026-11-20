@@ -353,6 +353,11 @@ la page et valide ». Le formulaire admin devient un vrai formulaire de soumissi
 compression image, hébergement Cloudinary via multipart sur POST /pending), options repliées, bouton « Soumettre à validation ».
 Le validateur voit les médias sur sa page ; l'admin publie ensuite (médias déjà hébergés, donc directement exploitables par Buffer).
 
+### Modification des publications détectées (2026-11-20)
+Djamsy : « il faut pouvoir modifier les trucs détectés automatiquement sur le planning ». Ajouté : PUT /pending/{id}
+(JSON ou multipart) + boîte « Modifier » dans l'admin — texte, titre, options, retrait / ajout de médias, texte d'origine
+conservé, audit « edited ». Le lien en cours reste valable ; option « Enregistrer et renvoyer un lien » (nouveau jeton + notification).
+
 ---
 
 ## Conventions

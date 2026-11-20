@@ -7,7 +7,8 @@ Routes « publications pour validation ».
     GET    /pending?status=            liste déchiffrée (sans jetons)
     GET    /pending/{id}               détail + journal d'audit
     POST   /pending                    soumission (JSON ou multipart avec fichiers `media`) → lien (une seule fois)
-    POST   /pending/{id}/token         nouveau lien (l'ancien est invalidé)
+    PUT    /pending/{id}               modification (texte, titre, options, médias) tant que non décidée
+    POST   /pending/{id}/token         nouveau lien (l'ancien est invalidé) ; {notify:true} le renvoie aux validateurs
     DELETE /pending/{id}/token         révoque le lien
     POST   /pending/{id}/cancel        annule la demande
     POST   /pending/{id}/publish       publie une demande validée sur Buffer (action manuelle admin)
@@ -194,6 +195,35 @@ async def create_pending(request: Request, admin: dict = Depends(require_admin))
         raise _translate(e)
 
 
+@router.put("/pending/{pub_id}")
+async def update_pending(pub_id: str, request: Request, admin: dict = Depends(require_admin)):
+    """Modifie une publication en attente (texte, titre, options, médias).
+    JSON : {title, text, networks, …, remove_media: [url], media_urls_add: [url]}
+    multipart : mêmes champs + fichiers `media` à ajouter + `remove_media` (répétable ou séparé par des virgules)."""
+    try:
+        add: List[str] = []
+        if request.headers.get("content-type", "").startswith("multipart/"):
+            form = await request.form()
+            changes = {k: form.get(k) for k in svc.EDITABLE_FIELDS if k in form}
+            remove = [u.strip() for v in _form_list(form, "remove_media") for u in str(v).split(",") if u.strip()]
+            add += [u.strip() for u in str(form.get("media_urls_add", "") or "").replace("\n", ",").split(",") if u.strip()]
+            for f in _form_list(form, "media"):
+                hosted = await _host_upload(f)
+                if hosted:
+                    add.append(hosted)
+        else:
+            body = await request.json()
+            changes = {k: body.get(k) for k in svc.EDITABLE_FIELDS if k in body}
+            remove = list(body.get("remove_media") or [])
+            add += list(body.get("media_urls_add") or [])
+        res = svc.update_publication(pub_id, changes, actor=admin.get("email", ""), add_media=add, remove_media=remove)
+        return {"ok": True, **res}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _translate(e)
+
+
 @router.get("/pending/{pub_id}")
 def get_pending(pub_id: str, admin: dict = Depends(require_admin)):
     try:
@@ -207,7 +237,8 @@ def regenerate_token(pub_id: str, payload: Dict[str, Any] = Body(default={}), ad
     try:
         ttl = payload.get("ttl_hours")
         return {"ok": True, **svc.regenerate_token(pub_id, actor=admin.get("email", ""),
-                                                   ttl_hours=int(ttl) if ttl else None)}
+                                                   ttl_hours=int(ttl) if ttl else None,
+                                                   notify=bool(payload.get("notify", False)))}
     except Exception as e:
         raise _translate(e)
 

@@ -20,6 +20,7 @@ import {
   fetchPendingPublication,
   createPendingPublication,
   regeneratePublicationLink,
+  updatePendingPublication,
   revokePublicationLink,
   cancelPendingPublication,
   publishPendingPublication,
@@ -77,6 +78,36 @@ export default function AdminPublicationsPage() {
 
   const [issued, setIssued] = useState<PubIssuedLink | null>(null)
   const [publishTarget, setPublishTarget] = useState<PendingPublication | null>(null)
+  const [editTarget, setEditTarget] = useState<PendingPublication | null>(null)
+  const [edit, setEdit] = useState({ title: '', text: '', networks: '', scheduled_for: '', location: '', requester: '', notes: '' })
+  const [editRemove, setEditRemove] = useState<string[]>([])
+  const [editFiles, setEditFiles] = useState<File[]>([])
+  const editPreviews = useMemo(() => editFiles.map((f) => ({ f, url: URL.createObjectURL(f), video: f.type.startsWith('video') })), [editFiles])
+  useEffect(() => () => { editPreviews.forEach((p) => URL.revokeObjectURL(p.url)) }, [editPreviews])
+  const openEdit = (p: PendingPublication) => {
+    setEdit({ title: p.payload.title ?? '', text: p.payload.text ?? '', networks: (p.payload.networks ?? []).join(', '), scheduled_for: p.payload.scheduled_for ?? '', location: p.payload.location ?? '', requester: p.payload.requester ?? '', notes: p.payload.notes ?? '' })
+    setEditRemove([]); setEditFiles([]); setEditTarget(p)
+  }
+  const onSaveEdit = async (resend: boolean) => {
+    if (!editTarget) return
+    const t = editTarget
+    setBusy(`edit-${t.id}`)
+    try {
+      const r = await updatePendingPublication(t.id, {
+        title: edit.title, text: edit.text, networks: edit.networks.split(/[,;\n]+/).map((x) => x.trim()).filter(Boolean),
+        scheduled_for: edit.scheduled_for, location: edit.location, requester: edit.requester, notes: edit.notes,
+      }, { files: editFiles, removeMedia: editRemove })
+      let m = r.changed.length ? `Modifiée (${r.changed.join(', ')})` : 'Aucun changement'
+      if (resend) { const l = await regeneratePublicationLink(t.id, undefined, true); setIssued(l); m += ' · nouveau lien envoyé aux validateurs' }
+      setEditTarget(null); flash(m); await load()
+    } catch (e) {
+      const st = (e as { status?: number })?.status
+      if (st === 409) setErr('Cette publication a déjà été traitée, elle ne peut plus être modifiée.')
+      else if (st === 400) setErr('Fichier non pris en charge (image ou vidéo attendue).')
+      else if (st === 502) setErr('Hébergement du média échoué — vérifier la configuration Cloudinary.')
+      else fail(e, 'modification')
+    } finally { setBusy('') }
+  }
   const [publishFile, setPublishFile] = useState<File | null>(null)
   const [detail, setDetail] = useState<PendingPublication | null>(null)
   const [showCreate, setShowCreate] = useState(true)
@@ -335,6 +366,7 @@ export default function AdminPublicationsPage() {
                             </div>
                           </div>
                           <div className="flex gap-1.5 flex-wrap">
+                            {canLink && <button type="button" className="text-xs px-2.5 py-1.5 rounded-md" style={{ ...input, borderColor: 'var(--accent-link)' }} onClick={() => openEdit(p)}>✏️ Modifier</button>}
                             {canLink && <button type="button" className="text-xs px-2.5 py-1.5 rounded-md" style={input} disabled={b('token')} onClick={() => onRegenerate(p.id)}>{b('token') ? '…' : '🔗 Nouveau lien'}</button>}
                             {p.token.active && p.status === 'pending' && <button type="button" className="text-xs px-2.5 py-1.5 rounded-md" style={input} disabled={b('revoke')} onClick={() => run(`revoke-${p.id}`, () => revokePublicationLink(p.id), 'Lien révoqué', 'révocation')}>Révoquer</button>}
                             {canPublish && <button type="button" className="text-xs px-2.5 py-1.5 rounded-md" style={{ background: 'var(--positive)', color: '#fff' }} disabled={b('publish')} onClick={() => { setPublishFile(null); setPublishTarget(p) }}>{b('publish') ? 'Envoi…' : '📤 Publier'}</button>}
@@ -397,6 +429,79 @@ export default function AdminPublicationsPage() {
           </div>
         </div>
       </main>
+
+      {/* Modification d'une publication en attente */}
+      {editTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setEditTarget(null)}>
+          <div className="max-w-3xl w-full max-h-[90vh] overflow-auto p-6 elev-card" style={card} onClick={(e) => e.stopPropagation()}>
+            <div className={`${label} mb-1`} style={{ color: 'var(--text-muted)' }}>
+              Modifier · {editTarget.source === 'sheet' ? `détectée dans ${editTarget.sheet_tab ?? 'le planning'} (ligne ${editTarget.sheet_row})` : 'saisie manuelle'}
+            </div>
+            <h2 className="font-serif text-xl italic mb-4">{editTarget.payload.title || '(sans titre)'}</h2>
+            <div className="grid md:grid-cols-[1fr_300px] gap-4">
+              <div className="space-y-3">
+                <input className="text-sm p-2.5 rounded-md outline-none w-full" style={input} placeholder="Titre" value={edit.title} onChange={(e) => setEdit({ ...edit, title: e.target.value })} />
+                <textarea className="text-sm p-3 rounded-md outline-none w-full leading-relaxed" style={input} rows={9} placeholder="Texte du post" value={edit.text} onChange={(e) => setEdit({ ...edit, text: e.target.value })} />
+                {editTarget.payload.original_text && <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Texte d’origine conservé dans l’historique.</div>}
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <input className="text-sm p-2.5 rounded-md outline-none" style={input} placeholder="Réseaux cibles" value={edit.networks} onChange={(e) => setEdit({ ...edit, networks: e.target.value })} />
+                  <input className="text-sm p-2.5 rounded-md outline-none" style={input} placeholder="Date / heure" value={edit.scheduled_for} onChange={(e) => setEdit({ ...edit, scheduled_for: e.target.value })} />
+                  <input className="text-sm p-2.5 rounded-md outline-none" style={input} placeholder="Lieu" value={edit.location} onChange={(e) => setEdit({ ...edit, location: e.target.value })} />
+                  <input className="text-sm p-2.5 rounded-md outline-none" style={input} placeholder="Demandeur" value={edit.requester} onChange={(e) => setEdit({ ...edit, requester: e.target.value })} />
+                  <input className="text-sm p-2.5 rounded-md outline-none sm:col-span-2" style={input} placeholder="Consignes pour le validateur" value={edit.notes} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} />
+                </div>
+                {(editTarget.payload.links?.length ?? 0) > 0 && (
+                  <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                    Liens (non modifiables) : {editTarget.payload.links!.map((u) => <a key={u} href={u} target="_blank" rel="noopener noreferrer" className="underline mr-2 break-all" style={{ color: 'var(--accent-link)' }}>{u.replace(/^https?:\/\//, '').slice(0, 40)}</a>)}
+                  </div>
+                )}
+              </div>
+              <div>
+                <div className={`${label} mb-2`} style={{ color: 'var(--text-muted)' }}>Médias</div>
+                {editTarget.payload.media_urls.length === 0 && editFiles.length === 0 && <div className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>Aucun média — ajoutez des photos ou une vidéo.</div>}
+                <div className="grid grid-cols-3 gap-2">
+                  {editTarget.payload.media_urls.map((u) => {
+                    const removed = editRemove.includes(u)
+                    return (
+                      <div key={u} className="relative rounded-md overflow-hidden" style={{ border: '1px solid var(--border)', opacity: removed ? 0.35 : 1 }}>
+                        {/\.(mp4|mov|m4v|webm)(\?|$)/i.test(u)
+                          ? <video src={u} className="w-full h-20 object-cover" muted preload="metadata" />
+                          // eslint-disable-next-line @next/next/no-img-element
+                          : <img src={u} alt="" className="w-full h-20 object-cover" loading="lazy" />}
+                        <button type="button" aria-label={removed ? 'Rétablir' : 'Retirer'} onClick={() => setEditRemove((cur) => removed ? cur.filter((x) => x !== u) : [...cur, u])}
+                          className="absolute top-1 right-1 w-5 h-5 rounded-full text-[10px] leading-5 text-center" style={{ background: 'rgba(0,0,0,0.65)', color: '#fff' }}>{removed ? '↺' : '✕'}</button>
+                      </div>
+                    )
+                  })}
+                  {editPreviews.map((p, i) => (
+                    <div key={p.url} className="relative rounded-md overflow-hidden" style={{ border: '1px dashed var(--accent-link)' }}>
+                      {p.video ? <video src={p.url} className="w-full h-20 object-cover" muted /> : // eslint-disable-next-line @next/next/no-img-element
+                        <img src={p.url} alt="" className="w-full h-20 object-cover" />}
+                      <button type="button" aria-label="Retirer" onClick={() => setEditFiles((cur) => cur.filter((_, j) => j !== i))}
+                        className="absolute top-1 right-1 w-5 h-5 rounded-full text-[10px] leading-5 text-center" style={{ background: 'rgba(0,0,0,0.65)', color: '#fff' }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+                <label className="block rounded-md p-3 text-center cursor-pointer mt-2 text-xs" style={{ border: '1px dashed var(--border-strong)', background: 'var(--bg-elevated)' }}>
+                  <input type="file" accept="image/*,video/*" multiple className="hidden"
+                    onChange={(e) => { const add = Array.from(e.target.files ?? []); setEditFiles((cur) => [...cur, ...add].slice(0, 10)); e.target.value = '' }} />
+                  📷 Ajouter des photos / vidéos
+                </label>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 mt-5 flex-wrap">
+              <button type="button" className="btn-primary px-4 py-2 text-sm" disabled={busy === `edit-${editTarget.id}`} onClick={() => onSaveEdit(false)}>
+                {busy === `edit-${editTarget.id}` ? 'Enregistrement…' : 'Enregistrer'}
+              </button>
+              <button type="button" className="px-4 py-2 text-sm rounded-md" style={input} disabled={busy === `edit-${editTarget.id}`} onClick={() => onSaveEdit(true)}>
+                Enregistrer et renvoyer un lien aux validateurs
+              </button>
+              <button type="button" className="text-sm underline" style={{ color: 'var(--text-muted)' }} onClick={() => setEditTarget(null)}>Annuler</button>
+              <span className="text-[11px] w-full" style={{ color: 'var(--text-muted)' }}>Le lien déjà envoyé reste valable et affiche la version modifiée. « Renvoyer » invalide l’ancien lien et en envoie un nouveau.</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Publication (fichier joint facultatif) */}
       {publishTarget && (
