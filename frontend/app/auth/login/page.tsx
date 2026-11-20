@@ -50,7 +50,9 @@ export default function LoginPage() {
 
       if (response.ok && data.success) {
         localStorage.setItem('token', data.token)
-        router.push('/')
+        // Retour sur la page demandée (ex. /publications), uniquement un chemin interne
+        const next = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('next') || '' : ''
+        router.push(next.startsWith('/') && !next.startsWith('//') ? next : '/')
       } else {
         setError(data.detail || data.error || 'Identifiants incorrects')
         setLoading(false)
