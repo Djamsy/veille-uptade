@@ -768,6 +768,20 @@ async def job_publication_sheet_sync():
         return {"success": False, "error": str(e)}
 
 
+async def job_publication_social_check():
+    """Rapprochement publications validées ↔ posts scrapés des comptes (publication manuelle constatée)."""
+    try:
+        from backend.services import publication_social_check_service as sc
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, sc.check_publications)
+        if result.get("newly_detected"):
+            logger.info(f"📡 Publications constatées sur les réseaux : {len(result['newly_detected'])}")
+        return result
+    except Exception as e:
+        logger.error(f"❌ Erreur rapprochement publications/RS: {e}")
+        return {"success": False, "error": str(e)}
+
+
 async def job_buffer_stats_sync():
     """Synchronise les stats des publications via Buffer API (gratuit)."""
     try:
@@ -1166,6 +1180,14 @@ def _ensure_scheduler():
         CronTrigger(minute="*/10", timezone=TZ),
         id="publication_sheet_sync",
         name="Publications/validation — import feuille + expiration des liens"
+    )
+
+    # 📡 Rapprochement publications validées ↔ posts scrapés — 40 min après chaque scraping RS (7h10, 13h10, 19h10)
+    _scheduler.add_job(
+        job_publication_social_check,
+        CronTrigger(hour="7,13,19", minute="50", timezone=TZ),
+        id="publication_social_check",
+        name="Publications — publication manuelle constatée sur les réseaux"
     )
 
     # 💬 Apify Comments Scrape 2×/jour (payant ~$0.43/run) — 8h, 19h

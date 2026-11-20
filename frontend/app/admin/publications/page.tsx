@@ -26,6 +26,7 @@ import {
   publishPendingPublication,
   deletePendingPublication,
   syncPublicationSheet,
+  checkPublicationsOnSocial,
   apiErrorMessage,
   PUB_STATUS_LABEL,
   type PendingPublication,
@@ -228,6 +229,15 @@ export default function AdminPublicationsPage() {
                 }, 'Import terminé', 'import de la feuille')}>
                 {busy === 'sync' ? 'Lecture…' : '⟳ Lire le planning'}
               </button>
+              <button type="button" className="px-4 py-2 text-sm rounded-md" style={{ ...input }} disabled={busy === 'social'}
+                title="Comparer les publications validées aux posts scrapés des comptes du Département"
+                onClick={() => run('social', async () => {
+                  const r = await checkPublicationsOnSocial()
+                  const nf = r.not_found.length ? ` · non trouvées : ${r.not_found.slice(0, 4).map((e) => `${e.title}${e.days_since_decision != null ? ` (validée il y a ${e.days_since_decision} j)` : ''}`).join(' | ')}` : ''
+                  flash(`${r.posts_examined} post(s) des comptes examinés · ${r.checked} publication(s) vérifiée(s) · ${r.newly_detected.length} constatée(s) publiée(s)${r.confirmed.length ? ` · ${r.confirmed.length} confirmée(s)` : ''}${nf}${r.warning ? ` · ⚠️ ${r.warning}` : ''}`)
+                }, 'Vérification terminée', 'vérification sur les réseaux')}>
+                {busy === 'social' ? 'Vérification…' : '📡 Vérifier sur les réseaux'}
+              </button>
             </div>
           </div>
 
@@ -362,7 +372,12 @@ export default function AdminPublicationsPage() {
                               {p.payload?.media_urls?.length > 0 && <span>🖼 {p.payload.media_urls.length} média(s)</span>}
                               {(p.payload?.links?.length ?? 0) > 0 && <span>🔗 {p.payload.links!.length} lien(s)</span>}
                               {p.decision && <span>{p.decision.decision === 'approve' ? '✓' : '✕'} {p.decision.by}</span>}
-                              {p.publish && <span>{p.publish.ok ? `📤 ${p.publish.platforms} réseau(x)` : `⚠️ ${p.publish.error}`}</span>}
+                              {p.publish && p.publish.via === 'detected_on_social'
+                                ? <a href={p.publish.url || undefined} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: 'var(--positive)' }}>📡 constatée sur {p.publish.platform} · {p.publish.how}</a>
+                                : p.publish && <span>{p.publish.ok ? `📤 ${p.publish.platforms} réseau(x)` : `⚠️ ${p.publish.error}`}</span>}
+                              {p.seen?.matched && p.publish?.via !== 'detected_on_social' && p.seen.best && <a href={p.seen.best.url || undefined} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: 'var(--positive)' }}>📡 vue sur {p.seen.best.platform}</a>}
+                              {p.status === 'approved' && p.seen && !p.seen.matched && <span style={{ color: 'var(--caution)' }}>⏳ pas encore vue sur les réseaux{p.seen.best ? ` (au mieux ${Math.round(p.seen.best.score * 100)}%)` : ''}</span>}
+                              {p.status === 'approved' && !p.seen && <span style={{ color: 'var(--text-muted)' }}>à publier à la main</span>}
                             </div>
                           </div>
                           <div className="flex gap-1.5 flex-wrap">
@@ -416,6 +431,10 @@ export default function AdminPublicationsPage() {
                     {!status.sheet.sheet_id_set && <li className="pl-4" style={{ color: 'var(--negative)' }}>PUBLICATION_SHEET_ID manquant</li>}
                     <li><Dot ok={status.buffer_configured} />Buffer {status.buffer_configured ? 'configuré' : 'non configuré'}</li>
                     <li><Dot ok />Publication manuelle après validation (bouton « Publier »)</li>
+                    <li><Dot ok={!!status.social_check && !status.social_check.error} warn={!status.social_check?.last} />
+                      Rapprochement réseaux : {status.social_check?.error ? status.social_check.error : status.social_check?.last ? `dernier passage ${fmt(status.social_check.last.last_run)} · ${status.social_check.last.posts_examined} posts · ${status.social_check.last.newly_detected} constatée(s)` : 'jamais lancé'}
+                      {status.social_check && !status.social_check.error && <div className="font-mono text-[10px] pl-4" style={{ color: 'var(--text-muted)' }}>comptes : {status.social_check.accounts.join(', ')} · seuil {Math.round(status.social_check.threshold * 100)}% · {status.social_check.days} j · 3×/jour après le scraping RS</div>}
+                    </li>
                     <li><Dot ok={status.notify_telegram || status.notify_emails > 0} />Notifications : {[status.notify_telegram && 'Telegram', status.notify_emails > 0 && `${status.notify_emails} e-mail(s)`].filter(Boolean).join(' + ') || 'aucune'}</li>
                     <li><Dot ok={status.base_url !== '(relatif)'} warn />Liens : {status.base_url} · validité {status.ttl_hours} h</li>
                   </ul>
@@ -558,7 +577,11 @@ export default function AdminPublicationsPage() {
               <dt style={{ color: 'var(--text-muted)' }}>Liens</dt><dd className="break-all">{(detail.payload.links ?? []).length ? detail.payload.links!.map((u) => <a key={u} href={u} target="_blank" rel="noopener noreferrer" className="underline block" style={{ color: 'var(--accent-link)' }}>{u}</a>) : '—'}</dd>
               <dt style={{ color: 'var(--text-muted)' }}>Notes</dt><dd>{detail.payload.notes || '—'}</dd>
               {detail.decision && <><dt style={{ color: 'var(--text-muted)' }}>Décision</dt><dd>{detail.decision.decision === 'approve' ? 'Validée' : 'Refusée'} par {detail.decision.by} le {fmt(detail.decision.at)} {detail.decision.comment && `— « ${detail.decision.comment} »`}</dd></>}
-              {detail.publish && <><dt style={{ color: 'var(--text-muted)' }}>Publication</dt><dd>{detail.publish.ok ? `OK sur ${detail.publish.platforms} réseau(x) le ${fmt(detail.publish.published_at)}` : `Échec : ${detail.publish.error}`}</dd></>}
+              {detail.publish && <><dt style={{ color: 'var(--text-muted)' }}>Publication</dt><dd>{detail.publish.via === 'detected_on_social' ? <>Constatée sur {detail.publish.platform} ({detail.publish.how}) le {fmt(detail.publish.published_at)} — <a href={detail.publish.url || undefined} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: 'var(--accent-link)' }}>voir le post</a></> : detail.publish.ok ? `OK sur ${detail.publish.platforms} réseau(x) le ${fmt(detail.publish.published_at)}` : `Échec : ${detail.publish.error}`}</dd></>}
+              {detail.seen && <><dt style={{ color: 'var(--text-muted)' }}>Réseaux</dt><dd>
+                {detail.seen.matched ? 'Trouvée' : 'Non trouvée'} (vérifié le {fmt(detail.seen.checked_at)}, seuil {Math.round(detail.seen.threshold * 100)}%)
+                {detail.seen.candidates.length > 0 && <ul className="mt-1 space-y-0.5">{detail.seen.candidates.map((c) => <li key={c.url + c.score} className="text-[11px]"><a href={c.url || undefined} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: 'var(--accent-link)' }}>{c.platform}</a> · {Math.round(c.score * 100)}% · {c.how} · <span style={{ color: 'var(--text-muted)' }}>{c.excerpt}</span></li>)}</ul>}
+              </dd></>}
             </dl>
             <div className={`${label} mb-2`} style={{ color: 'var(--text-muted)' }}>Journal</div>
             <ul className="text-[11px] font-mono space-y-1" style={{ color: 'var(--text-muted)' }}>

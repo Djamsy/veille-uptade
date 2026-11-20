@@ -66,6 +66,29 @@ publication est en attente ou le lien expiré ; refus 409 après décision. Le t
 modification est journalisée. Le lien déjà envoyé reste valable et affiche la version à jour ; « Enregistrer et renvoyer un
 lien » invalide l'ancien et en envoie un nouveau (`POST /pending/{id}/token` avec `notify: true`).
 
+## Publication constatée sur les réseaux (rapprochement avec le scraping RS)
+
+La publication se fait à la main : rien ne dit au système qu'une publication validée est sortie. Le service
+`publication_social_check_service.py` compare les publications **Validée** / **Publiée** aux posts récents de la collection
+`social_media_posts` (scraping Apify), restreints aux comptes du Département (`PUBLICATION_OWN_ACCOUNTS`, repérés dans
+auteur / URL ; `*` = tous les posts). Score = max(titre normalisé contenu dans le post → 0,95 ; part des mots de la
+publication retrouvés dans le post ; ressemblance difflib sur 400 caractères). Au-dessus du seuil
+(`PUBLICATION_MATCH_THRESHOLD`, 0,6) : la publication est marquée « vue sur <plateforme> » avec le lien ; si elle n'était
+que Validée, elle passe en **Publiée (constatée sur …)**, statut écrit dans la feuille, notification Telegram. Les posts
+antérieurs de plus de deux jours à la validation sont ignorés. Résultat stocké chiffré (`seen_enc`) avec les trois
+meilleurs candidats ; `seen_at` / `seen_checked_at` en clair (dates seulement).
+
+**Attribution un pour un.** Un post ne peut être rapproché que d'une seule publication : son empreinte (plateforme + URL)
+est stockée en clair dans `seen_post_key` avec un index unique ; les posts déjà attribués sont exclus des passages
+suivants, et une publication déjà constatée n'est jamais réattribuée. Dans un même passage, toutes les paires
+(publication, post) au-dessus du seuil sont triées par score décroissant puis par nombre de mots communs (la publication
+la plus précise gagne à égalité) et attribuées tant que ni la publication ni le post ne sont déjà pris. Une course entre
+deux passages est rattrapée par l'index unique (l'attribution est abandonnée, pas doublée).
+
+Déclenchement : job `publication_social_check` 3×/jour (7h50, 13h50, 19h50, après le scraping RS), bouton
+« 📡 Vérifier sur les réseaux » (`POST /api/publications/check-social`). L'admin voit par publication : « constatée sur
+Facebook · mots retrouvés 81 % » (lien vers le post), « pas encore vue sur les réseaux (au mieux 30 %) », ou « à publier à la main ».
+
 ## Feuille Google : le planning existant
 
 Source : « Suivi hebdomadaire des prestataires audiovisuels » (id `1JOUzjT49gHf0u4l6e9jLtSiw0P2f3RNOl-tM-EBkE6w`),
