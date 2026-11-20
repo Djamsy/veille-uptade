@@ -78,6 +78,13 @@ que Validée, elle passe en **Publiée (constatée sur …)**, statut écrit dan
 antérieurs de plus de deux jours à la validation sont ignorés. Résultat stocké chiffré (`seen_enc`) avec les trois
 meilleurs candidats ; `seen_at` / `seen_checked_at` en clair (dates seulement).
 
+**Attribution un pour un.** Un post ne peut être rapproché que d'une seule publication : son empreinte (plateforme + URL)
+est stockée en clair dans `seen_post_key` avec un index unique ; les posts déjà attribués sont exclus des passages
+suivants, et une publication déjà constatée n'est jamais réattribuée. Dans un même passage, toutes les paires
+(publication, post) au-dessus du seuil sont triées par score décroissant puis par nombre de mots communs (la publication
+la plus précise gagne à égalité) et attribuées tant que ni la publication ni le post ne sont déjà pris. Une course entre
+deux passages est rattrapée par l'index unique (l'attribution est abandonnée, pas doublée).
+
 Déclenchement : job `publication_social_check` 3×/jour (7h50, 13h50, 19h50, après le scraping RS), bouton
 « 📡 Vérifier sur les réseaux » (`POST /api/publications/check-social`). L'admin voit par publication : « constatée sur
 Facebook · mots retrouvés 81 % » (lien vers le post), « pas encore vue sur les réseaux (au mieux 30 %) », ou « à publier à la main ».

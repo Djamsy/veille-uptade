@@ -365,6 +365,10 @@ publications Validée / Publiée aux posts de `social_media_posts` des comptes d
 ressemblance), seuil 0,6 ; une Validée retrouvée passe en Publiée « constatée sur … » avec le lien du post, feuille et
 Telegram mis à jour. Job 3×/jour après le scraping RS + bouton « Vérifier sur les réseaux ». Testé : Dolé détecté sur
 Facebook (81 %), vernissage sur Instagram (95 %), séminaire vu seulement chez RCI → non constaté.
+Djamsy : « comment on sécurise qu'une publi associée ne peut plus être associée à une publi sur la même plateforme ? »
+→ attribution un pour un : empreinte du post (`seen_post_key`, index unique), posts déjà attribués exclus, paires
+triées par score puis nombre de mots communs dans un même passage. Testé : doublon quasi identique non réattribué,
+la publication la plus précise gagne sur un post partagé.
 
 ---
 

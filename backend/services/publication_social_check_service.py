@@ -116,18 +116,20 @@ def _post_date(post: Dict[str, Any]) -> Optional[datetime]:
 
 # ── Score ──────────────────────────────────────────────────
 
-def similarity(pub_title: str, pub_text: str, post_text: str) -> Tuple[float, str]:
-    """Renvoie (score 0..1, méthode)."""
+def similarity(pub_title: str, pub_text: str, post_text: str) -> Tuple[float, str, int]:
+    """Renvoie (score 0..1, méthode, nombre de mots communs). Le nombre de mots communs sert à
+    départager deux publications à égalité de score sur un même post : la plus précise gagne."""
     npost = norm_text(post_text)
     if not npost:
-        return 0.0, "vide"
+        return 0.0, "vide", 0
     best, how = 0.0, "aucune"
     ntitle = norm_text(pub_title)
     if len(ntitle) >= 12 and ntitle in npost:
         best, how = 0.95, "titre contenu"
     ptok = tokens(f"{pub_title} {pub_text}")
+    common = len(ptok & tokens(post_text))
     if len(ptok) >= 4:
-        cov = len(ptok & tokens(post_text)) / len(ptok)
+        cov = common / len(ptok)
         if cov > best:
             best, how = cov, f"mots retrouvés {int(cov * 100)}%"
     a, b = norm_text(f"{pub_title} {pub_text}")[:400], npost[:400]
@@ -135,7 +137,7 @@ def similarity(pub_title: str, pub_text: str, post_text: str) -> Tuple[float, st
         ratio = difflib.SequenceMatcher(None, a, b).ratio()
         if ratio > best:
             best, how = ratio, f"ressemblance {int(ratio * 100)}%"
-    return round(best, 3), how
+    return round(best, 3), how, common
 
 
 # ── Rapprochement ──────────────────────────────────────────
@@ -159,67 +161,121 @@ def _candidates(db, days: int, accounts: List[str]) -> List[Dict[str, Any]]:
     return out
 
 
+def post_key(post: Dict[str, Any]) -> str:
+    """Identifiant stable d'un post : plateforme + URL (ou post_hash du scraping à défaut).
+    Stocké en clair (`seen_post_key`, index unique) : un post ne peut être attribué qu'à UNE publication."""
+    import hashlib
+    base = f"{post.get('platform', '')}|{post.get('url') or post.get('post_hash') or norm_text(post.get('text', ''))[:200]}"
+    return hashlib.sha256(base.encode("utf-8")).hexdigest()
+
+
+def _ensure_indexes(db) -> None:
+    try:
+        db[pv.COLLECTION].create_index("seen_post_key", unique=True, sparse=True)
+    except Exception as e:
+        logger.debug("index seen_post_key : %s", e)
+
+
 def check_publications(days: Optional[int] = None, db=None, notify: bool = True) -> Dict[str, Any]:
-    """Compare les publications Validée / Publiée aux posts récents des comptes. Marque les
-    correspondances ; une publication seulement Validée trouvée en ligne passe en Publiée."""
+    """Compare les publications Validée / Publiée aux posts récents des comptes.
+
+    Attribution UN POUR UN : un post déjà attribué (seen_post_key en base) est exclu ; dans un même
+    passage, toutes les paires (publication, post) sont triées par score décroissant et attribuées
+    tant que ni la publication ni le post ne sont déjà pris. Une publication seulement Validée
+    trouvée en ligne passe en Publiée."""
     db = db if db is not None else pv._db()
+    _ensure_indexes(db)
     days = days or window_days()
     thr = threshold()
     accounts = own_accounts()
-    posts = _candidates(db, days, accounts)
     now = datetime.now(timezone.utc)
-    result = {"ok": True, "posts_examined": len(posts), "accounts": accounts, "threshold": thr, "days": days,
-              "checked": 0, "newly_detected": [], "confirmed": [], "not_found": [], "errors": []}
-    if not posts:
+
+    taken = {d["seen_post_key"] for d in db[pv.COLLECTION].find({"seen_post_key": {"$exists": True, "$ne": None}},
+                                                                 {"seen_post_key": 1})}
+    posts = [p for p in _candidates(db, days, accounts) if post_key(p) not in taken]
+    result = {"ok": True, "posts_examined": len(posts), "posts_already_assigned": len(taken), "accounts": accounts,
+              "threshold": thr, "days": days, "checked": 0, "newly_detected": [], "confirmed": [], "not_found": [],
+              "errors": []}
+    if not posts and not taken:
         result["warning"] = "Aucun post récent des comptes dans social_media_posts (scraping RS non lancé, ou comptes non reconnus)"
 
+    # Passe 1 : candidats par publication
     query = {"status_idx": {"$in": [crypto.blind_index(pv.APPROVED), crypto.blind_index(pv.PUBLISHED)]}}
+    pubs: List[Dict[str, Any]] = []
     for doc in db[pv.COLLECTION].find(query).sort("updated_at", -1).limit(300):
         try:
             aad = pv._aad(doc["_id"])
-            status = crypto.decrypt_str(doc.get("status_enc"), aad)
-            payload = crypto.decrypt_json(doc.get("payload_enc"), aad, default={}) or {}
             prev = crypto.decrypt_json(doc.get("seen_enc"), aad, default=None)
-            if prev and prev.get("matched"):
-                continue  # déjà constatée
-            result["checked"] += 1
-            title, text = payload.get("title", ""), payload.get("text", "")
+            if (prev and prev.get("matched")) or doc.get("seen_post_key"):
+                continue  # déjà constatée : on ne réattribue jamais
+            payload = crypto.decrypt_json(doc.get("payload_enc"), aad, default={}) or {}
             decided_at = (crypto.decrypt_json(doc.get("decision_enc"), aad, default={}) or {}).get("at")
-            best: Optional[Dict[str, Any]] = None
+            dd = None
+            if decided_at:
+                try:
+                    dd = datetime.fromisoformat(decided_at)
+                except Exception:
+                    dd = None
+            title, text = payload.get("title", ""), payload.get("text", "")
             cands = []
             for p in posts:
-                if decided_at and p.get("_date"):
-                    try:  # un post antérieur à la validation de plus de 2 jours n'est pas celui-ci
-                        dd = datetime.fromisoformat(decided_at)
-                        if p["_date"] < dd - timedelta(days=2):
-                            continue
-                    except Exception:
-                        pass
-                score, how = similarity(title, text, p.get("text", ""))
+                if dd and p.get("_date") and p["_date"] < dd - timedelta(days=2):
+                    continue  # post antérieur de plus de 2 jours à la validation : pas celui-ci
+                score, how, common = similarity(title, text, p.get("text", ""))
                 if score <= 0.2:
                     continue
-                c = {"score": score, "how": how, "platform": p.get("platform"), "url": p.get("url", ""),
-                     "author": p.get("author", ""), "posted_at": p["_date"].isoformat() if p.get("_date") else None,
-                     "excerpt": (p.get("text") or "")[:160]}
-                cands.append(c)
-                if best is None or score > best["score"]:
-                    best = c
+                cands.append({"score": score, "how": how, "common": common, "platform": p.get("platform"),
+                              "url": p.get("url", ""), "author": p.get("author", ""), "key": post_key(p),
+                              "posted_at": p["_date"].isoformat() if p.get("_date") else None,
+                              "excerpt": (p.get("text") or "")[:160]})
             cands.sort(key=lambda c: -c["score"])
-            seen = {"checked_at": now.isoformat(), "matched": bool(best and best["score"] >= thr),
-                    "best": best, "candidates": cands[:3], "threshold": thr}
-            update = {"seen_enc": crypto.encrypt_json(seen, aad), "seen_checked_at": now}
-            if seen["matched"]:
+            pubs.append({"doc": doc, "aad": aad, "payload": payload, "decided_at": dd,
+                         "status": crypto.decrypt_str(doc.get("status_enc"), aad), "cands": cands, "best": None})
+            result["checked"] += 1
+        except Exception as e:
+            logger.warning("social-check %s : %s", doc.get("_id"), e)
+            result["errors"].append({"id": str(doc.get("_id")), "error": str(e)[:200]})
+
+    # Passe 2 : attribution un pour un, meilleures paires d'abord
+    pairs = [(c["score"], c.get("common", 0), i, c) for i, pb in enumerate(pubs) for c in pb["cands"] if c["score"] >= thr]
+    pairs.sort(key=lambda t: (-t[0], -t[1]))  # meilleur score, puis publication la plus précise
+    used_posts: set = set()
+    for score, _common, i, c in pairs:
+        if pubs[i]["best"] is not None or c["key"] in used_posts:
+            continue
+        pubs[i]["best"] = c
+        used_posts.add(c["key"])
+
+    # Passe 3 : enregistrement
+    for pb in pubs:
+        doc, aad, payload, status, best = pb["doc"], pb["aad"], pb["payload"], pb["status"], pb["best"]
+        try:
+            top = [{k: v for k, v in c.items() if k not in ("key", "common")} for c in pb["cands"][:3]]
+            best_pub = {k: v for k, v in best.items() if k not in ("key", "common")} if best else None
+            seen = {"checked_at": now.isoformat(), "matched": best is not None, "best": best_pub or (top[0] if top else None),
+                    "candidates": top, "threshold": thr}
+            update: Dict[str, Any] = {"seen_enc": crypto.encrypt_json(seen, aad), "seen_checked_at": now}
+            if best:
                 update["seen_at"] = now
-            db[pv.COLLECTION].update_one({"_id": doc["_id"]}, {"$set": update})
+                update["seen_post_key"] = best["key"]
+            try:
+                db[pv.COLLECTION].update_one({"_id": doc["_id"]}, {"$set": update})
+            except Exception as e:  # clé déjà prise (course entre deux passages) : on n'attribue pas
+                logger.warning("post déjà attribué (%s) : %s", doc["_id"], e)
+                seen["matched"], best = False, None
+                update = {"seen_enc": crypto.encrypt_json(seen, aad), "seen_checked_at": now}
+                db[pv.COLLECTION].update_one({"_id": doc["_id"]}, {"$set": update})
             doc.update(update)
+            title = payload.get("title", "")
             entry = {"id": str(doc["_id"]), "title": title[:80], "status": status,
-                     "score": best["score"] if best else 0, "platform": best["platform"] if best else None,
-                     "url": best["url"] if best else None}
-            if seen["matched"]:
+                     "score": (best or (top[0] if top else {})).get("score", 0),
+                     "platform": (best or (top[0] if top else {})).get("platform"),
+                     "url": (best or (top[0] if top else {})).get("url")}
+            if best:
                 if status == pv.APPROVED:
-                    record = {"ok": True, "published_at": best.get("posted_at") or now.isoformat(),
-                              "platforms": 1, "error": None, "via": "detected_on_social",
-                              "platform": best["platform"], "url": best["url"], "score": best["score"], "how": best["how"]}
+                    record = {"ok": True, "published_at": best.get("posted_at") or now.isoformat(), "platforms": 1,
+                              "error": None, "via": "detected_on_social", "platform": best["platform"],
+                              "url": best["url"], "score": best["score"], "how": best["how"]}
                     pv._set_status(db, doc, pv.PUBLISHED, {"publish_enc": crypto.encrypt_json(record, aad)})
                     pv._append_audit(db, doc, "detected_published", "social-check",
                                      detail=f"{best['platform']} {best['how']} ({best['score']})")
@@ -232,11 +288,8 @@ def check_publications(days: Optional[int] = None, db=None, notify: bool = True)
                                      detail=f"{best['platform']} {best['how']} ({best['score']})")
                     result["confirmed"].append(entry)
             else:
-                if decided_at:
-                    try:
-                        entry["days_since_decision"] = (now - datetime.fromisoformat(decided_at)).days
-                    except Exception:
-                        pass
+                if pb["decided_at"]:
+                    entry["days_since_decision"] = (now - pb["decided_at"]).days
                 result["not_found"].append(entry)
         except Exception as e:
             logger.warning("social-check %s : %s", doc.get("_id"), e)
