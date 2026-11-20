@@ -46,6 +46,7 @@ const PAGE_ROLES: Record<string, string> = {
   '/social': 'admin',
   '/admin/presence': 'admin',
   '/admin/affairs-monitor': 'admin',
+  '/publications': 'admin',
   '/departement': 'user',
   '/region': 'user',
   '/dashboard': 'user',
@@ -57,7 +58,8 @@ function hasAccess(userRole: string, requiredRole: string): boolean {
 }
 
 // ── Public routes (no auth needed) ─────────────────────
-const PUBLIC_ROUTES = ['/auth/login', '/auth/register']
+// /valider/<jeton> (validateur externe) et /share/<jeton> (consultation) : accès par lien, sans compte
+const PUBLIC_ROUTES = ['/auth/login', '/auth/register', '/valider', '/share']
 
 // ── Dev bypass (opt-in via env, never on by default) ───
 const DEV_BYPASS = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === 'true'

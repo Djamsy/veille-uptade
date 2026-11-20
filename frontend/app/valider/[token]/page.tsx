@@ -29,7 +29,7 @@ const isImage = (u: string) => /\.(jpe?g|png|gif|webp|avif)(\?|$)/i.test(u)
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative min-h-screen overflow-hidden" style={{ background: 'var(--bg-base)', color: 'var(--text)' }}>
+    <div className="theme-clair relative min-h-screen overflow-hidden">
       <GuadeloupeMark
         className="pointer-events-none absolute -right-24 -top-12 w-[460px] h-auto hidden md:block"
         stroke="#1FB6A6"
@@ -53,6 +53,9 @@ function Shell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <div className="relative z-10 max-w-3xl mx-auto px-6 py-8 space-y-5">{children}</div>
+      <footer className="relative z-10 px-6 py-4 text-[11px] text-center" style={{ color: 'var(--text-muted)' }}>
+        Page de validation affiliée à Veille Média Guadeloupe · lien personnel, contenu chiffré au repos
+      </footer>
     </div>
   )
 }

@@ -640,3 +640,81 @@ html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
 .theme-carte .mapboxgl-ctrl button .mapboxgl-ctrl-icon {
   filter: invert(1) brightness(1.4);
 }
+
+
+/* ══════════════════════════════════════════════════════
+   THÈME « CLAIR » — espace Publications / page de validation.
+   Pages isolées du site (hors menu), reprennent les tokens
+   « Crème & encre » de :root pour rester lisibles même sous
+   .theme-carte (sombre). Scopé via .theme-clair.
+   ══════════════════════════════════════════════════════ */
+.theme-clair {
+  --bg-base: #fafafa;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-elevated: #f4f4f5;
+  --bg-hover: #f4f4f5;
+  --bg-sidebar: #f4f4f5;
+  --bg-sunk: #f0f0f1;
+  --bg: #fafafa;
+  --bg-card-hover: #f4f4f5;
+  --text: #18181b;
+  --text-secondary: #3f3f46;
+  --text-muted: #71717a;
+  --text-disabled: #a1a1aa;
+  --border: #e8e8eb;
+  --border-subtle: #e8e8eb;
+  --border-hover: #d4d4d8;
+  --border-strong: #a1a1aa;
+  --border-accent: #18181b;
+  --accent-press: #18181b;
+  --accent-press-dark: #000000;
+  --accent-press-light: #27272a;
+  --accent-alert: #b8632a;
+  --accent-alert-light: #c5793f;
+  --accent-link: #3e6fa3;
+  --accent-link-light: #5887bc;
+  --primary: var(--accent-press);
+  --primary-light: var(--accent-press-light);
+  --primary-dark: var(--accent-press-dark);
+  --accent: var(--accent-alert);
+  --accent-light: var(--accent-alert-light);
+  --positive: #4a7b56;          /* vert mangrove */
+  --positive-light: #6ba572;
+  --negative: #a8324a;          /* rouge Soufrière */
+  --negative-light: #c4546b;
+  --neutral: #71717a;
+  --warning: #8d4628;           /* terre volcanique */
+  --caution: #b89030;           /* jaune canne mûre */
+  --coral: #b8632a;
+  --crit-soft: #fdf2f4;
+  --warn-soft: #fdf6f0;
+  --caution-soft: #fdfaf0;
+  --ok-soft: #f0f8f1;
+  --info-soft: #f1f5fa;
+  --glass-bg: rgba(255,255,255,0.85);
+  --glass-border: rgba(0,0,0,0.06);
+  --glass-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  --glass-heavy-bg: rgba(255,255,255,0.92);
+  --glass-heavy-border: rgba(0,0,0,0.10);
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-elevated: 0 4px 12px rgba(0,0,0,0.08);
+  --radius: 6px;
+  --radius-sm: 4px;
+  --radius-lg: 8px;
+  --font-sans: var(--font-inter), 'Inter', system-ui, -apple-system, sans-serif;
+  --font-serif: var(--font-newsreader), 'Newsreader', Georgia, serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, 'JetBrains Mono', monospace;
+  --brand-gradient: linear-gradient(135deg, #4a7b56 0%, #b89030 50%, #a8324a 100%);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);        /* expo out */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);  /* quart out */
+  --rim-light: 0 0 0 0 transparent;
+  background: var(--bg-base);
+  color: var(--text);
+  color-scheme: light;
+}
+.theme-clair .elev-card:hover { transform: none; box-shadow: var(--shadow-elevated); }
+/* .theme-carte recolore .btn-primary avec var(--text) : sous .theme-clair ce serait de l'encre sur fond noir */
+.theme-clair .btn-primary { background: var(--accent-press); color: #fafafa; border-color: var(--accent-press); }
+.theme-clair .btn-primary:hover { background: var(--accent-press-light); border-color: var(--accent-press-light); color: #fafafa; }
+.theme-clair input, .theme-clair textarea, .theme-clair select { color-scheme: light; }
