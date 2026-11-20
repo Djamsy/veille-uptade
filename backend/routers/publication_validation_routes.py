@@ -14,6 +14,7 @@ Routes « publications pour validation ».
     POST   /pending/{id}/publish       publie une demande validée sur Buffer (action manuelle admin)
     DELETE /pending/{id}               suppression définitive
     POST   /sync-sheet                 import immédiat depuis la feuille
+    POST   /check-social               rapprochement immédiat avec les posts scrapés des comptes
 
   Public par jeton (aucune authentification, limité en débit, non mis en cache)
     GET    /validate/{token}           aperçu pour le validateur
@@ -285,6 +286,17 @@ def delete(pub_id: str, admin: dict = Depends(require_admin)):
     try:
         svc.delete_publication(pub_id)
         return {"ok": True}
+    except Exception as e:
+        raise _translate(e)
+
+
+@router.post("/check-social")
+def check_social(payload: Dict[str, Any] = Body(default={}), admin: dict = Depends(require_admin)):
+    """Rapprochement immédiat : publications validées ↔ posts scrapés des comptes du Département."""
+    try:
+        from backend.services import publication_social_check_service as sc
+        days = payload.get("days")
+        return sc.check_publications(days=int(days) if days else None, notify=bool(payload.get("notify", True)))
     except Exception as e:
         raise _translate(e)
 

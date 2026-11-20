@@ -358,6 +358,14 @@ Djamsy : « il faut pouvoir modifier les trucs détectés automatiquement sur le
 (JSON ou multipart) + boîte « Modifier » dans l'admin — texte, titre, options, retrait / ajout de médias, texte d'origine
 conservé, audit « edited ». Le lien en cours reste valable ; option « Enregistrer et renvoyer un lien » (nouveau jeton + notification).
 
+### Publication constatée sur les réseaux (2026-11-20)
+Djamsy : « il faut vérifier si les publications récentes du compte sont faites, en rapprochant les titres entre la base du
+scraping RS et la base des publications validées ». Ajouté `publication_social_check_service.py` : comparaison des
+publications Validée / Publiée aux posts de `social_media_posts` des comptes du Département (titre contenu, mots retrouvés,
+ressemblance), seuil 0,6 ; une Validée retrouvée passe en Publiée « constatée sur … » avec le lien du post, feuille et
+Telegram mis à jour. Job 3×/jour après le scraping RS + bouton « Vérifier sur les réseaux ». Testé : Dolé détecté sur
+Facebook (81 %), vernissage sur Instagram (95 %), séminaire vu seulement chez RCI → non constaté.
+
 ---
 
 ## Conventions

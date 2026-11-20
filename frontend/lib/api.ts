@@ -1344,15 +1344,18 @@ export interface PubPayload {
 }
 
 export interface PubDecision { decision: 'approve' | 'reject'; by: string; comment: string; at: string }
-export interface PubPublish { ok: boolean; published_at: string; platforms: number; error: string | null; buffer_ids?: string[]; media_count?: number }
+export interface PubPublish { ok: boolean; published_at: string; platforms: number; error: string | null; buffer_ids?: string[]; media_count?: number; via?: string; platform?: string; url?: string; how?: string; score?: number }
 
 export interface PendingPublication {
   id: string; created_at: string; updated_at: string; source: 'sheet' | 'manual'; sheet_row: number | null; sheet_tab?: string | null;
   status: PubValidationStatus | string; payload: PubPayload; decision: PubDecision | null; publish: PubPublish | null;
+  seen?: { checked_at: string; matched: boolean; threshold: number; best: PubSeenCandidate | null; candidates: PubSeenCandidate[] } | null;
   token: { active: boolean; revoked: boolean; created_at: string | null; expires_at: string | null; expired: boolean };
   audit?: Array<{ at: string; action: string; actor: string; detail?: string }>;
   error?: string;
 }
+
+export interface PubSeenCandidate { score: number; how: string; platform: string; url: string; author: string; posted_at: string | null; excerpt: string }
 
 export interface PubIssuedLink { ok: boolean; id: string; token: string; url: string; expires_at: string }
 
@@ -1378,6 +1381,7 @@ export const fetchPubValidationStatus = () =>
     };
     buffer_configured: boolean; ttl_hours: number; base_url: string;
     notify_emails: number; notify_telegram: boolean; import_statuses: string[]; video_import_statuses?: string[]; writeback_column: string | null;
+    social_check?: { accounts: string[]; threshold: number; days: number; last: { last_run: string | null; posts_examined: number; newly_detected: number; not_found: number } | null; error?: string };
     counts: Record<string, number>;
   }>('/api/publications/status');
 
@@ -1471,6 +1475,15 @@ export const syncPublicationSheet = () =>
   adminFetch<{ ok: boolean; error?: string; created?: Array<{ id: string; tab: string; row: number; title: string; kind?: string }>; skipped?: number; skipped_reasons?: Record<string, number>; statuses_seen?: Record<string, number>; superseded?: number; errors?: Array<{ tab?: string; row?: number; error: string }>; tabs?: Array<{ tab: string; rows?: number; blocks?: number; created?: number; videos?: number; skipped?: string; mapping?: Record<string, string> }> }>(
     '/api/publications/sync-sheet', { method: 'POST', body: JSON.stringify({}) }
   );
+
+export const checkPublicationsOnSocial = (days?: number) =>
+  adminFetch<{
+    ok: boolean; posts_examined: number; checked: number; threshold: number; days: number; warning?: string;
+    newly_detected: Array<{ id: string; title: string; platform: string | null; url: string | null; score: number }>;
+    confirmed: Array<{ id: string; title: string; platform: string | null; score: number }>;
+    not_found: Array<{ id: string; title: string; score: number; days_since_decision?: number }>;
+    errors: Array<{ id: string; error: string }>;
+  }>('/api/publications/check-social', { method: 'POST', body: JSON.stringify({ days }) });
 
 /** Accès validateur (sans authentification) — le jeton est dans l'URL /valider/<token>. */
 export const fetchPublicationByToken = (token: string) =>

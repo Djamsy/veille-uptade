@@ -236,6 +236,7 @@ def _read(doc: Dict[str, Any], include_audit: bool = False) -> Dict[str, Any]:
         "payload": payload,
         "decision": crypto.decrypt_json(doc.get("decision_enc"), aad, default=None),
         "publish": crypto.decrypt_json(doc.get("publish_enc"), aad, default=None),
+        "seen": crypto.decrypt_json(doc.get("seen_enc"), aad, default=None),
         "token": {
             "active": bool(doc.get("token_hash")) and not doc.get("token_revoked"),
             "revoked": bool(doc.get("token_revoked")),
@@ -1031,4 +1032,14 @@ def status_report() -> Dict[str, Any]:
         "import_statuses": _import_statuses(),
         "video_import_statuses": _video_import_statuses(),
         "writeback_column": _writeback_column() or None,
+        "social_check": _social_check_status(),
     }
+
+
+def _social_check_status() -> Dict[str, Any]:
+    try:
+        from backend.services import publication_social_check_service as sc
+        return {"accounts": sc.own_accounts(), "threshold": sc.threshold(), "days": sc.window_days(),
+                "last": sc.last_run()}
+    except Exception as e:
+        return {"error": str(e)[:100]}
