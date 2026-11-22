@@ -1457,6 +1457,10 @@ export const updatePendingPublication = async (
   return res.json() as Promise<{ ok: boolean; id: string; changed: string[]; payload: PubPayload }>;
 };
 
+/** Envoie (ou renvoie) aux validateurs le lien obtenu à la création — utilisé après l'envoi des médias. */
+export const notifyPublicationLink = (id: string, url: string) =>
+  adminFetch<{ ok: boolean }>(`/api/publications/pending/${id}/notify`, { method: 'POST', body: JSON.stringify({ url }) });
+
 export const revokePublicationLink = (id: string) =>
   adminFetch<{ ok: boolean }>(`/api/publications/pending/${id}/token`, { method: 'DELETE' });
 

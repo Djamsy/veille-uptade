@@ -28,6 +28,14 @@ const nextConfig = {
         source: '/health',
         destination: 'http://localhost:8000/health',
       },
+      // ── Relais des médias Cloudinary sous notre domaine ──
+      // Certains postes (sécurité réseau) bloquent res.cloudinary.com : les pages Publications
+      // affichent les médias via /media-cdn/…, servi par Vercel depuis Cloudinary. Buffer, lui,
+      // continue à recevoir l'URL Cloudinary d'origine.
+      {
+        source: '/media-cdn/:path*',
+        destination: 'https://res.cloudinary.com/:path*',
+      },
     ];
   },
 

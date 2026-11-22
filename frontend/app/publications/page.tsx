@@ -16,6 +16,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { useAuth } from '../../components/AuthGuard'
 import { GuadeloupeMark } from '../../components/GuadeloupeMark'
+import { displayUrl, isVideoUrl, mediaName, videoUrl } from '../../lib/media'
 import {
   fetchPubValidationStatus,
   fetchPendingPublications,
@@ -29,6 +30,7 @@ import {
   deletePendingPublication,
   syncPublicationSheet,
   checkPublicationsOnSocial,
+  notifyPublicationLink,
   apiErrorMessage,
   PUB_STATUS_LABEL,
   type PendingPublication,
@@ -127,11 +129,22 @@ export default function AdminPublicationsPage() {
       const r = await updatePendingPublication(t.id, {
         title: edit.title, text: edit.text, networks: edit.networks.split(/[,;\n]+/).map((x) => x.trim()).filter(Boolean),
         scheduled_for: edit.scheduled_for, location: edit.location, requester: edit.requester, notes: edit.notes,
-      }, { files: editFiles, removeMedia: editRemove })
-      let m = r.changed.length ? `Modifiée (${r.changed.join(', ')})` : 'Aucun changement'
+      }, { removeMedia: editRemove })
+      const changed = [...r.changed]
+      const failed: string[] = []
+      for (let i = 0; i < editFiles.length; i++) {  // un fichier par requête : pas d'envoi géant qui expire
+        const f = editFiles[i]
+        setProgress(`Envoi du média ${i + 1}/${editFiles.length} (${f.name}, ${(f.size / 1048576).toFixed(1)} Mo)…`)
+        try { await updatePendingPublication(t.id, {}, { files: [f] }); changed.push('media+') }
+        catch (e) { failed.push(`${f.name} : ${(e as { detail?: string })?.detail || apiErrorMessage(e, 'média')}`) }
+      }
+      setProgress('')
+      let m = changed.length ? `Modifiée (${Array.from(new Set(changed)).join(', ')})` : 'Aucun changement'
+      if (failed.length) m += ` ⚠️ ${failed.length} média(s) non envoyé(s) : ${failed.join(' | ')}`
       if (resend) { const l = await regeneratePublicationLink(t.id, undefined, true); setIssued(l); m += ' · nouveau lien envoyé aux validateurs' }
-      setEditTarget(null); flash(m); await load()
+      setEditTarget(null); if (failed.length) setErr(m); else flash(m); await load()
     } catch (e) {
+      setProgress('')
       const { status: st, detail } = (e as { status?: number; detail?: string }) ?? {}
       if (st === 409) setErr('Cette publication a déjà été traitée, elle ne peut plus être modifiée.')
       else if (st === 400) setErr(detail || 'Fichier non pris en charge (image ou vidéo attendue).')
@@ -147,10 +160,11 @@ export default function AdminPublicationsPage() {
   const emptyForm = { title: '', text: '', media_urls: '', networks: '', scheduled_for: '', requester: '', requester_email: '', notes: '', ttl_hours: 72, notify: true }
   const [form, setForm] = useState(emptyForm)
   const [files, setFiles] = useState<File[]>([])
+  const [progress, setProgress] = useState('')
   const previews = useMemo(() => files.map((f) => ({ f, url: URL.createObjectURL(f), video: f.type.startsWith('video') })), [files])
   useEffect(() => () => { previews.forEach((p) => URL.revokeObjectURL(p.url)) }, [previews])
 
-  const flash = (m: string) => { setMsg(m); setErr(''); setTimeout(() => setMsg(''), m.length > 120 ? 20000 : 5000) }
+  const flash = (m: string) => { setMsg(m); setErr(''); setTimeout(() => setMsg(''), m.length > 120 ? 30000 : 8000) }
   const fail = (e: unknown, ctx: string) => { setErr(apiErrorMessage(e, ctx)); setMsg('') }
 
   const load = useCallback(async () => {
@@ -177,15 +191,28 @@ export default function AdminPublicationsPage() {
     if (!form.text.trim() && files.length === 0) { setErr('Saisissez un texte ou déposez au moins un média.'); return }
     setBusy('create')
     try {
+      // 1) la demande sans fichier (rapide), 2) un fichier par requête (évite un envoi géant qui expire),
+      // 3) le lien n'est envoyé aux validateurs qu'une fois tous les médias en place
       const r = await createPendingPublication({
         title: form.title, text: form.text,
         media_urls: form.media_urls.split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean),
         networks: form.networks.split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean),
         scheduled_for: form.scheduled_for, requester: form.requester, requester_email: form.requester_email, notes: form.notes,
-        ttl_hours: form.ttl_hours, notify: form.notify,
-      }, files)
+        ttl_hours: form.ttl_hours, notify: files.length ? false : form.notify,
+      })
+      let uploaded = 0
+      const failed: string[] = []
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i]
+        setProgress(`Envoi du média ${i + 1}/${files.length} (${f.name}, ${(f.size / 1048576).toFixed(1)} Mo)…`)
+        try { await updatePendingPublication(r.id, {}, { files: [f] }); uploaded++ }
+        catch (e) { failed.push(`${f.name} : ${(e as { detail?: string })?.detail || apiErrorMessage(e, 'média')}`) }
+      }
+      setProgress('')
+      if (files.length && form.notify) { try { await notifyPublicationLink(r.id, r.url) } catch { /* lien affiché ci-dessous de toute façon */ } }
       setIssued(r); setForm(emptyForm); setFiles([])
-      flash(`Soumise à validation${r.media_count ? ` avec ${r.media_count} média(s)` : ''} — ${form.notify ? 'lien envoyé aux validateurs, ' : ''}copiez-le maintenant, il ne sera plus affiché.`)
+      const msg = `Soumise à validation${uploaded ? ` avec ${uploaded} média(s)` : ''} — ${form.notify ? 'lien envoyé aux validateurs, ' : ''}copiez-le maintenant, il ne sera plus affiché.`
+      if (failed.length) setErr(`${msg} ⚠️ ${failed.length} média(s) non envoyé(s) : ${failed.join(' | ')}`); else flash(msg)
       await load()
     } catch (e) {
       const { status: st, detail } = (e as { status?: number; detail?: string }) ?? {}
@@ -271,6 +298,9 @@ export default function AdminPublicationsPage() {
             </div>
           </div>
 
+          {progress && (
+            <div className="px-4 py-2 rounded-md text-sm mb-4 animate-pulse" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>{progress}</div>
+          )}
           {(msg || err) && (
             <div className="px-4 py-2 rounded-md text-sm mb-4" style={{ background: err ? 'var(--crit-soft)' : 'var(--bg-elevated)', color: err ? 'var(--negative)' : 'var(--text)', border: '1px solid var(--border)' }}>
               {err || msg}
@@ -348,7 +378,7 @@ export default function AdminPublicationsPage() {
               </div>
               <div className="flex items-center gap-3 mt-4">
                 <button type="button" className="btn-primary px-5 py-2.5 text-sm" disabled={busy === 'create' || (!form.text.trim() && files.length === 0)} onClick={onCreate}>
-                  {busy === 'create' ? (files.length ? 'Envoi des médias…' : 'Envoi…') : '✉ Soumettre à validation'}
+                  {busy === 'create' ? (files.length ? 'Envoi…' : 'Envoi…') : '✉ Soumettre à validation'}
                 </button>
                 <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Le validateur reçoit un lien personnel, voit le texte et les médias, et valide ou refuse. Vous publiez ensuite depuis la liste.</span>
               </div>
@@ -516,10 +546,12 @@ export default function AdminPublicationsPage() {
                     const removed = editRemove.includes(u)
                     return (
                       <div key={u} className="relative rounded-md overflow-hidden" style={{ border: '1px solid var(--border)', opacity: removed ? 0.35 : 1 }}>
-                        {/\.(mp4|mov|m4v|webm)(\?|$)/i.test(u)
-                          ? <video src={u} className="w-full h-20 object-cover" muted preload="metadata" />
+                        {isVideoUrl(u)
+                          ? <video src={videoUrl(u)} className="w-full h-20 object-cover" muted preload="metadata" />
                           // eslint-disable-next-line @next/next/no-img-element
-                          : <img src={u} alt="" className="w-full h-20 object-cover" loading="lazy" />}
+                          : <img src={displayUrl(u, 400)} alt="" title={mediaName(u)} className="w-full h-20 object-cover" loading="lazy"
+                              onError={(e) => { const el = e.currentTarget; el.style.display = 'none'; const n = el.nextElementSibling as HTMLElement | null; if (n) n.style.display = 'flex' }} />}
+                        <div className="w-full h-20 hidden items-center justify-center text-[10px] px-1 text-center break-all" style={{ color: 'var(--text-muted)' }}>🖼 non affichable<br />{mediaName(u)}</div>
                         <button type="button" aria-label={removed ? 'Rétablir' : 'Retirer'} onClick={() => setEditRemove((cur) => removed ? cur.filter((x) => x !== u) : [...cur, u])}
                           className="absolute top-1 right-1 w-5 h-5 rounded-full text-[10px] leading-5 text-center" style={{ background: 'rgba(0,0,0,0.65)', color: '#fff' }}>{removed ? '↺' : '✕'}</button>
                       </div>
