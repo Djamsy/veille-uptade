@@ -935,6 +935,14 @@ def sync_buffer_stats() -> Dict[str, Any]:
 # CLOUDINARY
 # ============================================================
 
+# Dernière erreur d'upload Cloudinary (pour un message utilisateur précis côté routes)
+LAST_UPLOAD_ERROR: Dict[str, Any] = {"error": None, "at": None}
+
+
+def cloudinary_configured() -> bool:
+    return all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET])
+
+
 def upload_to_cloudinary(file_source: str, resource_type: str = "image") -> Optional[str]:
     """Upload un fichier sur Cloudinary depuis une URL ou un chemin local.
 
@@ -945,8 +953,10 @@ def upload_to_cloudinary(file_source: str, resource_type: str = "image") -> Opti
     Returns:
         URL publique Cloudinary ou None si échec.
     """
-    if not all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
+    if not cloudinary_configured():
         logger.warning("Cloudinary non configuré")
+        LAST_UPLOAD_ERROR.update({"error": "Cloudinary non configuré (CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET)",
+                                  "at": datetime.now(timezone.utc).isoformat()})
         return None
 
     import time
@@ -964,7 +974,7 @@ def upload_to_cloudinary(file_source: str, resource_type: str = "image") -> Opti
     signature = hashlib.sha1(params.encode()).hexdigest()
 
     url = f"https://api.cloudinary.com/v1_1/{CLOUDINARY_CLOUD_NAME}/{resource_type}/upload"
-    timeout = 60 if resource_type == "video" else 30
+    timeout = 180 if resource_type == "video" else 60  # vidéos lourdes depuis Render : 60 s ne suffisait pas
 
     try:
         if is_local:
@@ -1017,7 +1027,15 @@ def upload_to_cloudinary(file_source: str, resource_type: str = "image") -> Opti
             # Buffer a besoin d'une URL image directe pour fetch les dimensions
             return public_url
     except Exception as e:
-        logger.error(f"Cloudinary upload error: {e}")
+        detail = str(e)
+        try:  # HTTPError Cloudinary : le corps JSON contient le vrai motif (signature, format, taille…)
+            body = e.read().decode("utf-8", "replace")[:300] if hasattr(e, "read") else ""
+            if body:
+                detail = f"{detail} — {body}"
+        except Exception:
+            pass
+        logger.error(f"Cloudinary upload error: {detail}")
+        LAST_UPLOAD_ERROR.update({"error": detail[:400], "at": datetime.now(timezone.utc).isoformat()})
         return None
 
 

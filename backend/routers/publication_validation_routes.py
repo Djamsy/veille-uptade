@@ -86,10 +86,13 @@ async def _host_upload(media_file) -> Optional[str]:
     None si le fichier est vide. Lève HTTPException 502 si Cloudinary échoue."""
     import os
     import tempfile
-    from backend.services.campaign_service import upload_to_cloudinary
+    from backend.services.campaign_service import upload_to_cloudinary, cloudinary_configured, LAST_UPLOAD_ERROR
 
     if media_file is None or not hasattr(media_file, "read"):
         return None
+    if not cloudinary_configured():
+        raise HTTPException(503, "Hébergement des médias non configuré sur le serveur : variables CLOUDINARY_CLOUD_NAME, "
+                                 "CLOUDINARY_API_KEY et CLOUDINARY_API_SECRET manquantes (Render → Environment)")
     content = await media_file.read()
     if not content:
         return None
@@ -123,7 +126,9 @@ async def _host_upload(media_file) -> Optional[str]:
         except Exception:
             pass
     if not hosted:
-        raise HTTPException(502, "Hébergement du média échoué (vérifier CLOUDINARY_CLOUD_NAME / API_KEY / API_SECRET)")
+        why = LAST_UPLOAD_ERROR.get("error") or "réponse vide de Cloudinary"
+        logger.warning("Hébergement média échoué (%s, %d octets) : %s", fname or ctype, len(content), why)
+        raise HTTPException(502, f"Hébergement du média « {fname or ctype} » échoué ({len(content) // 1024} Ko) : {why}")
     return hosted
 
 

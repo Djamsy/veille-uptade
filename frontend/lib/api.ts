@@ -1390,6 +1390,7 @@ export const fetchPubValidationStatus = () =>
       } | null;
     };
     buffer_configured: boolean; ttl_hours: number; base_url: string;
+    cloudinary?: { configured: boolean; last_error?: string | null; last_error_at?: string | null };
     notify_emails: number; notify_telegram: boolean; import_statuses: string[]; video_import_statuses?: string[]; writeback_column: string | null;
     social_check?: { accounts: string[]; threshold: number; days: number; last: { last_run: string | null; posts_examined: number; newly_detected: number; not_found: number } | null; error?: string };
     counts: Record<string, number>;
