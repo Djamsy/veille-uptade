@@ -36,7 +36,11 @@ export function StatsEntryModal({ onClose, onSaved }: { onClose: () => void; onS
       const metrics: Record<string, number> = {}
       for (const f of WEB_FIELDS) {
         const v = web[f.key]
-        if (v !== undefined && v !== '') metrics[f.key] = parseFloat(v)
+        if (v !== undefined && v.trim() !== '') {
+          const n = parseFloat(v.replace(/\s/g, '').replace(',', '.'))
+          if (Number.isNaN(n)) { setMsg(`Valeur illisible pour « ${f.label} » — saisis un nombre.`); setSaving(false); return }
+          metrics[f.key] = n
+        }
       }
       if (Object.keys(metrics).length === 0) { setMsg('Renseigne au moins une valeur.'); setSaving(false); return }
       await setManualWebTraffic(metrics, date)
@@ -50,9 +54,18 @@ export function StatsEntryModal({ onClose, onSaved }: { onClose: () => void; onS
   const saveFollowers = async () => {
     setSaving(true); setMsg(null)
     try {
-      const entries = PLATFORMS.filter(p => followers[p.id] && followers[p.id] !== '')
+      const entries = PLATFORMS.filter(p => followers[p.id] && followers[p.id].trim() !== '')
       if (entries.length === 0) { setMsg('Renseigne au moins une plateforme.'); setSaving(false); return }
-      await Promise.all(entries.map(p => setManualFollowers(p.id, parseInt(followers[p.id], 10), date)))
+      // Tolère « 12 500 », « 12.500 », « 12,5k » → 12500 ; refuse ce qui ne contient aucun chiffre
+      const parsed = entries.map(p => {
+        const raw = followers[p.id].trim().toLowerCase()
+        const k = /k$/.test(raw)
+        const n = parseInt(raw.replace(/[^\d]/g, ''), 10)
+        return { id: p.id, label: p.label, n: Number.isNaN(n) ? NaN : k ? n * 1000 : n }
+      })
+      const bad = parsed.find(x => Number.isNaN(x.n))
+      if (bad) { setMsg(`Valeur illisible pour ${bad.label} — saisis un nombre.`); setSaving(false); return }
+      await Promise.all(parsed.map(x => setManualFollowers(x.id, x.n, date)))
       setMsg('Abonnés enregistrés ✓')
       onSaved()
     } catch (e) {

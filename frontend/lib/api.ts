@@ -7,21 +7,31 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     headers: { 'Content-Type': 'application/json', ...options?.headers },
   });
   if (!res.ok) {
-    const err = new Error(`API ${res.status}: ${res.statusText}`) as Error & { status?: number };
+    const err = new Error(`API ${res.status}: ${res.statusText}`) as Error & { status?: number; detail?: string };
     err.status = res.status;
+    // Détail renvoyé par le backend (FastAPI : {detail: "…"}) pour un message utilisateur précis
+    try {
+      const body = await res.clone().json();
+      const d = body?.detail ?? body?.error;
+      err.detail = typeof d === 'string' ? d : Array.isArray(d) ? d.map((x) => x?.msg ?? JSON.stringify(x)).join(' ; ') : d ? JSON.stringify(d) : undefined;
+    } catch { /* corps non JSON */ }
     throw err;
   }
   return res.json();
 }
 
-/** Message utilisateur clair à partir du statut HTTP d'une erreur apiFetch. */
+/** Message utilisateur clair à partir du statut HTTP (et du détail serveur) d'une erreur apiFetch. */
 export function apiErrorMessage(e: unknown, context = 'opération'): string {
-  const status = (e as { status?: number })?.status;
+  const { status, detail } = (e as { status?: number; detail?: string }) ?? {};
+  const more = detail ? ` : ${detail.slice(0, 200)}` : '';
   if (status === 401) return 'Session expirée — reconnecte-toi.';
   if (status === 403) return 'Accès réservé aux administrateurs.';
   if (status === 404) return `Cette fonctionnalité n'est pas encore déployée sur le backend (${context}).`;
-  if (status && status >= 500) return 'Erreur serveur — réessaie dans un instant.';
-  return `Échec de l'${context}.`;
+  if (status === 429) return 'Trop de requêtes — attends une minute puis réessaie.';
+  if (status === 400 || status === 422) return `Saisie refusée (${context})${more}.`;
+  if (status && status >= 500) return `Erreur serveur (HTTP ${status})${more} — réessaie dans un instant.`;
+  if (!status) return `Échec (${context}) : le serveur n'a pas répondu (réseau, ou backend en cours de redéploiement). Réessaie dans une minute.`;
+  return `Échec (${context}, HTTP ${status})${more}.`;
 }
 
 function authHeaders(): Record<string, string> {
