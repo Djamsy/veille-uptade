@@ -493,6 +493,21 @@ def update_publication(pub_id: str, changes: Dict[str, Any], actor: str = "", ad
     return {"id": pub_id, "changed": list(dict.fromkeys(changed)), "payload": clean}
 
 
+def notify_existing_link(pub_id: str, url: str, actor: str = "", db=None) -> Dict[str, Any]:
+    """Envoie le lien de validation fourni par le front (obtenu à la création) — après vérification
+    qu'il correspond bien au jeton actif de cette publication (empreinte)."""
+    db = db if db is not None else _db()
+    doc = _find(db, pub_id)
+    token = (url or "").rstrip("/").split("/")[-1]
+    if not token or crypto.hash_token(token) != doc.get("token_hash") or doc.get("token_revoked"):
+        raise ValueError("Ce lien ne correspond pas au jeton actif de la publication")
+    aad = _aad(doc["_id"])
+    payload = crypto.decrypt_json(doc.get("payload_enc"), aad, default={}) or {}
+    _notify_new_link(payload, validation_url(token), doc)
+    _append_audit(db, doc, "link_sent", actor)
+    return {"id": pub_id, "notified": True}
+
+
 def revoke_token(pub_id: str, actor: str = "", db=None) -> None:
     db = db if db is not None else _db()
     doc = _find(db, pub_id)

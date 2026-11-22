@@ -8,6 +8,7 @@ Routes « publications pour validation ».
     GET    /pending/{id}               détail + journal d'audit
     POST   /pending                    soumission (JSON ou multipart avec fichiers `media`) → lien (une seule fois)
     PUT    /pending/{id}               modification (texte, titre, options, médias) tant que non décidée
+    POST   /pending/{id}/notify        envoie aux validateurs le lien reçu à la création ({url})
     POST   /pending/{id}/token         nouveau lien (l'ancien est invalidé) ; {notify:true} le renvoie aux validateurs
     DELETE /pending/{id}/token         révoque le lien
     POST   /pending/{id}/cancel        annule la demande
@@ -245,6 +246,16 @@ def regenerate_token(pub_id: str, payload: Dict[str, Any] = Body(default={}), ad
         return {"ok": True, **svc.regenerate_token(pub_id, actor=admin.get("email", ""),
                                                    ttl_hours=int(ttl) if ttl else None,
                                                    notify=bool(payload.get("notify", False)))}
+    except Exception as e:
+        raise _translate(e)
+
+
+@router.post("/pending/{pub_id}/notify")
+def notify_link(pub_id: str, payload: Dict[str, Any] = Body(...), admin: dict = Depends(require_admin)):
+    """Envoie aux validateurs le lien obtenu à la création (le serveur n'en garde que l'empreinte,
+    le front le renvoie). Utilisé quand les médias sont envoyés après la création."""
+    try:
+        return {"ok": True, **svc.notify_existing_link(pub_id, str(payload.get("url", "")), actor=admin.get("email", ""))}
     except Exception as e:
         raise _translate(e)
 

@@ -15,6 +15,7 @@ import {
   type PubValidationView,
 } from '../../../lib/api'
 import { GuadeloupeMark } from '../../../components/GuadeloupeMark'
+import { displayUrl, isImageUrl, isVideoUrl, mediaName, videoUrl } from '../../../lib/media'
 
 const card: React.CSSProperties = {
   background: 'var(--bg-surface)',
@@ -24,8 +25,25 @@ const card: React.CSSProperties = {
 
 const label = 'font-mono text-[10px] uppercase tracking-[0.18em]'
 
-const isVideo = (u: string) => /\.(mp4|mov|m4v|webm)(\?|$)/i.test(u)
-const isImage = (u: string) => /\.(jpe?g|png|gif|webp|avif)(\?|$)/i.test(u)
+const isVideo = isVideoUrl
+const isImage = isImageUrl
+
+/** Vignette : conversion Cloudinary à la volée ; si le navigateur ne peut pas l'afficher, carte avec le nom et un lien. */
+function MediaThumb({ u }: { u: string }) {
+  const [broken, setBroken] = useState(false)
+  if (isVideo(u)) return <video src={videoUrl(u)} className="w-full h-32 object-cover" muted preload="metadata" controls />
+  if (isImage(u) && !broken) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={displayUrl(u, 800)} alt="" className="w-full h-32 object-cover" loading="lazy" onError={() => setBroken(true)} />
+  }
+  return (
+    <div className="h-32 flex flex-col items-center justify-center text-xs px-3 text-center gap-1" style={{ color: 'var(--text-muted)' }}>
+      <span>{broken ? '🖼 Image non affichable ici' : '🔗'}</span>
+      <span className="break-all">{mediaName(u)}</span>
+      <span className="underline" style={{ color: 'var(--accent-link)' }}>ouvrir</span>
+    </div>
+  )
+}
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
@@ -265,16 +283,7 @@ export default function ValidatePublicationPage() {
             {data.media_urls.map((u) => (
               <a key={u} href={u} target="_blank" rel="noopener noreferrer nofollow"
                 className="block rounded-md overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
-                {isImage(u) ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={u} alt="" className="w-full h-32 object-cover" loading="lazy" />
-                ) : isVideo(u) ? (
-                  <video src={u} className="w-full h-32 object-cover" muted preload="metadata" />
-                ) : (
-                  <div className="h-32 flex items-center justify-center text-xs px-3 text-center break-all" style={{ color: 'var(--text-muted)' }}>
-                    🔗 {u.replace(/^https?:\/\//, '').slice(0, 60)}
-                  </div>
-                )}
+                <MediaThumb u={u} />
               </a>
             ))}
           </div>
