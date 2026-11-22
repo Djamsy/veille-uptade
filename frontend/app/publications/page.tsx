@@ -132,10 +132,11 @@ export default function AdminPublicationsPage() {
       if (resend) { const l = await regeneratePublicationLink(t.id, undefined, true); setIssued(l); m += ' · nouveau lien envoyé aux validateurs' }
       setEditTarget(null); flash(m); await load()
     } catch (e) {
-      const st = (e as { status?: number })?.status
+      const { status: st, detail } = (e as { status?: number; detail?: string }) ?? {}
       if (st === 409) setErr('Cette publication a déjà été traitée, elle ne peut plus être modifiée.')
-      else if (st === 400) setErr('Fichier non pris en charge (image ou vidéo attendue).')
-      else if (st === 502) setErr('Hébergement du média échoué — vérifier la configuration Cloudinary.')
+      else if (st === 400) setErr(detail || 'Fichier non pris en charge (image ou vidéo attendue).')
+      else if (st === 413) setErr(detail || 'Fichier trop volumineux (200 Mo max).')
+      else if (st === 502 || st === 503) setErr(`Médias : ${detail || 'hébergement échoué — vérifier la configuration Cloudinary.'}`)
       else fail(e, 'modification')
     } finally { setBusy('') }
   }
@@ -187,10 +188,10 @@ export default function AdminPublicationsPage() {
       flash(`Soumise à validation${r.media_count ? ` avec ${r.media_count} média(s)` : ''} — ${form.notify ? 'lien envoyé aux validateurs, ' : ''}copiez-le maintenant, il ne sera plus affiché.`)
       await load()
     } catch (e) {
-      const st = (e as { status?: number })?.status
-      if (st === 400) setErr('Fichier non pris en charge (image ou vidéo attendue).')
-      else if (st === 413) setErr('Fichier trop volumineux (200 Mo max).')
-      else if (st === 502) setErr('Hébergement du média échoué — vérifier la configuration Cloudinary.')
+      const { status: st, detail } = (e as { status?: number; detail?: string }) ?? {}
+      if (st === 400) setErr(detail || 'Fichier non pris en charge (image ou vidéo attendue).')
+      else if (st === 413) setErr(detail || 'Fichier trop volumineux (200 Mo max).')
+      else if (st === 502 || st === 503) setErr(`Médias : ${detail || 'hébergement échoué — vérifier la configuration Cloudinary.'}`)
       else fail(e, 'soumission')
     } finally { setBusy('') }
   }
@@ -459,6 +460,9 @@ export default function AdminPublicationsPage() {
                     )}
                     {!status.sheet.sheet_id_set && <li className="pl-4" style={{ color: 'var(--negative)' }}>PUBLICATION_SHEET_ID manquant</li>}
                     <li><Dot ok={status.buffer_configured} />Buffer {status.buffer_configured ? 'configuré' : 'non configuré'}</li>
+                    <li><Dot ok={!!status.cloudinary?.configured} />Hébergement des médias (Cloudinary) {status.cloudinary?.configured ? 'configuré' : 'NON configuré — l’ajout de photos / vidéos échouera'}
+                      {status.cloudinary?.last_error && <div className="font-mono text-[10px] pl-4 break-all" style={{ color: 'var(--negative)' }}>dernier échec {status.cloudinary.last_error_at ? fmt(status.cloudinary.last_error_at) : ''} : {status.cloudinary.last_error}</div>}
+                    </li>
                     <li><Dot ok />Publication manuelle après validation (bouton « Publier »)</li>
                     <li><Dot ok={!!status.social_check && !status.social_check.error} warn={!status.social_check?.last} />
                       Rapprochement réseaux : {status.social_check?.error ? status.social_check.error : status.social_check?.last ? `dernier passage ${fmt(status.social_check.last.last_run)} · ${status.social_check.last.posts_examined} posts · ${status.social_check.last.newly_detected} constatée(s)` : 'jamais lancé'}

@@ -1021,7 +1021,14 @@ def _notify_publish(p: Dict[str, Any], record: Dict[str, Any]) -> None:
 def status_report() -> Dict[str, Any]:
     from backend.services import google_sheets_service as sheets
     buffer_ok = bool(os.getenv("BUFFER_ACCESS_TOKEN"))
+    try:
+        from backend.services.campaign_service import cloudinary_configured, LAST_UPLOAD_ERROR
+        cloud = {"configured": cloudinary_configured(), "last_error": LAST_UPLOAD_ERROR.get("error"),
+                 "last_error_at": LAST_UPLOAD_ERROR.get("at")}
+    except Exception as e:
+        cloud = {"configured": False, "last_error": str(e)[:100]}
     return {
+        "cloudinary": cloud,
         "encryption": crypto.status(),
         "sheet": sheets.status(),
         "buffer_configured": buffer_ok,
