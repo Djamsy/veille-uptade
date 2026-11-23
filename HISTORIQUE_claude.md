@@ -377,6 +377,14 @@ Page admin déplacée en `/publications` (hors menu, redirection depuis `/admin/
 site, pas de barre latérale ni de navigation basse. Page validateur en clair aussi. Au passage, correctif important :
 `/valider` et `/share` n'étaient pas dans PUBLIC_ROUTES d'AuthGuard → un validateur sans compte était renvoyé au login.
 
+### Interface V2 (2026-11-23)
+Discussion UI avec Djamsy : plusieurs personnes du service sur ordinateur, validateurs sur téléphone, colonnes de flux,
+médiathèque de visuels pré-enregistrés alimentée par tout le monde, aperçu « façon post » conservé. Maquette validée
+(https://claude.ai/artifact/6jRZMikvGFE3maJyhMbm21) puis construite : backend `media_library_service.py` + routes
+`/api/publications/library` + `library_ids` sur création / modification ; front découpé en composants
+(`app/publications/_components/`) : Shell à onglets, FlowBoard, SubmitPanel (avec sélecteur de médiathèque), LibraryTab,
+SettingsTab ; page de validation refaite pour le téléphone (carrousel, aperçu post, barre de décision fixe).
+
 ---
 
 ## Conventions
