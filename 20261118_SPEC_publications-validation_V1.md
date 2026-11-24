@@ -60,6 +60,27 @@ Frontend
 expiration), la demande est chiffrée, le lien personnel est affiché une fois et envoyé aux validateurs. Le validateur voit
 texte et médias sur `/valider/<jeton>`, corrige éventuellement le texte, valide ou refuse. L'admin publie ensuite depuis la liste.
 
+## Interface V2 (2026-11-23) — flux, panneau, médiathèque
+
+`/publications` est organisé en trois onglets :
+- **Flux** : trois colonnes « À valider » (en attente, lien expiré), « Validées · à publier » (validée, échec de publication),
+  « Publiées » ; refusées et annulées repliées en bas. Chaque carte : vignette du premier média, origine (planning / livraison
+  vidéo / saisie), ancienneté, état (lien envoyé et délai, brouillon sans média, validée par X, constatée sur…), **une action
+  principale** selon l'étape (Compléter, Modifier, Renvoyer le lien, Publier, Voir le post) et un menu « … » pour le reste.
+- **Médiathèque** : visuels pré-enregistrés (collection `media_library`, métadonnées en clair, fichiers sur Cloudinary) :
+  dépôt multiple avec étiquettes, nom et étiquettes modifiables, compteur d'utilisation, filtres par étiquette, recherche,
+  retrait. Tout admin peut l'alimenter. API `GET/POST /api/publications/library`, `PUT/DELETE /library/{id}`.
+- **Réglages** : état du système (sections repliables) ; une alerte en bandeau sur les autres onglets si une brique manque.
+
+**Panneau de soumission / modification** (glisse par-dessus le flux) : texte, titre, médias (existants avec retrait,
+visuels de la médiathèque choisis en un clic, fichiers depuis l'ordinateur) numérotés dans l'ordre de publication, options
+repliées. À la création, la demande est créée sans notifier, les fichiers partent un par un (progression), puis le lien est
+envoyé (`/notify`). `library_ids` accepté par `POST /pending` et `PUT /pending/{id}` (JSON ou multipart).
+
+**Page de validation (téléphone)** : carrousel des médias (compteur), titre et puces, texte présenté comme un aperçu de
+post du Département (modifiable), consignes, fichiers à consulter, barre de décision fixée en bas (nom, Refuser / Valider,
+commentaire optionnel, confirmation en place).
+
 ## Modification avant validation
 
 Tout ce qui est détecté automatiquement (planning, vidéos livrées) est un brouillon. Dans la liste, « ✏️ Modifier » ouvre

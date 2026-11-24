@@ -1406,7 +1406,7 @@ export const fetchPendingPublication = (id: string) =>
 
 /** Soumet une publication à validation. Avec `files` (photos / vidéos), envoi en multipart : les fichiers sont hébergés côté serveur. */
 export const createPendingPublication = async (
-  data: Partial<PubPayload> & { ttl_hours?: number; notify?: boolean },
+  data: Partial<PubPayload> & { ttl_hours?: number; notify?: boolean; library_ids?: string[] },
   files?: File[]
 ) => {
   if (!files || files.length === 0) {
@@ -1417,6 +1417,7 @@ export const createPendingPublication = async (
     .forEach((k) => { if (data[k]) fd.append(k, String(data[k])) });
   if (data.networks?.length) fd.append('networks', data.networks.join(', '));
   if (data.media_urls?.length) fd.append('media_urls', data.media_urls.join(','));
+  if (data.library_ids?.length) fd.append('library_ids', data.library_ids.join(','));
   if (data.ttl_hours) fd.append('ttl_hours', String(data.ttl_hours));
   fd.append('notify', data.notify === false ? '0' : '1');
   files.forEach((f) => fd.append('media', f));
@@ -1436,17 +1437,18 @@ export const regeneratePublicationLink = (id: string, ttl_hours?: number, notify
 export const updatePendingPublication = async (
   id: string,
   changes: Partial<Pick<PubPayload, 'title' | 'text' | 'scheduled_for' | 'requester' | 'requester_email' | 'notes' | 'location' | 'campaign_name'>> & { networks?: string[]; links?: string[] },
-  opts: { files?: File[]; removeMedia?: string[]; addMediaUrls?: string[] } = {}
+  opts: { files?: File[]; removeMedia?: string[]; addMediaUrls?: string[]; libraryIds?: string[] } = {}
 ) => {
   if (!opts.files?.length) {
     return adminFetch<{ ok: boolean; id: string; changed: string[]; payload: PubPayload }>(`/api/publications/pending/${id}`, {
-      method: 'PUT', body: JSON.stringify({ ...changes, remove_media: opts.removeMedia ?? [], media_urls_add: opts.addMediaUrls ?? [] }),
+      method: 'PUT', body: JSON.stringify({ ...changes, remove_media: opts.removeMedia ?? [], media_urls_add: opts.addMediaUrls ?? [], library_ids: opts.libraryIds ?? [] }),
     });
   }
   const fd = new FormData();
   Object.entries(changes).forEach(([k, v]) => { if (v !== undefined && v !== null) fd.append(k, Array.isArray(v) ? v.join(', ') : String(v)) });
   (opts.removeMedia ?? []).forEach((u) => fd.append('remove_media', u));
   if (opts.addMediaUrls?.length) fd.append('media_urls_add', opts.addMediaUrls.join(','));
+  if (opts.libraryIds?.length) fd.append('library_ids', opts.libraryIds.join(','));
   opts.files.forEach((f) => fd.append('media', f));
   const res = await fetch(`${BACKEND_URL}/api/publications/pending/${id}`, { method: 'PUT', headers: authHeaders(), body: fd });
   if (!res.ok) {
@@ -1509,3 +1511,39 @@ export const decidePublication = (token: string, data: { decision: 'approve' | '
     `/api/publications/validate/${encodeURIComponent(token)}`,
     { method: 'POST', body: JSON.stringify(data), cache: 'no-store' }
   );
+
+// ============================================================
+// MÉDIATHÈQUE (visuels pré-enregistrés de l'Espace Publications)
+// ============================================================
+export interface LibraryMedia {
+  id: string; name: string; tags: string[]; url: string; kind: 'image' | 'video'; bytes: number;
+  width: number | null; height: number | null; uploaded_by: string; created_at: string; updated_at?: string;
+  uses: number; last_used_at: string | null;
+}
+
+export const fetchLibrary = (tag?: string, q?: string) =>
+  adminFetch<{ media: LibraryMedia[]; tags: Record<string, number>; families: string[] }>(
+    `/api/publications/library?${tag ? `tag=${encodeURIComponent(tag)}&` : ''}${q ? `q=${encodeURIComponent(q)}` : ''}`
+  );
+
+/** Dépose des fichiers dans la médiathèque (hébergés côté serveur). `name` ne s'applique qu'à un fichier unique. */
+export const addLibraryFiles = async (files: File[], tags: string[] = [], name?: string) => {
+  const fd = new FormData();
+  files.forEach((f) => fd.append('media', f));
+  if (tags.length) fd.append('tags', tags.join(','));
+  if (name && files.length === 1) fd.append('name', name);
+  const res = await fetch(`${BACKEND_URL}/api/publications/library`, { method: 'POST', headers: authHeaders(), body: fd });
+  if (!res.ok) {
+    const err = new Error(`API ${res.status}: ${res.statusText}`) as Error & { status?: number; detail?: string };
+    err.status = res.status;
+    try { const b = await res.clone().json(); err.detail = typeof b?.detail === 'string' ? b.detail : undefined } catch { /* corps non JSON */ }
+    throw err;
+  }
+  return res.json() as Promise<{ ok: boolean; added: LibraryMedia[]; errors: Array<{ file: string; error: string }> }>;
+};
+
+export const updateLibraryMedia = (id: string, data: { name?: string; tags?: string[] }) =>
+  adminFetch<{ ok: boolean; media: LibraryMedia }>(`/api/publications/library/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+
+export const deleteLibraryMedia = (id: string) =>
+  adminFetch<{ ok: boolean }>(`/api/publications/library/${id}`, { method: 'DELETE' });

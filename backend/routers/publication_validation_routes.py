@@ -14,6 +14,7 @@ Routes « publications pour validation ».
     POST   /pending/{id}/cancel        annule la demande
     POST   /pending/{id}/publish       publie une demande validée sur Buffer (action manuelle admin)
     DELETE /pending/{id}               suppression définitive
+    GET/POST /library, PUT/DELETE /library/{id}   médiathèque (dépôt multipart `media`, nom, étiquettes)
     POST   /sync-sheet                 import immédiat depuis la feuille
     POST   /check-social               rapprochement immédiat avec les posts scrapés des comptes
 
@@ -85,6 +86,12 @@ def _translate(e: Exception) -> HTTPException:
 async def _host_upload(media_file) -> Optional[str]:
     """Reçoit un UploadFile (image ou vidéo), le dépose sur Cloudinary et renvoie son URL directe.
     None si le fichier est vide. Lève HTTPException 502 si Cloudinary échoue."""
+    res = await _host_upload_meta(media_file)
+    return res["url"] if res else None
+
+
+async def _host_upload_meta(media_file) -> Optional[Dict[str, Any]]:
+    """Comme _host_upload, mais renvoie {url, kind, bytes, width, height, filename}."""
     import os
     import tempfile
     from backend.services.campaign_service import upload_to_cloudinary, cloudinary_configured, LAST_UPLOAD_ERROR
@@ -105,19 +112,25 @@ async def _host_upload(media_file) -> Optional[str]:
     if len(content) > 200 * 1024 * 1024:
         raise HTTPException(413, "Fichier trop volumineux (200 Mo max)")
 
+    width = height = None
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4" if is_video else ".jpg") as tmp:
         tmp.write(content)
         tmp_path = tmp.name
     try:
         if not is_video:
-            try:  # même traitement que /api/publish : max 1920 px, JPEG qualité 80
+            try:  # même traitement que /api/publish : max 1920 px, JPEG qualité 80 (PNG conservé pour les logos transparents)
                 from PIL import Image
                 img = Image.open(tmp_path)
+                keep_png = fname.endswith(".png") and img.mode in ("RGBA", "LA", "P")
                 if max(img.size) > 1920:
                     img.thumbnail((1920, 1920), Image.LANCZOS)
-                if img.mode in ("RGBA", "P"):
-                    img = img.convert("RGB")
-                img.save(tmp_path, "JPEG", quality=80, optimize=True)
+                width, height = img.size
+                if keep_png:
+                    img.save(tmp_path, "PNG", optimize=True)
+                else:
+                    if img.mode in ("RGBA", "P", "LA"):
+                        img = img.convert("RGB")
+                    img.save(tmp_path, "JPEG", quality=80, optimize=True)
             except Exception as e:
                 logger.debug("compression image ignorée : %s", e)
         hosted = upload_to_cloudinary(f"file://{tmp_path}", "video" if is_video else "image")
@@ -130,7 +143,8 @@ async def _host_upload(media_file) -> Optional[str]:
         why = LAST_UPLOAD_ERROR.get("error") or "réponse vide de Cloudinary"
         logger.warning("Hébergement média échoué (%s, %d octets) : %s", fname or ctype, len(content), why)
         raise HTTPException(502, f"Hébergement du média « {fname or ctype} » échoué ({len(content) // 1024} Ko) : {why}")
-    return hosted
+    return {"url": hosted, "kind": "video" if is_video else "image", "bytes": len(content), "width": width, "height": height,
+            "filename": str(getattr(media_file, "filename", "") or "")}
 
 
 def _form_list(form, key: str) -> list:
@@ -186,6 +200,10 @@ async def create_pending(request: Request, admin: dict = Depends(require_admin))
                 hosted = await _host_upload(f)
                 if hosted:
                     media_urls.append(hosted)
+            lib_ids = [x.strip() for v in _form_list(form, "library_ids") for x in str(v).split(",") if x.strip()]
+            if lib_ids:
+                from backend.services import media_library_service as lib
+                media_urls += [u for u in lib.resolve_ids(lib_ids) if u not in media_urls]
             payload["media_urls"] = media_urls
             ttl = form.get("ttl_hours") or None
             notify = str(form.get("notify", "1")).lower() not in ("0", "false", "no", "off")
@@ -193,6 +211,10 @@ async def create_pending(request: Request, admin: dict = Depends(require_admin))
             payload = await request.json()
             ttl = payload.pop("ttl_hours", None)
             notify = bool(payload.pop("notify", True))
+            lib_ids = payload.pop("library_ids", None) or []
+            if lib_ids:
+                from backend.services import media_library_service as lib
+                payload["media_urls"] = list(payload.get("media_urls") or []) + lib.resolve_ids([str(x) for x in lib_ids])
         res = svc.create_pending(payload, source="manual", actor=admin.get("email", ""),
                                  ttl_hours=int(ttl) if ttl else None, notify=notify)
         return {"ok": True, **res, "media_count": len(payload.get("media_urls") or [])}
@@ -214,6 +236,10 @@ async def update_pending(pub_id: str, request: Request, admin: dict = Depends(re
             changes = {k: form.get(k) for k in svc.EDITABLE_FIELDS if k in form}
             remove = [u.strip() for v in _form_list(form, "remove_media") for u in str(v).split(",") if u.strip()]
             add += [u.strip() for u in str(form.get("media_urls_add", "") or "").replace("\n", ",").split(",") if u.strip()]
+            lib_ids = [x.strip() for v in _form_list(form, "library_ids") for x in str(v).split(",") if x.strip()]
+            if lib_ids:
+                from backend.services import media_library_service as lib
+                add += lib.resolve_ids(lib_ids)
             for f in _form_list(form, "media"):
                 hosted = await _host_upload(f)
                 if hosted:
@@ -223,6 +249,9 @@ async def update_pending(pub_id: str, request: Request, admin: dict = Depends(re
             changes = {k: body.get(k) for k in svc.EDITABLE_FIELDS if k in body}
             remove = list(body.get("remove_media") or [])
             add += list(body.get("media_urls_add") or [])
+            if body.get("library_ids"):
+                from backend.services import media_library_service as lib
+                add += lib.resolve_ids([str(x) for x in body["library_ids"]])
         res = svc.update_publication(pub_id, changes, actor=admin.get("email", ""), add_media=add, remove_media=remove)
         return {"ok": True, **res}
     except HTTPException:
@@ -321,6 +350,70 @@ def check_social(payload: Dict[str, Any] = Body(default={}), admin: dict = Depen
 def sync_sheet(payload: Dict[str, Any] = Body(default={}), admin: dict = Depends(require_admin)):
     try:
         return svc.sync_from_sheet(notify=bool(payload.get("notify", True)))
+    except Exception as e:
+        raise _translate(e)
+
+
+# ════════════════════════════════════════════════════════
+#  MÉDIATHÈQUE (visuels pré-enregistrés, tout admin peut l'alimenter)
+# ════════════════════════════════════════════════════════
+
+@router.get("/library")
+def library_list(tag: Optional[str] = Query(None), q: Optional[str] = Query(None), admin: dict = Depends(require_admin)):
+    try:
+        from backend.services import media_library_service as lib
+        return {"media": lib.list_media(tag=tag, q=q), "tags": lib.tag_counts(), "families": lib.FAMILIES}
+    except Exception as e:
+        raise _translate(e)
+
+
+@router.post("/library")
+async def library_add(request: Request, admin: dict = Depends(require_admin)):
+    """Dépôt de visuels : multipart `media` (plusieurs), `tags` (virgules), `name` (si un seul fichier) ;
+    ou JSON {url, name, tags} pour référencer un média déjà hébergé."""
+    try:
+        from backend.services import media_library_service as lib
+        added, errors = [], []
+        if request.headers.get("content-type", "").startswith("multipart/"):
+            form = await request.form()
+            tags = form.get("tags", "")
+            files = _form_list(form, "media")
+            single_name = str(form.get("name", "") or "") if len(files) == 1 else ""
+            for f in files:
+                try:
+                    meta = await _host_upload_meta(f)
+                    if not meta:
+                        continue
+                    name = single_name or (meta["filename"].rsplit(".", 1)[0] if meta["filename"] else "")
+                    added.append(lib.add_media(meta["url"], name, tags, meta["kind"], meta["bytes"], meta["width"], meta["height"],
+                                               uploaded_by=admin.get("email", "")))
+                except HTTPException as he:
+                    errors.append({"file": str(getattr(f, "filename", "")), "error": str(he.detail)})
+        else:
+            body = await request.json()
+            added.append(lib.add_media(str(body.get("url", "")), str(body.get("name", "")), body.get("tags"),
+                                       "video" if str(body.get("kind", "")) == "video" else "image", uploaded_by=admin.get("email", "")))
+        return {"ok": True, "added": added, "errors": errors}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _translate(e)
+
+
+@router.put("/library/{media_id}")
+def library_update(media_id: str, payload: Dict[str, Any] = Body(...), admin: dict = Depends(require_admin)):
+    try:
+        from backend.services import media_library_service as lib
+        return {"ok": True, "media": lib.update_media(media_id, name=payload.get("name"), tags=payload.get("tags"))}
+    except Exception as e:
+        raise _translate(e)
+
+
+@router.delete("/library/{media_id}")
+def library_delete(media_id: str, admin: dict = Depends(require_admin)):
+    try:
+        from backend.services import media_library_service as lib
+        return {"ok": lib.delete_media(media_id)}
     except Exception as e:
         raise _translate(e)
 
