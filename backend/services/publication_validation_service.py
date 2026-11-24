@@ -439,15 +439,19 @@ EDITABLE_FIELDS = ("title", "text", "networks", "scheduled_for", "requester", "r
 
 def update_publication(pub_id: str, changes: Dict[str, Any], actor: str = "", add_media: Optional[List[str]] = None,
                        remove_media: Optional[List[str]] = None, db=None) -> Dict[str, Any]:
-    """Modifie le contenu d'une publication tant qu'elle n'est pas décidée (en attente ou lien expiré).
-    `changes` : champs de EDITABLE_FIELDS (texte, titre, réseaux…) ; `add_media` : URL déjà hébergées à
-    ajouter ; `remove_media` : URL à retirer. Le texte d'origine est conservé (original_text) et chaque
-    modification est journalisée. Le lien en cours reste valable : la page du validateur lit la version à jour."""
+    """Modifie le contenu d'une publication.
+    - En attente / lien expiré : tout est modifiable, le lien en cours reste valable.
+    - Validée / échec de publication : les médias et options sont modifiables sans conséquence ; un changement
+      de TEXTE ou de TITRE renvoie la publication en attente de validation (le validateur avait approuvé un
+      autre texte) : statut « pending », lien révoqué, à renvoyer. Résultat : `revalidation: True`.
+    - Publiée / refusée / annulée : plus de modification.
+    `changes` : champs de EDITABLE_FIELDS ; `add_media` : URL déjà hébergées à ajouter ; `remove_media` : URL à
+    retirer. Le texte d'origine est conservé (original_text) et chaque modification est journalisée."""
     db = db if db is not None else _db()
     doc = _find(db, pub_id)
     aad = _aad(doc["_id"])
     status = crypto.decrypt_str(doc.get("status_enc"), aad)
-    if status not in (PENDING, EXPIRED):
+    if status not in (PENDING, EXPIRED, APPROVED, PUBLISH_FAILED):
         raise AlreadyDecided(f"Modification impossible : {STATUS_LABELS_FR.get(status, status)}")
     payload = crypto.decrypt_json(doc.get("payload_enc"), aad, default={}) or {}
     changed: List[str] = []
@@ -480,7 +484,8 @@ def update_publication(pub_id: str, changes: Dict[str, Any], actor: str = "", ad
     payload["media_urls"] = media[:10]
 
     if not changed:
-        return {"id": pub_id, "changed": [], "payload": payload}
+        return {"id": pub_id, "changed": [], "payload": payload, "revalidation": False}
+    revalidation = status in (APPROVED, PUBLISH_FAILED) and any(f in changed for f in ("text", "title"))
     clean = _clean_payload({**payload, "hashtags": payload.get("hashtags")})
     # _clean_payload ne connaît pas les champs d'historique : on les remet
     for k in ("original_text", "edited_by"):
@@ -489,8 +494,13 @@ def update_publication(pub_id: str, changes: Dict[str, Any], actor: str = "", ad
     db[COLLECTION].update_one({"_id": doc["_id"]}, {"$set": {"payload_enc": crypto.encrypt_json(clean, aad),
                                                             "updated_at": _now()}})
     _append_audit(db, doc, "edited", actor, detail=", ".join(dict.fromkeys(changed)))
-    logger.info("✏️ Publication %s modifiée (%s)", pub_id, ", ".join(dict.fromkeys(changed)))
-    return {"id": pub_id, "changed": list(dict.fromkeys(changed)), "payload": clean}
+    if revalidation:
+        # Le validateur avait approuvé un autre texte : on repart en validation, l'ancienne décision reste au journal.
+        _set_status(db, doc, PENDING, {"token_revoked": True, "decision_enc": None, "publish_enc": None})
+        _append_audit(db, doc, "revalidation_required", actor, detail=f"texte modifié après « {STATUS_LABELS_FR.get(status, status)} »")
+        _write_sheet_status(doc, PENDING, "texte modifié, à revalider")
+    logger.info("✏️ Publication %s modifiée (%s)%s", pub_id, ", ".join(dict.fromkeys(changed)), " — retour en validation" if revalidation else "")
+    return {"id": pub_id, "changed": list(dict.fromkeys(changed)), "payload": clean, "revalidation": revalidation}
 
 
 def notify_existing_link(pub_id: str, url: str, actor: str = "", db=None) -> Dict[str, Any]:

@@ -1440,7 +1440,7 @@ export const updatePendingPublication = async (
   opts: { files?: File[]; removeMedia?: string[]; addMediaUrls?: string[]; libraryIds?: string[] } = {}
 ) => {
   if (!opts.files?.length) {
-    return adminFetch<{ ok: boolean; id: string; changed: string[]; payload: PubPayload }>(`/api/publications/pending/${id}`, {
+    return adminFetch<{ ok: boolean; id: string; changed: string[]; payload: PubPayload; revalidation?: boolean }>(`/api/publications/pending/${id}`, {
       method: 'PUT', body: JSON.stringify({ ...changes, remove_media: opts.removeMedia ?? [], media_urls_add: opts.addMediaUrls ?? [], library_ids: opts.libraryIds ?? [] }),
     });
   }
@@ -1456,7 +1456,7 @@ export const updatePendingPublication = async (
     err.status = res.status;
     throw err;
   }
-  return res.json() as Promise<{ ok: boolean; id: string; changed: string[]; payload: PubPayload }>;
+  return res.json() as Promise<{ ok: boolean; id: string; changed: string[]; payload: PubPayload; revalidation?: boolean }>;
 };
 
 /** Envoie (ou renvoie) aux validateurs le lien obtenu à la création — utilisé après l'envoi des médias. */

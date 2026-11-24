@@ -73,6 +73,12 @@ export function SubmitPanel({ mode, pub, library, tags, onClose, onSubmit, busy,
         </div>
 
         <div className="flex-1 overflow-auto px-6 py-5 flex flex-col gap-5">
+          {mode === 'edit' && (pub?.status === 'approved' || pub?.status === 'publish_failed') && (
+            <div className="text-xs px-3.5 py-3 rounded-md" style={{ background: 'var(--warn-soft)', color: 'var(--warning)', border: '1px solid var(--border)' }}>
+              Validée par {pub.decision?.by ?? '—'}. Ajouter ou retirer des médias ne change rien à la validation.
+              Modifier le <b>texte</b> ou le <b>titre</b> renverra la publication en validation : un nouveau lien sera envoyé automatiquement.
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <label htmlFor="pub-text" className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Texte du post</label>
             <textarea id="pub-text" rows={7} maxLength={5000} value={v.text} onChange={(e) => set({ text: e.target.value })}
@@ -204,7 +210,7 @@ export function SubmitPanel({ mode, pub, library, tags, onClose, onSubmit, busy,
           {mode === 'create' && onDraft && (
             <button type="button" disabled={!canSubmit} onClick={() => onDraft(v)} className="text-sm px-3.5 py-2.5 rounded-md" style={btnSecondary}>Enregistrer sans envoyer</button>
           )}
-          {mode === 'edit' && (
+          {mode === 'edit' && pub?.status !== 'approved' && pub?.status !== 'publish_failed' && (
             <button type="button" disabled={!canSubmit} onClick={() => onSubmit(v, true)} className="text-sm px-3.5 py-2.5 rounded-md" style={btnSecondary}>Enregistrer et renvoyer un lien</button>
           )}
           <button type="button" disabled={!canSubmit} onClick={() => onSubmit(v, false)} className="text-sm font-semibold px-4 py-2.5 rounded-md inline-flex items-center gap-2" style={{ ...btnPrimary, opacity: canSubmit ? 1 : 0.5 }}>
