@@ -81,9 +81,10 @@ export function SubmitPanel({ mode, pub, library, tags, onClose, onSubmit, busy,
           )}
           <div className="flex flex-col gap-1.5">
             <label htmlFor="pub-text" className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Texte du post</label>
-            <textarea id="pub-text" rows={7} maxLength={5000} value={v.text} onChange={(e) => set({ text: e.target.value })}
+            <textarea id="pub-text" rows={8} maxLength={5000} value={v.text} onChange={(e) => set({ text: e.target.value })}
               placeholder="Le texte tel qu'il sera publié. La première ligne sert de titre si le champ Titre est vide. Les #hashtags sont détectés."
-              className="text-sm p-3 rounded-md outline-none leading-relaxed resize-y" style={input} />
+              className="text-sm p-3 rounded-md outline-none leading-relaxed resize-y"
+              style={{ ...input, display: 'block', width: '100%', minHeight: 180, maxHeight: '50vh', boxSizing: 'border-box' }} />
             <div className="flex gap-3 text-[11px]" style={{ color: 'var(--text-muted)' }}>
               <span>{chars} caractères</span><span>{hashtags} hashtag{hashtags > 1 ? 's' : ''}</span>
               {pub?.payload?.original_text && <span className="ml-auto">Texte d’origine conservé dans l’historique</span>}

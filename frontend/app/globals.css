@@ -718,3 +718,5 @@ html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
 .theme-clair .btn-primary { background: var(--accent-press); color: #fafafa; border-color: var(--accent-press); }
 .theme-clair .btn-primary:hover { background: var(--accent-press-light); border-color: var(--accent-press-light); color: #fafafa; }
 .theme-clair input, .theme-clair textarea, .theme-clair select { color-scheme: light; }
+/* Le champ texte des publications ne doit jamais se réduire à rien (redimensionnement, règle globale, extension) */
+.theme-clair textarea#pub-text { display: block !important; min-height: 180px !important; visibility: visible !important; opacity: 1 !important; }
