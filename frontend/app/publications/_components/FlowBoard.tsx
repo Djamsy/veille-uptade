@@ -62,12 +62,14 @@ function Card({ p, busy, a }: { p: PendingPublication; busy: string; a: FlowActi
   const draft = st === 'pending' && p.source === 'sheet' && noMedia
 
   let primary: { label: string; style: React.CSSProperties; onClick: () => void; busyKey?: string; href?: string } | null = null
+  let secondary: { label: string; onClick: () => void } | null = null
   if (COL1.has(st)) {
     if (draft) primary = { label: 'Compléter', style: btnPrimary, onClick: () => a.edit(p) }
     else if (!linkOk) primary = { label: 'Renvoyer le lien', style: btnSecondary, onClick: () => a.resend(p), busyKey: 'resend' }
     else primary = { label: 'Modifier', style: btnSecondary, onClick: () => a.edit(p) }
   } else if (COL2.has(st)) {
     primary = { label: st === 'publish_failed' ? 'Réessayer' : 'Publier', style: btnPositive, onClick: () => a.publish(p), busyKey: 'publish' }
+    secondary = { label: 'Modifier', onClick: () => a.edit(p) }
   } else if (COL3.has(st)) {
     const url = p.publish?.url || p.seen?.best?.url
     primary = url ? { label: 'Voir le post', style: btnSecondary, onClick: () => window.open(url, '_blank', 'noopener'), href: url } : { label: 'Détail', style: btnSecondary, onClick: () => a.detail(p) }
@@ -114,6 +116,7 @@ function Card({ p, busy, a }: { p: PendingPublication; busy: string; a: FlowActi
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex gap-1.5 flex-wrap min-w-0">{statusLine}</div>
         <div className="ml-auto flex items-center gap-1.5 relative">
+          {secondary && <button type="button" onClick={secondary.onClick} className="text-xs font-semibold px-3 py-2 rounded-md whitespace-nowrap" style={btnSecondary}>{secondary.label}</button>}
           {primary && (
             <button type="button" onClick={primary.onClick} disabled={primary.busyKey ? b(primary.busyKey) : false}
               className="text-xs font-semibold px-3 py-2 rounded-md whitespace-nowrap" style={primary.style}>
@@ -125,7 +128,7 @@ function Card({ p, busy, a }: { p: PendingPublication; busy: string; a: FlowActi
             <div className="absolute right-0 top-9 z-30 min-w-[200px] py-1 rounded-md" style={{ ...card, boxShadow: 'var(--shadow-elevated)' }} onMouseLeave={() => setMenu(false)}>
               {[
                 { l: 'Détail et historique', f: () => a.detail(p), show: true },
-                { l: 'Modifier', f: () => a.edit(p), show: COL1.has(st) && !draft },
+                { l: 'Modifier', f: () => a.edit(p), show: (COL1.has(st) && !draft) || COL2.has(st) },
                 { l: 'Nouveau lien (copier)', f: () => a.newLink(p), show: COL1.has(st) },
                 { l: 'Renvoyer le lien aux validateurs', f: () => a.resend(p), show: COL1.has(st) },
                 { l: 'Révoquer le lien', f: () => a.revoke(p), show: st === 'pending' && p.token.active },

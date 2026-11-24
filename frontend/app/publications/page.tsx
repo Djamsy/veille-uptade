@@ -107,7 +107,8 @@ export default function PublicationsSpace() {
         const up = await uploadFiles(id, v.files)
         const changed = Array.from(new Set([...r.changed, ...(up.ok ? ['media+'] : [])]))
         let m = changed.length ? `Modifiée (${changed.join(', ')})` : 'Aucun changement'
-        if (resend) { const l = await regeneratePublicationLink(id, undefined, true); setIssued(l); m += ' · nouveau lien envoyé aux validateurs' }
+        if (r.revalidation) { const l = await regeneratePublicationLink(id, undefined, true); setIssued(l); m += ' · texte modifié après validation : renvoyée en validation, nouveau lien envoyé' }
+        else if (resend) { const l = await regeneratePublicationLink(id, undefined, true); setIssued(l); m += ' · nouveau lien envoyé aux validateurs' }
         setPanel(null)
         if (up.failed.length) setErr(`${m} ⚠️ ${up.failed.join(' | ')}`); else flash(m)
       }
@@ -313,7 +314,7 @@ export default function PublicationsSpace() {
               {(detail.audit ?? []).map((a, i) => <li key={i}>{fmt(a.at)} · {a.action}{a.actor && ` · ${a.actor}`}{a.detail && ` · ${a.detail}`}</li>)}
             </ul>
             <div className="mt-4 flex gap-2 justify-end">
-              {(detail.status === 'pending' || detail.status === 'expired') && <button type="button" className="text-sm px-3.5 py-2 rounded-md" style={btnSecondary} onClick={() => { const p = detail; setDetail(null); setPanel({ mode: 'edit', pub: p }) }}>Modifier</button>}
+              {(detail.status === 'pending' || detail.status === 'expired' || detail.status === 'approved' || detail.status === 'publish_failed') && <button type="button" className="text-sm px-3.5 py-2 rounded-md" style={btnSecondary} onClick={() => { const p = detail; setDetail(null); setPanel({ mode: 'edit', pub: p }) }}>Modifier</button>}
               <button type="button" className="text-sm underline" style={{ color: 'var(--text-muted)' }} onClick={() => setDetail(null)}>Fermer</button>
             </div>
           </div>

@@ -385,6 +385,12 @@ médiathèque de visuels pré-enregistrés alimentée par tout le monde, aperçu
 (`app/publications/_components/`) : Shell à onglets, FlowBoard, SubmitPanel (avec sélecteur de médiathèque), LibraryTab,
 SettingsTab ; page de validation refaite pour le téléphone (carrousel, aperçu post, barre de décision fixe).
 
+### Modifier une publication validée (2026-11-24)
+Djamsy : « quand on modifie on peut pas modifier le texte, c'est normal ? » — le texte d'une publication validée était
+verrouillé (le validateur l'avait approuvé). Règle adoptée : sur une Validée, médias et options modifiables sans
+conséquence ; un changement de texte ou de titre renvoie la publication en validation (décision retirée mais conservée au
+journal, lien révoqué, nouveau lien envoyé automatiquement). Publiée / refusée / annulée restent verrouillées.
+
 ---
 
 ## Conventions
